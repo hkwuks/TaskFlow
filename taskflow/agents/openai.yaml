@@ -1,0 +1,4 @@
+interface:
+  display_name: "TaskFlow"
+  short_description: "Run durable task-directory workflows"
+  default_prompt: "Use $taskflow to plan, execute, verify, and archive this task."
