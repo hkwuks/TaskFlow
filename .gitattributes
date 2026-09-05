@@ -1,0 +1,9 @@
+# Keep repository text files consistent across Windows, WSL, and Linux.
+* text=auto eol=lf
+
+# Preserve binary assets exactly as-is.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg text eol=lf
