@@ -1,63 +1,223 @@
+<div align="center">
+
 # TaskFlow
 
-TaskFlow 是一个参考公开 Agent 工作流理念、独立实现的任务文档与版本管理 Skill。
+### Durable task decisions for coding Agents.
 
-TaskFlow 的重点不是替代编码 Agent，也不强制指定头脑风暴、测试、审查或其他工具的具体流程。它只负责为开发任务提供稳定的文档结构、状态边界和版本记录，让工作在多次会话、多人或多个 Agent 之间仍然可追踪、可恢复、可复核。
+**Local Markdown. Explicit approvals. Recoverable design history.**
 
-## 解决什么问题
+[![Workflow: Skill](https://img.shields.io/badge/workflow-Skill-0f766e?style=for-the-badge)](taskflow/SKILL.md)
+[![Storage: Local Markdown](https://img.shields.io/badge/storage-local%20Markdown-1d4ed8?style=for-the-badge)](taskflow/references/artifacts.md)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-e11d48?style=for-the-badge)](LICENSE)
 
-- 需求、设计、计划和验证记录分散在聊天、临时文件或不同工具中；
-- 任务做到一半后，难以恢复上下文和判断当前状态；
-- 需求或设计变化后，旧方案被覆盖，无法说明何时、为何被替代；
-- 任务完成后，开发文档没有形成可复查的历史记录。
+[Get started](#get-started) · [Why TaskFlow](#the-problem) · [Compare tools](#where-taskflow-fits) · [中文](README.zh-CN.md)
 
-## 核心原则
+<img src="assets/taskflow-workflow.svg" alt="TaskFlow workflow: planning, ready, in progress, checking, completed; material changes archive the old version and return to approval." width="100%" />
 
-1. 一个任务对应一个目录，任务事实集中保存。
-2. `prd.md` 说明要做什么，`spec.md` 说明采用什么设计，`plan.md` 说明怎么做以及做到哪里。
-3. 小型任务可以省略 `spec.md`，不为形式创建空文件。
-4. 只有影响目标、范围、验收、架构、契约或风险决策的变化，才创建新的 Task version。
-5. 被替代的版本放在任务目录的 `old/vN/`，已完成任务整体移动到 `tasks/achieved/`。
-6. 其他 Skill 和工具是可选协作者；它们产出的任务材料应经过审阅后归入当前任务目录。
+</div>
 
-## 任务结构
+> [!IMPORTANT]
+> **TaskFlow is a workflow convention, not an Agent runtime.** It does not intercept prompts, tool calls, or model behavior. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
 
-```text
-tasks/
-├── YYYY-MM-DD-short-slug/
-│   ├── prd.md                         # 目标、需求、范围、验收
-│   ├── spec.md                        # 大型任务的设计与实现契约（可选）
-│   ├── plan.md                        # 步骤、状态、验证、风险、回滚
-│   ├── sessions.md                    # 跨会话或 Agent 交接信息（可选）
-│   ├── reference/                     # 调研和外部证据（可选）
-│   └── old/vN/                        # 被替代的逻辑版本（可选）
-└── achieved/<task-id>/                # 已完成任务的只读历史
-```
+<br />
 
-## 生命周期
+## The problem
+
+When an Agent ships code, the code is visible. The decisions that made it safe are often not.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Without a durable task record
 
 ```text
-planning → ready → in_progress → checking → completed
+chat → draft → edit → new chat → overwrite
+               ↑
+         "Which design was approved?"
 ```
 
-- `planning`：需求、证据或设计仍在澄清；
-- `ready`：当前版本的 PRD、Spec（如需）和 Plan 已完成，等待批准；
-- `in_progress`：用户批准后开始实施；
-- `checking`：实现完成，正在进行验收和质量复核；
-- `completed`：验收通过，任务目录可归档到 `tasks/achieved/`；
-- `blocked`：存在已记录的具体阻塞，等待输入或外部条件解除。
+- Requirements and design notes live in scattered chats.
+- A new session cannot recover the real state of work.
+- A requirement change overwrites the original proposal.
+- Git records line edits, but not necessarily the decision boundary.
+- Handoffs become another round of discovery.
 
-`ready` 不等于已批准。批准记录必须写入 `plan.md`，没有批准不得进入 `in_progress`。
+</td>
+<td width="50%" valign="top">
 
-## 版本管理
+### With TaskFlow
 
-TaskFlow 区分三种变化：
+```text
+task directory → approval → implementation
+      │               │
+      └ old/vN/ ◀─────┘  material change
+```
 
-- **工作修订**：错别字、链接、复选框、进度或测试结果更新，不增加版本；
-- **Task version**：目标、范围、验收、架构、接口、兼容性、风险或实现路径发生实质变化，递增 `vN` 并归档旧版本；
-- **Git history**：同一 Task version 内的机械编辑历史，不替代语义版本。
+- One directory holds requirements, design, plan, and verification.
+- States make progress and blockers explicit.
+- Material decisions create a recoverable Task version.
+- Markdown stays reviewable by people, Agents, and Git.
+- Handoffs resume from facts instead of memory.
 
-版本变化必须先保存旧版本，再同步更新所有现有核心文档，最后回到 `ready` 并重新获得批准。
+</td>
+</tr>
+</table>
 
+## The core idea
 
+```text
+tasks/YYYY-MM-DD-short-slug/
+├── prd.md          # what / why / scope / acceptance
+├── spec.md         # how / contracts / trade-offs       (large tasks only)
+├── plan.md         # approval / steps / verification / rollback
+├── sessions.md     # handoff and resume context         (optional)
+├── reference/      # evidence and research              (optional)
+└── old/vN/         # superseded logical versions         (optional)
+```
 
+TaskFlow deliberately uses plain files. A human can read them, an Agent can load them, Git can diff them, and your project does not need another service to keep its task history.
+
+<details>
+<summary><strong>Why not just rely on Git?</strong></summary>
+<br />
+
+Git is excellent at mechanical history. TaskFlow adds **semantic history**: a task version changes only when its goal, scope, acceptance, architecture, contract, compatibility, risk, or implementation path changes. The archived version answers what the previous proposal meant, not merely which lines changed.
+
+</details>
+
+## The non-invasive promise
+
+| TaskFlow adds | TaskFlow deliberately avoids |
+| --- | --- |
+| A shared `clarify → approve → implement → verify → archive` protocol | Runtime hooks, proxies, daemons, or API gateways |
+| Project-local Markdown as task facts | Hidden state in a hosted database or proprietary UI |
+| Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
+| A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
+
+Your Agent remains free to choose the right tools and implementation approach. TaskFlow only makes the surrounding agreement durable.
+
+## The one rule that prevents lost designs
+
+<div align="center">
+
+```text
+ordinary edit                 material decision change
+─────────────                 ────────────────────────
+keep current vN               archive vN → create vN+1 → return to ready → approve
+```
+
+</div>
+
+| This is a work revision | This creates a Task version |
+| --- | --- |
+| Typo, link, checkbox, progress, test result | Goal, scope, acceptance, architecture, contract, compatibility, risk, implementation path |
+| Update the current files | Preserve the old version under `old/vN/`, then update current files |
+| Git shows the edit | Git plus TaskFlow explain the decision |
+
+### A concrete recovery story
+
+```diff
+  tasks/2026-09-05-billing-export/
+  ├── prd.md                       # current v2: CSV export added
+  ├── spec.md                      # current v2 design
+  ├── plan.md                      # v2 approval + verification
++ └── old/v1/
++     ├── version.md               # why v1 was superseded
++     └── snapshot/                # v1 PRD / Spec / Plan recovery point
+```
+
+Someone changes the export requirement midway through implementation. Instead of rewriting the only design document, TaskFlow preserves `v1`, records why `v2` exists, and requires a new approval before implementation continues.
+
+## Lifecycle at a glance
+
+```mermaid
+stateDiagram-v2
+    [*] --> planning
+    planning --> ready: PRD / Spec / Plan complete
+    ready --> in_progress: explicit approval
+    in_progress --> checking: implementation complete
+    checking --> completed: acceptance passes
+    planning --> blocked
+    in_progress --> blocked
+    blocked --> planning: input or condition resolved
+    in_progress --> ready: material change / new version
+    completed --> [*]
+```
+
+| State | Meaning |
+| --- | --- |
+| `planning` | Requirements, evidence, or design are being clarified. |
+| `ready` | The current task documents are complete and waiting for approval. |
+| `in_progress` | The approved plan is being implemented. |
+| `checking` | Acceptance and quality checks are running. |
+| `completed` | Verification passed; archive as read-only history. |
+| `blocked` | A specific blocker is recorded with the required next input. |
+
+## Get started
+
+```text
+1. Add taskflow/ to your project's Agent Skills directory.
+
+2. Tell your Agent:
+   Use $taskflow to plan, execute, verify, and archive this task.
+
+3. Review prd.md, spec.md (when needed), and plan.md.
+
+4. Record approval. Then implement one planned step at a time.
+```
+
+> [!TIP]
+> A small, obvious one-file change can still be a direct change with minimal verification. TaskFlow does not create documents merely to satisfy a process.
+
+## Where TaskFlow fits
+
+TaskFlow is not trying to replace specification-driven development, role-based multi-agent methods, or project management. It covers a specific missing layer: **durable task facts, state boundaries, and recoverable decision history inside the repository.**
+
+| | TaskFlow | [Spec Kit](https://github.com/github/spec-kit) | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | Issue tracker / PM tool |
+| --- | --- | --- | --- | --- | --- |
+| **Primary concern** | Task state and semantic history | Spec-driven workflow | Configurable spec/change workflow | Role-based Agent methodology | Ownership and coordination |
+| **Core unit** | Local task directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
+| **Design recovery** | Explicit `old/vN/` archive | Adoption/repository dependent | Project/Git practice dependent | Workflow/repository dependent | Usually activity history only |
+| **Agent interaction** | Instructions only; no runtime interception | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
+| **Infrastructure** | Markdown + filesystem + Git | Adopted repository tooling | Adopted repository tooling | Method assets + adopted tooling | Usually a hosted service |
+| **Use it with TaskFlow?** | — | Generate specs, then route reviewed task facts into TaskFlow | Route reviewed specs/changes into TaskFlow | Keep role outputs as reviewed task references | Link a ticket to its task directory |
+
+### Choose the right layer
+
+<table>
+<tr><td><strong>Choose TaskFlow</strong></td><td>You lose task context, overwrite designs, or struggle to resume work across sessions and Agents.</td></tr>
+<tr><td><strong>Choose Spec Kit / OpenSpec</strong></td><td>You primarily need a broad or configurable spec-driven development workflow.</td></tr>
+<tr><td><strong>Choose BMAD-METHOD</strong></td><td>You need a role-based multi-Agent delivery methodology.</td></tr>
+<tr><td><strong>Choose an issue tracker</strong></td><td>You need prioritization, ownership, deadlines, and reports.</td></tr>
+<tr><td><strong>Combine them</strong></td><td>Use external tools to coordinate work; use TaskFlow to preserve the decisions that make it recoverable.</td></tr>
+</table>
+
+> [!NOTE]
+> This is a positioning comparison, not a benchmark or a claim of feature parity. Check each project's current documentation before adoption.
+
+## Guardrails, not bureaucracy
+
+| Principle | In practice |
+| --- | --- |
+| **One task, one source of truth** | Keep the active task facts in one task directory. |
+| **Lightest useful artifact** | Omit `spec.md` for a small, self-contained task. |
+| **Archive before replace** | Capture the old logical version before a material update. |
+| **Approval is explicit** | `ready` never silently becomes `in_progress`. |
+| **Verification is a fact** | Record what was checked and the result in `plan.md`. |
+| **Tools stay optional** | Other Skills can contribute; reviewed task artifacts remain authoritative. |
+
+## Project map
+
+```text
+taskflow/
+├── SKILL.md                         # workflow entry point
+├── agents/openai.yaml               # display metadata and default prompt
+└── references/
+    ├── artifacts.md                 # templates and output routing
+    └── versioning-and-recovery.md   # semantic versions and safe restoration
+```
+
+## License
+
+Distributed under [AGPL-3.0](LICENSE).
