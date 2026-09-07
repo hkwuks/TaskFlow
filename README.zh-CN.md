@@ -134,9 +134,9 @@ stateDiagram-v2
 2. 对 Agent 说：
    使用 $taskflow 规划、执行、验证并归档这个任务。
 
-3. 审阅 prd.md、必要时的 spec.md 和 plan.md。
+3. 将想法记录到 `TaskFlowDocs/todo.md`；澄清后的条目再提升为 `prd.md`、按需的 `spec.md` 和 `plan.md`。
 
-4. 记录批准，再逐步实施并记录验证结果。
+4. 审阅任务文档并记录批准，再按每个步骤的 checklist 实施和记录验证结果。
 ```
 
 > [!TIP]

@@ -176,9 +176,9 @@ stateDiagram-v2
 2. Tell your Agent:
    Use $taskflow to plan, execute, verify, and archive this task.
 
-3. Review prd.md, spec.md (when needed), and plan.md.
+3. Add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`, `spec.md` (when needed), and `plan.md`.
 
-4. Record approval. Then implement one planned step at a time.
+4. Review the task documents, record approval, then implement one planned step at a time using its checklist.
 ```
 
 > [!TIP]
