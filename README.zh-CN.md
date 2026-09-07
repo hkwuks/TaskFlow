@@ -55,6 +55,10 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 用户对已批准任务提出修正或新增要求时，TaskFlow 必须先分类再修改文档：实质变化归档当前版本、同步全部核心文档并回到批准门禁；普通工作修订只更新受影响记录。不得带着过期 Plan 继续实施。
 
+## Todo 收件箱
+
+`TaskFlowDocs/todo.md` 是唯一的轻量待办收件箱，用于记录想法和请求。条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进：提升后创建任务目录中的 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。提升后的 Todo 只保留元数据和任务链接。每个 Plan Step 都必须有复选清单，必选项全部完成且通过聚焦验证后才能标记 `done`。
+
 <details>
 <summary><strong>为什么不能只依赖 Git？</strong></summary>
 <br />

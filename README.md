@@ -88,6 +88,10 @@ If an applicable rule is missing, TaskFlow pauses implementation and guides the 
 
 Any user correction or addition to an approved task is classified before documents change. Material changes archive the current version, synchronize every core document, and return to approval; minor work revisions update only affected records. TaskFlow never continues implementation using an outdated plan.
 
+## Todo intake
+
+`TaskFlowDocs/todo.md` is the single lightweight inbox for ideas and requests. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`. The inbox retains only metadata and the task link after promotion. Every Plan Step has a checkbox checklist, and cannot be `done` until required items and focused verification pass.
+
 <details>
 <summary><strong>Why not just rely on Git?</strong></summary>
 <br />

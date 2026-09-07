@@ -17,6 +17,8 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 Repository standards live at `TaskFlowDocs/standards/index.md`. Before planning or implementing a non-trivial task, inspect that index and load only linked standards applicable to the task or phase. If the index or an applicable standard is missing, incomplete, or not explicitly waived, use the standards bootstrap below before implementation.
 
+The repository Todo inbox is `TaskFlowDocs/todo.md`. It is a triage source only, not a second source of task facts. Promoted items link to exactly one `TaskFlowDocs/<task-id>/` directory, where PRD, Spec, Plan, and verification become authoritative.
+
 Required artifacts:
 
 - `prd.md` — goal, requirements, scope, and observable acceptance criteria.
@@ -29,7 +31,7 @@ Conditional artifacts:
 - `sessions.md` — optional session/resume index when work spans sessions or agents.
 - `old/vN/` — only for a superseded logical version.
 
-Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, `TaskFlowDocs/todo.md`, or an automatic review file for the same task unless the project explicitly defines one.
+Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, or an automatic review file for the same task. `TaskFlowDocs/todo.md` is the sole repository Todo inbox; it contains triage metadata only and never duplicates promoted task facts.
 
 ## Triage and lifecycle
 
@@ -48,6 +50,12 @@ Classify the change. For a material change, archive the current Task version, up
 When applicable repository standards are missing or incomplete, pause implementation and guide the user to define them. Ask no more than three dependency-ordered questions per turn, with a recommendation for each. Use this order unless the task makes another order necessary: development process, code, commits/PR, then design. Ask only for categories applicable to the task.
 
 After the user confirms, create only the selected files under `TaskFlowDocs/standards/` and link them from `index.md`. Each file must define its scope, rules, verification method, and exceptions/change control. `commits.md` must additionally define commit format and PR checks. If the user explicitly waives an applicable category, record the waiver in `index.md` and the task `plan.md`; do not create an empty file.
+
+### Todo → PRD → Spec → Plan
+
+Use `TaskFlowDocs/todo.md` for ideas and requests that are not ready for planning. Maintain each item with an ID, status, priority, owner, source, one-sentence goal, task link, next action, and update date. Move it through `inbox → clarified → promoted → in_progress → done/cancelled`.
+
+Keep an item in `inbox` while its intent is unknown. Move it to `clarified` only after goal, scope, acceptance, dependencies, size, and applicable standards are explicit. On promotion, create `prd.md`, decide whether `spec.md` is required, create `plan.md`, and link the task path back in the Todo item. Do not duplicate requirements or design in the inbox. Enter `in_progress` only after Plan approval; mark `done` only after task acceptance and verification, or `cancelled` with a reason.
 
 Choose the lightest path that preserves traceability:
 
@@ -116,7 +124,7 @@ For a large task, `spec.md` records architecture boundaries, responsibilities, d
 
 ### 4. Plan — execution contract
 
-Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs/plan.md` or `TaskFlowDocs/todo.md` into this task's `plan.md`. Each Step should include:
+Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs/plan.md` into this task's `plan.md`; retain unpromoted Todo intake in `TaskFlowDocs/todo.md`. Each Step should include:
 
 - goal;
 - dependencies;
@@ -126,6 +134,8 @@ Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs
 - focused verification command or manual check;
 - rollback point;
 - status: `pending | in_progress | done | blocked`.
+
+The `Implementation checklist` is a checkbox list, not prose. A Step cannot be marked `done` until every required checkbox is checked and focused verification passes.
 
 Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If a Skill or tool was used, record its name, purpose, and incorporated conclusion in `Skills / Tools Used`. Do not record unused-capability checks.
 

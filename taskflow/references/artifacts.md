@@ -6,6 +6,8 @@ Repository standards are indexed at `TaskFlowDocs/standards/index.md`. Load only
 
 If an applicable standard is missing, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected files and link them from `index.md`; record explicit waivers. Each standards file includes scope, rules, verification, and exceptions/change control. `commits.md` also includes commit format and PR checks.
 
+The single repository Todo inbox is `TaskFlowDocs/todo.md`. It stores triage metadata and a link to the promoted task; PRD, Spec, Plan, and verification remain authoritative in that task directory.
+
 When a user changes an approved task fact, classify it before editing artifacts. A material correction (goal, requirement, acceptance, scope, design, standard, compatibility, risk, or implementation path) archives `vN`, synchronizes all existing core documents as `vN+1`, and returns to approval. A work revision updates only affected documents and is recorded in `plan.md`. Never update only one core document after a material user change.
 
 ## Minimal layout
@@ -76,6 +78,9 @@ TaskFlowDocs/
 - Goal:
 - Dependencies:
 - Files:
+- Implementation checklist:
+  - [ ] <implementation item>
+  - [ ] <documentation / test / review item>
 - Acceptance:
 - Verification:
 - Rollback:
@@ -92,11 +97,14 @@ TaskFlowDocs/
 |---|---|
 | requirements / PRD | `prd.md` |
 | design / specification | `spec.md` when required |
-| plan / task list / todo / checkpoint / review | `plan.md` |
+| plan / task list / checkpoint / review | `plan.md` |
+| unpromoted Todo intake | `TaskFlowDocs/todo.md` |
 | research / evidence | `reference/` |
 | resume index | `sessions.md` |
 
 If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative.
+
+Mark a Step `done` only when every required `Implementation checklist` item is checked and focused verification passes. Todo items move through `inbox`, `clarified`, `promoted`, `in_progress`, `done`, or `cancelled`; after promotion, they retain only lifecycle metadata and one task-directory link.
 
 When a Skill or tool is used, add one concise entry to `plan.md` with its name, purpose, and incorporated conclusion. Do not record checks that led to no tool use. Tool output is candidate material until the core-document owner reviews and merges it.
 
