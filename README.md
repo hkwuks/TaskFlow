@@ -95,7 +95,7 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
-Your Agent remains free to choose the right tools and implementation approach. TaskFlow only makes the surrounding agreement durable.
+During clarification, PRD, Spec, Plan, research, and review work, the Agent checks its currently available capabilities and uses those that materially help. TaskFlow does not prescribe a tool, vendor, Skill family, or invocation mechanism; it makes reviewed, incorporated task facts and the surrounding agreement durable.
 
 ## The one rule that prevents lost designs
 

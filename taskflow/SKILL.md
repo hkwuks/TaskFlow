@@ -5,7 +5,7 @@ description: "Manage a task through the project's task-directory workflow: clari
 
 # TaskFlow
 
-Use this skill as the single entry point for the project's task framework. It defines where task facts live and how work moves through the lifecycle. Other Skills and tools are optional collaborators; when used, their task outputs should be routed into the current task directory.
+Use this skill as the single entry point for the project's task framework. It defines where task facts live and how work moves through the lifecycle. TaskFlow does not select tools: during clarification, PRD, Spec, Plan, research, and review work, first check the capabilities currently available to the Agent and use any that materially help. Review and route only incorporated task facts into the current task directory.
 
 ## Source of truth
 
@@ -39,6 +39,8 @@ Choose the lightest path that preserves traceability:
 small, obvious one-file change → direct change + minimal verification
 non-trivial task              → planning workflow below
 ```
+
+Checking available capabilities does not require invoking one or recording an empty result. TaskFlow does not name a required tool, vendor, Skill family, or invocation mechanism.
 
 For a non-trivial task:
 
@@ -107,7 +109,7 @@ Create or update `plan.md`. Route generic planning outputs such as `tasks/plan.m
 - rollback point;
 - status: `pending | in_progress | done | blocked`.
 
-Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If other Skills or tools were used, optionally record their names and role.
+Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If a Skill or tool was used, record its name, purpose, and incorporated conclusion in `Skills / Tools Used`. Do not record unused-capability checks.
 
 Record approval as:
 
@@ -125,7 +127,7 @@ After approval, read `prd.md`, `spec.md` if present, `reference/` if present, an
 
 If a requirement, design, contract, or risk changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval.
 
-If another tool or Skill creates files, review and route them before treating them as task facts. Do not let automation skip approval, expand scope, delete history, or write secrets.
+If another tool or Skill creates files or conclusions, review and route only incorporated facts before treating them as task facts. Do not let automation skip approval, expand scope, delete history, or write secrets.
 
 ### 6. Verify and review
 

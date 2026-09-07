@@ -62,6 +62,7 @@ tasks/
 ## Reference Pointers
 ## Related Tasks
 ## Skills / Tools Used (Optional)
+- `<name>` — purpose: `<why it was used>`; incorporated: `<conclusion or None>`
 ## Preconditions
 ## Approval
 ## Steps
@@ -90,6 +91,8 @@ tasks/
 | resume index | `sessions.md` |
 
 If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative.
+
+When a Skill or tool is used, add one concise entry to `plan.md` with its name, purpose, and incorporated conclusion. Do not record checks that led to no tool use. Tool output is candidate material until the core-document owner reviews and merges it.
 
 ## Related tasks
 
