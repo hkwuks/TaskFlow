@@ -86,6 +86,8 @@ Before a non-trivial task is planned or implemented, TaskFlow reads the index an
 
 If an applicable rule is missing, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only the selected standards files and links them from the index; explicit waivers are recorded instead of empty files. A material standards change follows the same version archive and re-approval gate as any other task-contract change.
 
+Any user correction or addition to an approved task is classified before documents change. Material changes archive the current version, synchronize every core document, and return to approval; minor work revisions update only affected records. TaskFlow never continues implementation using an outdated plan.
+
 <details>
 <summary><strong>Why not just rely on Git?</strong></summary>
 <br />

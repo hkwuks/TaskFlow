@@ -6,6 +6,8 @@ Repository standards are indexed at `TaskFlowDocs/standards/index.md`. Load only
 
 If an applicable standard is missing, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected files and link them from `index.md`; record explicit waivers. Each standards file includes scope, rules, verification, and exceptions/change control. `commits.md` also includes commit format and PR checks.
 
+When a user changes an approved task fact, classify it before editing artifacts. A material correction (goal, requirement, acceptance, scope, design, standard, compatibility, risk, or implementation path) archives `vN`, synchronizes all existing core documents as `vN+1`, and returns to approval. A work revision updates only affected documents and is recorded in `plan.md`. Never update only one core document after a material user change.
+
 ## Minimal layout
 
 ```text

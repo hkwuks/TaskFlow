@@ -37,6 +37,12 @@ First inspect the repository, `TaskFlowDocs/standards/index.md` when present, ap
 
 When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Route reviewed conclusions into `TaskFlowDocs/standards/index.md` or a linked standards note. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
 
+### User-change trigger
+
+Treat a user message that corrects, rejects, adds to, or materially changes an approved goal, requirement, acceptance criterion, scope, design, standard, compatibility decision, risk, or implementation path as a change event. Stop the current phase immediately. Do not update only the document named by the user or continue under stale PRD, Spec, or Plan facts.
+
+Classify the change. For a material change, archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. For a work revision, synchronize only affected current documents and record the revision in `plan.md`. A completed task is read-only: create a related task unless the user explicitly authorizes reopening, then record the reason before changing it.
+
 ### Standards bootstrap
 
 When applicable repository standards are missing or incomplete, pause implementation and guide the user to define them. Ask no more than three dependency-ordered questions per turn, with a recommendation for each. Use this order unless the task makes another order necessary: development process, code, commits/PR, then design. Ask only for categories applicable to the task.
