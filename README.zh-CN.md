@@ -34,7 +34,7 @@ Agent 可以很快交付代码，但代码背后的决策经常留不住：
 ## 核心模型
 
 ```text
-tasks/YYYY-MM-DD-short-slug/
+TaskFlowDocs/YYYY-MM-DD-short-slug/
 ├── prd.md          # 做什么 / 为什么 / 范围 / 验收
 ├── spec.md         # 怎么做 / 契约 / 取舍       （大型任务才需要）
 ├── plan.md         # 批准 / 步骤 / 验证 / 回滚
@@ -44,6 +44,14 @@ tasks/YYYY-MM-DD-short-slug/
 ```
 
 这些文件刻意保持朴素：人能阅读，Agent 能加载，Git 能 diff，项目无需额外服务即可保存历史。
+
+## 仓库规范
+
+仓库自身的规则从 `TaskFlowDocs/standards/index.md` 开始。只链接本仓库实际采用的规范，例如 `code.md`、`commits.md`、`design.md` 和 `development.md`；不存在或未链接的规范即视为不适用。
+
+规划或实施非简单任务前，TaskFlow 会读取索引及适用规范。工作面向 PR 或 Git 远程仓库时，还会发现可访问的贡献指南、PR 模板、CODEOWNERS、分支/CI 规则和平台元数据。发现结果经审阅后才记录到本地；TaskFlow 不覆盖本地规范、不要求平台 API，也不会复制密钥等敏感信息。
+
+如果适用规范缺失，TaskFlow 会暂停实施，每次最多按依赖顺序询问三个问题并给出建议。用户确认后才创建选定的规范文件并链接到索引；明确豁免则记录豁免，不创建空文件。规范契约的实质变化同样必须先归档旧 Task version、重新批准后才能继续。
 
 <details>
 <summary><strong>为什么不能只依赖 Git？</strong></summary>
@@ -73,7 +81,7 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 ```
 
 ```diff
-  tasks/2026-09-05-billing-export/
+  TaskFlowDocs/2026-09-05-billing-export/
   ├── prd.md                       # 当前 v2
   ├── spec.md                      # 当前 v2 设计
   ├── plan.md                      # v2 批准与验证
@@ -135,7 +143,7 @@ TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，
 | | TaskFlow | [Spec Kit](https://github.com/github/spec-kit) | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | Issue / 项目管理工具 |
 | --- | --- | --- | --- | --- | --- |
 | **主要关注** | 任务状态与语义历史 | 规范驱动开发流程 | 可配置的规范/变更流程 | 角色化 Agent 方法论 | 负责人和任务协调 |
-| **核心单元** | 本地任务目录 | Spec 与工作流产物 | Spec 与 change 产物 | Agent、角色与工作流 | Ticket、Card、Issue |
+| **核心单元** | 本地 TaskFlowDocs 目录 | Spec 与工作流产物 | Spec 与 change 产物 | Agent、角色与工作流 | Ticket、Card、Issue |
 | **设计恢复** | 明确的 `old/vN/` 归档 | 取决于仓库和采用的流程 | 取决于项目配置与 Git 实践 | 取决于所选流程和仓库历史 | 通常只有活动记录 |
 | **Agent 交互** | 仅 Skill 指令，不拦截运行时 | 工具/工作流约定 | 可配置工作流约定 | 角色与编排模式 | 通常在 Agent 上下文之外 |
 | **基础设施** | Markdown + 文件系统 + Git | 仓库文件与配套工具 | 仓库文件与配套工具 | 方法论资产与配套工具 | 通常是托管服务 |

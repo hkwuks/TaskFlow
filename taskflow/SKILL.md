@@ -12,8 +12,10 @@ Use this skill as the single entry point for the project's task framework. It de
 For an active task, the task directory is:
 
 ```text
-tasks/YYYY-MM-DD-short-slug/
+TaskFlowDocs/YYYY-MM-DD-short-slug/
 ```
+
+Repository standards live at `TaskFlowDocs/standards/index.md`. Before planning or implementing a non-trivial task, inspect that index and load only linked standards applicable to the task or phase. If the index or an applicable standard is missing, incomplete, or not explicitly waived, use the standards bootstrap below before implementation.
 
 Required artifacts:
 
@@ -27,11 +29,19 @@ Conditional artifacts:
 - `sessions.md` — optional session/resume index when work spans sessions or agents.
 - `old/vN/` — only for a superseded logical version.
 
-Never create a second task fact source such as a root `SPEC.md`, `tasks/plan.md`, `tasks/todo.md`, or an automatic review file for the same task unless the project explicitly defines one.
+Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, `TaskFlowDocs/todo.md`, or an automatic review file for the same task unless the project explicitly defines one.
 
 ## Triage and lifecycle
 
-First inspect the repository, applicable project rules, existing tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+First inspect the repository, `TaskFlowDocs/standards/index.md` when present, applicable project rules, existing TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+
+When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Route reviewed conclusions into `TaskFlowDocs/standards/index.md` or a linked standards note. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
+
+### Standards bootstrap
+
+When applicable repository standards are missing or incomplete, pause implementation and guide the user to define them. Ask no more than three dependency-ordered questions per turn, with a recommendation for each. Use this order unless the task makes another order necessary: development process, code, commits/PR, then design. Ask only for categories applicable to the task.
+
+After the user confirms, create only the selected files under `TaskFlowDocs/standards/` and link them from `index.md`. Each file must define its scope, rules, verification method, and exceptions/change control. `commits.md` must additionally define commit format and PR checks. If the user explicitly waives an applicable category, record the waiver in `index.md` and the task `plan.md`; do not create an empty file.
 
 Choose the lightest path that preserves traceability:
 
@@ -50,12 +60,12 @@ planning → ready → in_progress → checking → completed
     └──────── blocked ◄────────┘
 ```
 
-- `planning`: requirements, evidence, or design are still being clarified.
+- `planning`: requirements, evidence, design, or applicable standards are still being clarified.
 - `ready`: PRD, required Spec, and Plan are complete and awaiting user approval.
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
 - `blocked`: a concrete blocker is recorded with reproduction, attempts, and needed input; resume the prior phase when cleared.
-- `completed`: acceptance and verification passed. Then move the entire task directory to `tasks/achieved/<task-id>/`.
+- `completed`: acceptance and verification passed. Then move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`.
 
 `ready` is not approval. Do not implement until approval is recorded in `plan.md`.
 
@@ -72,6 +82,8 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - in-scope and out-of-scope work;
 - risks, deferred items, and only blocking open questions;
 - current Task version and version history.
+
+Record which repository standards were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
 
@@ -98,7 +110,7 @@ For a large task, `spec.md` records architecture boundaries, responsibilities, d
 
 ### 4. Plan — execution contract
 
-Create or update `plan.md`. Route generic planning outputs such as `tasks/plan.md` or `tasks/todo.md` into this task's `plan.md`. Each Step should include:
+Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs/plan.md` or `TaskFlowDocs/todo.md` into this task's `plan.md`. Each Step should include:
 
 - goal;
 - dependencies;
@@ -127,6 +139,8 @@ After approval, read `prd.md`, `spec.md` if present, `reference/` if present, an
 
 If a requirement, design, contract, or risk changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval.
 
+The same rule applies when the standards contract changes materially: archive the prior Task version first, update `prd.md`, `spec.md`, and `plan.md` atomically, return to `ready`, and obtain approval before implementation. Never extend a `completed` task in place.
+
 If another tool or Skill creates files or conclusions, review and route only incorporated facts before treating them as task facts. Do not let automation skip approval, expand scope, delete history, or write secrets.
 
 ### 6. Verify and review
@@ -145,11 +159,11 @@ Record each command and result in `plan.md`. Distinguish pre-existing failures, 
 
 ### 7. Complete and archive
 
-Before moving the task to `tasks/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, then move the entire directory. Keep `old/` history. Treat achieved tasks as read-only; create a related new task for new goals, or reopen only with user confirmation and a recorded reason.
+Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, then move the entire directory. Keep `old/` history. Treat achieved tasks as read-only; create a related new task for new goals, or reopen only with user confirmation and a recorded reason.
 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 
-Publishing, merging, deployment, or delivery processes managed by other tools are external to this framework. They may be not applicable and do not replace `completed` or `tasks/achieved/`.
+Publishing, merging, deployment, or delivery processes managed by other tools are external to this framework. They may be not applicable and do not replace `completed` or `TaskFlowDocs/achieved/`.
 
 ## Sessions and collaboration
 
@@ -182,4 +196,4 @@ Before declaring a task complete, confirm:
 - [ ] Every Step has acceptance, verification, and rollback information.
 - [ ] Validation results and failure classification are in `plan.md`.
 - [ ] Scope, sensitive-data, and concurrent-write checks passed.
-- [ ] Completion gates passed before moving to `tasks/achieved/`.
+- [ ] Completion gates passed before moving to `TaskFlowDocs/achieved/`.

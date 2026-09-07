@@ -67,7 +67,7 @@ task directory → approval → implementation
 ## The core idea
 
 ```text
-tasks/YYYY-MM-DD-short-slug/
+TaskFlowDocs/YYYY-MM-DD-short-slug/
 ├── prd.md          # what / why / scope / acceptance
 ├── spec.md         # how / contracts / trade-offs       (large tasks only)
 ├── plan.md         # approval / steps / verification / rollback
@@ -77,6 +77,14 @@ tasks/YYYY-MM-DD-short-slug/
 ```
 
 TaskFlow deliberately uses plain files. A human can read them, an Agent can load them, Git can diff them, and your project does not need another service to keep its task history.
+
+## Repository standards
+
+Repository-owned rules start at `TaskFlowDocs/standards/index.md`. Link only the rules the repository uses, such as `code.md`, `commits.md`, `design.md`, and `development.md`; a missing or unlinked rule is simply not applicable.
+
+Before a non-trivial task is planned or implemented, TaskFlow reads the index and applicable rules. For work targeting a pull request or Git remote, it also discovers available contribution guides, PR templates, CODEOWNERS, branch/CI rules, and accessible host metadata. Findings are reviewed before being recorded locally; TaskFlow does not overwrite local rules, require a provider API, or copy secrets.
+
+If an applicable rule is missing, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only the selected standards files and links them from the index; explicit waivers are recorded instead of empty files. A material standards change follows the same version archive and re-approval gate as any other task-contract change.
 
 <details>
 <summary><strong>Why not just rely on Git?</strong></summary>
@@ -118,7 +126,7 @@ keep current vN               archive vN → create vN+1 → return to ready →
 ### A concrete recovery story
 
 ```diff
-  tasks/2026-09-05-billing-export/
+  TaskFlowDocs/2026-09-05-billing-export/
   ├── prd.md                       # current v2: CSV export added
   ├── spec.md                      # current v2 design
   ├── plan.md                      # v2 approval + verification
@@ -177,7 +185,7 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 | | TaskFlow | [Spec Kit](https://github.com/github/spec-kit) | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | [BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD) | Issue tracker / PM tool |
 | --- | --- | --- | --- | --- | --- |
 | **Primary concern** | Task state and semantic history | Spec-driven workflow | Configurable spec/change workflow | Role-based Agent methodology | Ownership and coordination |
-| **Core unit** | Local task directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
+| **Core unit** | Local TaskFlowDocs directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
 | **Design recovery** | Explicit `old/vN/` archive | Adoption/repository dependent | Project/Git practice dependent | Workflow/repository dependent | Usually activity history only |
 | **Agent interaction** | Instructions only; no runtime interception | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
 | **Infrastructure** | Markdown + filesystem + Git | Adopted repository tooling | Adopted repository tooling | Method assets + adopted tooling | Usually a hosted service |

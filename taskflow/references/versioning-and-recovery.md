@@ -69,6 +69,6 @@ If interrupted, retain the old version and mark the task `blocked`; do not leave
 
 ## Safe completion and reopening
 
-Before moving a task to `tasks/achieved/`, confirm no agent is writing core documents, external references are known, and the move is authorized. The achieved directory is read-only history. New goals become new related tasks; reopening an incomplete task requires user confirmation and a `reopen` reason in `plan.md`.
+Before moving a task to `TaskFlowDocs/achieved/`, confirm no agent is writing core documents, external references are known, and the move is authorized. The achieved directory is read-only history. New goals become new related tasks; reopening an incomplete task requires user confirmation and a `reopen` reason in `plan.md`.
 
 After moving the directory, update known cross-task references and the task artifact path in `sessions.md`. Keep the code working directory separate from the task artifact directory because only the latter changes during archive.

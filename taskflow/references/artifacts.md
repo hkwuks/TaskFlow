@@ -1,11 +1,15 @@
 # Task artifacts and routing
 
-Use this reference when creating or reviewing task documents. The task directory is `tasks/<YYYY-MM-DD-short-slug>/`.
+Use this reference when creating or reviewing task documents. The task directory is `TaskFlowDocs/<YYYY-MM-DD-short-slug>/`.
+
+Repository standards are indexed at `TaskFlowDocs/standards/index.md`. Load only linked standards that apply; record applicable files and any reviewed remote PR rules in `plan.md`.
+
+If an applicable standard is missing, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected files and link them from `index.md`; record explicit waivers. Each standards file includes scope, rules, verification, and exceptions/change control. `commits.md` also includes commit format and PR checks.
 
 ## Minimal layout
 
 ```text
-tasks/
+TaskFlowDocs/
 └── YYYY-MM-DD-short-slug/
     ├── prd.md
     ├── spec.md       # large tasks only
