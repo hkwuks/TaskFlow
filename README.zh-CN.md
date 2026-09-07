@@ -47,9 +47,9 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 ## 仓库规范
 
-仓库自身的规则从 `TaskFlowDocs/standards/index.md` 开始。只链接本仓库实际采用的规范，例如 `code.md`、`commits.md`、`design.md` 和 `development.md`；不存在或未链接的规范即视为不适用。
+仓库文档统一目录是 `TaskFlowDocs/repository-docs/index.md`，仓库规则入口是 `TaskFlowDocs/repository-docs/standards/index.md`。目录统一导航已有 README、贡献指南、代码规范、发布、路线图、PR 和 CI 文档，但不复制源文件内容。
 
-规划或实施非简单任务前，TaskFlow 会读取索引及适用规范。工作面向 PR 或 Git 远程仓库时，还会发现可访问的贡献指南、PR 模板、CODEOWNERS、分支/CI 规则和平台元数据。发现结果经审阅后才记录到本地；TaskFlow 不覆盖本地规范、不要求平台 API，也不会复制密钥等敏感信息。
+规划或实施非简单任务前，TaskFlow 仅在目录缺失、过期或任务需要未编目的文档类型时刷新目录，然后读取任务阶段适用的文档。安全支持时使用相对软链接，否则目录中的相对路径仍可跨平台使用。工作面向 PR 或 Git 远程仓库时，还会发现可访问的贡献指南、PR 模板、CODEOWNERS、分支/CI 规则和平台元数据。发现结果经审阅后才记录到本地；TaskFlow 不覆盖本地规范、不要求平台 API，也不会复制密钥等敏感信息。
 
 如果适用规范缺失，TaskFlow 会暂停实施，每次最多按依赖顺序询问三个问题并给出建议。用户确认后才创建选定的规范文件并链接到索引；明确豁免则记录豁免，不创建空文件。规范契约的实质变化同样必须先归档旧 Task version、重新批准后才能继续。
 

@@ -15,7 +15,7 @@ For an active task, the task directory is:
 TaskFlowDocs/YYYY-MM-DD-short-slug/
 ```
 
-Repository standards live at `TaskFlowDocs/standards/index.md`. Before planning or implementing a non-trivial task, inspect that index and load only linked standards applicable to the task or phase. If the index or an applicable standard is missing, incomplete, or not explicitly waived, use the standards bootstrap below before implementation.
+Repository documents are cataloged at `TaskFlowDocs/repository-docs/index.md`; repository standards live at `TaskFlowDocs/repository-docs/standards/index.md`. Before planning or implementing a non-trivial task, inspect the catalog and standards index, then load only linked standards applicable to the task or phase. If the catalog or an applicable standard is missing, incomplete, or not explicitly waived, use the document-environment and standards-bootstrap rules below before implementation.
 
 The repository Todo inbox is `TaskFlowDocs/todo.md`. It is a triage source only, not a second source of task facts. Promoted items link to exactly one `TaskFlowDocs/<task-id>/` directory, where PRD, Spec, Plan, and verification become authoritative.
 
@@ -35,9 +35,17 @@ Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/p
 
 ## Triage and lifecycle
 
-First inspect the repository, `TaskFlowDocs/standards/index.md` when present, applicable project rules, existing TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+First inspect the repository, `TaskFlowDocs/repository-docs/index.md`, `TaskFlowDocs/repository-docs/standards/index.md`, applicable project rules, existing TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
 
-When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Route reviewed conclusions into `TaskFlowDocs/standards/index.md` or a linked standards note. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
+When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Route reviewed conclusions into `TaskFlowDocs/repository-docs/standards/index.md` or a linked standards note. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
+
+### Repository document environment
+
+`TaskFlowDocs/repository-docs/index.md` is derived navigation, not a source of rules. Before non-trivial work, refresh its catalog only when it is absent, stale, or the task phase needs a document class not cataloged. Discover README, contributing, code style, release, roadmap, code of conduct, PR template, CODEOWNERS, branch/CI, and standards documents. Record each class, repository-relative source path, access mode (`symlink` or `index`), existence, and last-checked date. Add an unrecognized candidate document only after user confirmation.
+
+Use a relative symbolic link only when its source exists inside the repository and both platform and Git support links. Otherwise, retain a usable repository-relative path in the catalog; never copy source contents or create a fake link. Source documents are authoritative. Refresh the catalog after their addition, removal, move, or relevant change. If a changed source rule affects approved work, apply the user-change trigger before continuing.
+
+Select documents by phase: code work uses code style and contributing guidance; commits/PRs use contributing, commit rules, PR templates, CODEOWNERS, and branch/CI rules; design/API/UX work uses design standards, architecture guidance, and relevant README behavior; release work uses release/changelog guidance; roadmap work uses roadmap and README. Record applicable documents and incorporated conclusions in the task `plan.md`. Missing document classes are informational unless the task needs a repository rule that is absent, in which case use the standards bootstrap.
 
 ### User-change trigger
 
@@ -49,7 +57,7 @@ Classify the change. For a material change, archive the current Task version, up
 
 When applicable repository standards are missing or incomplete, pause implementation and guide the user to define them. Ask no more than three dependency-ordered questions per turn, with a recommendation for each. Use this order unless the task makes another order necessary: development process, code, commits/PR, then design. Ask only for categories applicable to the task.
 
-After the user confirms, create only the selected files under `TaskFlowDocs/standards/` and link them from `index.md`. Each file must define its scope, rules, verification method, and exceptions/change control. `commits.md` must additionally define commit format and PR checks. If the user explicitly waives an applicable category, record the waiver in `index.md` and the task `plan.md`; do not create an empty file.
+After the user confirms, create only the selected files under `TaskFlowDocs/repository-docs/standards/` and link them from its `index.md`. Each file must define its scope, rules, verification method, and exceptions/change control. `commits.md` must additionally define commit format and PR checks. If the user explicitly waives an applicable category, record the waiver in `index.md` and the task `plan.md`; do not create an empty file.
 
 ### Todo → PRD → Spec → Plan
 
