@@ -1,0 +1,17 @@
+{
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Claude Code).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+            "shell": "bash"
+          }
+        ]
+      }
+    ]
+  }
+}

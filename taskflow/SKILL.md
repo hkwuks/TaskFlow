@@ -1,11 +1,12 @@
 ---
 name: taskflow
-description: "Manage any repository work request through the project's TaskFlow workflow: record Todo intake, select or maintain tasks, clarify requirements, plan when needed, verify results, and archive recoverable task history."
----
+description: "Manage any repository work request through the project's TaskFlow workflow: record Todo intake, select or maintain tasks, clarify requirements, plan when needed, verify results, and archive recoverable task history."---
 
 # TaskFlow
 
 Use this skill as the single entry point for the project's task framework. It defines where task facts live and how work moves through the lifecycle. TaskFlow does not select tools: during clarification, PRD, Spec, Plan, research, and review work, first check the capabilities currently available to the Agent and use any that materially help. Review and route only incorporated task facts into the current task directory.
+
+TaskFlow may coordinate with host/harness hooks (Claude Code and Codex CLI) for bounded bookkeeping and context. Host hooks are optional optimization, not a prerequisite: an environment without hooks runs the same flow. See [references/runtime.md](references/runtime.md) for what hooks may and may not do.
 
 ## Source of truth
 
@@ -223,6 +224,8 @@ Treat achieved tasks as read-only in place. A later request that belongs to one 
 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 
+Host/harness hooks may run as side effects during the flow but are bounded by [runtime.md](references/runtime.md): they never write core documents, never approve, and only update Todo triage metadata or inject derived context. Do not let a hook's presence skip the approval gate or expand scope.
+
 Publishing, merging, deployment, or delivery processes managed by other tools are external to this framework. They may be not applicable and do not replace `completed` or `TaskFlowDocs/achieved/`.
 
 ## Sessions and collaboration
@@ -237,6 +240,7 @@ Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/ind
 - Do not put secrets, tokens, private data, or unauthorized sensitive material in any task artifact, snapshot, or patch; use redacted placeholders.
 - Restore historical file versions only in a new temporary restore root; never overwrite the current task directory.
 - Design documents may stay out of Git: file-mode `old/vN/` archival remains a valid recovery store. See [versioning-and-recovery.md](references/versioning-and-recovery.md).
+- Host/harness hooks (Claude Code and Codex CLI) may update Todo triage metadata and inject a derived session-start summary, but never create, rewrite, or delete core documents, and never approve. See [runtime.md](references/runtime.md).
 - Other tools are allowed to manage their own configuration and lifecycle. This skill only specifies how their task-related outputs integrate with this framework.
 - A task ID is `YYYY-MM-DD-short-slug`; keep it stable after creation. Resolve same-day slug collisions with a suffix or a more specific slug. Create a new related task only at the outcome/ownership boundary defined in Existing-task-first selection.
 
@@ -246,6 +250,7 @@ Read these only when needed:
 
 - [artifacts.md](references/artifacts.md) for compact templates and output routing.
 - [versioning-and-recovery.md](references/versioning-and-recovery.md) for Task versions, `old/`, Git/file archives, and safe restoration.
+- [runtime.md](references/runtime.md) for host/harness hooks (Claude Code, Codex), single-command transitions, and `hooks/` layout.
 
 ## Verification
 

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# version — atomic Task-version transition archiving only changed core docs.
+# Usage: version <task-id> <new-version> [root] [file...]
+# Archives the superseded core docs whose approved content materially changed
+# into old/<old>/ (only those + version.md), leaves an unaffected Plan at the
+# root, and bumps root docs to <new-version>. Default archives prd + spec.
+# Approval stays with the user.
+set -euo pipefail
+task="$1"; newv="$2"; root="${3:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+files=("${@:4}")
+docs="$root/TaskFlowDocs"
+[ -d "$docs/$task" ] || { echo "no task $docs/$task"; exit 1; }
+
+plan="$docs/$task/plan.md"
+oldv=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan")
+oldv="${oldv:-v1}"
+[ "$newv" != "$oldv" ] || { echo "new version equals current $oldv"; exit 1; }
+[ -f "$docs/$task/prd.md" ] || { echo "missing prd.md"; exit 1; }
+[ -f "$plan" ] || { echo "missing plan.md"; exit 1; }
+
+archdir="$docs/$task/old/$oldv"
+mkdir -p "$archdir"
+
+# version.md (always)
+cat > "$archdir/version.md" <<EOF
+# Archived Version $oldv — $(head -1 "$plan" | sed 's/^# //')
+> Task: $task
+> Version: $oldv
+> Status: superseded
+> Archived: $(date '+%Y-%m-%d %H:%M %z')
+> Superseded by: $newv
+> Archive mode: file
+
+## Change Summary
+(Agent: summarize what changed between $oldv and $newv.)
+
+## Archived Materials
+$(for f in prd.md spec.md plan.md; do [ -f "$docs/$task/$f" ] && echo "- $f"; done)
+
+## Restore
+Read the archived $oldv core docs from a new temporary restore root. Do not overwrite the current task root.
+EOF
+
+# move only changed core docs
+if [ "${#files[@]}" -gt 0 ]; then
+  for f in "${files[@]}"; do
+    [ -f "$docs/$task/$f" ] || { echo "cannot archive $f (not present)"; exit 1; }
+    mv "$docs/$task/$f" "$archdir/$f"
+  done
+else
+  for f in prd.md spec.md; do
+    [ -f "$docs/$task/$f" ] && mv "$docs/$task/$f" "$archdir/$f"
+  done
+fi
+
+# bump root docs (prd, spec, plan) that remain at root
+for f in prd.md spec.md plan.md; do
+  fpath="$docs/$task/$f"
+  [ -f "$fpath" ] || continue
+  sed -i "s/^> Task version: .*/> Task version: $newv/" "$fpath"
+done
+
+echo "version OK: archived $oldv (changed docs only) -> root now $newv; record approval before implementation"

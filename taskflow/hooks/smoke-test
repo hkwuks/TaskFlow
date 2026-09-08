@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# smoke-test — assert-style smoke tests for TaskFlow hook scripts.
+# Usage: smoke-test [tmp-root]
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+tmp="${1:-$(mktemp -d)}"
+trap 'rm -rf "$tmp"' EXIT
+
+echo "== summarize-state with no TaskFlowDocs prints nothing =="
+empty="$(mktemp -d)"; rm -rf "$empty"; mkdir -p "$empty"
+out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo ok
+rm -rf "$empty"
+
+echo "== session-start emits a platform JSON shape =="
+docs="$tmp/TaskFlowDocs"
+mkdir -p "$docs/2026-09-08-smoke" "$docs/achieved"
+cat > "$docs/2026-09-08-smoke/prd.md" <<'EOF'
+# Smoke
+> Task version: v1
+> Status: completed
+EOF
+cp "$docs/2026-09-08-smoke/prd.md" "$docs/2026-09-08-smoke/spec.md"
+cat > "$docs/2026-09-08-smoke/plan.md" <<'EOF'
+# Plan — Smoke
+> Task version: v1
+> Status: completed
+EOF
+cat > "$docs/todo.md" <<'EOF'
+# Todo inbox
+## T-20260908-999 — Smoke
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-smoke/`
+- Updated: 2026-09-08
+EOF
+json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
+echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
+
+echo "== archive happy path =="
+bash "$HERE/archive" 2026-09-08-smoke "$tmp" >/dev/null
+[ ! -d "$docs/2026-09-08-smoke" ] || { echo "FAIL active remains"; exit 1; }
+[ -d "$docs/achieved/2026-09-08-smoke" ] || { echo "FAIL not archived"; exit 1; }
+grep -q -- "- Status: done" "$docs/todo.md" || { echo "FAIL todo not done"; exit 1; }
+grep -q "achieved/2026-09-08-smoke" "$docs/todo.md" || { echo "FAIL todo path"; exit 1; }
+echo ok
+
+echo "== reopen restores =="
+bash "$HERE/reopen" 2026-09-08-smoke "$tmp" >/dev/null
+[ -d "$docs/2026-09-08-smoke" ] || { echo "FAIL reopen"; exit 1; }
+grep -q "reopen" "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL reopen log"; exit 1; }
+echo ok
+
+echo "== version bumps root + archives only changed docs =="
+bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
+[ -f "$docs/2026-09-08-smoke/old/v1/prd.md" ] || { echo "FAIL old prd"; exit 1; }
+[ ! -f "$docs/2026-09-08-smoke/prd.md" ] || { echo "FAIL changed prd still at root"; exit 1; }
+[ -f "$docs/2026-09-08-smoke/spec.md" ] || { echo "FAIL unchanged spec should stay"; exit 1; }
+[ -f "$docs/2026-09-08-smoke/plan.md" ] || { echo "FAIL plan not left"; exit 1; }
+grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL plan not bumped"; exit 1; }
+echo ok
+
+echo "ALL SMOKE PASSED"

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# summarize-state — derive a short, non-authoritative TaskFlow state summary.
+# Prints nothing when no TaskFlowDocs exists. Runs from the repo root.
+# Cross-platform: invoked via run-hook.cmd (Git-bash on Windows).
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+[ -n "$repo_root" ] || repo_root="$PLUGIN_ROOT"
+docs="$repo_root/TaskFlowDocs"
+[ -d "$docs" ] || exit 0
+
+todo="$docs/todo.md"
+if [ -f "$todo" ]; then
+  echo "# TaskFlow inbox (not done)"
+  python3 - "$todo" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding='utf-8').read()
+for it in re.split(r'(?m)^(?=## T-)', text):
+    if not it.startswith('## T-'): continue
+    m = re.match(r'## T-(\S+)', it)
+    if not m or m.group(1) == 'YYYYMMDD-001': continue
+    st = re.search(r'(?m)^- Status:\s*(\S+)', it)
+    if st and st.group(1) == 'done': continue
+    g = re.search(r'(?m)^- Goal:\s*(.+)', it)
+    print(f"- T-{m.group(1)} | {st.group(1) if st else '?'} | {(g.group(1) if g else '').strip()[:120]}")
+PY
+fi
+
+echo "# Active tasks"
+for d in "$docs"/*/; do
+  [ -d "$d" ] || continue
+  base=$(basename "$d")
+  [ "$base" = achieved ] && continue
+  [ "$base" = repository-docs ] && continue
+  plan="$d/plan.md"
+  [ -f "$plan" ] || continue
+  ver=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan" | sed 's/^v//')
+  st=$(awk -F': ' '/> Status:/{print $2; exit}' "$plan")
+  title=$(head -1 "$plan" | sed 's/^# Plan — //; s/^# //')
+  printf '%s %s %s %s\n' "-" "$base" "| v$ver | $st — $title"
+done
+exit 0

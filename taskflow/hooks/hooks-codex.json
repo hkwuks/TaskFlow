@@ -1,0 +1,16 @@
+{
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Codex CLI).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "<abs-path>/hooks/session-start"
+          }
+        ]
+      }
+    ]
+  }
+}

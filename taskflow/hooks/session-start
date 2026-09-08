@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# session-start — SessionStart hook for TaskFlow
+# Reads a JSON event on stdin (ignored), prints the TaskFlow state summary as
+# the platform-appropriate additional-context field, mirroring the
+# obra/superpowers/hooks/session-start pattern:
+#   Cursor → additional_context (snake_case)
+#   Claude Code → hookSpecificOutput.additionalContext (nested)
+#   Copilot/unknown → additionalContext (top-level SDK standard)
+# Extensionless so Claude Code's Windows auto-detection (which prepends "bash"
+# to any command containing ".sh") never interferes.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Derive the TaskFlow state summary (non-authoritative, derived navigation).
+state_summary="$(bash "${PLUGIN_ROOT}/hooks/summarize-state" 2>&1 || true)"
+[ -z "$state_summary" ] && exit 0
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+escaped="$(escape_for_json "$state_summary")"
+
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$escaped"
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped"
+else
+  printf '{\n  "additionalContext": "%s"\n}\n' "$escaped"
+fi
+exit 0

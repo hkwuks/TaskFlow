@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# archive — full archive transaction for one TaskFlow task (cross-platform).
+# Usage: archive <task-id> [root]
+# Moves TaskFlowDocs/<task-id> -> TaskFlowDocs/achieved/<task-id>, updates the
+# linked Todo item's Task: path and Status to done, then verifies:
+#   active path absent | achieved path exists | achieved root PRD+Plan completed
+# Approval is never touched. On any failure the Todo stays not-done; exit 1.
+set -euo pipefail
+task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+docs="$root/TaskFlowDocs"
+[ -d "$docs/$task" ] || { echo "no active task $docs/$task"; exit 1; }
+[ -d "$docs/achieved" ] || mkdir -p "$docs/achieved"
+[ ! -e "$docs/achieved/$task" ] || { echo "achieved/$task already exists"; exit 1; }
+
+# 1. authoritative completion must already be recorded by the Agent
+grep -q '> Status: completed' "$docs/$task/prd.md" || { echo "prd.md not completed"; exit 1; }
+grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not completed"; exit 1; }
+
+# 2. move whole dir
+mv "$docs/$task" "$docs/achieved/$task"
+
+# 3. update the linked Todo item: Task: path -> achieved, Status -> done
+todo="$docs/todo.md"
+[ -f "$todo" ] || { echo "todo.md missing; archive done, Todo NOT updated"; exit 1; }
+python3 - "$todo" "$task" <<'PY'
+import re, sys
+todo, task = sys.argv[1], sys.argv[2]
+text = open(todo, encoding='utf-8').read()
+parts = re.split(r'(?m)^(## .*)$', text)
+for i in range(1, len(parts), 2):
+    header, body = parts[i], parts[i+1]
+    if header.startswith('## T-') and f'`TaskFlowDocs/{task}/`' in body:
+        body = re.sub(r'(?m)^(- Status: ).*$', r'\1done', body)
+        body = body.replace(f'`TaskFlowDocs/{task}/`', f'`TaskFlowDocs/achieved/{task}/`')
+        parts[i+1] = body
+open(todo, 'w', encoding='utf-8').write(''.join(parts))
+PY
+
+# 4. verify
+fail=0
+[ ! -d "$docs/$task" ] || { echo "FAIL: active path still present"; fail=1; }
+[ -d "$docs/achieved/$task" ] || { echo "FAIL: achieved path missing"; fail=1; }
+grep -q '> Status: completed' "$docs/achieved/$task/prd.md" || { echo "FAIL: achieved prd not completed"; fail=1; }
+grep -q '> Status: completed' "$docs/achieved/$task/plan.md" || { echo "FAIL: achieved plan not completed"; fail=1; }
+grep -q "achieved/$task/\`" "$todo" || { echo "FAIL: Todo Task: path not updated"; fail=1; }
+if [ "$fail" = "0" ]; then echo "archive OK: $task -> achieved, Todo done"; else echo "archive FAILED"; exit 1; fi

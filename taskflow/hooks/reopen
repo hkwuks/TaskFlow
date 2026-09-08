@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# reopen — retrieve an achieved TaskFlow task back to the active root.
+# Usage: reopen <task-id> [root]
+# Moves TaskFlowDocs/achieved/<task-id> -> TaskFlowDocs/<task-id> and records a
+# reopen line in the Plan change log. Approval stays with the user.
+set -euo pipefail
+task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+docs="$root/TaskFlowDocs"
+[ -d "$docs/achieved/$task" ] || { echo "no achieved task $docs/achieved/$task"; exit 1; }
+[ ! -e "$docs/$task" ] || { echo "active $docs/$task already exists"; exit 1; }
+
+mv "$docs/achieved/$task" "$docs/$task"
+
+plan="$docs/$task/plan.md"
+if [ -f "$plan" ]; then
+  python3 - "$plan" "$task" <<'PY'
+import sys, datetime
+plan, task = sys.argv[1], sys.argv[2]
+text = open(plan, encoding='utf-8').read()
+line = f"- {datetime.date.today().isoformat()} reopen — retrieved achieved task `{task}` for new work; re-approval required before core changes"
+if '## Change Log' in text:
+    text = text.replace('## Change Log\n', '## Change Log\n' + line + '\n', 1)
+else:
+    text = text.rstrip() + '\n\n## Change Log\n' + line + '\n'
+open(plan, 'w', encoding='utf-8').write(text)
+PY
+fi
+
+[ -d "$docs/$task" ] && echo "reopen OK: achieved/$task -> active root; record Todo source and re-approve before core changes"

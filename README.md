@@ -17,7 +17,7 @@
 </div>
 
 > [!IMPORTANT]
-> **TaskFlow is a workflow convention, not an Agent runtime.** It does not intercept prompts, tool calls, or model behavior. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
+> **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code and Codex CLI) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
 
 <br />
 
@@ -106,12 +106,14 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 
 | TaskFlow adds | TaskFlow deliberately avoids |
 | --- | --- |
-| A shared `clarify → approve → implement → verify → archive` protocol | Runtime hooks, proxies, daemons, or API gateways |
+| A shared `clarify → approve → implement → verify → archive` protocol | Being an Agent or a task manager; proxies, daemons, or API gateways |
 | Project-local Markdown as task facts | Hidden state in a hosted database or proprietary UI |
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
 During clarification, PRD, Spec, Plan, research, and review work, the Agent checks its currently available capabilities and uses those that materially help. TaskFlow does not prescribe a tool, vendor, Skill family, or invocation mechanism; it makes reviewed, incorporated task facts and the surrounding agreement durable.
+
+TaskFlow may also coordinate with host/harness hooks (Claude Code and Codex CLI) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; it never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 
 ## The one rule that prevents lost designs
 
@@ -195,7 +197,7 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 | **Primary concern** | Task state and semantic history | Spec-driven workflow | Configurable spec/change workflow | Role-based Agent methodology | Ownership and coordination |
 | **Core unit** | Local TaskFlowDocs directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
 | **Design recovery** | Explicit `old/vN/` archive | Adoption/repository dependent | Project/Git practice dependent | Workflow/repository dependent | Usually activity history only |
-| **Agent interaction** | Instructions only; no runtime interception | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
+| **Agent interaction** | Skill instructions + bounded host-hook coordination (Claude Code, Codex) | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
 | **Infrastructure** | Markdown + filesystem + Git | Adopted repository tooling | Adopted repository tooling | Method assets + adopted tooling | Usually a hosted service |
 | **Use it with TaskFlow?** | — | Generate specs, then route reviewed task facts into TaskFlow | Route reviewed specs/changes into TaskFlow | Keep role outputs as reviewed task references | Link a ticket to its task directory |
 
