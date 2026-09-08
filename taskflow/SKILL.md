@@ -15,7 +15,7 @@ For an active task, the task directory is:
 TaskFlowDocs/YYYY-MM-DD-short-slug/
 ```
 
-Repository documents are cataloged at `TaskFlowDocs/repository-docs/index.md`; repository standards live at `TaskFlowDocs/repository-docs/standards/index.md`. Before planning or implementing a non-trivial task, inspect the catalog and standards index, then load only linked standards applicable to the task or phase. If the catalog or an applicable standard is missing, incomplete, or not explicitly waived, use the document-environment and standards-bootstrap rules below before implementation.
+`TaskFlowDocs/repository-docs/index.md` is the single catalog for repository documents, repository rules, and personal supplements. Before planning or implementing a non-trivial task, inspect the catalog and load only entries applicable to the task or phase. If the task needs a rule that the repository does not provide, use the repository-document rules below before implementation.
 
 The repository Todo inbox is `TaskFlowDocs/todo.md`. It is a triage source only, not a second source of task facts. Promoted items link to exactly one `TaskFlowDocs/<task-id>/` directory, where PRD, Spec, Plan, and verification become authoritative.
 
@@ -35,17 +35,33 @@ Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/p
 
 ## Triage and lifecycle
 
-First inspect the repository, `TaskFlowDocs/repository-docs/index.md`, `TaskFlowDocs/repository-docs/standards/index.md`, applicable project rules, existing TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+First inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
 
-When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Route reviewed conclusions into `TaskFlowDocs/repository-docs/standards/index.md` or a linked standards note. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
+### Existing-task-first selection
+
+Search active tasks before creating a task. Compare the request with each task's goal, deliverable, owner, scope, acceptance criteria, open questions, and next Plan Step.
+
+| Request relation | Required action |
+| --- | --- |
+| Advances an active deliverable, planned step, open question, verification, or follow-up | Maintain that task |
+| Materially revises the same deliverable | Version that task and obtain re-approval |
+| Has an independently releasable outcome **and** independent acceptance criteria | Create a related task |
+| Has different owner or accountability | Create a related task |
+| Mixes existing-task work with an independent deliverable | Present the split and await the user's choice before creating a second task |
+
+A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger. Before continuing an existing task, read its current PRD, Spec when present, Plan, applicable repository documents, approval/version/status, next Step and checklist, and latest verification. Update the Plan after meaningful work, including progress, decisions, deviations, and verification; do this before starting unrelated work.
+
+When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Record reviewed source paths and conclusions in the catalog or a linked TaskFlow document. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
 
 ### Repository document environment
 
-`TaskFlowDocs/repository-docs/index.md` is derived navigation, not a source of rules. Before non-trivial work, refresh its catalog only when it is absent, stale, or the task phase needs a document class not cataloged. Discover README, contributing, code style, release, roadmap, code of conduct, PR template, CODEOWNERS, branch/CI, and standards documents. Record each class, repository-relative source path, access mode (`symlink` or `index`), existence, and last-checked date. Add an unrecognized candidate document only after user confirmation.
+`TaskFlowDocs/repository-docs/index.md` is derived navigation, not a source document. Before non-trivial work, refresh its catalog only when it is absent, stale, or the task phase needs an uncataloged document class. Discover README, contributing, code style, release, roadmap, code of conduct, PR template, CODEOWNERS, branch/CI, and repository rules. Record each entry's class (`repository-rule`, `repository-guidance`, or `personal-supplement`), repository-relative source path, access mode (`symlink` or `index`), existence, and last-checked date. Add an unrecognized candidate document only after user confirmation.
 
 Use a relative symbolic link only when its source exists inside the repository and both platform and Git support links. Otherwise, retain a usable repository-relative path in the catalog; never copy source contents or create a fake link. Source documents are authoritative. Refresh the catalog after their addition, removal, move, or relevant change. If a changed source rule affects approved work, apply the user-change trigger before continuing.
 
-Select documents by phase: code work uses code style and contributing guidance; commits/PRs use contributing, commit rules, PR templates, CODEOWNERS, and branch/CI rules; design/API/UX work uses design standards, architecture guidance, and relevant README behavior; release work uses release/changelog guidance; roadmap work uses roadmap and README. Record applicable documents and incorporated conclusions in the task `plan.md`. Missing document classes are informational unless the task needs a repository rule that is absent, in which case use the standards bootstrap.
+Select documents by phase: code work uses code style and contributing guidance; commits/PRs use contributing, commit rules, PR templates, CODEOWNERS, and branch/CI rules; design/API/UX work uses design and architecture guidance plus relevant README behavior; release work uses release/changelog guidance; roadmap work uses roadmap and README. Record applicable documents and incorporated conclusions in the task `plan.md`. Missing document classes are informational unless the task needs a rule that is absent, in which case guide the user to a scoped personal supplement.
+
+Repository documents prevail over personal supplements. A supplement may add stricter or orthogonal practices, but cannot weaken, override, or conflict with any applicable repository rule or guidance. A supplement applies only if its declared scope matches the task. On a conflict, stop and ask the user; do not silently choose one.
 
 ### User-change trigger
 
@@ -53,17 +69,17 @@ Treat a user message that corrects, rejects, adds to, or materially changes an a
 
 Classify the change. For a material change, archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. For a work revision, synchronize only affected current documents and record the revision in `plan.md`. A completed task is read-only: create a related task unless the user explicitly authorizes reopening, then record the reason before changing it.
 
-### Standards bootstrap
+### Missing repository rules and personal supplements
 
-When applicable repository standards are missing or incomplete, pause implementation and guide the user to define them. Ask no more than three dependency-ordered questions per turn, with a recommendation for each. Use this order unless the task makes another order necessary: development process, code, commits/PR, then design. Ask only for categories applicable to the task.
+When a task needs a rule not supplied by the repository, pause implementation and guide the user to define a scoped personal supplement. Ask no more than three dependency-ordered questions per turn, with a recommendation for each; ask only applicable categories (development process, code, commits/PR, then design by default). A repository-owned source document may be created or changed only with explicit user authorization.
 
-After the user confirms, create only the selected files under `TaskFlowDocs/repository-docs/standards/` and link them from its `index.md`. Each file must define its scope, rules, verification method, and exceptions/change control. `commits.md` must additionally define commit format and PR checks. If the user explicitly waives an applicable category, record the waiver in `index.md` and the task `plan.md`; do not create an empty file.
+After confirmation, create only the selected supplement under `TaskFlowDocs/repository-docs/personal/` and add it to the catalog. It must declare `Scope`, `Repository documents checked`, `Rules`, `Verification`, and `Exceptions / Change control`; commit-related supplements also state `Commit format` and `PR checks`. Record any explicit waiver in the catalog and task Plan; never create an empty placeholder or fabricate repository-owned policy.
 
 ### Todo → PRD → Spec → Plan
 
 Use `TaskFlowDocs/todo.md` for ideas and requests that are not ready for planning. Maintain each item with an ID, status, priority, owner, source, one-sentence goal, task link, next action, and update date. Move it through `inbox → clarified → promoted → in_progress → done/cancelled`.
 
-Keep an item in `inbox` while its intent is unknown. Move it to `clarified` only after goal, scope, acceptance, dependencies, size, and applicable standards are explicit. On promotion, create `prd.md`, decide whether `spec.md` is required, create `plan.md`, and link the task path back in the Todo item. Do not duplicate requirements or design in the inbox. Enter `in_progress` only after Plan approval; mark `done` only after task acceptance and verification, or `cancelled` with a reason.
+Keep an item in `inbox` while its intent is unknown. Move it to `clarified` only after goal, scope, acceptance, dependencies, size, and applicable repository documents are explicit. On promotion, create `prd.md`, decide whether `spec.md` is required, create `plan.md`, and link the task path back in the Todo item. Do not duplicate requirements or design in the inbox. Enter `in_progress` only after Plan approval; mark `done` only after task acceptance and verification, or `cancelled` with a reason.
 
 Choose the lightest path that preserves traceability:
 
@@ -82,7 +98,7 @@ planning → ready → in_progress → checking → completed
     └──────── blocked ◄────────┘
 ```
 
-- `planning`: requirements, evidence, design, or applicable standards are still being clarified.
+- `planning`: requirements, evidence, design, or applicable repository documents are still being clarified.
 - `ready`: PRD, required Spec, and Plan are complete and awaiting user approval.
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
@@ -105,7 +121,7 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - risks, deferred items, and only blocking open questions;
 - current Task version and version history.
 
-Record which repository standards were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
+Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
 
@@ -163,7 +179,7 @@ After approval, read `prd.md`, `spec.md` if present, `reference/` if present, an
 
 If a requirement, design, contract, or risk changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval.
 
-The same rule applies when the standards contract changes materially: archive the prior Task version first, update `prd.md`, `spec.md`, and `plan.md` atomically, return to `ready`, and obtain approval before implementation. Never extend a `completed` task in place.
+The same rule applies when the applicable repository-document contract changes materially: archive the prior Task version first, update `prd.md`, `spec.md`, and `plan.md` atomically, return to `ready`, and obtain approval before implementation. Never extend a `completed` task in place.
 
 If another tool or Skill creates files or conclusions, review and route only incorporated facts before treating them as task facts. Do not let automation skip approval, expand scope, delete history, or write secrets.
 
@@ -201,7 +217,7 @@ Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/ind
 - Do not put secrets, tokens, private data, or unauthorized sensitive material in any task artifact, snapshot, or patch; use redacted placeholders.
 - Restore historical file versions only in a new temporary restore root; never overwrite the current task directory.
 - Other tools are allowed to manage their own configuration and lifecycle. This skill only specifies how their task-related outputs integrate with this framework.
-- A task ID is `YYYY-MM-DD-short-slug`; keep it stable after creation. Resolve same-day slug collisions with a suffix or a more specific slug. Use a new related task when the goal, deliverable, or ownership boundary materially changes.
+- A task ID is `YYYY-MM-DD-short-slug`; keep it stable after creation. Resolve same-day slug collisions with a suffix or a more specific slug. Create a new related task only at the outcome/ownership boundary defined in Existing-task-first selection.
 
 ## Supporting references
 

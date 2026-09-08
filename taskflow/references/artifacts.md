@@ -2,9 +2,9 @@
 
 Use this reference when creating or reviewing task documents. The task directory is `TaskFlowDocs/<YYYY-MM-DD-short-slug>/`.
 
-Repository documents are cataloged at `TaskFlowDocs/repository-docs/index.md`; standards are indexed at `TaskFlowDocs/repository-docs/standards/index.md`. Refresh the catalog when absent, stale, or needed by the task phase; load only applicable source documents and standards. Record applicable files and incorporated conclusions in `plan.md`.
+`TaskFlowDocs/repository-docs/index.md` is the single catalog for repository rules, repository guidance, and personal supplements. Refresh it when absent, stale, or needed by the task phase; load only applicable entries and record the files plus incorporated conclusions in `plan.md`. Repository documents prevail over scoped personal supplements.
 
-If an applicable standard is missing, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected files and link them from `index.md`; record explicit waivers. Each standards file includes scope, rules, verification, and exceptions/change control. `commits.md` also includes commit format and PR checks.
+If a task needs a rule the repository does not supply, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected scoped supplement under `repository-docs/personal/` and catalog it; record explicit waivers. A supplement declares scope, repository documents checked, rules, verification, and exceptions/change control; commit-related supplements also include commit format and PR checks. Never create or alter repository-owned policy without explicit authorization, and stop for any conflict.
 
 The single repository Todo inbox is `TaskFlowDocs/todo.md`. It stores triage metadata and a link to the promoted task; PRD, Spec, Plan, and verification remain authoritative in that task directory.
 

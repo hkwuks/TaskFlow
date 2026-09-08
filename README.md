@@ -78,13 +78,13 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 TaskFlow deliberately uses plain files. A human can read them, an Agent can load them, Git can diff them, and your project does not need another service to keep its task history.
 
-## Repository standards
+## Repository documents
 
-Repository documents are cataloged at `TaskFlowDocs/repository-docs/index.md`; repository-owned rules start at `TaskFlowDocs/repository-docs/standards/index.md`. The catalog provides unified navigation to existing README, contributing, code-style, release, roadmap, PR, and CI guidance without copying source content.
+`TaskFlowDocs/repository-docs/index.md` is one catalog for repository rules, repository guidance, and scoped personal supplements. It provides unified navigation to existing README, contributing, code-style, release, roadmap, PR, and CI guidance without copying source content.
 
 Before a non-trivial task is planned or implemented, TaskFlow refreshes the catalog only when it is absent, stale, or the task needs an uncataloged class, then reads documents applicable to the task phase. It uses relative symbolic links when safely supported; otherwise the catalog's relative paths remain portable. For PR/remote work, it also discovers available contribution guides, PR templates, CODEOWNERS, branch/CI rules, and accessible host metadata. Findings are reviewed before being recorded locally; TaskFlow does not overwrite local rules, require a provider API, or copy secrets.
 
-If an applicable rule is missing, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only the selected standards files and links them from the index; explicit waivers are recorded instead of empty files. A material standards change follows the same version archive and re-approval gate as any other task-contract change.
+Repository documents are authoritative. If a needed rule is absent, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only a scope-matched personal supplement under `repository-docs/personal/`; it cannot weaken, override, or conflict with repository guidance. A material applicable-document change follows the same version archive and re-approval gate as any other task-contract change.
 
 Any user correction or addition to an approved task is classified before documents change. Material changes archive the current version, synchronize every core document, and return to approval; minor work revisions update only affected records. TaskFlow never continues implementation using an outdated plan.
 
