@@ -10,7 +10,7 @@ If a task needs a rule the repository does not supply, guide the user through at
 
 The catalog is derived navigation: each entry records document class, repository-relative source path, access mode, existence, and last-checked date. Use links only when source and platform support are verified; otherwise keep the indexed path. Source documents remain authoritative and task-specific facts remain in the task directory.
 
-When a user changes an approved task fact, classify it before editing artifacts. A material correction (goal, requirement, acceptance, scope, design, standard, compatibility, risk, or implementation path) archives `vN`, synchronizes all existing core documents as `vN+1`, and returns to approval. A work revision updates only affected documents and is recorded in `plan.md`. Never update only one core document after a material user change.
+When a user changes an approved task fact, classify it before editing artifacts. The classification (work revision vs Task-version material change) and the required action for each are defined in `SKILL.md` under User-change trigger; this reference does not restate them. Never update only one core document after a material user change.
 
 ## Minimal layout
 
@@ -89,9 +89,13 @@ TaskFlowDocs/
 - Status: pending | in_progress | done | blocked
 ## Checkpoints
 ## Verification / Review
+## Change Log
+- <YYYY-MM-DD> <work revision or Task version> — <one-line reason>; affects <files>
 ## Follow-ups
 ## Version History
 ```
+
+`plan.md`'s `## Change Log` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval; never treat a wording or approach clarification as a Task-version event.
 
 ## Output routing
 
@@ -106,7 +110,7 @@ TaskFlowDocs/
 
 If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative.
 
-Mark a Step `done` only when every required `Implementation checklist` item is checked and focused verification passes. Todo items move through `inbox`, `clarified`, `promoted`, `in_progress`, `done`, or `cancelled`; after promotion, they retain source identity, lifecycle metadata, and one task-directory link. Archive a completed task as one transaction: move the whole directory to `TaskFlowDocs/achieved/<task-id>/`, update the Todo `Task:` path and status to `done`, then verify the active path is absent, the achieved path exists, and achieved root PRD/Plan both say `completed`. If any check fails, record a blocker and do not claim completion. If later work belongs to that achieved task, retrieve it to the active root, record the Todo source/reopen reason, then version and re-approve before modification.
+A new Task version or a user change is governed by the lifecycle rules in `SKILL.md` (User-change trigger, Phase 5 Build, Complete and archive); this reference does not restate them. Archive a completed task as one transaction per `SKILL.md`. Tool output is candidate material until the core-document owner reviews and merges it.
 
 When a Skill or tool is used, add one concise entry to `plan.md` with its name, purpose, and incorporated conclusion. Do not record checks that led to no tool use. Tool output is candidate material until the core-document owner reviews and merges it.
 

@@ -72,9 +72,16 @@ Repository documents prevail over personal supplements. A supplement may add str
 
 ### User-change trigger
 
-Treat a user message that corrects, rejects, adds to, or materially changes an approved goal, requirement, acceptance criterion, scope, design, standard, compatibility decision, risk, or implementation path as a change event. Stop the current phase immediately. Do not update only the document named by the user or continue under stale PRD, Spec, or Plan facts.
+Treat a user message that corrects, rejects, adds to, or materially changes an approved task fact as a change event. Stop the current phase immediately. Do not update only the document named by the user or continue under stale PRD, Spec, or Plan facts.
 
-Classify the change. For a material change, archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. For a work revision, synchronize only affected current documents and record the revision in `plan.md`. A completed task is read-only in `TaskFlowDocs/achieved/`: if the classified request belongs to its deliverable, retrieve its complete directory to the active TaskFlowDocs root, record the Todo source and reopen reason, then version and re-approve it before changing core documents or implementation. Create a related task only when the existing-task-first boundary requires one.
+Classify the change into exactly one of two buckets before editing anything:
+
+| Change | Examples | Required action |
+| --- | --- | --- |
+| Work revision (default) | wording, an implementation approach within the approved design, formatting, a progress/checklist update, a verification result, a correction that does not alter an approved contract | Update only affected current documents and record one line in the Plan's change log. Keep the current Task version. |
+| Task-version material change | a change to an approved goal, requirement, acceptance criterion, scope, architecture/interface/data contract, compatibility decision, risk decision, or standard | Archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. |
+
+A completed task is read-only in `TaskFlowDocs/achieved/`: if the classified request belongs to its deliverable, retrieve its complete directory to the active TaskFlowDocs root, record the Todo source and reopen reason, then version and re-approve it before changing core documents or implementation. Create a related task only when the existing-task-first boundary requires one.
 
 ### Missing repository rules and personal supplements
 
@@ -110,7 +117,7 @@ planning → ready → in_progress → checking → completed
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
 - `blocked`: a concrete blocker is recorded with reproduction, attempts, and needed input; resume the prior phase when cleared.
-- `completed`: acceptance and verification passed. Execute the archive transaction: move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`, update the linked Todo item's `Task:` path to that achieved path and its status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. If any part fails, leave the Todo item not `done`, record the blocker, and do not claim archival completion.
+- `completed`: acceptance and verification passed. Execute the archive transaction defined in **Complete and archive** below: move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`, update the linked Todo item's `Task:` path to that achieved path and its status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. If any part fails, leave the Todo item not `done`, record the blocker, and do not claim archival completion.
 
 `ready` is not approval. Do not implement until approval is recorded in `plan.md`.
 
@@ -168,6 +175,8 @@ Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs
 
 The `Implementation checklist` is a checkbox list, not prose. A Step cannot be marked `done` until every required checkbox is checked and focused verification passes.
 
+A `## Change Log` in `plan.md` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval. Do not treat a wording or approach clarification as a Task-version event.
+
 Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If a Skill or tool was used, record its name, purpose, and incorporated conclusion in `Skills / Tools Used`. Do not record unused-capability checks.
 
 Record approval as:
@@ -184,7 +193,7 @@ Record approval as:
 
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
-If a requirement, design, contract, or risk changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval.
+If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
 
 The same rule applies when the applicable repository-document contract changes materially: archive the prior Task version first, update `prd.md`, `spec.md`, and `plan.md` atomically, return to `ready`, and obtain approval before implementation. Never extend a `completed` task in place.
 
@@ -197,7 +206,7 @@ Enter `checking` only after implementation is complete. Verify in this order:
 1. changed-file scope and Git/file archive state;
 2. every PRD acceptance criterion;
 3. Spec contracts when `spec.md` exists, or the `No spec required` rationale;
-4. Plan steps, deviations, rollback points, and follow-ups;
+4. Plan steps, deviations, rollback points, change-log entries, and follow-ups;
 5. relevant evidence in `reference/`;
 6. project lint, type checks, unit/integration/end-to-end tests as applicable;
 7. debug code, temporary bypasses, uncovered branches, and unrelated changes.
@@ -206,7 +215,11 @@ Record each command and result in `plan.md`. Distinguish pre-existing failures, 
 
 ### 7. Complete and archive
 
-Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, move the entire directory, update the linked Todo item's `Task:` path to `TaskFlowDocs/achieved/<task-id>/` and status to `done`, then verify both locations and root statuses. If any part fails, record the blocker and do not claim archival completion. Keep `old/` history. Treat achieved tasks as read-only in place: a later request that belongs to one must first retrieve the entire directory to the active root, record the Todo source and reopen reason, create a new Task version, and obtain approval. Create a related task only for a new independent outcome or different owner/accountability.
+The archive transaction below is the single definition; `artifacts.md` and `versioning-and-recovery.md` reference it rather than restate it.
+
+Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, move the entire directory, update the linked Todo item's `Task:` path to `TaskFlowDocs/achieved/<task-id>/` and status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. If any part fails, record the blocker and do not claim archival completion.
+
+Treat achieved tasks as read-only in place. A later request that belongs to one must first retrieve the entire directory to the active root, record the Todo source and reopen reason, create a new Task version, and obtain approval. Stage the retrieval before reading full archives: read `old/vN/version.md` change summaries and the achieved `plan.md` first, then read a full archived document set only when the current documents or the version summary require it. Create a related task only for a new independent outcome or different owner/accountability.
 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 
@@ -223,6 +236,7 @@ Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/ind
 - Do not delete, overwrite, commit, push, or archive user files unless the task and user authorization allow it.
 - Do not put secrets, tokens, private data, or unauthorized sensitive material in any task artifact, snapshot, or patch; use redacted placeholders.
 - Restore historical file versions only in a new temporary restore root; never overwrite the current task directory.
+- Design documents may stay out of Git: file-mode `old/vN/` archival remains a valid recovery store. See [versioning-and-recovery.md](references/versioning-and-recovery.md).
 - Other tools are allowed to manage their own configuration and lifecycle. This skill only specifies how their task-related outputs integrate with this framework.
 - A task ID is `YYYY-MM-DD-short-slug`; keep it stable after creation. Resolve same-day slug collisions with a suffix or a more specific slug. Create a new related task only at the outcome/ownership boundary defined in Existing-task-first selection.
 

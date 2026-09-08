@@ -4,11 +4,11 @@ Read this reference when a design/requirement boundary changes, when design docu
 
 ## Version levels
 
-- **Work revision:** typo, link, checkbox, progress, test result, or evidence that does not change a decision. Keep the current Task version.
-- **Task version:** a material change to goal, scope, acceptance, architecture, contract, compatibility, risk decision, or implementation path. Increment `vN` and archive the superseded version.
+- **Work revision:** wording, an implementation approach within the approved design, progress, a checklist or verification-result update, or any other change that does not alter an approved goal, requirement, acceptance criterion, scope, or contract. Record it in the Plan's change log. Keep the current Task version.
+- **Task version:** a material change to an approved goal, scope, acceptance, architecture, interface/data contract, compatibility decision, risk decision, or standard. Increment `vN` and archive the superseded version.
 - **Git history:** mechanical history within a Task version. It is not a replacement for the semantic Task version.
 
-`plan.md` owns the Task version; existing `prd.md` and `spec.md` repeat it for readability. A small task without `spec.md` does not create one just for synchronization. Work revisions should update `Last updated` and, when useful, append a line to Plan's change log without incrementing the Task version.
+The classification decision belongs to `SKILL.md` (User-change trigger and Phase 5 Build). `plan.md` owns the Task version; existing `prd.md` and `spec.md` repeat it for readability. A small task without `spec.md` does not create one just for synchronization. Work revisions should update `Last updated` and append a line to the Plan's change log without incrementing the Task version.
 
 ## Supersession order
 
@@ -46,29 +46,34 @@ When task documents may be committed, record the exact start and end commits or 
 
 When design documents must not enter Git:
 
-1. The first superseded version gets a complete `old/v1/snapshot/`.
-2. Later superseded versions get an adjacent unified patch, named `changes/from-v<base>-to-vN.patch`.
+1. The first superseded core document set gets a complete `old/v1/snapshot/` when no other recoverable baseline exists.
+2. Later superseded versions get an adjacent unified patch, named `changes/from-v<base>-to-vN.patch`, when their design documents stay out of Git.
 3. Every patch states source version, target version, base path, creation time, restore root, apply order, and verification method.
 4. Create another full snapshot at an important milestone, after roughly five logical versions, or when the patch chain is costly to recover.
 5. Patch only task-maintained Markdown (`prd.md`, `spec.md`, `plan.md`, and team notes/indexes under `reference/`). Do not rewrite or patch external PDFs, web captures, images, archives, or binaries.
 
-Apply patches only in a new temporary restore root. Verify with `diff --exit-code` or an equivalent comparison and, when available, checksums. Never restore an old version by overwriting the current task directory.
+In either archive mode, `old/vN/version.md` is the semantic archive entry and always written. When the changed core document is also recoverable from an existing archive or Git, do not duplicate its full content in `old/vN/`; the `version.md` change summary plus the existing baseline is sufficient. Apply patches only in a new temporary restore root. Verify with `diff --exit-code` or an equivalent comparison and, when available, checksums. Never restore an old version by overwriting the current task directory.
 
 ## Atomic version transition
 
-Treat a Task version change as one operation:
+Treat a Task version change as one operation. Archive only the core documents whose approved content materially changed, plus `version.md`. Do not copy an unaffected Plan into `old/`; the current `plan.md` remains the baseline and its change log records the transition.
 
 1. Capture the old version's status and archive metadata.
-2. Write `old/vN/` and its snapshot/patch.
-3. Update every existing core document to `vN+1` in one pass; absent optional documents remain absent.
-4. Update `plan.md` state and Version History.
-5. Check that all existing core documents agree on the new version.
-6. Return to `ready` and obtain user approval before implementation.
+2. Write `old/vN/version.md`.
+3. For each core document whose approved content materially changed, move its prior version into `old/vN/`; leave unaffected core documents at the task root.
+4. Update the root documents to `vN+1` in one pass; absent optional documents remain absent.
+5. Update `plan.md` state and Version History.
+6. Check that all existing core documents agree on the new version.
+7. Return to `ready` and obtain user approval before implementation.
+
+Design documents may stay out of Git: file-mode archival remains a valid recovery store. When a prior core document is not recoverable from an existing archive (for example, no baseline snapshot exists and the design must not be committed), keep a full `snapshot/` under `old/vN/`. Apply file-mode patches only in a new temporary restore root and verify with `diff --exit-code` or checksums; never restore by overwriting the current task directory.
 
 If interrupted, retain the old version and mark the task `blocked`; do not leave mixed `v1`/`v2` documents.
 
 ## Safe completion and reopening
 
-Before moving a task to `TaskFlowDocs/achieved/`, confirm no agent is writing core documents, external references are known, the linked Todo item is ready to become `done`, and the move is authorized. Archive transaction: move the complete directory, update the linked Todo `Task:` to `TaskFlowDocs/achieved/<task-id>/` and status to `done`, then verify the active path is absent, the achieved path exists, and achieved root PRD/Plan both say `completed`. If interrupted, record the blocker and do not claim archive completion. The achieved directory is read-only history. When a later Todo item belongs to an achieved deliverable, move the complete directory back to `TaskFlowDocs/<task-id>/`, record the Todo source and `reopen` reason in `plan.md`, then follow the atomic version transition and approval gate before changing it. Create a new related task only for a new independently releasable outcome with independent acceptance criteria, or different owner/accountability.
+The archive transaction is defined in `SKILL.md` (Complete and archive); this reference covers recovery and the reopen path. Before reading a full archived document set, stage the retrieval: read `old/vN/version.md` change summaries and the current `plan.md` first, then read the full set only when the current documents or a version summary require it.
+
+The achieved directory is read-only history. When a later Todo item belongs to an achieved deliverable, move the complete directory back to `TaskFlowDocs/<task-id>/` and follow the `SKILL.md` reopen path (record the Todo source/reopen reason, then the atomic version transition and approval gate) before changing it. Create a new related task only for a new independently releasable outcome with independent acceptance criteria, or different owner/accountability.
 
 After moving the directory, update known cross-task references and the task artifact path in `sessions.md`. Keep the code working directory separate from the task artifact directory because only the latter changes during archive.

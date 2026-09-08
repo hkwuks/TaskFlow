@@ -84,21 +84,21 @@ TaskFlow deliberately uses plain files. A human can read them, an Agent can load
 
 Before a non-trivial task is planned or implemented, TaskFlow refreshes the catalog only when it is absent, stale, or the task needs an uncataloged class, then reads documents applicable to the task phase. It uses relative symbolic links when safely supported; otherwise the catalog's relative paths remain portable. For PR/remote work, it also discovers available contribution guides, PR templates, CODEOWNERS, branch/CI rules, and accessible host metadata. Findings are reviewed before being recorded locally; TaskFlow does not overwrite local rules, require a provider API, or copy secrets.
 
-Repository documents are authoritative. If a needed rule is absent, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only a scope-matched personal supplement under `repository-docs/personal/`; it cannot weaken, override, or conflict with repository guidance. A material applicable-document change follows the same version archive and re-approval gate as any other task-contract change.
+Repository documents are authoritative. If a needed rule is absent, TaskFlow pauses implementation and guides the user through up to three dependency-ordered questions at a time, with recommendations. Once confirmed, it creates only a scope-matched personal supplement under `repository-docs/personal/`; it cannot weaken, override, or conflict with repository guidance. A material applicable-document change follows the same version gate as any other task-contract change.
 
-Any user correction or addition to an approved task is classified before documents change. Material changes archive the current version, synchronize every core document, and return to approval; minor work revisions update only affected records. TaskFlow never continues implementation using an outdated plan.
+Any user correction or addition to an approved task is classified before documents change: wording or approach clarifications are work revisions that update only affected records and the Plan change log; changes to an approved goal, requirement, acceptance criterion, scope, or contract create a Task version and return to approval. TaskFlow never continues implementation using an outdated plan.
 
 ## Todo intake
 
 `TaskFlowDocs/todo.md` is the mandatory first record for every direct request and imported requirement, including GitHub Issues. Batch imports retain one Todo item per source requirement, with source and external identifier/link when available. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`. The inbox retains source identity, lifecycle metadata, and the task link after promotion. Every Plan Step has a checkbox checklist, and cannot be `done` until required items and focused verification pass.
 
-After verification, TaskFlow moves the whole task directory to `TaskFlowDocs/achieved/<task-id>/`, updates the Todo item's task path and status to `done`, and verifies the active path is absent. If later work belongs to that achieved deliverable, it retrieves the directory to the active root, records the Todo source and reopen reason, creates a new Task version, and returns to approval before changing implementation.
+After verification, TaskFlow moves the whole task directory to `TaskFlowDocs/achieved/<task-id>/`, updates the Todo item's task path and status to `done`, and verifies the active path is absent. If later work belongs to that achieved deliverable, it retrieves the directory to the active root, records the Todo source and reopen reason, creates a new Task version, and returns to approval before changing implementation. Achieved tasks are read-only; their `old/vN/` history is read only when the current documents or a version summary require it.
 
 <details>
 <summary><strong>Why not just rely on Git?</strong></summary>
 <br />
 
-Git is excellent at mechanical history. TaskFlow adds **semantic history**: a task version changes only when its goal, scope, acceptance, architecture, contract, compatibility, risk, or implementation path changes. The archived version answers what the previous proposal meant, not merely which lines changed.
+Git is excellent at mechanical history. TaskFlow adds **semantic history**: a task version changes only when an approved goal, requirement, acceptance criterion, scope, architecture/interface/data contract, compatibility decision, risk decision, or standard changes; wording or implementation-approach clarifications are work revisions that stay on the current version. The archived version answers what the previous proposal meant, not merely which lines changed.
 
 </details>
 
@@ -127,8 +127,8 @@ keep current vN               archive vN → create vN+1 → return to ready →
 
 | This is a work revision | This creates a Task version |
 | --- | --- |
-| Typo, link, checkbox, progress, test result | Goal, scope, acceptance, architecture, contract, compatibility, risk, implementation path |
-| Update the current files | Preserve the old version under `old/vN/`, then update current files |
+| Wording, approach clarification within the approved design, typo, progress, test result | Goal, requirement, acceptance criterion, scope, architecture/interface/data contract, compatibility, risk, standard |
+| Update current files + one Plan change-log line | Preserve the old version under `old/vN/`, then update current files |
 | Git shows the edit | Git plus TaskFlow explain the decision |
 
 ### A concrete recovery story
