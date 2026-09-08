@@ -17,7 +17,7 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 `TaskFlowDocs/repository-docs/index.md` is the single catalog for repository documents, repository rules, and personal supplements. Before planning or implementing a non-trivial task, inspect the catalog and load only entries applicable to the task or phase. If the task needs a rule that the repository does not provide, use the repository-document rules below before implementation.
 
-The repository Todo inbox is `TaskFlowDocs/todo.md`. It is a triage source only, not a second source of task facts. Promoted items link to exactly one `TaskFlowDocs/<task-id>/` directory, where PRD, Spec, Plan, and verification become authoritative.
+`TaskFlowDocs/todo.md` is the mandatory intake record for every work request, including direct user requests, GitHub Issues, and all other imports. Create or update its Todo item before task matching, clarification, promotion, planning, implementation, or import-specific processing. It is not a second source of task facts: after promotion, the linked `TaskFlowDocs/<task-id>/` directory is authoritative for requirements, design, plan, and verification.
 
 Required artifacts:
 
@@ -35,21 +35,28 @@ Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/p
 
 ## Triage and lifecycle
 
-First inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+First record or update the Todo item for the request. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+
+### Todo-first intake
+
+Every request enters `TaskFlowDocs/todo.md` before task selection. Record its ID, source, goal, status, next action, update date, and external identifier/link when one exists. Deduplicate imported items by source plus external identifier; preserve distinct requirements even when imported as a batch. A batch may carry common source metadata, but it is never itself a task, PRD, or requirements source.
+
+Do not create, reopen, modify, or select a task before the Todo record exists. After promotion, retain lifecycle metadata, source identity, and one task link in Todo; do not duplicate task facts. Update the Todo status as the linked task moves through `inbox → clarified → promoted → in_progress → done/cancelled`.
 
 ### Existing-task-first selection
 
-Search active tasks before creating a task. Compare the request with each task's goal, deliverable, owner, scope, acceptance criteria, open questions, and next Plan Step.
+Search active tasks before creating a task. Also compare against achieved tasks to identify a later request that belongs to an achieved deliverable. Compare the request with each task's goal, deliverable, owner, scope, acceptance criteria, open questions, and next Plan Step.
 
 | Request relation | Required action |
 | --- | --- |
 | Advances an active deliverable, planned step, open question, verification, or follow-up | Maintain that task |
 | Materially revises the same deliverable | Version that task and obtain re-approval |
+| Belongs to an achieved task's deliverable | Retrieve that task, version it, and obtain re-approval |
 | Has an independently releasable outcome **and** independent acceptance criteria | Create a related task |
 | Has different owner or accountability | Create a related task |
 | Mixes existing-task work with an independent deliverable | Present the split and await the user's choice before creating a second task |
 
-A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger. Before continuing an existing task, read its current PRD, Spec when present, Plan, applicable repository documents, approval/version/status, next Step and checklist, and latest verification. Update the Plan after meaningful work, including progress, decisions, deviations, and verification; do this before starting unrelated work.
+A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger. Before continuing an existing or retrieved task, read its current PRD, Spec when present, Plan, applicable repository documents, approval/version/status, next Step and checklist, and latest verification. Update the Plan after meaningful work, including progress, decisions, deviations, and verification; do this before starting unrelated work.
 
 When work targets a pull request or Git remote, inspect the configured remote and available repository-host guidance such as contribution guides, PR templates, CODEOWNERS, branch or CI rules, and host metadata. Record reviewed source paths and conclusions in the catalog or a linked TaskFlow document. Do not silently overwrite local rules, claim synchronization when access fails, or copy secrets, tokens, private data, or opaque remote payloads.
 
@@ -67,7 +74,7 @@ Repository documents prevail over personal supplements. A supplement may add str
 
 Treat a user message that corrects, rejects, adds to, or materially changes an approved goal, requirement, acceptance criterion, scope, design, standard, compatibility decision, risk, or implementation path as a change event. Stop the current phase immediately. Do not update only the document named by the user or continue under stale PRD, Spec, or Plan facts.
 
-Classify the change. For a material change, archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. For a work revision, synchronize only affected current documents and record the revision in `plan.md`. A completed task is read-only: create a related task unless the user explicitly authorizes reopening, then record the reason before changing it.
+Classify the change. For a material change, archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. For a work revision, synchronize only affected current documents and record the revision in `plan.md`. A completed task is read-only in `TaskFlowDocs/achieved/`: if the classified request belongs to its deliverable, retrieve its complete directory to the active TaskFlowDocs root, record the Todo source and reopen reason, then version and re-approve it before changing core documents or implementation. Create a related task only when the existing-task-first boundary requires one.
 
 ### Missing repository rules and personal supplements
 
@@ -77,9 +84,9 @@ After confirmation, create only the selected supplement under `TaskFlowDocs/repo
 
 ### Todo → PRD → Spec → Plan
 
-Use `TaskFlowDocs/todo.md` for ideas and requests that are not ready for planning. Maintain each item with an ID, status, priority, owner, source, one-sentence goal, task link, next action, and update date. Move it through `inbox → clarified → promoted → in_progress → done/cancelled`.
+Use `TaskFlowDocs/todo.md` as the single intake for every idea, request, and imported requirement, whether or not it is ready for planning. Maintain each item with an ID, status, priority, owner, source, external identifier/link when available, one-sentence goal, task link, next action, and update date. Move it through `inbox → clarified → promoted → in_progress → done/cancelled`.
 
-Keep an item in `inbox` while its intent is unknown. Move it to `clarified` only after goal, scope, acceptance, dependencies, size, and applicable repository documents are explicit. On promotion, create `prd.md`, decide whether `spec.md` is required, create `plan.md`, and link the task path back in the Todo item. Do not duplicate requirements or design in the inbox. Enter `in_progress` only after Plan approval; mark `done` only after task acceptance and verification, or `cancelled` with a reason.
+For batch imports, create or update one Todo item per source requirement before triage; deduplicate only source-identical requirements, retain source identity, and never promote a whole batch as one task. Keep an item in `inbox` while its intent is unknown. Move it to `clarified` only after goal, scope, acceptance, dependencies, size, and applicable repository documents are explicit. On promotion, create `prd.md`, decide whether `spec.md` is required, create `plan.md`, and link the task path back in the Todo item. Do not duplicate requirements or design in the inbox. Enter `in_progress` only after Plan approval; mark `done` only after task acceptance and verification, or `cancelled` with a reason.
 
 Choose the lightest path that preserves traceability:
 
@@ -103,7 +110,7 @@ planning → ready → in_progress → checking → completed
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
 - `blocked`: a concrete blocker is recorded with reproduction, attempts, and needed input; resume the prior phase when cleared.
-- `completed`: acceptance and verification passed. Then move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`.
+- `completed`: acceptance and verification passed. Move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`, then mark the linked Todo item `done`.
 
 `ready` is not approval. Do not implement until approval is recorded in `plan.md`.
 
@@ -199,7 +206,7 @@ Record each command and result in `plan.md`. Distinguish pre-existing failures, 
 
 ### 7. Complete and archive
 
-Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, then move the entire directory. Keep `old/` history. Treat achieved tasks as read-only; create a related new task for new goals, or reopen only with user confirmation and a recorded reason.
+Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, then move the entire directory and mark the linked Todo item `done`. Keep `old/` history. Treat achieved tasks as read-only in place: a later request that belongs to one must first retrieve the entire directory to the active root, record the Todo source and reopen reason, create a new Task version, and obtain approval. Create a related task only for a new independent outcome or different owner/accountability.
 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 

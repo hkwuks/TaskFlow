@@ -57,7 +57,9 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 ## Todo 收件箱
 
-`TaskFlowDocs/todo.md` 是唯一的轻量待办收件箱，用于记录想法和请求。条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进：提升后创建任务目录中的 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。提升后的 Todo 只保留元数据和任务链接。每个 Plan Step 都必须有复选清单，必选项全部完成且通过聚焦验证后才能标记 `done`。
+`TaskFlowDocs/todo.md` 是每个直接请求和导入需求（包括 GitHub Issue）的强制首条记录。批量导入时，每条源需求保留一个 Todo 条目，并在可用时记录来源和外部编号/链接。条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进：提升后创建任务目录中的 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。提升后的 Todo 保留来源身份、生命周期元数据和任务链接。每个 Plan Step 都必须有复选清单，必选项全部完成且通过聚焦验证后才能标记 `done`。
+
+验证通过后，TaskFlow 将整个任务目录移入 `TaskFlowDocs/achieved/<task-id>/`。之后若新工作属于该已完成交付物，先将目录取回活动根目录，记录 Todo 来源与重新打开原因，创建新的 Task version，并在修改实现前重新经过批准门禁。
 
 <details>
 <summary><strong>为什么不能只依赖 Git？</strong></summary>

@@ -6,7 +6,7 @@ Use this reference when creating or reviewing task documents. The task directory
 
 If a task needs a rule the repository does not supply, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected scoped supplement under `repository-docs/personal/` and catalog it; record explicit waivers. A supplement declares scope, repository documents checked, rules, verification, and exceptions/change control; commit-related supplements also include commit format and PR checks. Never create or alter repository-owned policy without explicit authorization, and stop for any conflict.
 
-The single repository Todo inbox is `TaskFlowDocs/todo.md`. It stores triage metadata and a link to the promoted task; PRD, Spec, Plan, and verification remain authoritative in that task directory.
+`TaskFlowDocs/todo.md` is the mandatory first record for every direct request and imported requirement. Each batch import creates or updates one Todo item per source requirement, retaining source plus external identifier/link when available; the batch itself is metadata only. Todo retains triage metadata and a task link after promotion; PRD, Spec, Plan, and verification remain authoritative in that task directory.
 
 The catalog is derived navigation: each entry records document class, repository-relative source path, access mode, existence, and last-checked date. Use links only when source and platform support are verified; otherwise keep the indexed path. Source documents remain authoritative and task-specific facts remain in the task directory.
 
@@ -100,13 +100,13 @@ TaskFlowDocs/
 | requirements / PRD | `prd.md` |
 | design / specification | `spec.md` when required |
 | plan / task list / checkpoint / review | `plan.md` |
-| unpromoted Todo intake | `TaskFlowDocs/todo.md` |
+| every request / imported requirement | `TaskFlowDocs/todo.md` before task selection |
 | research / evidence | `reference/` |
 | resume index | `sessions.md` |
 
 If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative.
 
-Mark a Step `done` only when every required `Implementation checklist` item is checked and focused verification passes. Todo items move through `inbox`, `clarified`, `promoted`, `in_progress`, `done`, or `cancelled`; after promotion, they retain only lifecycle metadata and one task-directory link.
+Mark a Step `done` only when every required `Implementation checklist` item is checked and focused verification passes. Todo items move through `inbox`, `clarified`, `promoted`, `in_progress`, `done`, or `cancelled`; after promotion, they retain source identity, lifecycle metadata, and one task-directory link. On task completion, move the whole directory to `TaskFlowDocs/achieved/<task-id>/` and mark the Todo item `done`. If later work belongs to that achieved task, retrieve it to the active root, record the Todo source/reopen reason, then version and re-approve before modification.
 
 When a Skill or tool is used, add one concise entry to `plan.md` with its name, purpose, and incorporated conclusion. Do not record checks that led to no tool use. Tool output is candidate material until the core-document owner reviews and merges it.
 

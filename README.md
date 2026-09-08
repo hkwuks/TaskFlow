@@ -90,7 +90,9 @@ Any user correction or addition to an approved task is classified before documen
 
 ## Todo intake
 
-`TaskFlowDocs/todo.md` is the single lightweight inbox for ideas and requests. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`. The inbox retains only metadata and the task link after promotion. Every Plan Step has a checkbox checklist, and cannot be `done` until required items and focused verification pass.
+`TaskFlowDocs/todo.md` is the mandatory first record for every direct request and imported requirement, including GitHub Issues. Batch imports retain one Todo item per source requirement, with source and external identifier/link when available. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`. The inbox retains source identity, lifecycle metadata, and the task link after promotion. Every Plan Step has a checkbox checklist, and cannot be `done` until required items and focused verification pass.
+
+After verification, TaskFlow moves the whole task directory to `TaskFlowDocs/achieved/<task-id>/`. If later work belongs to that achieved deliverable, it retrieves the directory to the active root, records the Todo source and reopen reason, creates a new Task version, and returns to approval before changing implementation.
 
 <details>
 <summary><strong>Why not just rely on Git?</strong></summary>
