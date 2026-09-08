@@ -1,6 +1,6 @@
 ---
 name: taskflow
-description: "Manage a task through the project's task-directory workflow: clarify requirements, create PRD, decide whether a large task needs a Spec, plan implementation, verify results, record sessions, and archive completed work. Use for non-trivial feature, bug, refactor, research, or documentation tasks that need durable task artifacts."
+description: "Manage any repository work request through the project's TaskFlow workflow: record Todo intake, select or maintain tasks, clarify requirements, plan when needed, verify results, and archive recoverable task history."
 ---
 
 # TaskFlow
@@ -110,7 +110,7 @@ planning → ready → in_progress → checking → completed
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
 - `blocked`: a concrete blocker is recorded with reproduction, attempts, and needed input; resume the prior phase when cleared.
-- `completed`: acceptance and verification passed. Move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`, then mark the linked Todo item `done`.
+- `completed`: acceptance and verification passed. Execute the archive transaction: move the entire task directory to `TaskFlowDocs/achieved/<task-id>/`, update the linked Todo item's `Task:` path to that achieved path and its status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. If any part fails, leave the Todo item not `done`, record the blocker, and do not claim archival completion.
 
 `ready` is not approval. Do not implement until approval is recorded in `plan.md`.
 
@@ -206,7 +206,7 @@ Record each command and result in `plan.md`. Distinguish pre-existing failures, 
 
 ### 7. Complete and archive
 
-Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, then move the entire directory and mark the linked Todo item `done`. Keep `old/` history. Treat achieved tasks as read-only in place: a later request that belongs to one must first retrieve the entire directory to the active root, record the Todo source and reopen reason, create a new Task version, and obtain approval. Create a related task only for a new independent outcome or different owner/accountability.
+Before moving the task to `TaskFlowDocs/achieved/`, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. Mark the task `completed`, move the entire directory, update the linked Todo item's `Task:` path to `TaskFlowDocs/achieved/<task-id>/` and status to `done`, then verify both locations and root statuses. If any part fails, record the blocker and do not claim archival completion. Keep `old/` history. Treat achieved tasks as read-only in place: a later request that belongs to one must first retrieve the entire directory to the active root, record the Todo source and reopen reason, create a new Task version, and obtain approval. Create a related task only for a new independent outcome or different owner/accountability.
 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 
