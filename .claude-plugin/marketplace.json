@@ -9,7 +9,7 @@
     {
       "name": "taskflow",
       "description": "PRD/Spec/Plan task workflow skill with lifecycle hooks",
-      "source": "./taskflow",
+      "source": "./",
       "author": {
         "name": "TaskFlow"
       }
