@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Codex CLI).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Codex CLI plugin form).",
   "hooks": {
     "SessionStart": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "<abs-path>/hooks/session-start"
+            "command": "bash \"${PLUGIN_ROOT}/hooks/session-start\""
           }
         ]
       }

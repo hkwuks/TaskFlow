@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "taskflow",
+  "version": "1.0.0",
+  "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex)",
+  "author": { "name": "TaskFlow" },
+  "homepage": "https://github.com/hkwuks/TaskFlow",
+  "repository": "https://github.com/hkwuks/TaskFlow",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "prd",
+    "spec",
+    "plan",
+    "workflow",
+    "hooks",
+    "tasks"
+  ],
+  "skills": ["./"]
+}

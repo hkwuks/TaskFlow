@@ -38,3 +38,9 @@ if %ERRORLEVEL% equ 0 (
 REM No bash found - exit silently rather than error
 exit /b 0
 CMDBLOCK
+
+# Unix: run the named script directly
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_NAME="$1"
+shift
+exec bash "${SCRIPT_DIR}/${SCRIPT_NAME}" "$@"

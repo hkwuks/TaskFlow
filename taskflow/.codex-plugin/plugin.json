@@ -1,0 +1,28 @@
+{
+  "name": "taskflow",
+  "version": "1.0.0",
+  "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex)",
+  "author": {
+    "name": "TaskFlow",
+    "url": "https://github.com/hkwuks"
+  },
+  "homepage": "https://github.com/hkwuks/TaskFlow",
+  "repository": "https://github.com/hkwuks/TaskFlow",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "prd",
+    "spec",
+    "plan",
+    "workflow",
+    "hooks",
+    "tasks"
+  ],
+  "skills": "./",
+  "hooks": "./hooks/hooks-codex.json",
+  "interface": {
+    "displayName": "TaskFlow",
+    "shortDescription": "PRD/Spec/Plan task workflow with lifecycle hooks for Codex CLI",
+    "developerName": "TaskFlow"
+  }
+}
