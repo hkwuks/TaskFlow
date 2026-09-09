@@ -31,7 +31,27 @@ taskflow/hooks/
 
 ## Install
 
-Claude Code (project settings or plugin `hooks` entry):
+Install TaskFlow as a plugin from the repository marketplace — no file copying:
+
+```bash
+# Claude Code
+claude plugin marketplace add hkwuks/TaskFlow     # or a local path
+claude plugin install taskflow@taskflow
+
+# Codex CLI
+codex plugin marketplace add hkwuks/TaskFlow      # or a local path
+codex plugin add taskflow@taskflow
+```
+
+The plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
+and the repo-root marketplace) wire the SessionStart hook automatically:
+- Claude Code auto-loads `hooks/hooks.json` (standard hooks file at the plugin
+  root) and runs `run-hook.cmd session-start`.
+- Codex loads the manifest's `hooks` → `hooks/hooks-codex.json`, which points
+  at `session-start` via `${PLUGIN_ROOT}`.
+
+For a non-plugin (manual) install — e.g. running hooks from a checked-out copy
+outside a plugin — the old wiring still works:
 
 ```jsonc
 // .claude/settings.json  →  "hooks" key
@@ -52,8 +72,8 @@ Claude Code (project settings or plugin `hooks` entry):
 }
 ```
 
-Codex CLI — copy `hooks-codex.json` to `<repo>/.codex/hooks.json` (or its
-`[hooks]` into `.codex/config.toml`) and set the absolute script path.
+Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.json`
+(or its `[hooks]` into `.codex/config.toml`) and set the absolute script path.
 
 ## Scope / safety
 

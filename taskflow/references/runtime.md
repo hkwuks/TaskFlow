@@ -14,8 +14,13 @@ TaskFlow ships reference hook configs for:
 
 | Host | Config location | Reference file |
 | --- | --- | --- |
-| Claude Code | `.claude/settings.json` or `.claude-plugin/plugin.json` (`hooks` entry) | `hooks/hooks.json` |
-| Codex CLI | `<repo>/.codex/hooks.json` or `[hooks]` in `<repo>/.codex/config.toml`, or `.codex-plugin/plugin.json` | `hooks/hooks-codex.json` |
+| Claude Code | plugin root `hooks/hooks.json` (auto-loaded standard hooks file), or `.claude/settings.json` for a manual install | `hooks/hooks.json` |
+| Codex CLI | `.codex-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codex.json`), or `<repo>/.codex/hooks.json` for a manual install | `hooks/hooks-codex.json` |
+
+Install both hosts by command from the repository marketplace — no file copying:
+`claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
+`codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`
+(a local directory path works in place of the GitHub owner/repo).
 
 An environment running any other agent host needs no hooks: it continues with the base flow. Adding a new host later is additive — write one JSON plus (if needed) a launcher, reusing the extensionless bash scripts.
 
@@ -74,17 +79,24 @@ Run by the Agent (or invoked by a hook) as one operation. They never touch appro
 ## Folder layout
 
 ```text
-taskflow/hooks/
-├── README.md                 # install + run instructions for both hosts
-├── hooks.json                # Claude Code wiring (SessionStart)
-├── hooks-codex.json          # Codex CLI wiring (SessionStart)
-├── run-hook.cmd              # cross-platform launcher (polyglot batch/bash)
-├── session-start             # SessionStart entry (extensionless bash)
-├── summarize-state           # shared state-summary generator
-├── archive                   # full archive transaction (incl. Todo update)
-├── version                   # archive changed docs + version bump
-├── reopen                    # retrieve an achieved task
-└── smoke-test                # assert-style smoke tests
+repo-root/
+├── .claude-plugin/marketplace.json      # marketplace catalog (both hosts read it)
+└── taskflow/
+    ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./)
+    ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./)
+    ├── SKILL.md
+    ├── hooks/
+    │   ├── README.md                    # install + run instructions for both hosts
+    │   ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
+    │   ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
+    │   ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
+    │   ├── session-start                # SessionStart entry (extensionless bash)
+    │   ├── summarize-state              # shared state-summary generator
+    │   ├── archive                      # full archive transaction (incl. Todo update)
+    │   ├── version                      # archive changed docs + version bump
+    │   ├── reopen                       # retrieve an achieved task
+    │   └── smoke-test                   # assert-style smoke tests
+    └── references/                      # runtime.md, artifacts.md, versioning-and-recovery.md
 ```
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.

@@ -174,19 +174,72 @@ stateDiagram-v2
 
 ## Get started
 
-```text
-1. Add taskflow/ to your project's Agent Skills directory.
+TaskFlow ships as a Claude Code / Codex plugin: the `hooks/`, skill, and install wiring are all in one marketplace. No copying files or editing `settings.json` by hand.
 
-2. Tell your Agent:
-   Use $taskflow to plan, execute, verify, and archive this task.
+### Install with Claude Code
 
-3. Add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`, `spec.md` (when needed), and `plan.md`.
+Add the TaskFlow marketplace, then install the plugin:
 
-4. Review the task documents, record approval, then implement one planned step at a time using its checklist.
+```bash
+claude plugin marketplace add hkwuks/TaskFlow
+claude plugin install taskflow@taskflow
 ```
 
 > [!TIP]
+> In-session, the same two steps are `/plugin marketplace add hkwuks/TaskFlow` then `/plugin install taskflow@taskflow`.
+
+Verify it loaded:
+
+```bash
+claude plugin list
+#   taskflow@taskflow    Version: 1.0.0    Status: ✔ enabled
+```
+
+### Install with Codex CLI
+
+Add the same marketplace, then install the plugin:
+
+```bash
+codex plugin marketplace add hkwuks/TaskFlow
+codex plugin add taskflow@taskflow
+```
+
+Verify it loaded:
+
+```bash
+codex plugin list
+#   taskflow@taskflow    installed, enabled
+```
+
+### Prefer a local copy?
+
+If you do not want to trust the remote repo, point the marketplace at your
+checked-out copy instead of GitHub — the plugin and hooks then run from files
+you control:
+
+```bash
+# Claude Code
+claude plugin marketplace add <repo-root>
+claude plugin install taskflow@taskflow
+
+# Codex CLI
+codex plugin marketplace add <repo-root>
+codex plugin add taskflow@taskflow
+```
+
+Once installed, tell your Agent:
+
+```text
+Use $taskflow to plan, execute, verify, and archive this task.
+```
+
+Then: add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`, `spec.md` (when needed), and `plan.md`; review the task documents, record approval, then implement one planned step at a time using its checklist.
+
+> [!TIP]
 > A small, obvious one-file change can still be a direct change with minimal verification. TaskFlow does not create documents merely to satisfy a process.
+
+> [!NOTE]
+> Hooks are optional. The plugin installs a SessionStart hook that prints a short derived state summary (inbox items + active tasks) so the Agent does not re-read the whole tree; it writes nothing and never approves. Hosts without hooks run the exact same flow.
 
 ## Where TaskFlow fits
 

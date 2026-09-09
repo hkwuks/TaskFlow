@@ -132,19 +132,70 @@ stateDiagram-v2
 
 ## 快速开始
 
-```text
-1. 将 taskflow/ 放入项目的 Agent Skills 目录。
+TaskFlow 以插件形式分发（Claude Code / Codex 同一套市场）：`hooks/`、技能与安装配置都在一个仓库里，无需手动复制文件或手改 `settings.json`。
 
-2. 对 Agent 说：
-   使用 $taskflow 规划、执行、验证并归档这个任务。
+### 用 Claude Code 安装
 
-3. 将想法记录到 `TaskFlowDocs/todo.md`；澄清后的条目再提升为 `prd.md`、按需的 `spec.md` 和 `plan.md`。
+先添加 TaskFlow 市场，再安装插件：
 
-4. 审阅任务文档并记录批准，再按每个步骤的 checklist 实施和记录验证结果。
+```bash
+claude plugin marketplace add hkwuks/TaskFlow
+claude plugin install taskflow@taskflow
 ```
 
 > [!TIP]
+> 会话内同样两步：`/plugin marketplace add hkwuks/TaskFlow` 然后 `/plugin install taskflow@taskflow`。
+
+验证是否加载成功：
+
+```bash
+claude plugin list
+#   taskflow@taskflow    Version: 1.0.0    Status: ✔ enabled
+```
+
+### 用 Codex CLI 安装
+
+添加同一个市场，再安装插件：
+
+```bash
+codex plugin marketplace add hkwuks/TaskFlow
+codex plugin add taskflow@taskflow
+```
+
+验证是否加载成功：
+
+```bash
+codex plugin list
+#   taskflow@taskflow    installed, enabled
+```
+
+### 想用本地副本？
+
+如果不想信任远程仓库，可以把市场指向本地检出目录而不是 GitHub——插件和 hooks 就会运行在你自己的文件里：
+
+```bash
+# Claude Code
+claude plugin marketplace add <仓库根目录>
+claude plugin install taskflow@taskflow
+
+# Codex CLI
+codex plugin marketplace add <仓库根目录>
+codex plugin add taskflow@taskflow
+```
+
+安装后告诉你的 Agent：
+
+```text
+使用 $taskflow 规划、执行、验证并归档这个任务。
+```
+
+然后把想法记录到 `TaskFlowDocs/todo.md`；澄清后的条目再提升为 `prd.md`、按需的 `spec.md` 和 `plan.md`；审阅任务文档并记录批准，再按每个步骤的 checklist 实施和记录验证结果。
+
+> [!TIP]
 > 边界清晰的简单单文件修改可以直接完成并做最小验证，不必为了流程创建空文档。
+
+> [!NOTE]
+> Hooks 是可选的。插件安装的 SessionStart hook 只打印一份简短的状态摘要（未完成的收件箱条目 + 活跃任务），让 Agent 不必重读整棵树；它不写任何文件，也从不批准。没有 hooks 的宿主按同样的流程运行。
 
 ## 与相邻工具的比较
 
