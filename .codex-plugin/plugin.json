@@ -1,6 +1,6 @@
 {
   "name": "taskflow",
-  "version": "1.0.0",
+  "version": "1.0.0+codex.20260909145457",
   "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex)",
   "author": {
     "name": "TaskFlow",
@@ -18,11 +18,18 @@
     "hooks",
     "tasks"
   ],
-  "skills": "./",
+  "skills": "./skills/",
   "hooks": "./hooks/hooks-codex.json",
   "interface": {
     "displayName": "TaskFlow",
     "shortDescription": "PRD/Spec/Plan task workflow with lifecycle hooks for Codex CLI",
-    "developerName": "TaskFlow"
+    "longDescription": "Durable PRD, Spec, Plan, verification, and archive workflow for repository tasks.",
+    "developerName": "TaskFlow",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Use $taskflow to plan, execute, verify, and archive this task."
   }
 }
