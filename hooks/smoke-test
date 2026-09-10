@@ -105,6 +105,9 @@ skill="$repo/skills/taskflow"
 [ ! -e "$repo/SKILL.md" ] && [ ! -e "$repo/agents" ] && [ ! -e "$repo/references" ] || { echo "FAIL duplicate root Skill"; exit 1; }
 grep -q 'selection alone is not invocation' "$skill/SKILL.md" || { echo "FAIL selection/invocation boundary"; exit 1; }
 grep -q 'does not require the selection or use of any particular capability' "$skill/SKILL.md" || { echo "FAIL autonomous choice boundary"; exit 1; }
+grep -q 'Apply TaskFlow automatically only when the request asks to modify a repository or deliver a development artifact' "$skill/SKILL.md" || { echo "FAIL development applicability boundary"; exit 1; }
+grep -q 'Do not create or update Todo/task documents for read-only explanation' "$skill/SKILL.md" || { echo "FAIL read-only exclusion"; exit 1; }
+grep -q 'explicit user request to use `\$taskflow` opts any planning or research work' "$skill/SKILL.md" || { echo "FAIL explicit invocation override"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

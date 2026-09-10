@@ -57,7 +57,7 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 ## Todo 收件箱
 
-`TaskFlowDocs/todo.md` 是每个直接请求和导入需求（包括 GitHub Issue）的强制首条记录。批量导入时，每条源需求保留一个 Todo 条目，并在可用时记录来源和外部编号/链接。条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进：提升后创建任务目录中的 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。提升后的 Todo 保留来源身份、生命周期元数据和任务链接。每个 Plan Step 都必须有复选清单，必选项全部完成且通过聚焦验证后才能标记 `done`。
+TaskFlow 只自动用于仓库开发需求：功能、Bug 修复、重构、测试、配置/构建/CI 变更和发布准备。只读解释、翻译、状态查询、研究、审查和诊断不会创建 Todo 或任务文档；若之后要求实施，再从该实施请求开始进入流程。用户显式调用 `$taskflow` 时，规划或研究也会进入流程。对于适用请求，`TaskFlowDocs/todo.md` 是强制首条记录；条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进，提升后创建 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。
 
 验证通过后，TaskFlow 将整个任务目录移入 `TaskFlowDocs/achieved/<task-id>/`，同步 Todo 的任务路径和 `done` 状态，并确认活动路径已不存在。已归档任务只读；其 `old/vN/` 历史仅在当前文档或版本摘要需要时才读取。之后若新工作属于该已完成交付物，先将目录取回活动根目录，记录 Todo 来源与重新打开原因，创建新的 Task version，并在修改实现前重新经过批准门禁。
 

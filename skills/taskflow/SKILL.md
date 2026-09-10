@@ -1,11 +1,17 @@
 ---
 name: taskflow
-description: "Manage any repository work request through the project's TaskFlow workflow: record Todo intake, select or maintain tasks, clarify requirements, plan when needed, verify results, and archive recoverable task history."
+description: "Manage repository development requests through TaskFlow: features, fixes, refactors, tests, configuration/build/CI changes, release preparation, and explicit $taskflow planning or research. Do not use for read-only explanation, translation, status, research, review, or diagnosis unless the user explicitly invokes $taskflow."
 ---
 
 # TaskFlow
 
 Use this skill as the single entry point for the project's task framework. It defines where task facts live and how work moves through the lifecycle. TaskFlow does not select tools: during clarification, PRD, Spec, Plan, research, and review work, first check the capabilities currently available to the Agent and use any that materially help. Review and route only incorporated task facts into the current task directory.
+
+## Applicability gate
+
+Apply TaskFlow automatically only when the request asks to modify a repository or deliver a development artifact, including a feature, bug fix, refactor, test, configuration/build/CI change, or release preparation. Do not create or update Todo/task documents for read-only explanation, translation, status queries, research, review, or diagnosis. If such work later leads to an implementation request, begin TaskFlow with that new request. An explicit user request to use `$taskflow` opts any planning or research work into this workflow.
+
+Decide this applicability before Todo intake. If TaskFlow does not apply, answer or investigate directly and stop reading this workflow.
 
 TaskFlow may coordinate with host/harness hooks (Claude Code and Codex CLI) for bounded bookkeeping and context. Host hooks are optional optimization, not a prerequisite: an environment without hooks runs the same flow. See [references/runtime.md](references/runtime.md) for what hooks may and may not do.
 
@@ -19,7 +25,7 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 `TaskFlowDocs/repository-docs/index.md` is the single catalog for repository documents, repository rules, and personal supplements. Before planning or implementing a non-trivial task, inspect the catalog and load only entries applicable to the task or phase. If the task needs a rule that the repository does not provide, use the repository-document rules below before implementation.
 
-`TaskFlowDocs/todo.md` is the mandatory intake record for every work request, including direct user requests, GitHub Issues, and all other imports. Create or update its Todo item before task matching, clarification, promotion, planning, implementation, or import-specific processing. It is not a second source of task facts: after promotion, the linked `TaskFlowDocs/<task-id>/` directory is authoritative for requirements, design, plan, and verification.
+`TaskFlowDocs/todo.md` is the mandatory intake record for every request that passes the applicability gate, including qualifying direct development requests, GitHub Issues, other development imports, and explicit `$taskflow` requests. Create or update its Todo item before task matching, clarification, promotion, planning, implementation, or import-specific processing. It is not a second source of task facts: after promotion, the linked `TaskFlowDocs/<task-id>/` directory is authoritative for requirements, design, plan, and verification.
 
 Required artifacts:
 
@@ -37,11 +43,11 @@ Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/p
 
 ## Triage and lifecycle
 
-First record or update the Todo item for the request. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+After the request passes the applicability gate, first record or update its Todo item. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
 
 ### Todo-first intake
 
-Every request enters `TaskFlowDocs/todo.md` before task selection. Record its ID, source, goal, status, next action, update date, and external identifier/link when one exists. Deduplicate imported items by source plus external identifier; preserve distinct requirements even when imported as a batch. A batch may carry common source metadata, but it is never itself a task, PRD, or requirements source.
+Every request within TaskFlow's applicability boundary enters `TaskFlowDocs/todo.md` before task selection. Record its ID, source, goal, status, next action, update date, and external identifier/link when one exists. Deduplicate imported items by source plus external identifier; preserve distinct requirements even when imported as a batch. A batch may carry common source metadata, but it is never itself a task, PRD, or requirements source.
 
 Do not create, reopen, modify, or select a task before the Todo record exists. After promotion, retain lifecycle metadata, source identity, and one task link in Todo; do not duplicate task facts. Update the Todo status as the linked task moves through `inbox → clarified → promoted → in_progress → done/cancelled`.
 
