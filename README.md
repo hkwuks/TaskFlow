@@ -111,7 +111,7 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
-During clarification, PRD, Spec, Plan, research, and review work, the Agent checks its currently available capabilities and uses those that materially help. TaskFlow does not prescribe a tool, vendor, Skill family, or invocation mechanism; it makes reviewed, incorporated task facts and the surrounding agreement durable.
+Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and autonomously invokes whatever materially helps. TaskFlow sets no fixed names, providers, chains, categories, or numerical limits. Outputs are reviewed before incorporation; when `plan.md` exists, only capabilities actually used, their purpose, and incorporated conclusions are recorded.
 
 TaskFlow may also coordinate with host/harness hooks (Claude Code and Codex CLI) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; it never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 

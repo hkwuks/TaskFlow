@@ -104,7 +104,9 @@ small, obvious one-file change → direct change + minimal verification
 non-trivial task              → planning workflow below
 ```
 
-Checking available capabilities does not require invoking one or recording an empty result. TaskFlow does not name a required tool, vendor, Skill family, or invocation mechanism.
+TaskFlow is the task-lifecycle and artifact layer, not the expert-capability layer. Before substantive work in any TaskFlow phase, inspect the capabilities currently available in the host environment, including Skills, tools, MCP servers, and Agents, and determine which can materially improve the current task, artifact, or decision. Invoke useful capabilities through the host's supported mechanism. Do not use a fixed allowlist, required provider, predefined Skill chain, capability category, or numerical limit.
+
+If none apply, continue with the base TaskFlow flow. Review outputs before incorporating them; raw outputs are not authoritative. When `plan.md` exists, record only capabilities actually used, their purpose, and the conclusions incorporated from them. Do not record discovery results or unused capabilities.
 
 For a non-trivial task:
 

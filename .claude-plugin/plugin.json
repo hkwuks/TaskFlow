@@ -16,5 +16,5 @@
     "hooks",
     "tasks"
   ],
-  "skills": ["./"]
+  "skills": ["./skills/"]
 }
