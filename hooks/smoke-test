@@ -27,13 +27,34 @@ cat > "$docs/2026-09-08-smoke/plan.md" <<'EOF'
 EOF
 cat > "$docs/todo.md" <<'EOF'
 # Todo inbox
-## T-20260908-999 — Smoke
+## Smoke with an arbitrary heading
+- ID: T-20260908-999
 - Status: in_progress
+- Goal: Prove field-based Todo parsing.
 - Task: `TaskFlowDocs/2026-09-08-smoke/`
 - Updated: 2026-09-08
 EOF
+summary=$(cd "$tmp" && bash "$HERE/summarize-state")
+echo "$summary" | grep -q -- "- T-20260908-999 | in_progress | Prove field-based Todo parsing." || { echo "FAIL Todo ID parsing"; exit 1; }
 json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
 echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
+
+if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+  echo "== Windows launcher finds Git Bash =="
+  win_hook=$(cygpath -w "$HERE/run-hook.cmd")
+  json=$(cd "$tmp" && TASKFLOW_REPO_ROOT="$tmp" cmd.exe //d //c "$win_hook" session-start 2>&1)
+  echo "$json" | grep -q 'additionalContext\|additional_context\|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
+  echo ok
+fi
+
+echo "== archive preflight does not move without Todo =="
+preflight="$tmp/preflight"
+mkdir -p "$preflight/TaskFlowDocs/2026-09-08-preflight"
+cp "$docs/2026-09-08-smoke/prd.md" "$preflight/TaskFlowDocs/2026-09-08-preflight/prd.md"
+cp "$docs/2026-09-08-smoke/plan.md" "$preflight/TaskFlowDocs/2026-09-08-preflight/plan.md"
+if bash "$HERE/archive" 2026-09-08-preflight "$preflight" >/dev/null 2>&1; then echo "FAIL archive accepted missing Todo"; exit 1; fi
+[ -d "$preflight/TaskFlowDocs/2026-09-08-preflight" ] || { echo "FAIL archive moved before preflight"; exit 1; }
+echo ok
 
 echo "== archive happy path =="
 bash "$HERE/archive" 2026-09-08-smoke "$tmp" >/dev/null

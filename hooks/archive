@@ -9,27 +9,37 @@ set -euo pipefail
 task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 docs="$root/TaskFlowDocs"
 [ -d "$docs/$task" ] || { echo "no active task $docs/$task"; exit 1; }
-[ -d "$docs/achieved" ] || mkdir -p "$docs/achieved"
 [ ! -e "$docs/achieved/$task" ] || { echo "achieved/$task already exists"; exit 1; }
 
 # 1. authoritative completion must already be recorded by the Agent
 grep -q '> Status: completed' "$docs/$task/prd.md" || { echo "prd.md not completed"; exit 1; }
 grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not completed"; exit 1; }
 
+todo="$docs/todo.md"
+[ -f "$todo" ] || { echo "todo.md missing; archive not started"; exit 1; }
+python_cmd="${TASKFLOW_PYTHON:-python3}"
+"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+"$python_cmd" - "$todo" "$task" <<'PY'
+import re, sys
+text, task = open(sys.argv[1], encoding='utf-8').read(), sys.argv[2]
+parts = re.split(r'(?m)^(## .*)$', text)
+if not any(f'`TaskFlowDocs/{task}/`' in parts[i+1] for i in range(1, len(parts), 2)):
+    raise SystemExit(f"Todo entry for {task} missing; archive not started")
+PY
+
 # 2. move whole dir
+[ -d "$docs/achieved" ] || mkdir -p "$docs/achieved"
 mv "$docs/$task" "$docs/achieved/$task"
 
 # 3. update the linked Todo item: Task: path -> achieved, Status -> done
-todo="$docs/todo.md"
-[ -f "$todo" ] || { echo "todo.md missing; archive done, Todo NOT updated"; exit 1; }
-python3 - "$todo" "$task" <<'PY'
+"$python_cmd" - "$todo" "$task" <<'PY'
 import re, sys
 todo, task = sys.argv[1], sys.argv[2]
 text = open(todo, encoding='utf-8').read()
 parts = re.split(r'(?m)^(## .*)$', text)
 for i in range(1, len(parts), 2):
     header, body = parts[i], parts[i+1]
-    if header.startswith('## T-') and f'`TaskFlowDocs/{task}/`' in body:
+    if f'`TaskFlowDocs/{task}/`' in body:
         body = re.sub(r'(?m)^(- Status: ).*$', r'\1done', body)
         body = body.replace(f'`TaskFlowDocs/{task}/`', f'`TaskFlowDocs/achieved/{task}/`')
         parts[i+1] = body

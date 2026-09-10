@@ -13,7 +13,9 @@ mv "$docs/achieved/$task" "$docs/$task"
 
 plan="$docs/$task/plan.md"
 if [ -f "$plan" ]; then
-  python3 - "$plan" "$task" <<'PY'
+  python_cmd="${TASKFLOW_PYTHON:-python3}"
+  "$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+  "$python_cmd" - "$plan" "$task" <<'PY'
 import sys, datetime
 plan, task = sys.argv[1], sys.argv[2]
 text = open(plan, encoding='utf-8').read()

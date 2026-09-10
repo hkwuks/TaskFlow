@@ -17,6 +17,7 @@ if "%~1"=="" (
 )
 
 set "HOOK_DIR=%~dp0"
+set "GIT_BASH="
 
 REM Try Git for Windows bash in standard locations
 if exist "C:\Program Files\Git\bin\bash.exe" (
@@ -25,14 +26,26 @@ if exist "C:\Program Files\Git\bin\bash.exe" (
 )
 if exist "C:\Program Files (x86)\Git\bin\bash.exe" (
     "C:\Program Files (x86)\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
+    exit /b
 )
 
-REM Try bash on PATH (e.g. user-installed Git Bash, MSYS2, Cygwin)
-where bash >nul 2>nul
-if %ERRORLEVEL% equ 0 (
-    bash "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
+REM Find Git Bash beside the Git for Windows installation, including non-default drives.
+for /f "delims=" %%G in ('where git 2^>nul') do (
+    if not defined GIT_BASH if exist "%%~dpG..\bin\bash.exe" set "GIT_BASH=%%~dpG..\bin\bash.exe"
+    if not defined GIT_BASH if exist "%%~dpG..\usr\bin\bash.exe" set "GIT_BASH=%%~dpG..\usr\bin\bash.exe"
+)
+if defined GIT_BASH (
+    "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    exit /b
+)
+
+REM Accept another PATH bash, but never Windows' WSL launchers.
+for /f "delims=" %%B in ('where bash 2^>nul') do (
+    if not defined GIT_BASH if /I not "%%~fB"=="%SystemRoot%\System32\bash.exe" if /I not "%%~fB"=="%LOCALAPPDATA%\Microsoft\WindowsApps\bash.exe" set "GIT_BASH=%%~fB"
+)
+if defined GIT_BASH (
+    "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    exit /b
 )
 
 REM No bash found - exit silently rather than error

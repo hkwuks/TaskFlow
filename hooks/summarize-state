@@ -14,17 +14,20 @@ docs="$repo_root/TaskFlowDocs"
 todo="$docs/todo.md"
 if [ -f "$todo" ]; then
   echo "# TaskFlow inbox (not done)"
-  python3 - "$todo" <<'PY'
+  python_cmd="${TASKFLOW_PYTHON:-python3}"
+  "$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+  "$python_cmd" - "$todo" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding='utf-8').read()
-for it in re.split(r'(?m)^(?=## T-)', text):
-    if not it.startswith('## T-'): continue
-    m = re.match(r'## T-(\S+)', it)
-    if not m or m.group(1) == 'YYYYMMDD-001': continue
-    st = re.search(r'(?m)^- Status:\s*(\S+)', it)
+parts = re.split(r'(?m)^(## .*)$', text)
+for i in range(1, len(parts), 2):
+    body = parts[i+1]
+    m = re.search(r'(?m)^- ID:\s*(\S+)', body)
+    if not m or m.group(1) in {'T-YYYYMMDD-001', 'YYYYMMDD-001'}: continue
+    st = re.search(r'(?m)^- Status:\s*(\S+)', body)
     if st and st.group(1) == 'done': continue
-    g = re.search(r'(?m)^- Goal:\s*(.+)', it)
-    print(f"- T-{m.group(1)} | {st.group(1) if st else '?'} | {(g.group(1) if g else '').strip()[:120]}")
+    g = re.search(r'(?m)^- Goal:\s*(.+)', body)
+    print(f"- {m.group(1)} | {st.group(1) if st else '?'} | {(g.group(1) if g else '').strip()[:120]}")
 PY
 fi
 
