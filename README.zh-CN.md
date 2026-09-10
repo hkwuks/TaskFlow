@@ -6,8 +6,8 @@
 
 **本地 Markdown · 显式批准 · 可恢复设计历史**
 
-[![工作流：Skill](https://img.shields.io/badge/工作流-Skill-0f766e?style=for-the-badge)](taskflow/SKILL.md)
-[![存储：本地 Markdown](https://img.shields.io/badge/存储-本地%20Markdown-1d4ed8?style=for-the-badge)](taskflow/references/artifacts.md)
+[![工作流：Skill](https://img.shields.io/badge/工作流-Skill-0f766e?style=for-the-badge)](skills/taskflow/SKILL.md)
+[![存储：本地 Markdown](https://img.shields.io/badge/存储-本地%20Markdown-1d4ed8?style=for-the-badge)](skills/taskflow/references/artifacts.md)
 [![许可证：AGPL-3.0](https://img.shields.io/badge/许可证-AGPL--3.0-e11d48?style=for-the-badge)](LICENSE)
 
 [English](README.md) · **中文说明**
@@ -234,7 +234,7 @@ TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，
 ## 仓库结构
 
 ```text
-taskflow/
+skills/taskflow/
 ├── SKILL.md                         # 工作流入口
 ├── agents/openai.yaml               # Agent 元数据与默认提示词
 └── references/

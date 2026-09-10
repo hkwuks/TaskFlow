@@ -85,7 +85,7 @@ Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.jso
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
-- Rules and host event maps live in `../references/runtime.md`.
+- Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
 - Smoke: `bash smoke-test` (builds a temp TaskFlowDocs and exercises
   archive → reopen → version).
 

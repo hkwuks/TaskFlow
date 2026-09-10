@@ -98,12 +98,13 @@ if bash "$HERE/version" 2026-09-08-smoke v3 "$tmp" notes.md >/dev/null 2>&1; the
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL invalid input mutated root"; exit 1; }
 echo ok
 
-echo "== TaskFlow capability contract mirrors =="
+echo "== TaskFlow packaged Skill contract =="
 repo=$(cd "$HERE/.." && pwd)
-cmp -s "$repo/SKILL.md" "$repo/skills/taskflow/SKILL.md" || { echo "FAIL Skill mirror"; exit 1; }
-cmp -s "$repo/references/artifacts.md" "$repo/skills/taskflow/references/artifacts.md" || { echo "FAIL artifact mirror"; exit 1; }
-grep -q 'selection alone is not invocation' "$repo/SKILL.md" || { echo "FAIL selection/invocation boundary"; exit 1; }
-grep -q 'does not require the selection or use of any particular capability' "$repo/SKILL.md" || { echo "FAIL autonomous choice boundary"; exit 1; }
+skill="$repo/skills/taskflow"
+[ -f "$skill/SKILL.md" ] && [ -f "$skill/agents/openai.yaml" ] || { echo "FAIL incomplete packaged Skill"; exit 1; }
+[ ! -e "$repo/SKILL.md" ] && [ ! -e "$repo/agents" ] && [ ! -e "$repo/references" ] || { echo "FAIL duplicate root Skill"; exit 1; }
+grep -q 'selection alone is not invocation' "$skill/SKILL.md" || { echo "FAIL selection/invocation boundary"; exit 1; }
+grep -q 'does not require the selection or use of any particular capability' "$skill/SKILL.md" || { echo "FAIL autonomous choice boundary"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

@@ -82,21 +82,23 @@ Run by the Agent (or invoked by a hook) as one operation. They never touch appro
 repo-root/
 ├── .claude-plugin/marketplace.json      # marketplace catalog (both hosts read it)
 └── taskflow/
-    ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./)
-    ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./)
-    ├── SKILL.md
-    ├── hooks/
-    │   ├── README.md                    # install + run instructions for both hosts
-    │   ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
-    │   ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
-    │   ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
-    │   ├── session-start                # SessionStart entry (extensionless bash)
-    │   ├── summarize-state              # shared state-summary generator
-    │   ├── archive                      # full archive transaction (incl. Todo update)
-    │   ├── version                      # archive changed docs + version bump
-    │   ├── reopen                       # retrieve an achieved task
-    │   └── smoke-test                   # assert-style smoke tests
-    └── references/                      # runtime.md, artifacts.md, versioning-and-recovery.md
+    ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./skills/)
+    ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./skills/)
+    ├── skills/taskflow/
+    │   ├── SKILL.md
+    │   ├── agents/openai.yaml
+    │   └── references/                  # runtime.md, artifacts.md, versioning-and-recovery.md
+    └── hooks/
+        ├── README.md                    # install + run instructions for both hosts
+        ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
+        ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
+        ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
+        ├── session-start                # SessionStart entry (extensionless bash)
+        ├── summarize-state              # shared state-summary generator
+        ├── archive                      # full archive transaction (incl. Todo update)
+        ├── version                      # archive changed docs + version bump
+        ├── reopen                       # retrieve an achieved task
+        └── smoke-test                   # assert-style smoke tests
 ```
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.

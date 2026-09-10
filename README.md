@@ -6,8 +6,8 @@
 
 **Local Markdown. Explicit approvals. Recoverable design history.**
 
-[![Workflow: Skill](https://img.shields.io/badge/workflow-Skill-0f766e?style=for-the-badge)](taskflow/SKILL.md)
-[![Storage: Local Markdown](https://img.shields.io/badge/storage-local%20Markdown-1d4ed8?style=for-the-badge)](taskflow/references/artifacts.md)
+[![Workflow: Skill](https://img.shields.io/badge/workflow-Skill-0f766e?style=for-the-badge)](skills/taskflow/SKILL.md)
+[![Storage: Local Markdown](https://img.shields.io/badge/storage-local%20Markdown-1d4ed8?style=for-the-badge)](skills/taskflow/references/artifacts.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-e11d48?style=for-the-badge)](LICENSE)
 
 [Get started](#get-started) · [Why TaskFlow](#the-problem) · [Compare tools](#where-taskflow-fits) · [中文](README.zh-CN.md)
@@ -281,7 +281,7 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 ## Project map
 
 ```text
-taskflow/
+skills/taskflow/
 ├── SKILL.md                         # workflow entry point
 ├── agents/openai.yaml               # display metadata and default prompt
 └── references/
