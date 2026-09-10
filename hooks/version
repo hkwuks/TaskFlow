@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # version — atomic Task-version transition archiving only changed core docs.
 # Usage: version <task-id> <new-version> [root] [file...]
-# Archives the superseded core docs whose approved content materially changed
-# into old/<old>/ (only those + version.md), leaves an unaffected Plan at the
-# root, and bumps root docs to <new-version>. Default archives prd + spec.
+# Copies the superseded core docs whose approved content materially changed
+# into old/<old>/ (only those + version.md), then prepares retained root docs
+# for the new approval cycle. Default archives prd + spec.
 # Approval stays with the user.
 set -euo pipefail
 task="$1"; newv="$2"; root="${3:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
@@ -12,13 +12,34 @@ docs="$root/TaskFlowDocs"
 [ -d "$docs/$task" ] || { echo "no task $docs/$task"; exit 1; }
 
 plan="$docs/$task/plan.md"
-oldv=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan")
-oldv="${oldv:-v1}"
-[ "$newv" != "$oldv" ] || { echo "new version equals current $oldv"; exit 1; }
-[ -f "$docs/$task/prd.md" ] || { echo "missing prd.md"; exit 1; }
 [ -f "$plan" ] || { echo "missing plan.md"; exit 1; }
+[ -f "$docs/$task/prd.md" ] || { echo "missing prd.md"; exit 1; }
+oldv=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan")
+[ -n "$oldv" ] || { echo "missing current Task version"; exit 1; }
+[[ "$oldv" =~ ^v([1-9][0-9]*)$ ]] || { echo "invalid current Task version: $oldv"; exit 1; }
+[ "$newv" = "v$((BASH_REMATCH[1] + 1))" ] || { echo "new version must follow $oldv"; exit 1; }
+
+[ "${#files[@]}" -gt 0 ] || files=(prd.md spec.md)
+selected=()
+for f in "${files[@]}"; do
+  case "$f" in prd.md|spec.md|plan.md) ;; *) echo "invalid core document: $f"; exit 1;; esac
+  [ -f "$docs/$task/$f" ] || { [ "$f" = spec.md ] && continue; echo "cannot archive $f (not present)"; exit 1; }
+  [[ " ${selected[*]} " == *" $f "* ]] || selected+=("$f")
+done
+[ "${#selected[@]}" -gt 0 ] || { echo "no core documents selected"; exit 1; }
+
+for f in prd.md spec.md plan.md; do
+  fpath="$docs/$task/$f"
+  [ -f "$fpath" ] || continue
+  grep -q "^> Task version: $oldv$" "$fpath" || { echo "mixed or missing Task version in $f"; exit 1; }
+done
+grep -q '^## Approval$' "$plan" || { echo "missing Approval section"; exit 1; }
+for field in Status 'Approved by' 'Approved at' 'Approved version' 'Approved scope'; do
+  grep -A8 '^## Approval$' "$plan" | grep -q "^- $field:" || { echo "missing Approval field: $field"; exit 1; }
+done
 
 archdir="$docs/$task/old/$oldv"
+[ ! -e "$archdir" ] || { echo "archive already exists: $archdir"; exit 1; }
 mkdir -p "$archdir"
 
 # version.md (always)
@@ -35,29 +56,40 @@ cat > "$archdir/version.md" <<EOF
 (Agent: summarize what changed between $oldv and $newv.)
 
 ## Archived Materials
-$(for f in prd.md spec.md plan.md; do [ -f "$docs/$task/$f" ] && echo "- $f"; done)
+$(for f in "${selected[@]}"; do echo "- $f"; done)
 
 ## Restore
 Read the archived $oldv core docs from a new temporary restore root. Do not overwrite the current task root.
 EOF
 
-# move only changed core docs
-if [ "${#files[@]}" -gt 0 ]; then
-  for f in "${files[@]}"; do
-    [ -f "$docs/$task/$f" ] || { echo "cannot archive $f (not present)"; exit 1; }
-    mv "$docs/$task/$f" "$archdir/$f"
-  done
-else
-  for f in prd.md spec.md; do
-    [ -f "$docs/$task/$f" ] && mv "$docs/$task/$f" "$archdir/$f"
-  done
-fi
+# copy only changed core docs; retained roots become the new version
+for f in "${selected[@]}"; do cp "$docs/$task/$f" "$archdir/$f"; done
 
-# bump root docs (prd, spec, plan) that remain at root
+# prepare all root docs for the new approval cycle
 for f in prd.md spec.md plan.md; do
   fpath="$docs/$task/$f"
   [ -f "$fpath" ] || continue
   sed -i "s/^> Task version: .*/> Task version: $newv/" "$fpath"
 done
+sed -i 's/^> Status: .*/> Status: ready/' "$docs/$task/prd.md" "$plan"
+awk '
+  /^## Approval$/ { approval=1; print; next }
+  approval && /^## / { approval=0 }
+  approval && /^- Status:/ { print "- Status: requested"; next }
+  approval && /^- Approved by:/ { print "- Approved by: pending"; next }
+  approval && /^- Approved at:/ { print "- Approved at: pending"; next }
+  approval && /^- Approved version:/ { print "- Approved version: pending"; next }
+  approval && /^- Approved scope:/ { print "- Approved scope: pending"; next }
+  { print }
+' "$plan" > "$plan.tmp"
+mv "$plan.tmp" "$plan"
 
-echo "version OK: archived $oldv (changed docs only) -> root now $newv; record approval before implementation"
+for f in "${selected[@]}"; do [ -f "$archdir/$f" ] || { echo "archive check failed: $f"; exit 1; }; done
+for f in prd.md spec.md plan.md; do
+  fpath="$docs/$task/$f"; [ -f "$fpath" ] || continue
+  grep -q "^> Task version: $newv$" "$fpath" || { echo "root version check failed: $f"; exit 1; }
+done
+grep -q '^> Status: ready$' "$docs/$task/prd.md" && grep -q '^> Status: ready$' "$plan" || { echo "ready-state check failed"; exit 1; }
+grep -A8 '^## Approval$' "$plan" | grep -q '^- Status: requested$' || { echo "approval reset failed"; exit 1; }
+
+echo "version OK: copied $oldv (changed docs only) -> root $newv ready; record approval before implementation"

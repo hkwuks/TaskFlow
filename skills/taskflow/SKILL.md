@@ -106,9 +106,9 @@ small, obvious one-file change → direct change + minimal verification
 non-trivial task              → planning workflow below
 ```
 
-TaskFlow is the task-lifecycle and artifact layer, not the expert-capability layer. Before substantive work in any TaskFlow phase, inspect the capabilities currently available in the host environment, including Skills, tools, MCP servers, and Agents, and determine which can materially improve the current task, artifact, or decision. Invoke useful capabilities through the host's supported mechanism. Do not use a fixed allowlist, required provider, predefined Skill chain, capability category, or numerical limit.
+TaskFlow is the task-lifecycle and artifact layer, not the expert-capability layer. Before substantive work in any TaskFlow phase, inspect the capabilities currently available in the host environment, including Skills, tools, MCP servers, and Agents, and freely determine whether any can materially improve the current task, artifact, or decision. TaskFlow does not require the selection or use of any particular capability, provider, chain, category, or number of capabilities. When the Agent selects one for use, invoke or load it immediately through the host's supported mechanism before following its workflow or incorporating its output; discovery, listing, or selection alone is not invocation.
 
-If none apply, continue with the base TaskFlow flow. Review outputs before incorporating them; raw outputs are not authoritative. When `plan.md` exists, record only capabilities actually used, their purpose, and the conclusions incorporated from them. Do not record discovery results or unused capabilities.
+If none apply, continue with the base TaskFlow flow. If an optional invocation is unavailable or fails, continue with the base flow and record the failed or unavailable attempt only when it materially affects the task; block only when the capability is required for correctness and no safe alternative exists. Review successful outputs before incorporating them; raw outputs are not authoritative. When `plan.md` exists, record only actual invocation attempts: for success, record purpose and incorporated conclusions; for a relevant failure, record the failed or unavailable outcome without claiming incorporation. Do not record discovery, selection, or an uninvoked capability as used.
 
 For a non-trivial task:
 
@@ -183,7 +183,7 @@ The `Implementation checklist` is a checkbox list, not prose. A Step cannot be m
 
 A `## Change Log` in `plan.md` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval. Do not treat a wording or approach clarification as a Task-version event.
 
-Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If a Skill or tool was used, record its name, purpose, and incorporated conclusion in `Skills / Tools Used`. Do not record unused-capability checks.
+Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. If a Skill or tool was actually invoked, record its name, purpose, outcome, and incorporated conclusion in `Skills / Tools Used`. Do not present discovery, selection, or an uninvoked capability as use.
 
 Record approval as:
 

@@ -72,7 +72,7 @@ Run by the Agent (or invoked by a hook) as one operation. They never touch appro
 | --- | --- | --- |
 | `hooks/archive <task-id>` | Move `TaskFlowDocs/<task-id>` → `TaskFlowDocs/achieved/<task-id>`, update the linked Todo item's `Task:` path and status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. | Prints a check report; on any failure leaves the Todo not `done` and exits nonzero. |
 | `hooks/reopen <task-id>` | Move `TaskFlowDocs/achieved/<task-id>` → `TaskFlowDocs/<task-id>`, record the Todo source/reopen reason in the Plan change log. | Prints a check report; exit nonzero on mismatch. |
-| `hooks/version <task-id> <new-v>` | Archive only the changed core documents plus `version.md` into `old/v<old>/`, leave an unaffected Plan at the root, bump root docs to `<new-v>`. | Prints archived paths + root version agreement; exit nonzero on mixed versions. |
+| `hooks/version <task-id> <new-v>` | Copy only changed core documents plus `version.md` into `old/v<old>/`, retain root docs, bump them to `<new-v>`, and reset state/approval for review. | Prints archived paths + root version/state agreement; exit nonzero before mutation on invalid input. |
 
 `archive` is a full transaction — it includes the Todo path/status update, so completing a task is truly one command. The Agent still records the `completed` status in the root PRD/Plan before invoking it and still owns every Approval record.
 

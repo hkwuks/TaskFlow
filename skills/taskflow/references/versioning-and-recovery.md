@@ -60,9 +60,9 @@ Treat a Task version change as one operation. Archive only the core documents wh
 
 1. Capture the old version's status and archive metadata.
 2. Write `old/vN/version.md`.
-3. For each core document whose approved content materially changed, move its prior version into `old/vN/`; leave unaffected core documents at the task root.
-4. Update the root documents to `vN+1` in one pass; absent optional documents remain absent.
-5. Update `plan.md` state and Version History.
+3. For each core document whose approved content materially changed, copy its prior version into `old/vN/`; do not duplicate unaffected core documents.
+4. Update the retained root documents to `vN+1` in one pass; absent optional documents remain absent.
+5. Set the root PRD and Plan to `ready`, invalidate the prior Approval record, then let the Agent edit only semantic changes and the `version.md` change summary.
 6. Check that all existing core documents agree on the new version.
 7. Return to `ready` and obtain user approval before implementation.
 

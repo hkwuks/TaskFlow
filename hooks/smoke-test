@@ -24,6 +24,13 @@ cat > "$docs/2026-09-08-smoke/plan.md" <<'EOF'
 # Plan — Smoke
 > Task version: v1
 > Status: completed
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-08 12:00 +0000
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan
 EOF
 cat > "$docs/todo.md" <<'EOF'
 # Todo inbox
@@ -71,12 +78,32 @@ grep -q "reopen" "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL reopen log"; e
 echo ok
 
 echo "== version bumps root + archives only changed docs =="
+old_prd=$(sha256sum "$docs/2026-09-08-smoke/prd.md" | awk '{print $1}')
 bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
 [ -f "$docs/2026-09-08-smoke/old/v1/prd.md" ] || { echo "FAIL old prd"; exit 1; }
-[ ! -f "$docs/2026-09-08-smoke/prd.md" ] || { echo "FAIL changed prd still at root"; exit 1; }
+[ -f "$docs/2026-09-08-smoke/prd.md" ] || { echo "FAIL changed prd missing at root"; exit 1; }
+[ "$old_prd" = "$(sha256sum "$docs/2026-09-08-smoke/old/v1/prd.md" | awk '{print $1}')" ] || { echo "FAIL archived prd changed"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/spec.md" ] || { echo "FAIL unchanged spec should stay"; exit 1; }
+[ ! -f "$docs/2026-09-08-smoke/old/v1/spec.md" ] || { echo "FAIL unchanged spec archived"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/plan.md" ] || { echo "FAIL plan not left"; exit 1; }
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL plan not bumped"; exit 1; }
+grep -q '> Task version: v2' "$docs/2026-09-08-smoke/prd.md" || { echo "FAIL retained prd not bumped"; exit 1; }
+grep -q '> Status: ready' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL plan not ready"; exit 1; }
+grep -A8 '^## Approval$' "$docs/2026-09-08-smoke/plan.md" | grep -q -- '- Approved version: pending' || { echo "FAIL approval not reset"; exit 1; }
+echo ok
+
+echo "== version rejects invalid input before mutation =="
+if bash "$HERE/version" 2026-09-08-smoke v3 "$tmp" notes.md >/dev/null 2>&1; then echo "FAIL invalid core document accepted"; exit 1; fi
+[ ! -e "$docs/2026-09-08-smoke/old/v2" ] || { echo "FAIL invalid input mutated archive"; exit 1; }
+grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL invalid input mutated root"; exit 1; }
+echo ok
+
+echo "== TaskFlow capability contract mirrors =="
+repo=$(cd "$HERE/.." && pwd)
+cmp -s "$repo/SKILL.md" "$repo/skills/taskflow/SKILL.md" || { echo "FAIL Skill mirror"; exit 1; }
+cmp -s "$repo/references/artifacts.md" "$repo/skills/taskflow/references/artifacts.md" || { echo "FAIL artifact mirror"; exit 1; }
+grep -q 'selection alone is not invocation' "$repo/SKILL.md" || { echo "FAIL selection/invocation boundary"; exit 1; }
+grep -q 'does not require the selection or use of any particular capability' "$repo/SKILL.md" || { echo "FAIL autonomous choice boundary"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

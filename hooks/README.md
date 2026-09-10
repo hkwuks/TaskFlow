@@ -82,7 +82,9 @@ Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.jso
 
 - `session-start` only prints a derived, non-authoritative summary; it writes
   nothing. `archive`, `version`, and `reopen` are run **explicitly** by the
-  Agent at the lifecycle point and never touch an approval block.
+  Agent at the lifecycle point. `version` copies changed documents, retains
+  their roots, and resets the Plan approval block for the new review cycle;
+  it never grants approval.
 - Rules and host event maps live in `../references/runtime.md`.
 - Smoke: `bash smoke-test` (builds a temp TaskFlowDocs and exercises
   archive → reopen → version).
