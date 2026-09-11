@@ -240,3 +240,94 @@ Every direct request or imported requireme
 - Goal: Make repository-docs index the primary routing record and maintain/inject it through SessionStart hook
 - Task: `TaskFlowDocs/achieved/2026-09-11-index-hook-routing/`
 - Next action: None — completed and archived.
+
+## Identify the current TaskFlow task before phase routing
+
+- ID: TF-20260911-02
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Identify the current TaskFlow task before phase routing
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Add explicit cross-platform runtime preflight for Windows Python dependencies
+
+- ID: TF-20260911-03
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Add explicit cross-platform runtime preflight for Windows Python dependencies
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Harden the Windows hook launcher argument forwarding and failure reporting
+
+- ID: TF-20260911-04
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Harden the Windows hook launcher argument forwarding and failure reporting
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Validate repository-document index paths and protect concurrent writes
+
+- ID: TF-20260911-05
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Validate repository-document index paths and protect concurrent writes
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Add Linux and Windows CI coverage for TaskFlow hooks
+
+- ID: TF-20260911-06
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Add Linux and Windows CI coverage for TaskFlow hooks
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Reduce SessionStart context output to the active task by default
+
+- ID: TF-20260911-07
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Reduce SessionStart context output to the active task by default
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Model optional repository documents and consume SessionStart event input
+
+- ID: TF-20260911-08
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Model optional repository documents and consume SessionStart event input
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
