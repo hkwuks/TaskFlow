@@ -4,7 +4,7 @@ Use this reference when creating or reviewing task documents. The task directory
 
 `TaskFlowDocs/repository-docs/index.md` is the path-only catalog for repository rules, repository guidance, and personal supplements. Refresh it when absent, stale, or needed by the task phase; load only applicable entries and record the files plus incorporated conclusions in `plan.md`. Repository documents prevail over scoped personal supplements, which are a person's development rules or work habits rather than repository-owned policy.
 
-If a task needs a rule the repository does not supply, guide the user through at most three dependency-ordered questions per turn (development process, code, commits/PR, design by default). After confirmation, create only the selected scoped supplement under `repository-docs/personal/` and catalog it; record explicit waivers. A supplement declares scope, repository documents checked, rules, verification, and exceptions/change control; commit-related supplements also include commit format and PR checks. Never create or alter repository-owned policy without explicit authorization, and stop for any conflict.
+If a task needs a rule the repository does not supply, first classify it as shared governance or a personal habit. For non-trivial development, derive missing `CONTRIBUTING.md` and `CODE_STYLE.md` from repository evidence, ask at most three dependency-ordered questions per turn for undecidable policy, and require explicit approval before either becomes binding. Draft `ROADMAP.md` only from confirmed product direction and other repository documents only when task-dependent. Put only stricter or orthogonal personal habits under `repository-docs/personal/`; supplements never replace repository-owned policy. Stop for any conflict.
 
 `TaskFlowDocs/todo.md` is the mandatory first record only after a request passes the Skill's applicability gate: a repository development request or an explicit `$taskflow` invocation. Read-only explanation, translation, status, research, review, and diagnosis do not create Todo or task documents. Each qualifying batch import creates or updates one Todo item per source requirement, retaining source plus external identifier/link when available; the batch itself is metadata only. Todo retains triage metadata and a task link after promotion; PRD, Spec, Plan, and verification remain authoritative in that task directory.
 
@@ -74,6 +74,9 @@ TaskFlowDocs/
 ## Skills / Tools Used (Optional)
 - `<name>` — purpose: `<why it was invoked>`; outcome: `succeeded | failed | unavailable`; incorporated: `<reviewed conclusion or None>`
 ## Preconditions
+- [ ] Applicable repository documents and personal supplements inspected; precedence/conflicts recorded.
+- [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
+- [ ] Missing governance drafts and explicit approvals recorded before they become binding.
 ## Approval
 ## Steps
 ### Step N — <name>

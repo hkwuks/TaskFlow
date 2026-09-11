@@ -10,6 +10,17 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## T-20260910-001 — Enforce repository-governed fork development
+- Status: in_progress
+- Priority: high
+- Owner: user / TaskFlow
+- Source: user request
+- External: None
+- Goal: Make the TaskFlow plugin follow fork/upstream development discipline and applicable repository, personal-supplement, code-style, contributing, and roadmap documents, creating missing governance documents with the user when needed.
+- Task: `TaskFlowDocs/2026-09-10-repository-governed-development/`
+- Next: Implement the approved Skill, artifact, smoke-test, and README updates.
+- Updated: 2026-09-11
+
 ## TF-20260910-08 — Reduce TaskFlow token use with lifecycle scripts
 - Status: done
 - Priority: high
@@ -20,17 +31,6 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Task: `TaskFlowDocs/achieved/2026-09-10-token-saving-lifecycle-scripts/`
 - Next: User acceptance after verified Windows full-lifecycle compatibility; archive only after explicit authorization.
 - Updated: 2026-09-11
-
-## T-20260910-001 — Enforce repository-governed fork development
-- Status: inbox
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
-- Goal: Make the TaskFlow plugin follow fork/upstream development discipline and applicable repository, personal-supplement, code-style, contributing, and roadmap documents, creating missing governance documents with the user when needed.
-- Task: None
-- Next: Clarify which missing governance documents TaskFlow creates, how their rules are derived, and what approval gate applies.
-- Updated: 2026-09-10
 
 ## T-20260909-002 — Restructure TaskFlow as repo-root plugin (superpowers-style)
 - Status: done
