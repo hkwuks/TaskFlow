@@ -32,16 +32,32 @@ PY
 fi
 
 echo "# Active tasks"
-for d in "$docs"/*/; do
-  [ -d "$d" ] || continue
-  base=$(basename "$d")
-  [ "$base" = achieved ] && continue
-  [ "$base" = repository-docs ] && continue
-  plan="$d/plan.md"
-  [ -f "$plan" ] || continue
-  ver=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan" | sed 's/^v//')
-  st=$(awk -F': ' '/> Status:/{print $2; exit}' "$plan")
-  title=$(head -1 "$plan" | sed 's/^# Plan — //; s/^# //')
-  printf '%s %s %s %s\n' "-" "$base" "| v$ver | $st — $title"
-done
+"$python_cmd" - "$docs" <<'PY'
+import pathlib, re, sys
+for directory in sorted(pathlib.Path(sys.argv[1]).iterdir()):
+    if not directory.is_dir() or directory.name in {'achieved', 'repository-docs'}: continue
+    plan = directory / 'plan.md'
+    if not plan.is_file(): continue
+    text = plan.read_text(encoding='utf-8')
+    def value(pattern, default='?'):
+        match = re.search(pattern, text, re.M)
+        return match.group(1).strip() if match else default
+    version = value(r'^> Task version:\s*(.+)$')
+    status = value(r'^> Status:\s*(.+)$')
+    title = value(r'^# Plan\s*(?:—|-)?\s*(.+)$', directory.name)
+    approval_section = re.search(r'(?ms)^## Approval\s*(.*?)(?=^## |\Z)', text)
+    approval = '?'
+    if approval_section:
+        match = re.search(r'(?m)^- Status:\s*(.+)$', approval_section.group(1))
+        approval = match.group(1).strip() if match else '?'
+    next_step = None
+    for step in re.finditer(r'(?ms)^### Step (\d+)\s*(?:—|-)?\s*(.*?)(?=^### Step |^## |\Z)', text):
+        step_status = re.search(r'(?m)^- Status:\s*(\S+)', step.group(2))
+        if not step_status or step_status.group(1) != 'done':
+            step_title = step.group(2).splitlines()[0].strip()
+            next_step = f"Step {step.group(1)} {step_title} [{step_status.group(1) if step_status else '?'}]"
+            break
+    suffix = f" | approval: {approval}" + (f" | next: {next_step}" if next_step else '')
+    print(f"- {directory.name} | {version} | {status} — {title}{suffix}")
+PY
 exit 0

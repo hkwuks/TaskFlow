@@ -49,6 +49,8 @@ After the request passes the applicability gate, first record or update its Todo
 
 Every request within TaskFlow's applicability boundary enters `TaskFlowDocs/todo.md` before task selection. Record its ID, source, goal, status, next action, update date, and external identifier/link when one exists. Deduplicate imported items by source plus external identifier; preserve distinct requirements even when imported as a batch. A batch may carry common source metadata, but it is never itself a task, PRD, or requirements source.
 
+Prefer `hooks/task intake`, `promote`, `state`, `progress`, and `complete` for their bounded mechanical edits. Use Agent edits for semantic content and cases those commands do not cover. These commands are explicit Agent actions, not automatically bound hooks.
+
 Do not create, reopen, modify, or select a task before the Todo record exists. After promotion, retain lifecycle metadata, source identity, and one task link in Todo; do not duplicate task facts. Update the Todo status as the linked task moves through `inbox → clarified → promoted → in_progress → done/cancelled`.
 
 ### Existing-task-first selection

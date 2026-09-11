@@ -11,10 +11,12 @@ taskflow/hooks/
 ├── hooks-codex.json    # Codex CLI wiring
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── summarize-state     # derives the state summary (shared logic)
+├── task                # explicit intake/promote/state/progress/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
+├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 └── smoke-test          # assert-style smoke tests
 ```
 
@@ -81,12 +83,16 @@ Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.jso
 ## Scope / safety
 
 - `session-start` only prints a derived, non-authoritative summary; it writes
-  nothing. `archive`, `version`, and `reopen` are run **explicitly** by the
+  nothing. `task`, `archive`, `version`, and `reopen` are run **explicitly** by the
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
-- Smoke: `bash smoke-test` (builds a temp TaskFlowDocs and exercises
-  archive → reopen → version).
+- Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote`,
+  `task state`, `task progress`, and `task complete`; append `--root <path>`
+  when operating outside the current repository.
+- Smoke: `bash smoke-test` (builds temporary TaskFlowDocs fixtures and, on
+  Windows, runs the full lifecycle through PowerShell 5.1 + `run-hook.cmd` in
+  a path containing spaces and Chinese characters).
 
 Hosts without hooks run the base flow unchanged; hooks are optional.

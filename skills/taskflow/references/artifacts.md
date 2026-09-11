@@ -106,7 +106,7 @@ List a capability only after an actual invocation attempt. Discovery or selectio
 | requirements / PRD | `prd.md` |
 | design / specification | `spec.md` when required |
 | plan / task list / checkpoint / review | `plan.md` |
-| every request / imported requirement | `TaskFlowDocs/todo.md` before task selection |
+| applicable development request / explicit `$taskflow` request | `TaskFlowDocs/todo.md` before task selection |
 | research / evidence | `reference/` |
 | resume index | `sessions.md` |
 

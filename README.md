@@ -241,6 +241,8 @@ Then: add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`
 > [!NOTE]
 > Hooks are optional. The plugin installs a SessionStart hook that prints a short derived state summary (inbox items + active tasks) so the Agent does not re-read the whole tree; it writes nothing and never approves. Hosts without hooks run the exact same flow.
 
+For mechanical lifecycle edits, the Agent can explicitly run `hooks/run-hook.cmd task intake|promote|state|progress|complete`; these write commands are not event-bound hooks.
+
 ## Where TaskFlow fits
 
 TaskFlow is not trying to replace specification-driven development, role-based multi-agent methods, or project management. It covers a specific missing layer: **durable task facts, state boundaries, and recoverable decision history inside the repository.**

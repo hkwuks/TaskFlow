@@ -54,6 +54,12 @@ if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; the
   echo ok
 fi
 
+if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
+  echo "== Windows PowerShell/cmd lifecycle with spaces and Chinese =="
+  win_smoke=$(cygpath -w "$HERE/smoke-test-windows.ps1")
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$win_smoke"
+fi
+
 echo "== archive preflight does not move without Todo =="
 preflight="$tmp/preflight"
 mkdir -p "$preflight/TaskFlowDocs/2026-09-08-preflight"
@@ -96,6 +102,34 @@ echo "== version rejects invalid input before mutation =="
 if bash "$HERE/version" 2026-09-08-smoke v3 "$tmp" notes.md >/dev/null 2>&1; then echo "FAIL invalid core document accepted"; exit 1; fi
 [ ! -e "$docs/2026-09-08-smoke/old/v2" ] || { echo "FAIL invalid input mutated archive"; exit 1; }
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL invalid input mutated root"; exit 1; }
+echo ok
+
+echo "== task lifecycle dispatcher =="
+lifecycle="$tmp/lifecycle"
+mkdir -p "$lifecycle/verification-dir"
+bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null
+todo="$lifecycle/TaskFlowDocs/todo.md"
+todo_id=$(awk '/^- ID: TF-/{print $3; exit}' "$todo")
+before=$(sha256sum "$todo" | awk '{print $1}')
+if bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL duplicate goal accepted"; exit 1; fi
+[ "$before" = "$(sha256sum "$todo" | awk '{print $1}')" ] || { echo "FAIL duplicate goal mutated Todo"; exit 1; }
+bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --root "$lifecycle" >/dev/null
+active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
+[ -f "$active/prd.md" ] && [ -f "$active/plan.md" ] && [ ! -e "$active/spec.md" ] || { echo "FAIL small promotion artifacts"; exit 1; }
+grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
+if bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unapproved state accepted"; exit 1; fi
+grep -q '> Status: planning' "$active/plan.md" || { echo "FAIL rejected state mutated Plan"; exit 1; }
+sed -i 's/- Status: requested/- Status: approved/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md"
+bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null
+if bash "$HERE/task" progress 2026-09-10-lifecycle-smoke 1 done --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unchecked Step accepted"; exit 1; fi
+sed -i 's/- \[ \]/- [x]/g' "$active/plan.md"
+bash "$HERE/task" progress 2026-09-10-lifecycle-smoke 1 done "verification-dir" --root "$lifecycle" >/dev/null
+grep -q 'Step 1: verification-dir' "$active/plan.md" || { echo "FAIL verification not recorded"; exit 1; }
+if bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL completion without acceptance"; exit 1; fi
+[ -d "$active" ] || { echo "FAIL rejected completion moved task"; exit 1; }
+bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --user-accepted --root "$lifecycle" >/dev/null
+[ ! -d "$active" ] && [ -d "$lifecycle/TaskFlowDocs/achieved/2026-09-10-lifecycle-smoke" ] || { echo "FAIL lifecycle archive"; exit 1; }
+grep -q -- '- Status: done' "$todo" || { echo "FAIL lifecycle Todo not done"; exit 1; }
 echo ok
 
 echo "== TaskFlow packaged Skill contract =="

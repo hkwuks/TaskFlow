@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# task — token-saving TaskFlow lifecycle edits.
+# Usage: task intake|promote|state|progress|complete ...
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+python_cmd="${TASKFLOW_PYTHON:-python3}"
+"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+bash_cmd="$(command -v bash)"
+command -v cygpath >/dev/null 2>&1 && bash_cmd="$(cygpath -w "$bash_cmd")"
+
+"$python_cmd" - "$SCRIPT_DIR" "$bash_cmd" "$@" <<'PY'
+import datetime, os, pathlib, re, subprocess, sys, tempfile
+
+script_dir = pathlib.Path(sys.argv[1]).resolve()
+bash_cmd = sys.argv[2]
+args = sys.argv[3:]
+if not args:
+    raise SystemExit("usage: task intake|promote|state|progress|complete ...")
+
+def repo_root(value=None):
+    if value:
+        return pathlib.Path(value).resolve()
+    try:
+        return pathlib.Path(subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"], text=True,
+            stderr=subprocess.DEVNULL).strip()).resolve()
+    except Exception:
+        return pathlib.Path.cwd().resolve()
+
+def split_root(values):
+    if "--root" not in values:
+        return values, repo_root()
+    if values.count("--root") != 1 or values[-2:-1] != ["--root"]:
+        raise SystemExit("--root must be the final option: --root <path>")
+    return values[:-2], repo_root(values[-1])
+
+def read(path):
+    return path.read_text(encoding="utf-8")
+
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            stream.write(text)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name): os.unlink(name)
+
+def sections(text):
+    parts = re.split(r"(?m)^(## .*)$", text)
+    return parts
+
+def todo_part(text, *, todo_id=None, task=None):
+    parts = sections(text)
+    for i in range(1, len(parts), 2):
+        body = parts[i + 1]
+        if todo_id and re.search(rf"(?m)^- ID:\s*{re.escape(todo_id)}\s*$", body):
+            return parts, i
+        if task and f"`TaskFlowDocs/{task}/`" in body:
+            return parts, i
+    raise SystemExit(f"Todo entry not found: {todo_id or task}")
+
+def field(body, name, default=""):
+    match = re.search(rf"(?m)^- {re.escape(name)}:\s*(.*)$", body)
+    return match.group(1).strip() if match else default
+
+def replace_field(body, name, value):
+    pattern = rf"(?m)^(- {re.escape(name)}: ).*$"
+    if not re.search(pattern, body):
+        raise SystemExit(f"missing Todo field: {name}")
+    return re.sub(pattern, rf"\g<1>{value}", body, count=1)
+
+def doc_status(text, value):
+    if not re.search(r"(?m)^> Status: .*$", text):
+        raise SystemExit("missing document Status")
+    return re.sub(r"(?m)^> Status: .*$", f"> Status: {value}", text, count=1)
+
+def task_paths(root, task):
+    docs = root / "TaskFlowDocs"
+    base = docs / task
+    if not base.is_dir(): raise SystemExit(f"active task not found: {task}")
+    return docs, base, base / "prd.md", base / "plan.md"
+
+command = args.pop(0)
+today = datetime.date.today().isoformat()
+
+if command == "intake":
+    values, root = split_root(args)
+    if not 1 <= len(values) <= 2:
+        raise SystemExit('usage: task intake <goal> [source] [--root <path>]')
+    goal, source = values[0].strip(), values[1].strip() if len(values) == 2 else "direct user request"
+    if not goal: raise SystemExit("goal must not be empty")
+    docs, todo = root / "TaskFlowDocs", root / "TaskFlowDocs" / "todo.md"
+    docs.mkdir(parents=True, exist_ok=True)
+    text = read(todo) if todo.exists() else "# Todo\n"
+    if any(field(sections(text)[i + 1], "Goal") == goal for i in range(1, len(sections(text)), 2)):
+        raise SystemExit("duplicate Todo goal")
+    prefix = "TF-" + today.replace("-", "") + "-"
+    nums = [int(x) for x in re.findall(rf"(?m)^- ID: {re.escape(prefix)}(\d+)$", text)]
+    todo_id = prefix + f"{max(nums, default=0) + 1:02d}"
+    title = goal.rstrip(".")[:80]
+    block = f"""\n\n## {title}\n\n- ID: {todo_id}\n- Status: inbox\n- Priority: normal\n- Owner: Codex\n- Source: {source}\n- Added: {today}\n- Updated: {today}\n- Goal: {goal}\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n"""
+    write(todo, text.rstrip() + block)
+    print(f"intake OK: {todo_id}")
+
+elif command == "promote":
+    values, root = split_root(args)
+    if len(values) != 3 or values[2] not in {"small", "large"}:
+        raise SystemExit("usage: task promote <todo-id> <task-id> <small|large> [--root <path>]")
+    todo_id, task, size = values
+    docs, todo, base = root / "TaskFlowDocs", root / "TaskFlowDocs" / "todo.md", root / "TaskFlowDocs" / task
+    if base.exists(): raise SystemExit(f"task already exists: {task}")
+    text = read(todo); parts, i = todo_part(text, todo_id=todo_id); body = parts[i + 1]
+    if field(body, "Task") != "Not promoted.": raise SystemExit("Todo already promoted")
+    goal = field(body, "Goal"); title = parts[i].removeprefix("## ").strip()
+    prd = f"""# {title}\n> Task version: v1\n> Status: planning\n\n## Goal\n\n{goal}\n\n## Background / Confirmed Facts\n\n## Requirements\n\n## Acceptance Criteria\n\n## In Scope\n\n## Out of Scope\n\n## Risks / Deferred Items\n\n## Open Questions\n\n## Version History\n\n- v1 — planning.\n"""
+    plan = f"""# Plan — {title}\n> Task version: v1\n> Status: planning\n\n{'## Spec Pointers\n\n- `spec.md`\n\n' if size == 'large' else 'No spec required — small, self-contained task.\n\n'}## Reference Pointers\n\n## Related Tasks\n\n## Skills / Tools Used (Optional)\n\n## Preconditions\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Steps\n\n### Step 1 — Implement and verify\n\n- Goal:\n- Dependencies:\n- Files:\n- Implementation checklist:\n  - [ ] Implement the approved change.\n  - [ ] Run focused verification.\n- Acceptance:\n- Verification:\n- Rollback:\n- Status: pending\n\n## Checkpoints\n\n## Verification / Review\n\n## Change Log\n\n## Follow-ups\n\n## Version History\n\n- v1 — planning.\n"""
+    spec = f"""# Spec — {title}\n> Task version: v1\n\n## Objective and Success Criteria\n\n## Architecture Boundaries and Responsibilities\n\n## Project Structure / Affected Files\n\n## Interfaces, Data Flow, and Contracts\n\n## Invariants and Compatibility\n\n## Validation and Error Semantics\n\n## Code and Test Constraints\n\n## Design Decisions and Alternatives\n\n## Open Questions\n"""
+    base.mkdir(parents=True)
+    write(base / "prd.md", prd); write(base / "plan.md", plan)
+    if size == "large": write(base / "spec.md", spec)
+    body = replace_field(body, "Status", "promoted")
+    body = replace_field(body, "Updated", today)
+    body = replace_field(body, "Task", f"`TaskFlowDocs/{task}/`")
+    body = replace_field(body, "Next action", "Complete PRD / Spec / Plan and request approval.")
+    parts[i + 1] = body; write(todo, "".join(parts))
+    print(f"promote OK: {todo_id} -> {task} ({size})")
+
+elif command == "state":
+    values, root = split_root(args)
+    allowed = {"planning", "ready", "in_progress", "checking", "blocked"}
+    if len(values) != 2 or values[1] not in allowed:
+        raise SystemExit("usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]")
+    task, state = values; docs, base, prd, plan = task_paths(root, task)
+    prd_text, plan_text = read(prd), read(plan)
+    version = re.search(r"(?m)^> Task version: (v\d+)$", plan_text)
+    if not version: raise SystemExit("missing Plan Task version")
+    if state == "in_progress":
+        approval = re.search(r"(?ms)^## Approval\s*(.*?)(?=^## |\Z)", plan_text)
+        if not approval or not re.search(r"(?m)^- Status: approved$", approval.group(1)) or not re.search(rf"(?m)^- Approved version: {version.group(1)}$", approval.group(1)):
+            raise SystemExit("current Task version is not approved")
+    todo = docs / "todo.md"; todo_text = read(todo); parts, i = todo_part(todo_text, task=task)
+    mapping = {"planning":"promoted", "ready":"promoted", "in_progress":"in_progress", "checking":"in_progress", "blocked":"in_progress"}
+    body = replace_field(parts[i + 1], "Status", mapping[state]); body = replace_field(body, "Updated", today)
+    parts[i + 1] = body
+    write(prd, doc_status(prd_text, state)); write(plan, doc_status(plan_text, state)); write(todo, "".join(parts))
+    print(f"state OK: {task} -> {state}")
+
+elif command == "progress":
+    values, root = split_root(args)
+    if not 3 <= len(values) <= 4 or values[2] not in {"pending", "in_progress", "done", "blocked"}:
+        raise SystemExit("usage: task progress <task-id> <step-number> <pending|in_progress|done|blocked> [verification] [--root <path>]")
+    task, number, status = values[:3]; verification = values[3].strip() if len(values) == 4 else ""
+    _, _, _, plan = task_paths(root, task); text = read(plan)
+    match = re.search(rf"(?ms)(^### Step {re.escape(number)}\b.*?)(?=^### Step |^## |\Z)", text)
+    if not match: raise SystemExit(f"Step {number} not found")
+    block = match.group(1)
+    if status == "done" and re.search(r"(?m)^\s*- \[ \]", block):
+        raise SystemExit(f"Step {number} has unchecked items")
+    if not re.search(r"(?m)^- Status: .*$", block): raise SystemExit(f"Step {number} missing Status")
+    block = re.sub(r"(?m)^- Status: .*$", f"- Status: {status}", block, count=1)
+    text = text[:match.start()] + block + text[match.end():]
+    if verification:
+        line = f"- {today} Step {number}: {verification}"
+        if "## Verification / Review" in text:
+            text = text.replace("## Verification / Review\n", "## Verification / Review\n\n" + line + "\n", 1)
+    write(plan, text)
+    print(f"progress OK: {task} Step {number} -> {status}")
+
+elif command == "complete":
+    values, root = split_root(args)
+    if len(values) != 2 or values[1] != "--user-accepted":
+        raise SystemExit("usage: task complete <task-id> --user-accepted [--root <path>]")
+    task = values[0]; docs, _, prd, plan = task_paths(root, task)
+    plan_text = read(plan); prd_text = read(prd)
+    if re.search(r"(?m)^\s*- \[ \]", plan_text): raise SystemExit("Plan has unchecked items")
+    if re.search(r"(?m)^- Status: (pending|in_progress|blocked)$", plan_text): raise SystemExit("Plan has unfinished Steps")
+    if (docs / "achieved" / task).exists(): raise SystemExit(f"achieved/{task} already exists")
+    todo = docs / "todo.md"
+    if not todo.is_file(): raise SystemExit("todo.md missing; completion not started")
+    todo_part(read(todo), task=task)
+    completed_prd = doc_status(prd_text, "completed")
+    completed_plan = doc_status(plan_text, "completed")
+    write(prd, completed_prd); write(plan, completed_plan)
+    result = subprocess.run([bash_cmd, str(script_dir / "archive"), task], cwd=root,
+                            text=True, encoding="utf-8", errors="replace", capture_output=True,
+                            env=os.environ.copy())
+    if result.returncode:
+        raise SystemExit((result.stderr or result.stdout).strip() or "archive failed")
+    print(f"complete OK: {task}")
+
+else:
+    raise SystemExit(f"unknown task command: {command}")
+PY

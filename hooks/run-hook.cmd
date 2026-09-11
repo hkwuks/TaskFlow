@@ -1,5 +1,6 @@
 : << 'CMDBLOCK'
 @echo off
+setlocal EnableDelayedExpansion
 REM Cross-platform polyglot wrapper for TaskFlow hook scripts.
 REM On Windows: cmd.exe runs the batch portion, which finds and calls bash.
 REM On Unix: the shell interprets this as a script (: is a no-op in bash).
@@ -22,11 +23,11 @@ set "GIT_BASH="
 REM Try Git for Windows bash in standard locations
 if exist "C:\Program Files\Git\bin\bash.exe" (
     "C:\Program Files\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b %ERRORLEVEL%
+    exit /b !ERRORLEVEL!
 )
 if exist "C:\Program Files (x86)\Git\bin\bash.exe" (
     "C:\Program Files (x86)\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b
+    exit /b !ERRORLEVEL!
 )
 
 REM Find Git Bash beside the Git for Windows installation, including non-default drives.
@@ -36,7 +37,7 @@ for /f "delims=" %%G in ('where git 2^>nul') do (
 )
 if defined GIT_BASH (
     "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b
+    exit /b !ERRORLEVEL!
 )
 
 REM Accept another PATH bash, but never Windows' WSL launchers.
@@ -45,7 +46,7 @@ for /f "delims=" %%B in ('where bash 2^>nul') do (
 )
 if defined GIT_BASH (
     "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
-    exit /b
+    exit /b !ERRORLEVEL!
 )
 
 REM No bash found - exit silently rather than error

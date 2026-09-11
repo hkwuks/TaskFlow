@@ -197,6 +197,8 @@ codex plugin add taskflow@taskflow
 > [!NOTE]
 > Hooks 是可选的。插件安装的 SessionStart hook 只打印一份简短的状态摘要（未完成的收件箱条目 + 活跃任务），让 Agent 不必重读整棵树；它不写任何文件，也从不批准。没有 hooks 的宿主按同样的流程运行。
 
+对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|state|progress|complete`；这些写命令不会绑定到事件 Hook。
+
 ## 与相邻工具的比较
 
 TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，它覆盖的是一个更具体的层：**仓库内持久化的任务事实、状态边界和可恢复决策历史。**
