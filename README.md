@@ -199,14 +199,6 @@ claude plugin list
 #   taskflow@taskflow    Version: 1.0.3    Status: ✔ enabled
 ```
 
-To update an existing installation:
-
-```bash
-claude plugin marketplace update taskflow
-claude plugin update taskflow@taskflow
-claude plugin list
-```
-
 ### Install with Codex CLI
 
 Add the same marketplace, then install the plugin:
@@ -221,14 +213,6 @@ Verify it loaded:
 ```bash
 codex plugin list
 #   taskflow@taskflow    installed, enabled
-```
-
-To update an existing installation:
-
-```bash
-codex plugin marketplace upgrade
-codex plugin add taskflow@taskflow
-codex plugin list
 ```
 
 ### Prefer a local copy?
