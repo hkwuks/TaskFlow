@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# repository-check — read-only governance and fork readiness check.
+# Usage: repository-check [repository-root]
+set -euo pipefail
+
+root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+if [ -z "$root" ] || ! git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "STATUS: blocked"
+  echo "- Cannot identify a Git repository root."
+  exit 3
+fi
+
+cd "$root"
+needs=0
+blocked=0
+echo "Repository: $root"
+echo "Branch: $(git branch --show-current)"
+
+echo "Remotes:"
+if git remote >/dev/null 2>&1 && [ -n "$(git remote)" ]; then
+  while IFS= read -r name; do
+    url="$(git remote get-url "$name" 2>/dev/null || true)"
+    safe="${url#*@}"
+    case "$safe" in
+      http://*|https://*) safe="${safe%%://*}://${safe#*://}" ;;
+    esac
+    echo "- $name: $safe"
+  done < <(git remote)
+else
+  echo "- none"
+  needs=1
+fi
+
+for file in CONTRIBUTING.md CODE_STYLE.md ROADMAP.md; do
+  if [ -f "$file" ]; then
+    echo "Document $file: present"
+  else
+    echo "Document $file: missing"
+    [ "$file" = ROADMAP.md ] || needs=1
+  fi
+done
+
+if [ -f TaskFlowDocs/repository-docs/index.md ]; then
+  echo "Catalog: present"
+else
+  echo "Catalog: missing"
+  needs=1
+fi
+
+upstream="$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
+if [ -n "$upstream" ]; then
+  echo "Base: $upstream"
+else
+  echo "Base: ambiguous (no upstream tracking branch)"
+  needs=1
+fi
+
+if git diff --quiet && git diff --cached --quiet; then
+  echo "Working tree: clean"
+else
+  echo "Working tree: has changes (review before rebasing or submitting)"
+fi
+
+if [ "$blocked" -eq 1 ]; then
+  echo "STATUS: blocked"
+  exit 3
+elif [ "$needs" -eq 1 ]; then
+  echo "STATUS: needs-user-input"
+  exit 2
+else
+  echo "STATUS: pass"
+fi
