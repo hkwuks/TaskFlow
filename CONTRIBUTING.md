@@ -29,4 +29,4 @@ Record unavailable checks and their limitations in the TaskFlow Plan. Do not cla
 
 ## Pull requests
 
-Describe the goal, scope, TaskFlow task path, verification commands and results, remote/base assumptions, and known limitations. Do not include secrets or opaque remote payloads.
+Read `.github/pull_request_template.md` before creating or updating a PR. Complete every required field and record its mapping in the TaskFlow Plan. Describe the goal, scope, TaskFlow task path, verification commands and results, remote/base assumptions, and known limitations. Do not include secrets or opaque remote payloads.

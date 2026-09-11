@@ -76,6 +76,7 @@ TaskFlowDocs/
 ## Preconditions
 - [ ] Applicable repository documents and personal supplements inspected; precedence/conflicts recorded.
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
+- [ ] For PR creation/update: applicable template path, every required-field mapping, and template verification recorded.
 - [ ] Missing governance drafts and explicit approvals recorded before they become binding.
 ## Approval
 ## Steps
