@@ -192,7 +192,7 @@ Verify it loaded:
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.0.0    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.0.2    Status: ✔ enabled
 ```
 
 ### Install with Codex CLI
