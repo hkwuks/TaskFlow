@@ -142,6 +142,24 @@ grep -q 'does not require the selection or use of any particular capability' "$s
 grep -q 'Apply TaskFlow automatically only when the request asks to modify a repository or deliver a development artifact' "$skill/SKILL.md" || { echo "FAIL development applicability boundary"; exit 1; }
 grep -q 'Do not create or update Todo/task documents for read-only explanation' "$skill/SKILL.md" || { echo "FAIL read-only exclusion"; exit 1; }
 grep -q 'explicit user request to use `\$taskflow` opts any planning or research work' "$skill/SKILL.md" || { echo "FAIL explicit invocation override"; exit 1; }
+grep -q 'never assume `origin` is the fork or `upstream` exists' "$skill/SKILL.md" || { echo "FAIL fork remote boundary"; exit 1; }
+grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || { echo "FAIL baseline governance drafting"; exit 1; }
+grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
+echo ok
+
+echo "== repository-check is read-only and reports actionable status =="
+check_root="$tmp/repository-check"
+mkdir -p "$check_root/.git" "$check_root/TaskFlowDocs/repository-docs"
+git -C "$check_root" init -q
+printf '# Catalog\n' > "$check_root/TaskFlowDocs/repository-docs/index.md"
+set +e
+check_out=$(bash "$HERE/repository-check" "$check_root" 2>&1)
+check_status=$?
+set -e
+echo "$check_out" | grep -q 'STATUS: needs-user-input' || { echo "FAIL repository-check status"; exit 1; }
+[ "$check_status" -eq 2 ] || { echo "FAIL repository-check exit code"; exit 1; }
+echo "$check_out" | grep -q 'Document CONTRIBUTING.md: missing' || { echo "FAIL repository-check governance finding"; exit 1; }
+echo "$check_out" | grep -q 'Base: ambiguous' || { echo "FAIL repository-check base finding"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"
