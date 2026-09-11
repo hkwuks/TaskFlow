@@ -159,6 +159,14 @@ claude plugin list
 #   taskflow@taskflow    Version: 1.0.3    Status: ✔ enabled
 ```
 
+更新已有安装：
+
+```bash
+claude plugin marketplace update taskflow
+claude plugin update taskflow@taskflow
+claude plugin list
+```
+
 ### 用 Codex CLI 安装
 
 添加同一个市场，再安装插件：
@@ -173,6 +181,14 @@ codex plugin add taskflow@taskflow
 ```bash
 codex plugin list
 #   taskflow@taskflow    installed, enabled
+```
+
+更新已有安装：
+
+```bash
+codex plugin marketplace upgrade
+codex plugin add taskflow@taskflow
+codex plugin list
 ```
 
 ### 想用本地副本？
