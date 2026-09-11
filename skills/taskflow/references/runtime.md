@@ -54,10 +54,11 @@ If a hook fails (nonzero exit or stderr), it must fail safe: no partial core wri
 
 ## SessionStart state summary
 
-Purpose: on session start or resume, give the Agent a compact, derived snapshot so it does not need to re-read the whole tree. The summary is **derived navigation** — never a source of task facts.
+Purpose: on session start or resume, maintain the repository-document routing record and give the Agent compact derived routes/state. The index is authoritative for routing/check metadata; routed source documents remain authoritative for policy content.
 
 Reference scripts:
 - `hooks/summarize-state` — reads `TaskFlowDocs/todo.md` and the active task dirs, prints a short summary (inbox items, active status, next Plan Step). Prints nothing when no TaskFlowDocs exists.
+- `hooks/repository-docs-context` — atomically synchronizes deterministic index metadata for recognized sources and prints phase-filtered paths/status. It never edits source policies or core task documents.
 - `hooks/session-start` — SessionStart entry that wraps the summary into the platform's context field (Claude Code → `hookSpecificOutput.additionalContext`; Cursor → `additional_context`; Copilot/other → top-level `additionalContext`), mirroring the `obra/superpowers` session-start pattern.
 
 Keep summaries short; both hosts cap oversized hook context (Claude Code caps at 10,000 chars and Codex spills past ~2,500 tokens). If nothing is present, print nothing.

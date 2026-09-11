@@ -47,7 +47,7 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 ## 仓库文档
 
-`TaskFlowDocs/repository-docs/index.md` 是仓库规则、仓库指引和有范围的个人补充规则共用的纯路径目录。仓库自有文档保留在惯用位置：README、贡献指南、代码规范和路线图优先放在仓库根目录，PR 模板、CODEOWNERS、CI 等文件使用平台标准目录。即使尚未初始化 Git，也遵循此规则，因为该目录以后可能成为仓库。
+`TaskFlowDocs/repository-docs/index.md` 是仓库规则、仓库指引和有范围个人补充规则的权威路由与检查记录；具体规则内容仍以惯用位置上的源文档为准。
 
 规划或实施非简单任务前，TaskFlow 仅在目录缺失、过期或任务需要未编目的文档类型时刷新目录，然后读取任务阶段适用的文档。目录只记录仓库相对路径，不把仓库自有文档复制或软链接到 `repository-docs/`；该目录只包含 `index.md` 和可选的 `personal/` 个人补充规则。经明确授权创建缺失文档时，TaskFlow 优先沿用已有惯用文件名，否则对应使用 `README.md`、`CONTRIBUTING.md`、`CODE_STYLE.md` 或 `ROADMAP.md`。发现遗留副本或链接时只报告，未经明确授权不迁移、不删除。
 
@@ -86,7 +86,7 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 
 在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code 与 Codex CLI）协作：hook 只做机械记账（更新 Todo 分流元数据）和注入派生的一次性会话摘要，绝不创建、改写或删除 `prd.md`/`spec.md`/`plan.md`/`reference/index.md`，也绝不批准。归档/版本/重开各有一条单命令事务脚本用于合并机械步骤。没有 hook 的宿主按原流程运行，行为不变。
+TaskFlow 还可与宿主/工具链 hook（Claude Code 与 Codex CLI）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
 
 ## 防止设计丢失的一条规则
 

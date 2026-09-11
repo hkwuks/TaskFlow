@@ -23,7 +23,7 @@ For an active task, the task directory is:
 TaskFlowDocs/YYYY-MM-DD-short-slug/
 ```
 
-`TaskFlowDocs/repository-docs/index.md` is the single catalog for repository documents, repository rules, and personal supplements. Before planning or implementing a non-trivial task, inspect the catalog and load only entries applicable to the task or phase. If the task needs a rule that the repository does not provide, use the repository-document rules below before implementation.
+`TaskFlowDocs/repository-docs/index.md` is the authoritative routing and check record for repository documents, repository rules, and personal supplements. Maintain or read it first, route by phase, then load the listed source documents; those source documents remain authoritative for policy content. Record selected paths and incorporated conclusions in the active task Plan. If the task needs a rule that the repository does not provide, use the repository-document rules below before implementation.
 
 `TaskFlowDocs/todo.md` is the mandatory intake record for every request that passes the applicability gate, including qualifying direct development requests, GitHub Issues, other development imports, and explicit `$taskflow` requests. Create or update its Todo item before task matching, clarification, promotion, planning, implementation, or import-specific processing. It is not a second source of task facts: after promotion, the linked `TaskFlowDocs/<task-id>/` directory is authoritative for requirements, design, plan, and verification.
 
@@ -72,7 +72,7 @@ When work targets a pull request, fork, or Git remote, inspect the configured re
 
 ### Repository document environment
 
-`TaskFlowDocs/repository-docs/index.md` is derived navigation, not a source document. Before non-trivial work, refresh its catalog only when it is absent, stale, or the task phase needs an uncataloged document class. Discover README, contributing, code style, release, roadmap, code of conduct, PR template, CODEOWNERS, branch/CI, and repository rules whether or not Git is initialized. Record each entry's class (`repository-rule`, `repository-guidance`, or `personal-supplement`), repository-relative source path, existence, and last-checked date. Add an unrecognized candidate document only after user confirmation.
+`TaskFlowDocs/repository-docs/index.md` is the routing/check record, not a copy of source policy. Before non-trivial work, maintain or read it first. Its deterministic SessionStart synchronizer records recognized repository-document and personal-supplement paths with class, applicable phases, existence, last-checked date, and status. The hook may update only this routing metadata and inject applicable paths/status; it never edits source documents, task core documents, approval, or Git/hosting state. Add an unrecognized candidate only after user confirmation.
 
 Repository-owned documents live at their conventional repository locations, with the repository root preferred for README, contributing, code style, and roadmap documents and platform-standard directories used for PR templates, CODEOWNERS, CI, and similar files. Never copy or symbolically link them into `repository-docs/`; that directory contains only `index.md` and optional personal supplements under `personal/`. Source documents are authoritative. Refresh the catalog after their addition, removal, move, or relevant change. If a changed source rule affects approved work, apply the user-change trigger before continuing.
 
@@ -253,7 +253,7 @@ Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/ind
 - Do not put secrets, tokens, private data, or unauthorized sensitive material in any task artifact, snapshot, or patch; use redacted placeholders.
 - Restore historical file versions only in a new temporary restore root; never overwrite the current task directory.
 - Design documents may stay out of Git: file-mode `old/vN/` archival remains a valid recovery store. See [versioning-and-recovery.md](references/versioning-and-recovery.md).
-- Host/harness hooks (Claude Code and Codex CLI) may update Todo triage metadata and inject a derived session-start summary, but never create, rewrite, or delete core documents, and never approve. See [runtime.md](references/runtime.md).
+- Host/harness hooks may update Todo triage metadata, deterministically maintain repository-document index metadata, and inject derived session-start routing/state context, but never create, rewrite, or delete core task documents or source policies, and never approve. See [runtime.md](references/runtime.md).
 - Other tools are allowed to manage their own configuration and lifecycle. This skill only specifies how their task-related outputs integrate with this framework.
 - A task ID is `YYYY-MM-DD-short-slug`; keep it stable after creation. Resolve same-day slug collisions with a suffix or a more specific slug. Create a new related task only at the outcome/ownership boundary defined in Existing-task-first selection.
 

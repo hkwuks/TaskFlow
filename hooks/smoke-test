@@ -46,6 +46,20 @@ echo "$summary" | grep -q -- "- T-20260908-999 | in_progress | Prove field-based
 json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
 echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
 
+echo "== repository document index sync and phase routing =="
+printf '# Contributing\n' > "$tmp/CONTRIBUTING.md"
+printf '# Unclassified\n' > "$tmp/TEAM_GOVERNANCE.md"
+TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/routes.txt"
+index="$docs/repository-docs/index.md"
+grep -q '| repository-rule | `CONTRIBUTING.md` | code,commit,pr,release | yes |' "$index" || { echo "FAIL contributing route"; exit 1; }
+grep -q '| candidate | `TEAM_GOVERNANCE.md` | review | yes | .* | needs-review |' "$index" || { echo "FAIL candidate review status"; exit 1; }
+grep -q 'Read authoritative sources: CONTRIBUTING.md' "$tmp/routes.txt" || { echo "FAIL phase route"; exit 1; }
+grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
+before=$(sha256sum "$index" | awk '{print $1}')
+TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
+[ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+echo ok
+
 if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   echo "== Windows launcher finds Git Bash =="
   win_hook=$(cygpath -w "$HERE/run-hook.cmd")

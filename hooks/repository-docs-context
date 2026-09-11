@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# repository-docs-context — synchronize the routing record and print compact routes.
+set -euo pipefail
+
+repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+phase="${TASKFLOW_PHASE:-auto}"
+python_cmd="${TASKFLOW_PYTHON:-python3}"
+"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+
+"$python_cmd" - "$repo_root" "$phase" <<'PY'
+import datetime, os, pathlib, re, sys, tempfile
+
+root = pathlib.Path(sys.argv[1]).resolve()
+phase = sys.argv[2].strip().lower()
+docs = root / "TaskFlowDocs" / "repository-docs"
+index = docs / "index.md"
+today = datetime.date.today().isoformat()
+
+entries = [
+    ("repository-guidance", "README.md", "design,roadmap"),
+    ("repository-guidance", "README.zh-CN.md", "design,roadmap"),
+    ("repository-rule", "LICENSE", "all"),
+    ("repository-rule", "CONTRIBUTING.md", "code,commit,pr,release"),
+    ("repository-rule", "CODE_STYLE.md", "code,review"),
+    ("repository-guidance", "ROADMAP.md", "design,roadmap,release"),
+    ("repository-rule", ".github/pull_request_template.md", "pr"),
+    ("repository-rule", ".github/CODEOWNERS", "pr,review"),
+    ("repository-rule", "CODE_OF_CONDUCT.md", "all"),
+    ("repository-rule", "SECURITY.md", "code,review,release"),
+    ("repository-rule", "RELEASE.md", "release"),
+    ("repository-rule", "CHANGELOG.md", "release"),
+]
+
+if phase == "auto":
+    inferred = set()
+    for plan in (root / "TaskFlowDocs").glob("20*/plan.md"):
+        content = plan.read_text(encoding="utf-8")
+        status = next((line.split(":", 1)[1].strip() for line in content.splitlines()
+                       if line.startswith("> Status:")), "")
+        mapped = {"planning": "design", "ready": "design", "in_progress": "code",
+                  "checking": "review"}.get(status)
+        if mapped:
+            inferred.add(mapped)
+    phase = inferred.pop() if len(inferred) == 1 else "unclassified"
+
+personal = docs / "personal"
+if personal.is_dir():
+    for path in sorted(personal.glob("*.md")):
+        if path.name != "README.md":
+            entries.append(("personal-supplement", path.relative_to(root).as_posix(), "all"))
+
+known = {path for _, path, _ in entries}
+old = index.read_text(encoding="utf-8") if index.exists() else ""
+for match in re.finditer(r"(?m)^\| ([^|]+) \| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", old):
+    kind, relative, phases, exists, checked, status = (value.strip() for value in match.groups())
+    if relative not in known:
+        entries.append((kind, relative, phases, status))
+        known.add(relative)
+
+for path in sorted(root.glob("*GOVERNANCE*.md")):
+    relative = path.relative_to(root).as_posix()
+    if relative not in known:
+        entries.append(("candidate", relative, "review", "needs-review"))
+
+rows = []
+for entry in entries:
+    kind, relative, phases = entry[:3]
+    exists = (root / relative).is_file()
+    status = entry[3] if len(entry) == 4 else ("ready" if exists else "missing")
+    rows.append((kind, relative, phases, "yes" if exists else "no", today, status))
+
+text = """# Repository documents
+
+> Last checked: {today}
+
+This index is the authoritative routing and check record for repository documents. The documents at their repository-relative source paths remain authoritative for policy content. Maintain this record first, route by phase from it, then read the routed sources. Do not copy source policy text here.
+
+| Class | Source path | Phases | Exists | Last checked | Status |
+| --- | --- | --- | --- | --- | --- |
+{rows}
+
+## Personal supplements
+
+{personal}
+""".format(
+    today=today,
+    rows="\n".join(f"| {k} | `{p}` | {ph} | {ex} | {checked} | {status} |"
+                     for k, p, ph, ex, checked, status in rows),
+    personal=("Cataloged above when present." if any(r[0] == "personal-supplement" for r in rows)
+              else "None."),
+)
+
+docs.mkdir(parents=True, exist_ok=True)
+if old != text:
+    fd, temporary = tempfile.mkstemp(dir=docs, prefix="index.md.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+            stream.write(text)
+        os.replace(temporary, index)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+selected = [row for row in rows if row[3] == "yes" and
+            row[5] == "ready" and
+            (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
+missing = [row[1] for row in rows if row[3] == "no" and
+           (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
+print(f"# Repository document routes ({phase})")
+print("- Read routing record first: TaskFlowDocs/repository-docs/index.md")
+if phase == "unclassified":
+    print("- Phase is unclear; classify the current work before following phase-specific routes.")
+if selected:
+    print("- Read authoritative sources: " + ", ".join(row[1] for row in selected))
+if missing:
+    print("- Missing catalog entries: " + ", ".join(missing))
+review = [row[1] for row in rows if row[5] == "needs-review"]
+if review:
+    print("- Needs review before routing: " + ", ".join(review))
+print("- Record applicable paths and incorporated conclusions in the active task plan.md.")
+PY

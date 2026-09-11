@@ -11,6 +11,7 @@ taskflow/hooks/
 ├── hooks-codex.json    # Codex CLI wiring
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── summarize-state     # derives the state summary (shared logic)
+├── repository-docs-context # syncs index metadata and derives routes
 ├── task                # explicit intake/promote/state/progress/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
@@ -82,8 +83,10 @@ Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.jso
 
 ## Scope / safety
 
-- `session-start` only prints a derived, non-authoritative summary; it writes
-  nothing. `task`, `archive`, `version`, and `reopen` are run **explicitly** by the
+- `session-start` synchronizes only deterministic routing metadata in
+  `TaskFlowDocs/repository-docs/index.md`, then injects derived routes/state.
+  It never edits source policies, core task documents, or approval state.
+  `task`, `archive`, `version`, and `reopen` are run **explicitly** by the
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
