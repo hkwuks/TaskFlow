@@ -49,8 +49,9 @@ if defined GIT_BASH (
     exit /b !ERRORLEVEL!
 )
 
-REM No bash found - exit silently rather than error
-exit /b 0
+REM A configured hook that cannot run must fail visibly; silent success hides a broken install.
+echo run-hook.cmd: Git for Windows Bash not found >&2
+exit /b 1
 CMDBLOCK
 
 # Unix: run the named script directly

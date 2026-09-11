@@ -1,5 +1,5 @@
 # Spec — Index-driven repository document routing
-> Task version: v3
+> Task version: v2
 
 ## Objective and Success Criteria
 
@@ -56,7 +56,6 @@ The table columns are `Class`, `Source path`, `Phases`, `Exists`, `Last checked`
 - Inject paths/status, not full contents, to limit context and preserve authority boundaries.
 - Use a fixed conventional-path registry; semantic classification of arbitrary documents is deferred.
 - Reuse Git for Windows Bash instead of maintaining parallel Bash and PowerShell implementations.
-- Release handoff is a patch release: Claude manifest `1.0.3`, Codex manifest `1.0.3+codex.20260911`, annotated tag `v1.0.3`, and GitHub Release after merge to `main`.
 
 ## Open Questions
 

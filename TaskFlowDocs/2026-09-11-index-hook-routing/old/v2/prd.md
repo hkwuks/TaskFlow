@@ -1,6 +1,6 @@
 # Index-driven repository document routing
-> Task version: v3
-> Status: ready
+> Task version: v2
+> Status: blocked
 
 ## Goal
 
@@ -25,7 +25,6 @@ Make `repository-docs/index.md` the primary routing record, maintain its determi
 7. Support Linux Bash and Windows through `run-hook.cmd` plus Git for Windows Bash.
 8. Exercise the complete Windows call chain in a path containing spaces and Chinese characters: launcher, SessionStart, index synchronization, and JSON context injection.
 9. After all acceptance checks pass, archive the completed task under `TaskFlowDocs/achieved/` and update its Todo record atomically.
-10. Merge the verified branch into `main` and publish patch release `v1.0.3` with Claude `1.0.3` and Codex `1.0.3+codex.20260911` manifests.
 
 ## Acceptance Criteria
 
@@ -49,7 +48,6 @@ Make `repository-docs/index.md` the primary routing record, maintain its determi
 - Copying source rules into TaskFlow documentation.
 - Automatically creating missing governance documents.
 - Automatic commits, pushes, pull requests, approvals, tags, or releases.
-- Unrelated product changes or user-owned task files.
 - Heuristic classification of arbitrary documents.
 - A separate PowerShell implementation of the hook logic.
 

@@ -156,7 +156,7 @@ claude plugin install taskflow@taskflow
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.0.2    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.0.3    Status: ✔ enabled
 ```
 
 ### 用 Codex CLI 安装

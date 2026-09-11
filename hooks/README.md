@@ -28,7 +28,8 @@ taskflow/hooks/
 - **`run-hook.cmd`** is a polyglot file: on Windows, `cmd.exe` runs the batch
   half and finds Git Bash from the active Git for Windows installation without
   falling through to WSL Bash; on Unix the `:` no-op makes it a bash no-op. One
-  `command` value works on every OS for Claude Code.
+  `command` value works on every OS for Claude Code. Windows requires Git for
+  Windows Bash; the launcher fails visibly when it is unavailable.
 - **Python** is used only for small Markdown edits. Scripts prefer `python3`
   and fall back to `python` when the WindowsApps `python3` shim is not runnable.
 - **One JSON per host** (`hooks.json` for Claude Code, `hooks-codex.json` for

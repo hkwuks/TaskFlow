@@ -1,6 +1,6 @@
 # Plan — Index-driven repository document routing
-> Task version: v3
-> Status: ready
+> Task version: v2
+> Status: blocked
 
 ## Spec Pointers
 
@@ -20,9 +20,6 @@
 - `taskflow` — Todo-first task creation and approval boundary; incorporated: separate approved v1 task.
 - `using-agent-skills` — selected spec, implementation, test, and Git workflow.
 - `ponytail` — kept the design to one helper composed by the existing SessionStart hook.
-- `code-review-and-quality` — reviewed correctness, simplicity, architecture, security, and performance; no required findings.
-- `shipping-and-launch` — applied release checklist and rollback framing.
-- `git-workflow-and-versioning` — selected patch version `1.0.3` and tag `v1.0.3`.
 
 ## Preconditions
 
@@ -31,15 +28,14 @@
 - [x] Source policies remain authoritative and PR/release actions retain explicit approval.
 - [x] Dedicated branch `docs/index-hook-routing` created after Git metadata write approval.
 - [x] User approved v2 Linux/Windows scope, complete Windows invocation-chain test, and achieved archival after verification.
-- [x] User approved v3 publication: merge to `main`, patch version `1.0.3`, tag `v1.0.3`, and GitHub Release.
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-09-11 16:01 +08:00
-- Approved version: v3
-- Approved scope: PRD / Spec / Plan; Windows verification, merge to main, and 1.0.3 GitHub Release
+- Approved at: 2026-09-11 14:18 +08:00
+- Approved version: v2
+- Approved scope: PRD / Spec / Plan; Linux/Windows hook compatibility and post-verification archival
 
 ## Steps
 
@@ -95,24 +91,9 @@
 - Acceptance: Linux and Windows complete-call-chain checks pass without a second hook implementation.
 - Verification: `bash hooks/smoke-test` plus direct Windows PowerShell test.
 - Rollback: revert only the Windows regression additions.
-- Status: done
+- Status: blocked
 
-### Step 5 — Publish patch release
-
-- Goal: Merge the verified branch and publish the approved patch release.
-- Dependencies: Step 4 passes; GitHub authentication available.
-- Files: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`.
-- Implementation checklist:
-  - [ ] Bump Claude/Codex manifests to `1.0.3` / `1.0.3+codex.20260911`.
-  - [ ] Create a human-readable `1.0.3` changelog entry.
-  - [ ] Commit and push the scoped branch, then merge to `main`.
-  - [ ] Tag `v1.0.3` and create the GitHub Release.
-- Acceptance: `main` contains the tested hook commit and the release tag points at the published version.
-- Verification: manifest JSON parse, smoke suite, `git diff --check`, and remote tag/release inspection.
-- Rollback: delete an unpublished tag or revert the release commit; do not rewrite shared history.
-- Status: pending
-
-### Step 6 — Complete and archive
+### Step 5 — Complete and archive
 
 - Goal: Close the verified task and move its records to achieved history.
 - Dependencies: all acceptance checks pass; explicit user archival authorization.
@@ -131,7 +112,7 @@
 - [x] Index is a record, not a copy of policies.
 - [x] Hook writes only deterministic index metadata.
 - [x] No automatic governance creation, approval, or Git/hosting mutation.
-- [x] Complete Linux and Windows SessionStart chains pass.
+- [ ] Complete Linux and Windows SessionStart chains pass.
 - [ ] Completed task is stored under `TaskFlowDocs/achieved/` with Todo synchronized.
 
 ## Verification / Review
@@ -153,7 +134,6 @@
 
 - 2026-09-11 Task v1 — user approved index-first routing, automatic bounded index maintenance, and SessionStart context injection.
 - 2026-09-11 Task v2 — user required Linux/Windows hook compatibility and achieved archival after completion; v1 preserved under `old/v1/` and v2 approved.
-- 2026-09-11 Task v3 — user approved merge and `1.0.3` patch release after Windows verification.
 
 ## Follow-ups
 
