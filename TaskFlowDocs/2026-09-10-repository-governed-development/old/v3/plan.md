@@ -1,7 +1,7 @@
 # Plan — Repository-governed fork development
 
-- Task version: v4
-- State: in_progress
+- Task version: v3
+- State: checking
 - Branch: `feature/repository-governed-development`
 
 ## Spec pointers
@@ -168,7 +168,6 @@
 - `bash -n hooks/repository-check` — passed.
 - `bash hooks/repository-check .` — returned `STATUS: needs-user-input`, exit `2`, identifying missing baseline governance and ambiguous tracking base.
 - Hook registration audit — no `repository-check` registration in `hooks/hooks.json`, `hooks/hooks-codex.json`, or `hooks/session-start`.
-- PR template review: PR #1 is already `MERGED`; its Summary, TaskFlow traceability, Verification, and Review boundaries fields were present and satisfied. v4 changes therefore require a new PR rather than updating PR #1.
 
 ## Change log
 
@@ -176,28 +175,6 @@
 - 2026-09-11: User approved v1; refreshed plugin to `1.0.2+codex.20260911`, fast-forwarded from `origin/main`, implemented Steps 1–4, and entered checking.
 - 2026-09-11: User approved v2; archived v1, incorporated upstream `1.0.2`, and added the opt-in command scope; automatic hook integration deferred.
 - 2026-09-11: User approved v3; added repository governance documents and PR template, refreshed the catalog, and kept automatic hook integration deferred.
-
-## Approval
-
-- Approved by: user
-- Approved at: 2026-09-11 12:00 +08:00
-- Approved version: v4
-- Approved scope: PRD / Spec / Plan
-
-### Step 1d — Enforce PR template as submission contract
-
-- Goal: Require TaskFlow to read and satisfy the applicable PR template before creating or updating a pull request.
-- Dependencies: v4 approval.
-- Files likely touched: `skills/taskflow/SKILL.md`, `skills/taskflow/references/artifacts.md`, `CONTRIBUTING.md`, `README.md`, `README.zh-CN.md`, current PR metadata only if needed.
-- Implementation checklist:
-  - [ ] Add explicit PR-template read/satisfy/record/block rules to the Skill.
-  - [ ] Add Plan artifact fields for template path, mapping, and verification.
-  - [ ] Align contribution and bilingual guidance.
-  - [ ] Review PR #1 against the template and update only after all required items are mapped.
-- Acceptance: TaskFlow treats `.github/pull_request_template.md` as an enforceable PR submission contract.
-- Verification: focused Skill/document search, `bash hooks/smoke-test`, `git diff --check`, and PR-template mapping review.
-- Rollback: Revert only v4 rule/document changes.
-- Status: pending
 
 ### Step 1c — Add repository governance documents
 

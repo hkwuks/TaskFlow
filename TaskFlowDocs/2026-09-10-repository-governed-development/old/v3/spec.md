@@ -1,7 +1,7 @@
 # Spec — Repository-governed fork development
 
-- Task version: v4
-- State: ready
+- Task version: v3
+- State: checking
 
 ## Objective and success criteria
 
@@ -155,18 +155,6 @@ Plugin manifests are excluded unless their declared metadata becomes inaccurate.
 - a concise remediation list.
 
 The command is read-only, has no network dependency, does not infer remote roles from names, and is not registered with `session-start` in v2.
-
-## Pull-request template contract
-
-For PR creation or update, TaskFlow must:
-
-1. Read the applicable repository PR template after repository-document discovery.
-2. Treat unchecked template fields as required unless the template explicitly marks them optional.
-3. Map each field to the PR title/body, labels, checks, or a documented user decision.
-4. Record template path, version/fingerprint when available, mapping, and verification in the TaskFlow Plan.
-5. Stop before PR mutation if a required item is missing, ambiguous, or conflicts with repository rules.
-
-The template is repository policy, not merely presentation boilerplate. If it changes while a PR task is active, re-evaluate the task contract before updating the PR.
 
 ## Validation and error semantics
 
