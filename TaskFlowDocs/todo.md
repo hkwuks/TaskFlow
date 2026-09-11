@@ -154,7 +154,7 @@ Every direct request or imported requireme
 ## Make repository-docs index the primary routing record and maintain/inject it thr
 
 - ID: TF-20260911-01
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: direct user request

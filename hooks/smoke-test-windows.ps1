@@ -19,6 +19,26 @@ function Invoke-TaskFlow {
     if (-not $MustFail -and $exitCode -ne 0) { throw "Command failed: $($Arguments -join ' '): $output" }
 }
 
+function Invoke-SessionStart {
+    param([string]$Phase)
+    $oldRoot = $env:TASKFLOW_REPO_ROOT
+    $oldPhase = $env:TASKFLOW_PHASE
+    $oldClaudeRoot = $env:CLAUDE_PLUGIN_ROOT
+    try {
+        $env:TASKFLOW_REPO_ROOT = $Root
+        $env:TASKFLOW_PHASE = $Phase
+        $env:CLAUDE_PLUGIN_ROOT = Split-Path -Parent $here
+        $output = & "$here\run-hook.cmd" session-start 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "SessionStart failed: $output" }
+        return (($output -join [Environment]::NewLine) | ConvertFrom-Json)
+    }
+    finally {
+        $env:TASKFLOW_REPO_ROOT = $oldRoot
+        $env:TASKFLOW_PHASE = $oldPhase
+        $env:CLAUDE_PLUGIN_ROOT = $oldClaudeRoot
+    }
+}
+
 try {
     New-Item -ItemType Directory -Path $Root | Out-Null
     $common = @('--root', $Root)
@@ -52,6 +72,21 @@ try {
     if (Test-Path $task) { throw 'Active task still exists' }
     if (-not (Test-Path $achieved)) { throw 'Achieved task missing' }
     if ([IO.File]::ReadAllText($todo) -notmatch '(?m)^- Status: done\r?$') { throw 'Todo is not done' }
+
+    [IO.File]::WriteAllText((Join-Path $Root 'CONTRIBUTING.md'), "# Contributing`n", $utf8)
+    $first = Invoke-SessionStart 'pr'
+    $index = Join-Path $Root 'TaskFlowDocs\repository-docs\index.md'
+    if (-not (Test-Path $index)) { throw 'SessionStart did not create repository-docs index' }
+    $context = $first.hookSpecificOutput.additionalContext
+    if ($context -notmatch 'Repository document routes \(pr\)') { throw 'PR phase route missing from SessionStart JSON' }
+    if ($context -notmatch 'CONTRIBUTING\.md') { throw 'Applicable source missing from SessionStart JSON' }
+    if ([IO.File]::ReadAllText($index) -notmatch '\| repository-rule \| `CONTRIBUTING\.md` \| code,commit,pr,release \| yes \|') { throw 'Index did not record existing source' }
+    $before = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
+    $second = Invoke-SessionStart 'pr'
+    $after = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
+    if ($before -ne $after) { throw 'Repeated SessionStart changed an up-to-date index' }
+    if ($second.hookSpecificOutput.additionalContext -notmatch 'Read routing record first') { throw 'Repeated SessionStart context missing' }
+    'WINDOWS SESSIONSTART PASSED'
     'WINDOWS LIFECYCLE PASSED'
 }
 finally {

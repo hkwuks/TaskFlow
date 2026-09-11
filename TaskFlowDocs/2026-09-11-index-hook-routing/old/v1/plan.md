@@ -1,6 +1,6 @@
 # Plan — Index-driven repository document routing
-> Task version: v2
-> Status: blocked
+> Task version: v1
+> Status: in_progress
 
 ## Spec Pointers
 
@@ -27,15 +27,14 @@
 - [x] User confirmed index authority, deterministic maintenance, and compact phase-aware injection.
 - [x] Source policies remain authoritative and PR/release actions retain explicit approval.
 - [x] Dedicated branch `docs/index-hook-routing` created after Git metadata write approval.
-- [x] User approved v2 Linux/Windows scope, complete Windows invocation-chain test, and achieved archival after verification.
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-09-11 14:18 +08:00
-- Approved version: v2
-- Approved scope: PRD / Spec / Plan; Linux/Windows hook compatibility and post-verification archival
+- Approved at: 2026-09-11 13:39 +08:00
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan and bounded hook implementation
 
 ## Steps
 
@@ -79,41 +78,11 @@
 - Rollback: revert only task-specific fixes.
 - Status: done
 
-### Step 4 — Prove Windows SessionStart compatibility
-
-- Goal: Verify the same hook implementation on Windows through the supported launcher.
-- Dependencies: approved v2; Steps 1–3.
-- Files: `hooks/smoke-test-windows.ps1`, `hooks/smoke-test`, hook documentation if needed.
-- Implementation checklist:
-  - [ ] Invoke `run-hook.cmd session-start` in a Windows fixture path containing spaces and Chinese characters.
-  - [ ] Verify index creation, phase-routed JSON context, and repeated-run idempotency.
-  - [ ] Run Linux and real Windows regression suites.
-- Acceptance: Linux and Windows complete-call-chain checks pass without a second hook implementation.
-- Verification: `bash hooks/smoke-test` plus direct Windows PowerShell test.
-- Rollback: revert only the Windows regression additions.
-- Status: blocked
-
-### Step 5 — Complete and archive
-
-- Goal: Close the verified task and move its records to achieved history.
-- Dependencies: all acceptance checks pass; explicit user archival authorization.
-- Files: task directory and `TaskFlowDocs/todo.md`.
-- Implementation checklist:
-  - [ ] Record final verification and mark all steps complete.
-  - [ ] Run the TaskFlow completion transaction with user acceptance.
-  - [ ] Verify active path absent, achieved path present, completed statuses, and Todo `done` link.
-- Acceptance: completed records live only under `TaskFlowDocs/achieved/` and remain included in PR #5.
-- Verification: path/status/Todo assertions and final Git diff review.
-- Rollback: stop before archival on any failed check; use explicit reopen only for a later material change.
-- Status: pending
-
 ## Checkpoints
 
 - [x] Index is a record, not a copy of policies.
 - [x] Hook writes only deterministic index metadata.
 - [x] No automatic governance creation, approval, or Git/hosting mutation.
-- [ ] Complete Linux and Windows SessionStart chains pass.
-- [ ] Completed task is stored under `TaskFlowDocs/achieved/` with Todo synchronized.
 
 ## Verification / Review
 
@@ -126,20 +95,15 @@
 - Index synchronization idempotency — first SessionStart corrected the stale `RELEASE.md` existence record; the next run preserved the same SHA-256 hash.
 - Git branch preparation — initial sandbox attempt was blocked by read-only `.git`; approved elevated retry created `docs/index-hook-routing` without moving or discarding working-tree changes.
 - Scope check — existing user-owned `TaskFlowDocs/2026-09-10-token-saving-lifecycle-scripts/` remains untracked and untouched.
-- Linux regression after v2 changes: `bash hooks/smoke-test` and Bash syntax checks passed.
-- Windows PowerShell 5.1 test reached `run-hook.cmd` and Git Bash, then stopped before the new SessionStart assertions because this machine has no usable Python (`python` and `python3` resolve only to Microsoft Store aliases; `py` is absent). This is an environment blocker, not a passing Windows result.
-- Required verification on a Windows machine with Git for Windows Bash and Python 3: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <repo>\hooks\smoke-test-windows.ps1`. Expected output includes `WINDOWS SESSIONSTART PASSED` and `WINDOWS LIFECYCLE PASSED`.
 
 ## Change Log
 
 - 2026-09-11 Task v1 — user approved index-first routing, automatic bounded index maintenance, and SessionStart context injection.
-- 2026-09-11 Task v2 — user required Linux/Windows hook compatibility and achieved archival after completion; v1 preserved under `old/v1/` and v2 approved.
 
 ## Follow-ups
 
-- Run the Windows test above on the user's other machine. After it passes, record evidence, mark Step 4 done, then execute the already-authorized completion/archive transaction.
+- Create and push a dedicated branch when `.git` write access is restored.
 
 ## Version History
 
 - v1 — approved implementation contract.
-- v2 — approved cross-platform verification and completion/archive contract.
