@@ -1,6 +1,6 @@
 # Copy-first Task versioning
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Plan — Unblock autonomous capability invocation
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 

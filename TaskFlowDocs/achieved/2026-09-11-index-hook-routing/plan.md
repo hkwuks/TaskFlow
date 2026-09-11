@@ -1,6 +1,6 @@
 # Plan — Index-driven repository document routing
 > Task version: v3
-> Status: ready
+> Status: completed
 
 ## Spec Pointers
 
@@ -103,14 +103,14 @@
 - Dependencies: Step 4 passes; GitHub authentication available.
 - Files: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, GitHub Release notes.
 - Implementation checklist:
-  - [ ] Bump Claude/Codex manifests to `1.0.3` / `1.0.3+codex.20260911`.
-  - [ ] Prepare human-readable `1.0.3` GitHub Release notes; no standalone changelog file.
-  - [ ] Commit and push the scoped branch, then merge to `main`.
-  - [ ] Tag `v1.0.3` and create the GitHub Release.
+  - [x] Bump Claude/Codex manifests to `1.0.3` / `1.0.3+codex.20260911`.
+  - [x] Prepare human-readable `1.0.3` GitHub Release notes; no standalone changelog file.
+  - [x] Commit and push the scoped branch, then merge to `main`.
+  - [x] Tag `v1.0.3` and create the GitHub Release.
 - Acceptance: `main` contains the tested hook commit and the release tag points at the published version.
 - Verification: manifest JSON parse, smoke suite, `git diff --check`, and remote tag/release inspection.
 - Rollback: delete an unpublished tag or revert the release commit; do not rewrite shared history.
-- Status: pending
+- Status: done
 
 ### Step 6 — Complete and archive
 
@@ -118,13 +118,13 @@
 - Dependencies: all acceptance checks pass; explicit user archival authorization.
 - Files: task directory and `TaskFlowDocs/todo.md`.
 - Implementation checklist:
-  - [ ] Record final verification and mark all steps complete.
-  - [ ] Run the TaskFlow completion transaction with user acceptance.
-  - [ ] Verify active path absent, achieved path present, completed statuses, and Todo `done` link.
+  - [x] Record final verification and mark all steps complete.
+  - [x] Run the TaskFlow completion transaction with user acceptance.
+  - [x] Verify active path absent, achieved path present, completed statuses, and Todo `done` link.
 - Acceptance: completed records live only under `TaskFlowDocs/achieved/` and remain included in PR #5.
 - Verification: path/status/Todo assertions and final Git diff review.
 - Rollback: stop before archival on any failed check; use explicit reopen only for a later material change.
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -132,7 +132,7 @@
 - [x] Hook writes only deterministic index metadata.
 - [x] No automatic governance creation, approval, or Git/hosting mutation.
 - [x] Complete Linux and Windows SessionStart chains pass.
-- [ ] Completed task is stored under `TaskFlowDocs/achieved/` with Todo synchronized.
+- [x] Completed task is stored under `TaskFlowDocs/achieved/` with Todo synchronized.
 
 ## Verification / Review
 
@@ -146,8 +146,7 @@
 - Git branch preparation — initial sandbox attempt was blocked by read-only `.git`; approved elevated retry created `docs/index-hook-routing` without moving or discarding working-tree changes.
 - Scope check — existing user-owned `TaskFlowDocs/2026-09-10-token-saving-lifecycle-scripts/` remains untracked and untouched.
 - Linux regression after v2 changes: `bash hooks/smoke-test` and Bash syntax checks passed.
-- Windows PowerShell 5.1 test reached `run-hook.cmd` and Git Bash, then stopped before the new SessionStart assertions because this machine has no usable Python (`python` and `python3` resolve only to Microsoft Store aliases; `py` is absent). This is an environment blocker, not a passing Windows result.
-- Required verification on a Windows machine with Git for Windows Bash and Python 3: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File <repo>\hooks\smoke-test-windows.ps1`. Expected output includes `WINDOWS SESSIONSTART PASSED` and `WINDOWS LIFECYCLE PASSED`.
+- Windows PowerShell 5.1 test passed locally through `run-hook.cmd` and Git Bash with `WINDOWS SESSIONSTART PASSED` and `WINDOWS LIFECYCLE PASSED`.
 
 ## Change Log
 
@@ -157,7 +156,7 @@
 
 ## Follow-ups
 
-- Run the Windows test above on the user's other machine. After it passes, record evidence, mark Step 4 done, then execute the already-authorized completion/archive transaction.
+- Task archived after Windows verification and the approved `v1.0.3` release.
 
 ## Version History
 

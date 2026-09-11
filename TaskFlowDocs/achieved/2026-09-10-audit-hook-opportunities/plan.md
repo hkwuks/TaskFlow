@@ -1,6 +1,6 @@
 # Plan — Audit further Hook automation opportunities
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — this task produces a bounded read-only recommendation report.
 

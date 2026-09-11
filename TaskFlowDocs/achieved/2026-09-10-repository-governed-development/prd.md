@@ -2,6 +2,7 @@
 
 - Task version: v4
 - State: ready
+> Status: completed
 - Owner: user / TaskFlow
 
 ## Goal

@@ -10,15 +10,92 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## TF-20260911-02 — Allow appropriate tools to contribute to task documents
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Allow relevant tools and capabilities to contribute to task documents without forcing a tool chain.
+- Task: `TaskFlowDocs/achieved/2026-09-07-tool-participation/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
+## TF-20260911-03 — Audit further Hook automation opportunities
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Audit additional Hook automation opportunities while preserving approval and mutation boundaries.
+- Task: `TaskFlowDocs/achieved/2026-09-10-audit-hook-opportunities/`
+- Next action: None — completed and archived; recommendations require separate approved tasks.
+- Updated: 2026-09-11
+
+## TF-20260911-04 — Consolidate the packaged Skill layout
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Consolidate the packaged Skill layout and remove stale duplicate entrypoints.
+- Task: `TaskFlowDocs/achieved/2026-09-10-consolidate-skill-layout/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
+## TF-20260911-05 — Copy-first Task versioning
+- Status: done
+- Priority: high
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Preserve superseded Task documents while retaining current roots during version transitions.
+- Task: `TaskFlowDocs/achieved/2026-09-10-copy-first-versioning/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
+## TF-20260911-06 — Limit TaskFlow to development requests
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Restrict automatic TaskFlow intake to development requests while preserving explicit opt-in.
+- Task: `TaskFlowDocs/achieved/2026-09-10-limit-taskflow-scope/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
+## TF-20260911-07 — Unblock autonomous capability invocation
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Make capability selection, invocation, review, and recording explicit without forcing a provider or tool.
+- Task: `TaskFlowDocs/achieved/2026-09-10-unblock-capability-invocation/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
+## TF-20260911-08 — Update and review TaskFlow plugin
+- Status: done
+- Priority: high
+- Owner: Codex
+- Source: historical TaskFlow task
+- External: None
+- Goal: Fix, publish, install, and verify the TaskFlow plugin and Windows Hook behavior.
+- Task: `TaskFlowDocs/achieved/2026-09-10-update-review-plugin/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-11
+
 ## T-20260910-001 — Enforce repository-governed fork development
-- Status: in_progress
+- Status: done
 - Priority: high
 - Owner: user / TaskFlow
 - Source: user request
 - External: None
 - Goal: Make the TaskFlow plugin follow fork/upstream development discipline and applicable repository, personal-supplement, code-style, contributing, and roadmap documents, creating missing governance documents with the user when needed.
-- Task: `TaskFlowDocs/2026-09-10-repository-governed-development/`
-- Next: Implement the approved Skill, artifact, smoke-test, and README updates.
+- Task: `TaskFlowDocs/achieved/2026-09-10-repository-governed-development/`
+- Next: None — completed and archived.
 - Updated: 2026-09-11
 
 ## TF-20260910-08 — Reduce TaskFlow token use with lifecycle scripts
@@ -154,12 +231,12 @@ Every direct request or imported requireme
 ## Make repository-docs index the primary routing record and maintain/inject it thr
 
 - ID: TF-20260911-01
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-11
 - Updated: 2026-09-11
 - Goal: Make repository-docs index the primary routing record and maintain/inject it through SessionStart hook
-- Task: `TaskFlowDocs/2026-09-11-index-hook-routing/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-11-index-hook-routing/`
+- Next action: None — completed and archived.

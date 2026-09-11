@@ -1,6 +1,6 @@
 # Allow appropriate tools to contribute to task documents
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 

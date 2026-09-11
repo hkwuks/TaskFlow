@@ -1,6 +1,6 @@
 # Plan — Consolidate the packaged Skill layout
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — this is a bounded packaging cleanup with no runtime interface change.
 

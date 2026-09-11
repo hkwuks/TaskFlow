@@ -2,6 +2,7 @@
 
 - Task version: v4
 - State: in_progress
+> Status: completed
 - Branch: `feature/repository-governed-development`
 
 ## Spec pointers
@@ -107,10 +108,10 @@
 
 ### Checkpoint — Operational contract
 
-- [ ] Skill and artifact guidance agree.
-- [ ] No remote mutation or provider-specific behavior was introduced.
-- [ ] No personal supplement is allowed to replace repository governance.
-- [ ] Smoke tests pass.
+  - [x] Skill and artifact guidance agree.
+  - [x] No remote mutation or provider-specific behavior was introduced.
+  - [x] No personal supplement is allowed to replace repository governance.
+  - [x] Smoke tests pass.
 
 ### Step 3 — Align bilingual public guidance
 
@@ -190,14 +191,14 @@
 - Dependencies: v4 approval.
 - Files likely touched: `skills/taskflow/SKILL.md`, `skills/taskflow/references/artifacts.md`, `CONTRIBUTING.md`, `README.md`, `README.zh-CN.md`, current PR metadata only if needed.
 - Implementation checklist:
-  - [ ] Add explicit PR-template read/satisfy/record/block rules to the Skill.
-  - [ ] Add Plan artifact fields for template path, mapping, and verification.
-  - [ ] Align contribution and bilingual guidance.
-  - [ ] Review PR #1 against the template and update only after all required items are mapped.
+  - [x] Add explicit PR-template read/satisfy/record/block rules to the Skill.
+  - [x] Add Plan artifact fields for template path, mapping, and verification.
+  - [x] Align contribution and bilingual guidance.
+  - [x] Review PR #1 against the template and update only after all required items are mapped.
 - Acceptance: TaskFlow treats `.github/pull_request_template.md` as an enforceable PR submission contract.
 - Verification: focused Skill/document search, `bash hooks/smoke-test`, `git diff --check`, and PR-template mapping review.
 - Rollback: Revert only v4 rule/document changes.
-- Status: pending
+- Status: done
 
 ### Step 1c — Add repository governance documents
 

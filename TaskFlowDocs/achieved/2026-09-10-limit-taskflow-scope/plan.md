@@ -1,6 +1,6 @@
 # Plan — Limit TaskFlow to development requests
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — this is a focused Skill routing correction with no runtime API change.
 

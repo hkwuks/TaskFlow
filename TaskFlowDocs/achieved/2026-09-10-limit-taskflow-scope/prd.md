@@ -1,6 +1,6 @@
 # Limit TaskFlow to development requests
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Plan — Allow appropriate tools to contribute to task documents
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 

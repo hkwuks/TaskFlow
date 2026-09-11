@@ -1,6 +1,6 @@
 # Index-driven repository document routing
 > Task version: v3
-> Status: ready
+> Status: completed
 
 ## Goal
 
