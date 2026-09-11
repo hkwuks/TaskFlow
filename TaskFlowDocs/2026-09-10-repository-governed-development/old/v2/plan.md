@@ -1,6 +1,6 @@
 # Plan — Repository-governed fork development
 
-- Task version: v3
+- Task version: v2
 - State: checking
 - Branch: `feature/repository-governed-development`
 
@@ -174,31 +174,6 @@
 - 2026-09-10: Created v1 from six user-approved decisions; task remains ready pending approval of PRD / Spec / Plan.
 - 2026-09-11: User approved v1; refreshed plugin to `1.0.2+codex.20260911`, fast-forwarded from `origin/main`, implemented Steps 1–4, and entered checking.
 - 2026-09-11: User approved v2; archived v1, incorporated upstream `1.0.2`, and added the opt-in command scope; automatic hook integration deferred.
-- 2026-09-11: User approved v3; added repository governance documents and PR template, refreshed the catalog, and kept automatic hook integration deferred.
-
-### Step 1c — Add repository governance documents
-
-- Goal: Establish approved repository-level contribution, style, roadmap, and PR rules.
-- Dependencies: Step 1b; user-approved v3 direction.
-- Files likely touched: `CONTRIBUTING.md`, `CODE_STYLE.md`, `ROADMAP.md`, `.github/pull_request_template.md`, `TaskFlowDocs/repository-docs/index.md`.
-- Implementation checklist:
-  - [x] Derive commands and conventions from existing scripts, history, and docs.
-  - [x] Create concise actionable `CONTRIBUTING.md` and `CODE_STYLE.md`.
-  - [x] Create direction-approved `ROADMAP.md` without dates or invented commitments.
-  - [x] Create a PR template covering TaskFlow traceability and checks.
-  - [x] Refresh the repository document catalog.
-- Acceptance: The repository has usable governance documents at conventional locations and no personal supplement is used as a substitute.
-- Verification: inspect all four files, run smoke tests, and run `git diff --check`.
-- Rollback: Revert only the v3 governance-document commit.
-- Status: done
-
-## Verification / review
-
-- `bash hooks/smoke-test` — passed.
-- `python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow` — passed.
-- `git diff --check` — passed.
-- Governance files and PR template are non-empty, evidence-based, and cataloged.
-- No automatic hook registration was added.
 
 ## Follow-ups
 

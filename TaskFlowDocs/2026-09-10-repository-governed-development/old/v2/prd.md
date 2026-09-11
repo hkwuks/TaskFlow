@@ -1,7 +1,7 @@
 # Repository-governed fork development
 
-- Task version: v3
-- State: checking
+- Task version: v2
+- State: in_progress
 - Owner: user / TaskFlow
 
 ## Goal
@@ -34,8 +34,7 @@ Developers get changes that follow the target repository's actual conventions in
 
 13. Provide a read-only `hooks/repository-check` command that reports repository governance and fork/remote readiness as `pass`, `needs-user-input`, or `blocked`.
 14. The command must inspect local files and Git metadata without creating documents, modifying remotes, fetching, rebasing, merging, pushing, or opening PRs.
-15. Keep the command opt-in; do not attach it to `session-start` or other automatic hooks.
-16. Create and catalog this repository's missing `CONTRIBUTING.md`, `CODE_STYLE.md`, `ROADMAP.md`, and pull-request template using confirmed evidence and the user's approved direction.
+15. Keep the command opt-in; do not attach it to `session-start` or other automatic hooks in v2.
 
 1. Before planning or implementing non-trivial repository work, TaskFlow must discover applicable repository-owned documents and scoped personal supplements, including README, contributing, code style, roadmap, release, code of conduct, PR templates, CODEOWNERS, branch rules, and CI guidance.
 2. TaskFlow must apply sources in this order: repository rules and guidance first; compatible, scope-matched personal supplements second. A conflict stops work for user resolution.
@@ -55,7 +54,6 @@ Developers get changes that follow the target repository's actual conventions in
 - `hooks/repository-check` runs on a repository and emits deterministic status plus actionable findings for missing governance, ambiguous remote/base, and applicable checks.
 - The command has focused smoke coverage and is documented in both READMEs.
 - No automatic hook invokes the command.
-- This repository contains actionable versions of the four approved governance documents, and the catalog records them.
 
 - The Skill provides one dependency-ordered workflow for repository-document discovery, precedence, missing-document creation, approval, and catalog refresh.
 - The Skill provides an explicit fork/upstream workflow that works for direct clones and forks without assuming remote names or mutating remotes.
@@ -105,4 +103,3 @@ None.
 
 - v1 — Initial contract from the user's six confirmed decisions on scope, remote safety, missing governance, evidence, and approval.
 - v2 — Added approved read-only governance-check command; automatic hook integration explicitly deferred.
-- v3 — Added repository governance documents and pull-request template.

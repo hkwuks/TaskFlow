@@ -1,7 +1,7 @@
 # Spec — Repository-governed fork development
 
-- Task version: v3
-- State: checking
+- Task version: v2
+- State: in_progress
 
 ## Objective and success criteria
 

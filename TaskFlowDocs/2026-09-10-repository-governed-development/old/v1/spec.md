@@ -1,6 +1,6 @@
 # Spec — Repository-governed fork development
 
-- Task version: v3
+- Task version: v1
 - State: checking
 
 ## Objective and success criteria
@@ -139,22 +139,8 @@ Remote names are conventions, not truth: `origin` is not automatically treated a
 - `README.md` — English user-facing behavior.
 - `README.zh-CN.md` — Chinese user-facing behavior.
 - `hooks/smoke-test` — focused durable assertions only if existing test structure supports them.
-- `hooks/repository-check` — opt-in read-only governance and fork/remote readiness command.
 
 Plugin manifests are excluded unless their declared metadata becomes inaccurate.
-
-## Repository-check command contract
-
-`hooks/repository-check [repo-root]` exits non-zero when review requires user input or is blocked, and zero only when no blocking finding is present. It reports:
-
-- repository root and current branch;
-- configured remote names and credential-redacted URLs;
-- whether `CONTRIBUTING.md`, `CODE_STYLE.md`, and `ROADMAP.md` exist;
-- whether `TaskFlowDocs/repository-docs/index.md` exists;
-- base/target ambiguity and stale-data caveats;
-- a concise remediation list.
-
-The command is read-only, has no network dependency, does not infer remote roles from names, and is not registered with `session-start` in v2.
 
 ## Validation and error semantics
 

@@ -1,6 +1,6 @@
 # Plan — Repository-governed fork development
 
-- Task version: v3
+- Task version: v1
 - State: checking
 - Branch: `feature/repository-governed-development`
 
@@ -38,25 +38,11 @@
 ## Approval
 
 - Approved by: user
-- Approved at: 2026-09-11 10:40 +08:00
-- Approved version: v2
+- Approved at: 2026-09-11 00:00 +08:00
+- Approved version: v1
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
-
-### Step 0 — Refresh after upstream update
-
-- Goal: Preserve the approved task while incorporating upstream `1.0.2`.
-- Dependencies: User approval of v2.
-- Files likely touched: task artifacts only.
-- Implementation checklist:
-  - [x] Refresh configured TaskFlow marketplace and reinstall plugin.
-  - [x] Fast-forward from `origin/main` to `660679a` / `v1.0.2`.
-  - [x] Preserve and report stash/untracked recovery boundaries.
-- Acceptance: Work continues from the latest upstream baseline without data loss.
-- Verification: `codex plugin list`, `git log`, `git status`, and retained stash inspection.
-- Rollback: Revert task-only notes; do not rewrite upstream history.
-- Status: done
 
 ### Step 1 — Centralize governance and fork rules
 
@@ -73,22 +59,6 @@
 - Acceptance: Every PRD requirement has one authoritative operational rule without duplicate competing workflows.
 - Verification: `rg -n -i 'fork|upstream|CONTRIBUTING|CODE_STYLE|ROADMAP|personal supplement|approval|remote' skills/taskflow/SKILL.md` and focused diff review.
 - Rollback: Revert the Skill-only patch before Step 2.
-- Status: done
-
-### Step 1b — Add repository-check command
-
-- Goal: Provide an opt-in, read-only machine check for governance and fork readiness.
-- Dependencies: Step 1.
-- Files likely touched: `hooks/repository-check`, `hooks/smoke-test`.
-- Implementation checklist:
-  - [x] Implement local document and Git metadata checks.
-  - [x] Redact credentials in displayed URLs.
-  - [x] Return `pass`, `needs-user-input`, or `blocked` with actionable output.
-  - [x] Keep the command off automatic hooks.
-  - [x] Add focused smoke coverage.
-- Acceptance: Command is deterministic, read-only, and useful before planning/PR work.
-- Verification: `bash hooks/repository-check <fixture>` and `bash hooks/smoke-test`.
-- Rollback: Remove only the new command and its smoke assertions.
 - Status: done
 
 ### Step 2 — Align artifact guidance and durable checks
@@ -164,41 +134,11 @@
 - `codex plugin marketplace upgrade taskflow && codex plugin add taskflow@taskflow` — installed `1.0.2+codex.20260911` successfully.
 - `git pull --rebase origin main` — fast-forwarded branch base to `660679a` / `v1.0.2`; current work restored without losing the retained stash.
 - Review result: no correctness, security, duplication, or scope findings in the governance/fork documentation changes.
-- v2 command review: fixed Git worktree detection to accept both `.git` directories and worktree indirection files.
-- `bash -n hooks/repository-check` — passed.
-- `bash hooks/repository-check .` — returned `STATUS: needs-user-input`, exit `2`, identifying missing baseline governance and ambiguous tracking base.
-- Hook registration audit — no `repository-check` registration in `hooks/hooks.json`, `hooks/hooks-codex.json`, or `hooks/session-start`.
 
 ## Change log
 
 - 2026-09-10: Created v1 from six user-approved decisions; task remains ready pending approval of PRD / Spec / Plan.
 - 2026-09-11: User approved v1; refreshed plugin to `1.0.2+codex.20260911`, fast-forwarded from `origin/main`, implemented Steps 1–4, and entered checking.
-- 2026-09-11: User approved v2; archived v1, incorporated upstream `1.0.2`, and added the opt-in command scope; automatic hook integration deferred.
-- 2026-09-11: User approved v3; added repository governance documents and PR template, refreshed the catalog, and kept automatic hook integration deferred.
-
-### Step 1c — Add repository governance documents
-
-- Goal: Establish approved repository-level contribution, style, roadmap, and PR rules.
-- Dependencies: Step 1b; user-approved v3 direction.
-- Files likely touched: `CONTRIBUTING.md`, `CODE_STYLE.md`, `ROADMAP.md`, `.github/pull_request_template.md`, `TaskFlowDocs/repository-docs/index.md`.
-- Implementation checklist:
-  - [x] Derive commands and conventions from existing scripts, history, and docs.
-  - [x] Create concise actionable `CONTRIBUTING.md` and `CODE_STYLE.md`.
-  - [x] Create direction-approved `ROADMAP.md` without dates or invented commitments.
-  - [x] Create a PR template covering TaskFlow traceability and checks.
-  - [x] Refresh the repository document catalog.
-- Acceptance: The repository has usable governance documents at conventional locations and no personal supplement is used as a substitute.
-- Verification: inspect all four files, run smoke tests, and run `git diff --check`.
-- Rollback: Revert only the v3 governance-document commit.
-- Status: done
-
-## Verification / review
-
-- `bash hooks/smoke-test` — passed.
-- `python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow` — passed.
-- `git diff --check` — passed.
-- Governance files and PR template are non-empty, evidence-based, and cataloged.
-- No automatic hook registration was added.
 
 ## Follow-ups
 

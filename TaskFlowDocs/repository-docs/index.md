@@ -1,6 +1,6 @@
 # Repository documents
 
-> Last checked: 2026-09-10
+> Last checked: 2026-09-11
 
 This catalog is derived navigation. Repository-owned documents remain authoritative at their repository-relative source paths. `repository-docs/` contains only this index and optional personal supplements under `personal/`.
 
@@ -9,6 +9,10 @@ This catalog is derived navigation. Repository-owned documents remain authoritat
 | repository-guidance | `README.md` | yes | 2026-09-10 |
 | repository-guidance | `README.zh-CN.md` | yes | 2026-09-10 |
 | repository-rule | `LICENSE` | yes | 2026-09-10 |
+| repository-rule | `CONTRIBUTING.md` | yes | 2026-09-11 |
+| repository-rule | `CODE_STYLE.md` | yes | 2026-09-11 |
+| repository-guidance | `ROADMAP.md` | yes | 2026-09-11 |
+| repository-guidance | `.github/pull_request_template.md` | yes | 2026-09-11 |
 
 ## Personal supplements
 
