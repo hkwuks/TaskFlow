@@ -1,0 +1,52 @@
+{
+  "skill": "taskflow",
+  "description": "Route repository development requests to TaskFlow and verify its task lifecycle artifacts.",
+  "evals": [
+    {
+      "id": "positive-development",
+      "kind": "trigger",
+      "prompt": "Add a retry policy to the API and write tests.",
+      "expected": true,
+      "keywords": ["api", "tests"]
+    },
+    {
+      "id": "positive-release",
+      "kind": "trigger",
+      "prompt": "Prepare the repository for a release and update the CI configuration.",
+      "expected": true,
+      "keywords": ["repository", "release", "ci"]
+    },
+    {
+      "id": "positive-explicit",
+      "kind": "trigger",
+      "prompt": "Use $taskflow to plan this documentation change.",
+      "expected": true,
+      "keywords": ["taskflow", "plan"]
+    },
+    {
+      "id": "negative-explanation",
+      "kind": "trigger",
+      "prompt": "Explain what GitHub Flow means.",
+      "expected": false,
+      "keywords": []
+    },
+    {
+      "id": "negative-translation",
+      "kind": "trigger",
+      "prompt": "Translate this paragraph into Chinese.",
+      "expected": false,
+      "keywords": []
+    },
+    {
+      "id": "artifact-contract",
+      "kind": "artifact",
+      "fixture": "taskflow",
+      "expectations": [
+        {"path": "TaskFlowDocs/todo.md", "contains": "Status flow"},
+        {"path": "TaskFlowDocs/todo.md", "contains": "Task:"},
+        {"path": "TaskFlowDocs/2026-01-01-example/prd.md", "contains": "Task version"},
+        {"path": "TaskFlowDocs/2026-01-01-example/plan.md", "contains": "Approval"}
+      ]
+    }
+  ]
+}
