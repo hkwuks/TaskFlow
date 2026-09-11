@@ -101,10 +101,10 @@
 
 - Goal: Merge the verified branch and publish the approved patch release.
 - Dependencies: Step 4 passes; GitHub authentication available.
-- Files: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `CHANGELOG.md`.
+- Files: `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, GitHub Release notes.
 - Implementation checklist:
   - [ ] Bump Claude/Codex manifests to `1.0.3` / `1.0.3+codex.20260911`.
-  - [ ] Create a human-readable `1.0.3` changelog entry.
+  - [ ] Prepare human-readable `1.0.3` GitHub Release notes; no standalone changelog file.
   - [ ] Commit and push the scoped branch, then merge to `main`.
   - [ ] Tag `v1.0.3` and create the GitHub Release.
 - Acceptance: `main` contains the tested hook commit and the release tag points at the published version.
