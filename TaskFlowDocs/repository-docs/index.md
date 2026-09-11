@@ -2,17 +2,22 @@
 
 > Last checked: 2026-09-11
 
-This catalog is derived navigation. Repository-owned documents remain authoritative at their repository-relative source paths. `repository-docs/` contains only this index and optional personal supplements under `personal/`.
+This index is the authoritative routing and check record for repository documents. The documents at their repository-relative source paths remain authoritative for policy content. Maintain this record first, route by phase from it, then read the routed sources. Do not copy source policy text here.
 
-| Class | Source path | Exists | Last checked |
-| --- | --- | --- | --- |
-| repository-guidance | `README.md` | yes | 2026-09-10 |
-| repository-guidance | `README.zh-CN.md` | yes | 2026-09-10 |
-| repository-rule | `LICENSE` | yes | 2026-09-10 |
-| repository-rule | `CONTRIBUTING.md` | yes | 2026-09-11 |
-| repository-rule | `CODE_STYLE.md` | yes | 2026-09-11 |
-| repository-guidance | `ROADMAP.md` | yes | 2026-09-11 |
-| repository-guidance | `.github/pull_request_template.md` | yes | 2026-09-11 |
+| Class | Source path | Phases | Exists | Last checked | Status |
+| --- | --- | --- | --- | --- | --- |
+| repository-guidance | `README.md` | design,roadmap | yes | 2026-09-11 | ready |
+| repository-guidance | `README.zh-CN.md` | design,roadmap | yes | 2026-09-11 | ready |
+| repository-rule | `LICENSE` | all | yes | 2026-09-11 | ready |
+| repository-rule | `CONTRIBUTING.md` | code,commit,pr,release | yes | 2026-09-11 | ready |
+| repository-rule | `CODE_STYLE.md` | code,review | yes | 2026-09-11 | ready |
+| repository-guidance | `ROADMAP.md` | design,roadmap,release | yes | 2026-09-11 | ready |
+| repository-rule | `.github/pull_request_template.md` | pr | yes | 2026-09-11 | ready |
+| repository-rule | `.github/CODEOWNERS` | pr,review | no | 2026-09-11 | missing |
+| repository-rule | `CODE_OF_CONDUCT.md` | all | no | 2026-09-11 | missing |
+| repository-rule | `SECURITY.md` | code,review,release | no | 2026-09-11 | missing |
+| repository-rule | `RELEASE.md` | release | no | 2026-09-11 | missing |
+| repository-rule | `CHANGELOG.md` | release | no | 2026-09-11 | missing |
 
 ## Personal supplements
 

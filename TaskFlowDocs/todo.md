@@ -150,3 +150,16 @@ This is the repository's single lightweight intake list. It stores triage metada
 ```
 
 Every direct request or imported requireme
+
+## Make repository-docs index the primary routing record and maintain/inject it thr
+
+- ID: TF-20260911-01
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-11
+- Updated: 2026-09-11
+- Goal: Make repository-docs index the primary routing record and maintain/inject it through SessionStart hook
+- Task: `TaskFlowDocs/2026-09-11-index-hook-routing/`
+- Next action: Complete PRD / Spec / Plan and request approval.

@@ -14,11 +14,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Derive the TaskFlow state summary (non-authoritative, derived navigation).
+# Synchronize the routing record, then derive compact context from it and task state.
 if ! state_summary="$(bash "${PLUGIN_ROOT}/hooks/summarize-state" 2>&1)"; then
   printf '%s\n' "$state_summary" >&2
   exit 1
 fi
+if ! docs_context="$(bash "${PLUGIN_ROOT}/hooks/repository-docs-context" 2>&1)"; then
+  printf '%s\n' "$docs_context" >&2
+  exit 1
+fi
+state_summary="${state_summary}${state_summary:+$'\n'}${docs_context}"
 [ -z "$state_summary" ] && exit 0
 
 escape_for_json() {
