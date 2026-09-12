@@ -11,6 +11,23 @@ empty="$(mktemp -d)"; rm -rf "$empty"; mkdir -p "$empty"
 out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo ok
 rm -rf "$empty"
 
+echo "== Python runtime preflight is explicit and rejects unusable shims =="
+runtime="$(command -v python3 || command -v python || true)"
+[ -n "$runtime" ] || { echo "FAIL no Python 3 available for smoke test"; exit 1; }
+resolved=$(TASKFLOW_PYTHON="$runtime" bash "$HERE/python-runtime")
+[ "$resolved" = "$runtime" ] || { echo "FAIL runtime did not honor usable override"; exit 1; }
+shim_dir="$tmp/WindowsApps"
+mkdir -p "$shim_dir"
+shim="$shim_dir/python3"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$shim"
+chmod +x "$shim"
+if TASKFLOW_PYTHON="$shim" bash "$HERE/python-runtime" >"$tmp/runtime-out" 2>"$tmp/runtime-err"; then
+  echo "FAIL WindowsApps shim accepted"
+  exit 1
+fi
+grep -q 'Python 3 is required' "$tmp/runtime-err" || { echo "FAIL runtime error missing guidance"; exit 1; }
+echo ok
+
 echo "== session-start emits a platform JSON shape =="
 docs="$tmp/TaskFlowDocs"
 mkdir -p "$docs/2026-09-08-smoke" "$docs/achieved"
@@ -58,6 +75,29 @@ grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || {
 before=$(sha256sum "$index" | awk '{print $1}')
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+echo ok
+
+echo "== auto phase routing selects the current task =="
+multi="$tmp/multi-task"
+mkdir -p "$multi/TaskFlowDocs/2026-09-11-code-task" "$multi/TaskFlowDocs/2026-09-11-review-task"
+cat > "$multi/TaskFlowDocs/2026-09-11-code-task/plan.md" <<'EOF'
+# Plan — Code task
+> Status: in_progress
+EOF
+cat > "$multi/TaskFlowDocs/2026-09-11-review-task/plan.md" <<'EOF'
+# Plan — Review task
+> Status: checking
+EOF
+TASKFLOW_PHASE=auto TASKFLOW_TASK_ID=2026-09-11-code-task TASKFLOW_REPO_ROOT="$multi" \
+  bash "$HERE/repository-docs-context" > "$multi/selected-routes.txt"
+grep -q '^# Repository document routes (code)$' "$multi/selected-routes.txt" || {
+  echo "FAIL current task phase selection"; exit 1;
+}
+TASKFLOW_PHASE=auto TASKFLOW_REPO_ROOT="$multi" \
+  bash "$HERE/repository-docs-context" > "$multi/ambiguous-routes.txt"
+grep -q '^# Repository document routes (unclassified)$' "$multi/ambiguous-routes.txt" || {
+  echo "FAIL ambiguous task detection"; exit 1;
+}
 echo ok
 
 if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
