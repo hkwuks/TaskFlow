@@ -57,6 +57,8 @@ No spec required — small, self-contained task.
 
 - Native Windows launcher argument check passed.
 - Full Windows lifecycle is blocked by missing Windows Python 3; this is an environment prerequisite, not claimed as passed.
+- `conda run -n torch python --version` — Python 3.12.12.
+- `conda run -n torch bash hooks/smoke-test` — all Linux/WSL smoke checks passed; this does not replace native Windows validation.
 
 ## Change Log
 
@@ -65,6 +67,7 @@ No spec required — small, self-contained task.
 ## Follow-ups
 
 - Install Python 3 on the Windows host (or set `TASKFLOW_PYTHON` to a Windows Python 3 executable), then rerun `powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks/smoke-test-windows.ps1` before archiving this task.
+- The WSL `torch` environment is suitable for Linux verification only; it is not visible as a Windows `.cmd` runtime.
 
 ## Version History
 
