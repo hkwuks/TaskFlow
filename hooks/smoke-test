@@ -60,6 +60,29 @@ TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context"
 [ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
 echo ok
 
+echo "== auto phase routing selects the current task =="
+multi="$tmp/multi-task"
+mkdir -p "$multi/TaskFlowDocs/2026-09-11-code-task" "$multi/TaskFlowDocs/2026-09-11-review-task"
+cat > "$multi/TaskFlowDocs/2026-09-11-code-task/plan.md" <<'EOF'
+# Plan — Code task
+> Status: in_progress
+EOF
+cat > "$multi/TaskFlowDocs/2026-09-11-review-task/plan.md" <<'EOF'
+# Plan — Review task
+> Status: checking
+EOF
+TASKFLOW_PHASE=auto TASKFLOW_TASK_ID=2026-09-11-code-task TASKFLOW_REPO_ROOT="$multi" \
+  bash "$HERE/repository-docs-context" > "$multi/selected-routes.txt"
+grep -q '^# Repository document routes (code)$' "$multi/selected-routes.txt" || {
+  echo "FAIL current task phase selection"; exit 1;
+}
+TASKFLOW_PHASE=auto TASKFLOW_REPO_ROOT="$multi" \
+  bash "$HERE/repository-docs-context" > "$multi/ambiguous-routes.txt"
+grep -q '^# Repository document routes (unclassified)$' "$multi/ambiguous-routes.txt" || {
+  echo "FAIL ambiguous task detection"; exit 1;
+}
+echo ok
+
 if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   echo "== Windows launcher finds Git Bash =="
   win_hook=$(cygpath -w "$HERE/run-hook.cmd")
