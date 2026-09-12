@@ -4,14 +4,16 @@ set -euo pipefail
 
 repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 phase="${TASKFLOW_PHASE:-auto}"
+task_id="${TASKFLOW_TASK_ID:-}"
 python_cmd="${TASKFLOW_PYTHON:-python3}"
 "$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
 
-"$python_cmd" - "$repo_root" "$phase" <<'PY'
+"$python_cmd" - "$repo_root" "$phase" "$task_id" <<'PY'
 import datetime, os, pathlib, re, sys, tempfile
 
 root = pathlib.Path(sys.argv[1]).resolve()
 phase = sys.argv[2].strip().lower()
+task_id = sys.argv[3].strip()
 docs = root / "TaskFlowDocs" / "repository-docs"
 index = docs / "index.md"
 today = datetime.date.today().isoformat()
@@ -33,7 +35,14 @@ entries = [
 
 if phase == "auto":
     inferred = set()
-    for plan in (root / "TaskFlowDocs").glob("20*/plan.md"):
+    plans = []
+    if task_id:
+        candidate = root / "TaskFlowDocs" / task_id / "plan.md"
+        if candidate.is_file():
+            plans.append(candidate)
+    else:
+        plans = list((root / "TaskFlowDocs").glob("20*/plan.md"))
+    for plan in plans:
         content = plan.read_text(encoding="utf-8")
         status = next((line.split(":", 1)[1].strip() for line in content.splitlines()
                        if line.startswith("> Status:")), "")
@@ -107,6 +116,8 @@ selected = [row for row in rows if row[3] == "yes" and
 missing = [row[1] for row in rows if row[3] == "no" and
            (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
 print(f"# Repository document routes ({phase})")
+if task_id:
+    print(f"- Current task: TaskFlowDocs/{task_id}/")
 print("- Read routing record first: TaskFlowDocs/repository-docs/index.md")
 if phase == "unclassified":
     print("- Phase is unclear; classify the current work before following phase-specific routes.")
