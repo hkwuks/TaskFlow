@@ -3,6 +3,16 @@
 # Usage: smoke-test [tmp-root]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ "${1:-}" = "--echo-args" ]; then
+  shift
+  for arg in "$@"; do
+    printf '<'
+    printf '%s' "$arg" | od -An -tx1 | tr -d ' \n'
+    printf '>|'
+  done
+  printf '\n'
+  exit 0
+fi
 tmp="${1:-$(mktemp -d)}"
 trap 'rm -rf "$tmp"' EXIT
 
