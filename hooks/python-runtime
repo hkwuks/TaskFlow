@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Print a usable Python 3 executable for TaskFlow hooks.
+set -euo pipefail
+
+requested="${TASKFLOW_PYTHON:-}"
+if [ -n "$requested" ]; then
+  candidates=("$requested")
+else
+  candidates=(python3 python py)
+fi
+
+for candidate in "${candidates[@]}"; do
+  command -v "$candidate" >/dev/null 2>&1 || continue
+  resolved="$(command -v "$candidate")"
+  case "$resolved" in
+    *[Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss]*|*[Ww][Ii][Nn][Dd][Oo][Ww][Ss][Aa][Pp][Pp][Ss]\*)
+      continue
+      ;;
+  esac
+  if "$candidate" -c 'import sys; raise SystemExit(0 if sys.version_info[0] == 3 else 1)' \
+      >/dev/null 2>&1; then
+    printf '%s\n' "$candidate"
+    exit 0
+  fi
+done
+
+cat >&2 <<'EOF'
+TaskFlow hook runtime error: Python 3 is required but no usable interpreter was found.
+Install Python 3 and ensure `python3`, `python`, or the Windows `py` launcher is on PATH,
+or set TASKFLOW_PYTHON to the full path of a Python 3 executable. WindowsApps
+Microsoft Store aliases are not supported; disable those aliases or install Python 3.
+EOF
+exit 127
