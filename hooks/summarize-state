@@ -14,8 +14,7 @@ docs="$repo_root/TaskFlowDocs"
 todo="$docs/todo.md"
 if [ -f "$todo" ]; then
   echo "# TaskFlow inbox (not done)"
-  python_cmd="${TASKFLOW_PYTHON:-python3}"
-  "$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+  python_cmd="$(bash "$(dirname "$0")/python-runtime")"
   "$python_cmd" - "$todo" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding='utf-8').read()

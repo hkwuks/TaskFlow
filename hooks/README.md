@@ -11,6 +11,7 @@ taskflow/hooks/
 ├── hooks-codex.json    # Codex CLI wiring
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── summarize-state     # derives the state summary (shared logic)
+├── python-runtime      # validates and selects a Python 3 interpreter
 ├── repository-docs-context # syncs index metadata and derives routes
 ├── task                # explicit intake/promote/state/progress/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
@@ -30,8 +31,11 @@ taskflow/hooks/
   falling through to WSL Bash; on Unix the `:` no-op makes it a bash no-op. One
   `command` value works on every OS for Claude Code. Windows requires Git for
   Windows Bash; the launcher fails visibly when it is unavailable.
-- **Python** is used only for small Markdown edits. Scripts prefer `python3`
-  and fall back to `python` when the WindowsApps `python3` shim is not runnable.
+- **Python** is used only for small Markdown edits. All scripts share
+  `python-runtime`, which validates a real Python 3 interpreter and rejects
+  WindowsApps Microsoft Store aliases. Set `TASKFLOW_PYTHON` to an explicit
+  executable when PATH discovery is insufficient; a missing or invalid runtime
+  fails visibly with installation guidance.
 - **One JSON per host** (`hooks.json` for Claude Code, `hooks-codex.json` for
   Codex CLI); Codex's `commandWindows` lets the codex file point at the same
   launcher on Windows.

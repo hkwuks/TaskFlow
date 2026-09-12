@@ -17,8 +17,7 @@ grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not compl
 
 todo="$docs/todo.md"
 [ -f "$todo" ] || { echo "todo.md missing; archive not started"; exit 1; }
-python_cmd="${TASKFLOW_PYTHON:-python3}"
-"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+python_cmd="$(bash "$(dirname "$0")/python-runtime")"
 "$python_cmd" - "$todo" "$task" <<'PY'
 import re, sys
 text, task = open(sys.argv[1], encoding='utf-8').read(), sys.argv[2]

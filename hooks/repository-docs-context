@@ -5,8 +5,7 @@ set -euo pipefail
 repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 phase="${TASKFLOW_PHASE:-auto}"
 task_id="${TASKFLOW_TASK_ID:-}"
-python_cmd="${TASKFLOW_PYTHON:-python3}"
-"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+python_cmd="$(bash "$(dirname "$0")/python-runtime")"
 
 "$python_cmd" - "$repo_root" "$phase" "$task_id" <<'PY'
 import datetime, os, pathlib, re, sys, tempfile

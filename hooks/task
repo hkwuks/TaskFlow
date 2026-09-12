@@ -4,8 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-python_cmd="${TASKFLOW_PYTHON:-python3}"
-"$python_cmd" --version >/dev/null 2>&1 || python_cmd=python
+python_cmd="$(bash "$(dirname "$0")/python-runtime")"
 bash_cmd="$(command -v bash)"
 command -v cygpath >/dev/null 2>&1 && bash_cmd="$(cygpath -w "$bash_cmd")"
 
