@@ -257,15 +257,15 @@ Every direct request or imported requireme
 ## Add explicit cross-platform runtime preflight for Windows Python dependencies
 
 - ID: TF-20260911-03
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
-- Updated: 2026-09-11
+- Updated: 2026-09-12
 - Goal: Add explicit cross-platform runtime preflight for Windows Python dependencies
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-12-windows-runtime-preflight/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Harden the Windows hook launcher argument forwarding and failure reporting
 
