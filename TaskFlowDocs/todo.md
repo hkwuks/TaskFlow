@@ -244,15 +244,15 @@ Every direct request or imported requireme
 ## Identify the current TaskFlow task before phase routing
 
 - ID: TF-20260911-02
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
-- Updated: 2026-09-11
+- Updated: 2026-09-12
 - Goal: Identify the current TaskFlow task before phase routing
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-12-current-task-routing/`
+- Next action: None — completed and archived.
 
 ## Add explicit cross-platform runtime preflight for Windows Python dependencies
 
