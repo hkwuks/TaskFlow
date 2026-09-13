@@ -1,6 +1,6 @@
 # Plan — Prepare TaskFlow v1.0.4 release
-> Task version: v1
-> Status: in_progress
+> Task version: v2
+> Status: ready
 
 ## Spec Pointers
 
@@ -20,34 +20,37 @@
 
 - TaskFlow — release task lifecycle.
 - shipping-and-launch — release gate and rollback discipline.
-- git-workflow-and-versioning — release branch and PR workflow.
+- git-workflow-and-versioning — exact-commit synchronization and annotated tag workflow.
 
 ## Preconditions
 
-- Branch: `release/v1.0.4` from `origin/main` at `864b36f`.
-- PR #13 is merged; Ubuntu/Windows CI passed.
+- Preparation branch: `release/v1.0.4`, synchronized with `origin/main` after PR #14.
+- PR #14 is merged; Ubuntu/Windows CI passed.
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-09-13 (explicit v1.0.4 authorization)
-- Approved version: v1
-- Approved scope: PRD / Spec / Plan and release PR preparation
+- Approved at: 2026-09-13 ("OK, sync and publish")
+- Approved version: v2
+- Approved scope: PRD / Spec / Plan, synchronization to main, annotated `v1.0.4` tag, and GitHub Release
 
 ## Steps
 
 ### Step 1 — Implement and verify
 
-- Goal: Update release metadata and notes, then verify before PR.
+- Goal: Update release metadata/notes, synchronize the exact release commit to main, then publish by tag.
 - Dependencies: Python 3, GitHub Actions, merged `origin/main`.
 - Files: manifests, README examples, `CHANGELOG.md`, release task docs.
 - Implementation checklist:
-  - [ ] Implement the approved change.
-  - [ ] Run focused verification.
-- Acceptance:
-- Verification:
-- Rollback:
+  - [x] Update both manifests, README examples, and release notes.
+  - [x] Synchronize the new direct-tag governance from main.
+  - [x] Run repository, smoke, Skill, diff, and version checks.
+  - [ ] Synchronize the final release commit to `origin/main`.
+  - [ ] Create/push annotated tag and GitHub Release.
+- Acceptance: Exact `origin/main` commit has the approved versions and notes; tag and GitHub Release point to it.
+- Verification: Full release checklist passed before final release record; rerun after synchronization.
+- Rollback: Do not move/delete a published tag; stop distribution and use a corrective patch release.
 - Status: in_progress
 
 ## Checkpoints
@@ -57,9 +60,11 @@
 ## Change Log
 
 - 2026-09-13 — User approved v1.0.4; release preparation started from merged main.
+- 2026-09-13 — v2 approved after direct-tag release governance replaced the mandatory Release PR path.
 
 ## Follow-ups
 
 ## Version History
 
-- v1 — planning.
+- v1 — superseded mandatory-PR flow.
+- v2 — approved direct-tag flow.

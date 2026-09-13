@@ -1,5 +1,5 @@
 # Spec — Prepare TaskFlow v1.0.4 release
-> Task version: v2
+> Task version: v1
 
 ## Objective and Success Criteria
 
@@ -24,7 +24,7 @@ Keep plugin name, schema, install commands, and runtime behavior unchanged; only
 
 ## Validation and Error Semantics
 
-Invalid JSON or mismatched versions block synchronization, tagging, and publication.
+Invalid JSON or mismatched versions blocks the release PR.
 
 ## Code and Test Constraints
 

@@ -1,6 +1,6 @@
 # Prepare TaskFlow v1.0.4 release
-> Task version: v2
-> Status: ready
+> Task version: v1
+> Status: in_progress
 
 ## Goal
 
@@ -10,7 +10,7 @@ Prepare and document the TaskFlow v1.0.4 patch release from merged `origin/main`
 
 - `origin/main` is at merged PR #13 and includes the completed optimization batch.
 - Previous release is `v1.0.3`; repository history uses patch releases for compatible workflow and hook enhancements.
-- Updated `RELEASE.md` allows direct tagging from an exact verified base commit with release-owner approval.
+- `RELEASE.md` requires a release PR before tagging or creating a GitHub Release.
 
 ## Requirements
 
@@ -25,7 +25,7 @@ Prepare and document the TaskFlow v1.0.4 patch release from merged `origin/main`
 - README examples show `1.0.4`.
 - Release notes accurately summarize merged changes and checks.
 - Required smoke, repository, Skill, diff, and hosted CI checks are recorded.
-- Release metadata is synchronized to `main`; no tag/release is created before exact-commit verification and release-owner approval.
+- Release PR is opened; no tag/release is created before post-merge approval.
 
 ## In Scope
 
@@ -33,15 +33,14 @@ Prepare and document the TaskFlow v1.0.4 patch release from merged `origin/main`
 
 ## Out of Scope
 
-- Package-registry publication, signing, and provenance automation.
+- Tagging, GitHub Release creation, package publishing, signing, and provenance automation before release PR merge and explicit owner approval.
 
 ## Risks / Deferred Items
 
-- A tag must never point to a commit that is not the verified `origin/main` release commit.
+- A GitHub Release cannot be created until this release PR is merged and the release owner confirms the final commit.
 
 ## Open Questions
 
 ## Version History
 
-- v1 — superseded when repository release governance changed from mandatory PR to direct-tag default.
-- v2 — approved direct-tag release from synchronized, verified `main`.
+- v1 — approved and in progress.
