@@ -40,6 +40,19 @@ function Invoke-SessionStart {
 }
 
 try {
+    $launcherArgs = @('space value', ([string]([char]0x4E2D) + [char]0x6587), 'quoted value', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
+    $launcherOutput = @(& "$here\run-hook.cmd" smoke-test --echo-args @launcherArgs 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "Launcher argument check failed: $launcherOutput" }
+    $expected = (($launcherArgs | ForEach-Object { "<$_>" }) -join '|') + '|'
+    $actual = ($launcherOutput -join '').Replace("`r", '').Replace("`n", '').Trim()
+    $tokens = @($actual -split '\|' | Where-Object { $_ })
+    if ($tokens.Count -ne $launcherArgs.Count) { throw "Launcher argument count changed: $launcherOutput" }
+    for ($i = 0; $i -lt $launcherArgs.Count; $i++) {
+        $expectedToken = '<' + ([BitConverter]::ToString([Text.Encoding]::UTF8.GetBytes([string]$launcherArgs[$i])).Replace('-', '').ToLowerInvariant()) + '>'
+        if ($tokens[$i].Trim() -ne $expectedToken) { throw "Launcher argument $i changed: $launcherOutput" }
+    }
+    'WINDOWS LAUNCHER ARGS PASSED'
+
     New-Item -ItemType Directory -Path $Root | Out-Null
     $common = @('--root', $Root)
     $goal = 'Windows ' + [char]0x5B8C + [char]0x6574 + [char]0x751F + [char]0x547D + [char]0x5468 + [char]0x671F + '.'

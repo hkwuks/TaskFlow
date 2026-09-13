@@ -22,11 +22,11 @@ set "GIT_BASH="
 
 REM Try Git for Windows bash in standard locations
 if exist "C:\Program Files\Git\bin\bash.exe" (
-    "C:\Program Files\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    "C:\Program Files\Git\bin\bash.exe" "%~f0" %*
     exit /b !ERRORLEVEL!
 )
 if exist "C:\Program Files (x86)\Git\bin\bash.exe" (
-    "C:\Program Files (x86)\Git\bin\bash.exe" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    "C:\Program Files (x86)\Git\bin\bash.exe" "%~f0" %*
     exit /b !ERRORLEVEL!
 )
 
@@ -36,7 +36,7 @@ for /f "delims=" %%G in ('where git 2^>nul') do (
     if not defined GIT_BASH if exist "%%~dpG..\usr\bin\bash.exe" set "GIT_BASH=%%~dpG..\usr\bin\bash.exe"
 )
 if defined GIT_BASH (
-    "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    "%GIT_BASH%" "%~f0" %*
     exit /b !ERRORLEVEL!
 )
 
@@ -45,7 +45,7 @@ for /f "delims=" %%B in ('where bash 2^>nul') do (
     if not defined GIT_BASH if /I not "%%~fB"=="%SystemRoot%\System32\bash.exe" if /I not "%%~fB"=="%LOCALAPPDATA%\Microsoft\WindowsApps\bash.exe" set "GIT_BASH=%%~fB"
 )
 if defined GIT_BASH (
-    "%GIT_BASH%" "%HOOK_DIR%%~1" %2 %3 %4 %5 %6 %7 %8 %9
+    "%GIT_BASH%" "%~f0" %*
     exit /b !ERRORLEVEL!
 )
 

@@ -3,6 +3,16 @@
 # Usage: smoke-test [tmp-root]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ "${1:-}" = "--echo-args" ]; then
+  shift
+  for arg in "$@"; do
+    printf '<'
+    printf '%s' "$arg" | od -An -tx1 | tr -d ' \n'
+    printf '>|'
+  done
+  printf '\n'
+  exit 0
+fi
 tmp="${1:-$(mktemp -d)}"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -12,8 +22,7 @@ out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo
 rm -rf "$empty"
 
 echo "== Python runtime preflight is explicit and rejects unusable shims =="
-runtime="$(command -v python3 || command -v python || true)"
-[ -n "$runtime" ] || { echo "FAIL no Python 3 available for smoke test"; exit 1; }
+runtime="$(bash "$HERE/python-runtime")"
 resolved=$(TASKFLOW_PYTHON="$runtime" bash "$HERE/python-runtime")
 [ "$resolved" = "$runtime" ] || { echo "FAIL runtime did not honor usable override"; exit 1; }
 shim_dir="$tmp/WindowsApps"
@@ -75,6 +84,36 @@ grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || {
 before=$(sha256sum "$index" | awk '{print $1}')
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+echo ok
+
+echo "== repository document index rejects unsafe paths and busy writers =="
+unsafe="$tmp/unsafe"
+mkdir -p "$unsafe/TaskFlowDocs/repository-docs"
+cat > "$unsafe/TaskFlowDocs/repository-docs/index.md" <<'EOF'
+# Repository documents
+| legacy | `../outside.md` | all | yes | 2026-09-12 | ready |
+EOF
+if TASKFLOW_REPO_ROOT="$unsafe" bash "$HERE/repository-docs-context" >/dev/null 2>"$tmp/unsafe.err"; then
+  echo "FAIL unsafe index path accepted"; exit 1
+fi
+grep -q 'unsafe repository-document path' "$tmp/unsafe.err" || { echo "FAIL unsafe path error missing"; exit 1; }
+printf '# Repository documents\n| malformed row |\n' > "$unsafe/TaskFlowDocs/repository-docs/index.md"
+before=$(sha256sum "$unsafe/TaskFlowDocs/repository-docs/index.md" | awk '{print $1}')
+if TASKFLOW_REPO_ROOT="$unsafe" bash "$HERE/repository-docs-context" >/dev/null 2>"$tmp/malformed.err"; then
+  echo "FAIL malformed index row accepted"; exit 1
+fi
+grep -q 'invalid row' "$tmp/malformed.err" || { echo "FAIL malformed row error missing"; exit 1; }
+[ "$before" = "$(sha256sum "$unsafe/TaskFlowDocs/repository-docs/index.md" | awk '{print $1}')" ] || { echo "FAIL malformed index was overwritten"; exit 1; }
+mkdir "$unsafe/TaskFlowDocs/repository-docs/index.md.lock"
+busy="$tmp/busy"
+mkdir -p "$busy/TaskFlowDocs/repository-docs"
+printf '# Repository documents\n' > "$busy/TaskFlowDocs/repository-docs/index.md"
+mkdir "$busy/TaskFlowDocs/repository-docs/index.md.lock"
+if TASKFLOW_REPO_ROOT="$busy" bash "$HERE/repository-docs-context" >/dev/null 2>"$tmp/lock.err"; then
+  echo "FAIL busy index writer accepted"; exit 1
+fi
+grep -q 'index is busy' "$tmp/lock.err" || { echo "FAIL busy writer error missing"; exit 1; }
+rm -rf "$unsafe/TaskFlowDocs/repository-docs/index.md.lock" "$busy/TaskFlowDocs/repository-docs/index.md.lock"
 echo ok
 
 echo "== auto phase routing selects the current task =="
