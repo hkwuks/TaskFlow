@@ -331,3 +331,16 @@ Every direct request or imported requireme
 - Goal: Model optional repository documents and consume SessionStart event input
 - Task: `TaskFlowDocs/achieved/2026-09-13-event-aware-docs/`
 - Next action: None — completed and archived.
+
+## Prepare TaskFlow v1.0.4 release
+
+- ID: TF-20260913-01
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-13
+- Updated: 2026-09-13
+- Goal: Prepare TaskFlow v1.0.4 release
+- Task: `TaskFlowDocs/2026-09-13-release-v1-0-4/`
+- Next action: Complete PRD / Spec / Plan and request approval.
