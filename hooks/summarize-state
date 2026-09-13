@@ -12,9 +12,12 @@ docs="$repo_root/TaskFlowDocs"
 [ -d "$docs" ] || exit 0
 
 todo="$docs/todo.md"
-if [ -f "$todo" ]; then
+verbose="${TASKFLOW_VERBOSE:-0}"
+task_id="${TASKFLOW_TASK_ID:-}"
+python_cmd="$(bash "$(dirname "$0")/python-runtime")"
+active_count=$(find "$docs" -mindepth 2 -maxdepth 2 -name plan.md -not -path '*/achieved/*' -not -path '*/repository-docs/*' | wc -l)
+if [ -f "$todo" ] && { [ "$verbose" = 1 ] || [ "$active_count" -eq 0 ]; }; then
   echo "# TaskFlow inbox (not done)"
-  python_cmd="$(bash "$(dirname "$0")/python-runtime")"
   "$python_cmd" - "$todo" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding='utf-8').read()
@@ -32,7 +35,10 @@ fi
 
 echo "# Active tasks"
 "$python_cmd" - "$docs" <<'PY'
-import pathlib, re, sys
+import os, pathlib, re, sys
+task_id = os.environ.get("TASKFLOW_TASK_ID", "").strip()
+verbose = os.environ.get("TASKFLOW_VERBOSE", "0") == "1"
+active = []
 for directory in sorted(pathlib.Path(sys.argv[1]).iterdir()):
     if not directory.is_dir() or directory.name in {'achieved', 'repository-docs'}: continue
     plan = directory / 'plan.md'
@@ -56,6 +62,22 @@ for directory in sorted(pathlib.Path(sys.argv[1]).iterdir()):
             step_title = step.group(2).splitlines()[0].strip()
             next_step = f"Step {step.group(1)} {step_title} [{step_status.group(1) if step_status else '?'}]"
             break
+    active.append((directory, version, status, title, approval, next_step))
+if task_id:
+    selected = [item for item in active if item[0].name == task_id]
+    if not selected:
+        print(f"- Requested task unavailable: {task_id}")
+        raise SystemExit(0)
+elif len(active) == 1:
+    selected = active
+elif len(active) > 1:
+    print(f"- Multiple active tasks ({len(active)}); set TASKFLOW_TASK_ID to select one.")
+    selected = []
+else:
+    selected = []
+if verbose:
+    selected = active
+for directory, version, status, title, approval, next_step in selected:
     suffix = f" | approval: {approval}" + (f" | next: {next_step}" if next_step else '')
     print(f"- {directory.name} | {version} | {status} — {title}{suffix}")
 PY
