@@ -335,14 +335,14 @@ Every direct request or imported requireme
 ## Prepare TaskFlow v1.0.4 release
 
 - ID: TF-20260913-02
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-13
 - Updated: 2026-09-13
 - Goal: Prepare TaskFlow v1.0.4 release
-- Task: `TaskFlowDocs/2026-09-13-release-v1-0-4/`
+- Task: `TaskFlowDocs/achieved/2026-09-13-release-v1-0-4/`
 - Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Revise release flow to support direct tag releases

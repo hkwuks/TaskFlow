@@ -1,6 +1,6 @@
 # Prepare TaskFlow v1.0.4 release
 > Task version: v2
-> Status: ready
+> Status: completed
 
 ## Goal
 
