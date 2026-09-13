@@ -57,7 +57,7 @@ If a hook fails (nonzero exit or stderr), it must fail safe: no partial core wri
 Purpose: on session start or resume, maintain the repository-document routing record and give the Agent compact derived routes/state. The index is authoritative for routing/check metadata; routed source documents remain authoritative for policy content.
 
 Reference scripts:
-- `hooks/summarize-state` — reads `TaskFlowDocs/todo.md` and the active task dirs, prints a short summary (inbox items, active status, next Plan Step). Prints nothing when no TaskFlowDocs exists.
+- `hooks/summarize-state` — prints the selected active task and its next Plan Step by default. Set `TASKFLOW_TASK_ID` for explicit selection or `TASKFLOW_VERBOSE=1` to include the full Todo and active-task inventory. Ambiguous state is reported without guessing. Prints nothing when no TaskFlowDocs exists.
 - `hooks/repository-docs-context` — atomically synchronizes deterministic index metadata for recognized sources and prints phase-filtered paths/status. It never edits source policies or core task documents.
 - `hooks/session-start` — SessionStart entry that wraps the summary into the platform's context field (Claude Code → `hookSpecificOutput.additionalContext`; Cursor → `additional_context`; Copilot/other → top-level `additionalContext`), mirroring the `obra/superpowers` session-start pattern.
 

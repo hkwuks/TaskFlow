@@ -67,7 +67,7 @@ cat > "$docs/todo.md" <<'EOF'
 - Task: `TaskFlowDocs/2026-09-08-smoke/`
 - Updated: 2026-09-08
 EOF
-summary=$(cd "$tmp" && bash "$HERE/summarize-state")
+summary=$(cd "$tmp" && TASKFLOW_VERBOSE=1 bash "$HERE/summarize-state")
 echo "$summary" | grep -q -- "- T-20260908-999 | in_progress | Prove field-based Todo parsing." || { echo "FAIL Todo ID parsing"; exit 1; }
 json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
 echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
@@ -137,6 +137,22 @@ TASKFLOW_PHASE=auto TASKFLOW_REPO_ROOT="$multi" \
 grep -q '^# Repository document routes (unclassified)$' "$multi/ambiguous-routes.txt" || {
   echo "FAIL ambiguous task detection"; exit 1;
 }
+echo ok
+
+echo "== SessionStart context is compact by default and verbose on request =="
+compact="$tmp/context-compact"
+mkdir -p "$compact/TaskFlowDocs/2026-09-13-one" "$compact/TaskFlowDocs/2026-09-13-two"
+printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n\n## Approval\n- Status: approved\n\n### Step 1 — Work\n- Status: pending\n' > "$compact/TaskFlowDocs/2026-09-13-one/plan.md"
+printf '# Plan — Two\n> Task version: v1\n> Status: in_progress\n' > "$compact/TaskFlowDocs/2026-09-13-two/plan.md"
+printf '# Todo inbox\n' > "$compact/TaskFlowDocs/todo.md"
+default=$(TASKFLOW_REPO_ROOT="$compact" bash "$HERE/summarize-state")
+echo "$default" | grep -q 'Multiple active tasks' || { echo "FAIL ambiguous default context"; exit 1; }
+verbose_out=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_VERBOSE=1 bash "$HERE/summarize-state")
+echo "$verbose_out" | grep -q '2026-09-13-one' || { echo "FAIL verbose context missing task"; exit 1; }
+selected=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=2026-09-13-one bash "$HERE/summarize-state")
+echo "$selected" | grep -q '2026-09-13-one' || { echo "FAIL explicit task context"; exit 1; }
+invalid=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=missing bash "$HERE/summarize-state")
+echo "$invalid" | grep -q 'Requested task unavailable' || { echo "FAIL invalid task diagnostic"; exit 1; }
 echo ok
 
 if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
