@@ -1,6 +1,6 @@
 # Harden the Windows hook launcher argument forwarding and failure reporting
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
@@ -37,7 +37,7 @@ Harden the Windows hook launcher argument forwarding and failure reporting
 
 ## Risks / Deferred Items
 
-- Batch parsing has platform-specific quoting rules; native Windows execution is required before claiming those cases passed.
+- Batch parsing has platform-specific quoting rules; hosted native Windows execution now covers those cases.
 
 ## Open Questions
 
@@ -45,4 +45,4 @@ Harden the Windows hook launcher argument forwarding and failure reporting
 
 ## Version History
 
-- v1 — approved and in progress.
+- v1 — approved, implemented, and verified.

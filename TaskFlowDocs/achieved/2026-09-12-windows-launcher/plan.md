@@ -1,6 +1,6 @@
 # Plan — Harden the Windows hook launcher argument forwarding and failure reporting
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -46,17 +46,18 @@ No spec required — small, self-contained task.
   - [x] Add focused regression coverage for count, spaces, Unicode, and quoted values.
   - [x] Verify the missing-Bash diagnostic remains non-zero and clear by preserving the existing branch.
   - [x] Run the Linux smoke suite and diff checks.
-- Acceptance: Launcher argument acceptance passes. Full Windows lifecycle is pending a usable Windows Python 3 runtime.
-- Verification: Native Windows launcher check — `WINDOWS LAUNCHER ARGS PASSED`; `bash hooks/smoke-test` — passed; `git diff --check` — passed. Full `smoke-test-windows.ps1` reached lifecycle and failed with explicit Python 3 required/exit 127 because Windows Python is unavailable.
+- Acceptance: All PRD acceptance criteria pass.
+- Verification: Native Windows launcher check — `WINDOWS LAUNCHER ARGS PASSED`; hosted `smoke-test-windows.ps1` — passed on GitHub Actions Windows runner; `bash hooks/smoke-test` — passed; `git diff --check` — passed.
 - Rollback: Revert the focused launcher commit.
-- Status: blocked
+- Status: done
 
 ## Checkpoints
 
 ## Verification / Review
 
 - Native Windows launcher argument check passed.
-- Full Windows lifecycle is blocked by missing Windows Python 3; this is an environment prerequisite, not claimed as passed.
+- The original local Windows host lacked Python 3; hosted Windows verification supersedes that environment-only blocker.
+- GitHub Actions run `34758209208` passed on `windows-latest` in 22 seconds, including Python 3 setup and the full lifecycle.
 - `conda run -n torch python --version` — Python 3.12.12.
 - `conda run -n torch bash hooks/smoke-test` — all Linux/WSL smoke checks passed; this does not replace native Windows validation.
 
@@ -66,9 +67,9 @@ No spec required — small, self-contained task.
 
 ## Follow-ups
 
-- Install Python 3 on the Windows host (or set `TASKFLOW_PYTHON` to a Windows Python 3 executable), then rerun `powershell.exe -NoProfile -ExecutionPolicy Bypass -File hooks/smoke-test-windows.ps1` before archiving this task.
-- The WSL `torch` environment is suitable for Linux verification only; it is not visible as a Windows `.cmd` runtime.
+- No follow-up required; hosted Windows Python 3 verification cleared the previous environment blocker.
+- The WSL `torch` environment remains Linux-only evidence; hosted Windows CI provides the native validation.
 
 ## Version History
 
-- v1 — approved and in progress.
+- v1 — approved, implemented, and verified.

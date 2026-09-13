@@ -265,20 +265,20 @@ Every direct request or imported requireme
 - Updated: 2026-09-12
 - Goal: Add explicit cross-platform runtime preflight for Windows Python dependencies
 - Task: `TaskFlowDocs/achieved/2026-09-12-windows-runtime-preflight/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Harden the Windows hook launcher argument forwarding and failure reporting
 
 - ID: TF-20260911-04
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
 - Updated: 2026-09-12
 - Goal: Harden the Windows hook launcher argument forwarding and failure reporting
-- Task: `TaskFlowDocs/2026-09-12-windows-launcher/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-12-windows-launcher/`
+- Next action: None — completed and archived.
 
 ## Validate repository-document index paths and protect concurrent writes
 
@@ -291,7 +291,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-13
 - Goal: Validate repository-document index paths and protect concurrent writes
 - Task: `TaskFlowDocs/achieved/2026-09-13-index-safety/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Add Linux and Windows CI coverage for TaskFlow hooks
 
@@ -304,7 +304,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-13
 - Goal: Add Linux and Windows CI coverage for TaskFlow hooks
 - Task: `TaskFlowDocs/achieved/2026-09-13-hooks-ci-matrix/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Reduce SessionStart context output to the active task by default
 
@@ -317,7 +317,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-13
 - Goal: Reduce SessionStart context output to the active task by default
 - Task: `TaskFlowDocs/achieved/2026-09-13-session-context/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Model optional repository documents and consume SessionStart event input
 
@@ -330,4 +330,4 @@ Every direct request or imported requireme
 - Updated: 2026-09-13
 - Goal: Model optional repository documents and consume SessionStart event input
 - Task: `TaskFlowDocs/achieved/2026-09-13-event-aware-docs/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
