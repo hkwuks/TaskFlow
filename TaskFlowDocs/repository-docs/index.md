@@ -13,11 +13,11 @@ This index is the authoritative routing and check record for repository document
 | repository-rule | `CODE_STYLE.md` | code,review | yes | 2026-09-13 | ready |
 | repository-guidance | `ROADMAP.md` | design,roadmap,release | yes | 2026-09-13 | ready |
 | repository-rule | `.github/pull_request_template.md` | pr | yes | 2026-09-13 | ready |
-| repository-rule | `.github/CODEOWNERS` | pr,review | no | 2026-09-13 | missing |
-| repository-rule | `CODE_OF_CONDUCT.md` | all | no | 2026-09-13 | missing |
-| repository-rule | `SECURITY.md` | code,review,release | no | 2026-09-13 | missing |
+| repository-rule | `.github/CODEOWNERS` | pr,review | no | 2026-09-13 | optional |
+| repository-rule | `CODE_OF_CONDUCT.md` | all | no | 2026-09-13 | optional |
+| repository-rule | `SECURITY.md` | code,review,release | no | 2026-09-13 | optional |
 | repository-rule | `RELEASE.md` | release | yes | 2026-09-13 | ready |
-| repository-rule | `CHANGELOG.md` | release | no | 2026-09-13 | missing |
+| repository-rule | `CHANGELOG.md` | release | no | 2026-09-13 | optional |
 
 ## Personal supplements
 
