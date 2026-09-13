@@ -8,6 +8,7 @@ TaskFlow ships as a repository plugin for Codex and Claude Code. Keep these arti
 
 - `.codex-plugin/plugin.json` — Codex manifest and development cachebuster;
 - `.claude-plugin/plugin.json` — Claude Code manifest version;
+- `.claude-plugin/marketplace.json` — catalog entry pinned to the stable release tag and full commit SHA;
 - `skills/taskflow/` and `hooks/` — plugin contents;
 - README, governance documents, and release notes.
 
@@ -61,7 +62,10 @@ After the release scope is merged to the intended base (or the optional Release 
 3. Create an annotated tag such as `v1.0.4`.
 4. Push the tag only after explicit release-owner approval.
 5. Create the GitHub Release from that tag with the approved notes.
-6. Record the tag, release URL, commit, and checks in the release task.
+6. Update the marketplace entry on `main` so its Git source uses the release tag as `ref` and the exact tagged commit as `sha`; validate it with both Claude Code and Codex tooling before publishing the catalog change.
+7. Record the tag, release URL, commit, marketplace pin, and checks in the release task.
+
+The marketplace catalog itself remains on `main` so refreshes can discover the latest stable entry. The plugin source must not point at moving `main`; local-directory marketplace registration remains the development path.
 
 ### Optional Release PR path
 

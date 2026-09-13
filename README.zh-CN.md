@@ -149,6 +149,8 @@ claude plugin marketplace add hkwuks/TaskFlow
 claude plugin install taskflow@taskflow
 ```
 
+市场目录跟踪 `main`，但其中的稳定版插件条目固定到已发布的 tag 和 commit SHA。因此刷新市场只会发现经过发布验证的版本，不会直接安装 `main` 上尚未发布的改动。
+
 > [!TIP]
 > 会话内同样两步：`/plugin marketplace add hkwuks/TaskFlow` 然后 `/plugin install taskflow@taskflow`。
 
@@ -176,6 +178,8 @@ codex plugin marketplace add hkwuks/TaskFlow
 codex plugin add taskflow@taskflow
 ```
 
+Codex 与 Claude Code 使用同一个固定版本条目；manifest 版本、Git tag 和固定 commit 共同标识已安装的稳定构建。
+
 验证是否加载成功：
 
 ```bash
@@ -193,7 +197,7 @@ codex plugin list
 
 ### 想用本地副本？
 
-如果不想信任远程仓库，可以把市场指向本地检出目录而不是 GitHub——插件和 hooks 就会运行在你自己的文件里：
+开发或检查源码时，可以把市场指向本地检出目录而不是 GitHub。这样会有意绕过远程稳定版固定点，插件和 hooks 改为使用你控制的本地文件：
 
 ```bash
 # Claude Code
