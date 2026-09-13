@@ -1,6 +1,6 @@
 # Add Linux and Windows CI coverage for TaskFlow hooks
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
