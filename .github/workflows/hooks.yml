@@ -1,0 +1,30 @@
+name: Hooks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Run Linux smoke tests
+        if: runner.os == 'Linux'
+        run: bash hooks/smoke-test
+      - name: Run Windows smoke tests
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: .\hooks\smoke-test-windows.ps1
