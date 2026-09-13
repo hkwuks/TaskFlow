@@ -72,6 +72,25 @@ echo "$summary" | grep -q -- "- T-20260908-999 | in_progress | Prove field-based
 json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
 echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
 
+echo "== session-start consumes event JSON and filters other events =="
+event_root="$tmp/event-root"
+mkdir -p "$event_root/TaskFlowDocs"
+printf '# Todo inbox\n' > "$event_root/TaskFlowDocs/todo.md"
+session_json=$(printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"smoke"}\n' "$event_root" |
+  TASKFLOW_REPO_ROOT="$tmp" CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start")
+echo "$session_json" | grep -q 'Repository document routes' || { echo "FAIL SessionStart cwd routing"; exit 1; }
+other_root="$tmp/other-event-root"
+mkdir -p "$other_root/TaskFlowDocs"
+other_json=$(printf '{"hook_event_name":"PreToolUse","cwd":"%s"}\n' "$other_root" |
+  CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start")
+[ -z "$other_json" ] || { echo "FAIL non-SessionStart event was handled"; exit 1; }
+[ ! -e "$other_root/TaskFlowDocs/repository-docs/index.md" ] || { echo "FAIL non-SessionStart event mutated index"; exit 1; }
+if printf '{not-json}\n' | CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >"$tmp/invalid-event.out" 2>"$tmp/invalid-event.err"; then
+  echo "FAIL malformed event JSON was accepted"; exit 1;
+fi
+grep -q 'invalid event JSON' "$tmp/invalid-event.err" || { echo "FAIL malformed event diagnostic missing"; exit 1; }
+echo ok
+
 echo "== repository document index sync and phase routing =="
 printf '# Contributing\n' > "$tmp/CONTRIBUTING.md"
 printf '# Unclassified\n' > "$tmp/TEAM_GOVERNANCE.md"
@@ -81,6 +100,8 @@ grep -q '| repository-rule | `CONTRIBUTING.md` | code,commit,pr,release | yes |'
 grep -q '| candidate | `TEAM_GOVERNANCE.md` | review | yes | .* | needs-review |' "$index" || { echo "FAIL candidate review status"; exit 1; }
 grep -q 'Read authoritative sources: CONTRIBUTING.md' "$tmp/routes.txt" || { echo "FAIL phase route"; exit 1; }
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
+grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | .* | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
+! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
 before=$(sha256sum "$index" | awk '{print $1}')
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
