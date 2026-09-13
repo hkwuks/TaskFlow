@@ -191,6 +191,8 @@ claude plugin marketplace add hkwuks/TaskFlow
 claude plugin install taskflow@taskflow
 ```
 
+The marketplace catalog follows `main`, but its stable plugin entry is pinned to the published release tag and commit SHA. Refreshing the catalog therefore discovers a reviewed release instead of installing unreleased changes from `main`.
+
 > [!TIP]
 > In-session, the same two steps are `/plugin marketplace add hkwuks/TaskFlow` then `/plugin install taskflow@taskflow`.
 
@@ -218,6 +220,8 @@ codex plugin marketplace add hkwuks/TaskFlow
 codex plugin add taskflow@taskflow
 ```
 
+Codex uses the same fixed release entry as Claude Code. The manifest version, Git tag, and pinned commit identify the installed stable build.
+
 Verify it loaded:
 
 ```bash
@@ -235,9 +239,9 @@ codex plugin list
 
 ### Prefer a local copy?
 
-If you do not want to trust the remote repo, point the marketplace at your
-checked-out copy instead of GitHub — the plugin and hooks then run from files
-you control:
+For development or source inspection, point the marketplace at your checked-out
+copy instead of GitHub. This intentionally bypasses the stable remote pin, and
+the plugin and hooks then come from files you control:
 
 ```bash
 # Claude Code

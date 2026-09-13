@@ -9,7 +9,12 @@
     {
       "name": "taskflow",
       "description": "PRD/Spec/Plan task workflow skill with lifecycle hooks",
-      "source": "./",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/hkwuks/TaskFlow.git",
+        "ref": "v1.0.4",
+        "sha": "2691453a40955a6f7353c3326dd44c58638f6608"
+      },
       "author": {
         "name": "TaskFlow"
       }

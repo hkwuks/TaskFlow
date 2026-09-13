@@ -10,6 +10,17 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## TF-20260913-03 — Pin stable marketplace installs to released revisions
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- External: None
+- Goal: Keep the marketplace catalog on `main` while pinning stable TaskFlow plugin installs to the immutable `v1.0.4` release commit.
+- Task: `TaskFlowDocs/achieved/2026-09-13-pin-marketplace-release/`
+- Next action: None — completed and archived.
+- Updated: 2026-09-13
+
 ## TF-20260911-02 — Allow appropriate tools to contribute to task documents
 - Status: done
 - Priority: normal
