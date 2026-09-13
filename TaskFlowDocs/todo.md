@@ -322,12 +322,12 @@ Every direct request or imported requireme
 ## Model optional repository documents and consume SessionStart event input
 
 - ID: TF-20260911-08
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
-- Updated: 2026-09-11
+- Updated: 2026-09-13
 - Goal: Model optional repository documents and consume SessionStart event input
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-13-event-aware-docs/`
+- Next action: Complete PRD / Spec / Plan and request approval.
