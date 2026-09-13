@@ -270,14 +270,14 @@ Every direct request or imported requireme
 ## Harden the Windows hook launcher argument forwarding and failure reporting
 
 - ID: TF-20260911-04
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
 - Updated: 2026-09-12
 - Goal: Harden the Windows hook launcher argument forwarding and failure reporting
-- Task: `TaskFlowDocs/2026-09-12-windows-launcher/`
+- Task: `TaskFlowDocs/achieved/2026-09-12-windows-launcher/`
 - Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Validate repository-document index paths and protect concurrent writes
