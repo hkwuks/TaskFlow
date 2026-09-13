@@ -309,15 +309,15 @@ Every direct request or imported requireme
 ## Reduce SessionStart context output to the active task by default
 
 - ID: TF-20260911-07
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
-- Updated: 2026-09-11
+- Updated: 2026-09-13
 - Goal: Reduce SessionStart context output to the active task by default
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-13-session-context/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Model optional repository documents and consume SessionStart event input
 
