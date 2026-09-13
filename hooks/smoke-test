@@ -22,8 +22,7 @@ out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo
 rm -rf "$empty"
 
 echo "== Python runtime preflight is explicit and rejects unusable shims =="
-runtime="$(command -v python3 || command -v python || true)"
-[ -n "$runtime" ] || { echo "FAIL no Python 3 available for smoke test"; exit 1; }
+runtime="$(bash "$HERE/python-runtime")"
 resolved=$(TASKFLOW_PYTHON="$runtime" bash "$HERE/python-runtime")
 [ "$resolved" = "$runtime" ] || { echo "FAIL runtime did not honor usable override"; exit 1; }
 shim_dir="$tmp/WindowsApps"
