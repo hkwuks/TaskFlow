@@ -283,15 +283,15 @@ Every direct request or imported requireme
 ## Validate repository-document index paths and protect concurrent writes
 
 - ID: TF-20260911-05
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
-- Updated: 2026-09-11
+- Updated: 2026-09-13
 - Goal: Validate repository-document index paths and protect concurrent writes
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-13-index-safety/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Add Linux and Windows CI coverage for TaskFlow hooks
 
