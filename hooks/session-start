@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # session-start — SessionStart hook for TaskFlow
-# Reads a JSON event on stdin (ignored), prints the TaskFlow state summary as
+# Reads a JSON event on stdin, prints the TaskFlow state summary as
 # the platform-appropriate additional-context field, mirroring the
 # obra/superpowers/hooks/session-start pattern:
 #   Cursor → additional_context (snake_case)
@@ -13,6 +13,35 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Command hooks receive the event JSON on stdin. Empty input remains
+# compatible with direct CLI invocation and older hook hosts.
+event_json="$(cat)"
+python_cmd="$(bash "${PLUGIN_ROOT}/hooks/python-runtime")"
+event_fields="$(TASKFLOW_EVENT_JSON="$event_json" "$python_cmd" - <<'PY'
+import json, os
+payload = os.environ.get("TASKFLOW_EVENT_JSON", "").strip()
+try:
+    event = json.loads(payload) if payload else {}
+except json.JSONDecodeError as exc:
+    raise SystemExit(f"TaskFlow SessionStart error: invalid event JSON: {exc}")
+print(event.get("hook_event_name", ""))
+print(event.get("cwd", ""))
+print(event.get("session_id", ""))
+PY
+)"
+event_name="$(printf '%s\n' "$event_fields" | sed -n '1p')"
+event_cwd="$(printf '%s\n' "$event_fields" | sed -n '2p')"
+event_session_id="$(printf '%s\n' "$event_fields" | sed -n '3p')"
+if [ -n "$event_name" ] && [ "$event_name" != "SessionStart" ]; then
+  exit 0
+fi
+if [ -n "$event_cwd" ] && [ -d "$event_cwd" ]; then
+  export TASKFLOW_REPO_ROOT="$event_cwd"
+fi
+if [ -n "$event_session_id" ]; then
+  export TASKFLOW_SESSION_ID="$event_session_id"
+fi
 
 # Synchronize the routing record, then derive compact context from it and task state.
 if ! state_summary="$(bash "${PLUGIN_ROOT}/hooks/summarize-state" 2>&1)"; then

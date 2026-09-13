@@ -45,6 +45,10 @@ entries = [
     ("repository-rule", "RELEASE.md", "release"),
     ("repository-rule", "CHANGELOG.md", "release"),
 ]
+optional_paths = {
+    ".github/CODEOWNERS", "CODE_OF_CONDUCT.md", "SECURITY.md",
+    "RELEASE.md", "CHANGELOG.md",
+}
 
 if phase == "auto":
     inferred = set()
@@ -95,7 +99,8 @@ rows = []
 for entry in entries:
     kind, relative, phases = entry[:3]
     exists = (root / relative).is_file()
-    status = entry[3] if len(entry) == 4 else ("ready" if exists else "missing")
+    status = entry[3] if len(entry) == 4 else (
+        "ready" if exists else ("optional" if relative in optional_paths else "missing"))
     rows.append((kind, relative, phases, "yes" if exists else "no", today, status))
 
 text = """# Repository documents
@@ -141,7 +146,7 @@ finally:
 selected = [row for row in rows if row[3] == "yes" and
             row[5] == "ready" and
             (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
-missing = [row[1] for row in rows if row[3] == "no" and
+missing = [row[1] for row in rows if row[3] == "no" and row[5] == "missing" and
            (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
 print(f"# Repository document routes ({phase})")
 if task_id:

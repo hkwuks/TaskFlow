@@ -59,7 +59,7 @@ Purpose: on session start or resume, maintain the repository-document routing re
 Reference scripts:
 - `hooks/summarize-state` — prints the selected active task and its next Plan Step by default. Set `TASKFLOW_TASK_ID` for explicit selection or `TASKFLOW_VERBOSE=1` to include the full Todo and active-task inventory. Ambiguous state is reported without guessing. Prints nothing when no TaskFlowDocs exists.
 - `hooks/repository-docs-context` — atomically synchronizes deterministic index metadata for recognized sources and prints phase-filtered paths/status. It never edits source policies or core task documents.
-- `hooks/session-start` — SessionStart entry that wraps the summary into the platform's context field (Claude Code → `hookSpecificOutput.additionalContext`; Cursor → `additional_context`; Copilot/other → top-level `additionalContext`), mirroring the `obra/superpowers` session-start pattern.
+- `hooks/session-start` — consumes the host event JSON, processes only `SessionStart`, uses its `cwd` for repository routing, and wraps the summary into the platform's context field (Claude Code → `hookSpecificOutput.additionalContext`; Cursor → `additional_context`; Copilot/other → top-level `additionalContext`).
 
 Keep summaries short; both hosts cap oversized hook context (Claude Code caps at 10,000 chars and Codex spills past ~2,500 tokens). If nothing is present, print nothing.
 
