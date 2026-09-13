@@ -17,6 +17,20 @@ docs = root / "TaskFlowDocs" / "repository-docs"
 index = docs / "index.md"
 today = datetime.date.today().isoformat()
 
+def validate_relative_path(value: str) -> str:
+    """Return a repository-relative POSIX path or fail before any write."""
+    candidate = value.strip().replace("\\", "/")
+    pure = pathlib.PurePosixPath(candidate)
+    if (not candidate or pure.is_absolute() or ".." in pure.parts or
+            re.match(r"^[A-Za-z]:/", candidate)):
+        raise ValueError(f"unsafe repository-document path: {value!r}")
+    resolved = (root / pathlib.Path(*pure.parts)).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"repository-document path escapes repository: {value!r}") from exc
+    return pure.as_posix()
+
 entries = [
     ("repository-guidance", "README.md", "design,roadmap"),
     ("repository-guidance", "README.zh-CN.md", "design,roadmap"),
@@ -59,11 +73,18 @@ if personal.is_dir():
 
 known = {path for _, path, _ in entries}
 old = index.read_text(encoding="utf-8") if index.exists() else ""
+table_rows = [line for line in old.splitlines()
+              if line.startswith("|") and not line.startswith(("| ---", "| Class |"))]
+parsed_rows = []
 for match in re.finditer(r"(?m)^\| ([^|]+) \| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", old):
     kind, relative, phases, exists, checked, status = (value.strip() for value in match.groups())
+    relative = validate_relative_path(relative)
     if relative not in known:
         entries.append((kind, relative, phases, status))
         known.add(relative)
+    parsed_rows.append(match.group(0))
+if set(table_rows) - set(parsed_rows):
+    raise ValueError("repository-document index contains an invalid row")
 
 for path in sorted(root.glob("*GOVERNANCE*.md")):
     relative = path.relative_to(root).as_posix()
@@ -99,15 +120,23 @@ This index is the authoritative routing and check record for repository document
 )
 
 docs.mkdir(parents=True, exist_ok=True)
-if old != text:
-    fd, temporary = tempfile.mkstemp(dir=docs, prefix="index.md.", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-            stream.write(text)
-        os.replace(temporary, index)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+lock = docs / "index.md.lock"
+try:
+    lock.mkdir()
+except FileExistsError:
+    raise SystemExit(f"repository-docs index is busy: {lock}")
+try:
+    if old != text:
+        fd, temporary = tempfile.mkstemp(dir=docs, prefix="index.md.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
+                stream.write(text)
+            os.replace(temporary, index)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+finally:
+    lock.rmdir()
 
 selected = [row for row in rows if row[3] == "yes" and
             row[5] == "ready" and
