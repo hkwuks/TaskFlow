@@ -1,6 +1,6 @@
 # Plan — Model optional repository documents and consume SessionStart event input
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -58,6 +58,7 @@ No spec required — small, self-contained task.
 - Non-SessionStart events emit nothing and do not create an index.
 - Malformed JSON exits non-zero with an actionable diagnostic.
 - Missing CODEOWNERS is cataloged as optional and omitted from blocking missing routes.
+- GitHub Actions run `34758138507` passed: Ubuntu in 6 seconds and Windows in 24 seconds.
 
 ## Change Log
 
@@ -68,4 +69,4 @@ No spec required — small, self-contained task.
 
 ## Version History
 
-- v1 — approved, implemented, awaiting hosted cross-platform CI.
+- v1 — approved, implemented, and verified on hosted Linux and Windows runners.

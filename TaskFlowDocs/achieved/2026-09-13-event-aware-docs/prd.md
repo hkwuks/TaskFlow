@@ -1,6 +1,6 @@
 # Model optional repository documents and consume SessionStart event input
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
