@@ -1,6 +1,6 @@
 # Plan — Add Linux and Windows CI coverage for TaskFlow hooks
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -56,6 +56,7 @@ No spec required — small, self-contained task.
 - Workflow grants only `contents: read`.
 - `actions/checkout@v4` and `actions/setup-python@v5` are used; no new project dependency was added.
 - Local Linux smoke suite passed. Hosted Windows execution will be verified by GitHub Actions after push.
+- GitHub Actions run `34755844785` passed: Ubuntu in 8 seconds and Windows in 31 seconds.
 
 ## Change Log
 
@@ -63,8 +64,8 @@ No spec required — small, self-contained task.
 
 ## Follow-ups
 
-- Inspect the GitHub Actions run after pushing; do not archive if either matrix job fails.
+- None.
 
 ## Version History
 
-- v1 — approved, implemented, awaiting hosted CI.
+- v1 — approved, implemented, and verified on hosted Linux and Windows runners.

@@ -296,14 +296,14 @@ Every direct request or imported requireme
 ## Add Linux and Windows CI coverage for TaskFlow hooks
 
 - ID: TF-20260911-06
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-11
 - Updated: 2026-09-13
 - Goal: Add Linux and Windows CI coverage for TaskFlow hooks
-- Task: `TaskFlowDocs/2026-09-13-hooks-ci-matrix/`
+- Task: `TaskFlowDocs/achieved/2026-09-13-hooks-ci-matrix/`
 - Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Reduce SessionStart context output to the active task by default
