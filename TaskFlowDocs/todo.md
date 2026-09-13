@@ -331,3 +331,16 @@ Every direct request or imported requireme
 - Goal: Model optional repository documents and consume SessionStart event input
 - Task: `TaskFlowDocs/achieved/2026-09-13-event-aware-docs/`
 - Next action: None — completed and archived.
+
+## Revise release flow to support direct tag releases
+
+- ID: TF-20260913-01
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-13
+- Updated: 2026-09-13
+- Goal: Revise release flow to support direct tag releases
+- Task: `TaskFlowDocs/achieved/2026-09-13-revise-release-flow/`
+- Next action: Complete PRD / Spec / Plan and request approval.

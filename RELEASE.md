@@ -13,15 +13,15 @@ TaskFlow ships as a repository plugin for Codex and Claude Code. Keep these arti
 
 ## Before release
 
-Create a release TaskFlow task and a short-lived branch from the intended base. Confirm:
+Create a release TaskFlow task and confirm:
 
 - target repository and base branch;
 - clean working tree and approved release scope;
-- intended changes are merged into the release branch;
+- intended changes are merged into the intended base (`main` by default);
 - applicable `CONTRIBUTING.md`, `CODE_STYLE.md`, `ROADMAP.md`, and PR template are read;
 - the version follows the approved repository decision.
 
-The release PR must be merged before tagging. Use a branch such as `release/vX.Y.Z` for a release candidate.
+The default path is a direct tag from the verified base commit; a `release/vX.Y.Z` branch and Release PR are optional when release-only documentation needs separate review or the owner requests a release candidate.
 
 ## Validation checklist
 
@@ -50,18 +50,22 @@ Do not claim an unavailable check passed; record limitations in the release task
 
 ## Release notes
 
-Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, the release PR, and the TaskFlow task link. Do not include secrets or unverified claims.
+Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, the release commit (and Release PR when used), and the TaskFlow task link. Do not include secrets or unverified claims.
 
 ## Tag and GitHub Release
 
-After the release PR is merged:
+After the release scope is merged to the intended base (or the optional Release PR is merged):
 
-1. Check out the merged base commit and confirm a clean working tree.
+1. Check out the exact merged base commit and confirm a clean working tree.
 2. Verify manifest versions and release notes again.
-3. Create an annotated tag such as `v1.0.3`.
+3. Create an annotated tag such as `v1.0.4`.
 4. Push the tag only after explicit release-owner approval.
 5. Create the GitHub Release from that tag with the approved notes.
 6. Record the tag, release URL, commit, and checks in the release task.
+
+### Optional Release PR path
+
+Use `release/vX.Y.Z` when the release needs an isolated documentation review, a release candidate, or an explicit PR approval. Merge that PR before applying the same tag and GitHub Release steps above.
 
 TaskFlow does not push tags or create GitHub Releases automatically.
 
