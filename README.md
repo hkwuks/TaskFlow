@@ -88,6 +88,8 @@ Repository documents are authoritative. For non-trivial development, if `CONTRIB
 
 For fork, remote, or pull-request work, TaskFlow records the configured remotes, intended target repository, base branch, local branch relationship, freshness limits, applicable host rules, and pre-PR checks. Remote names are not proof of role, and TaskFlow never silently adds or rewrites remotes, fetches, rebases, merges, pushes, opens PRs, or claims synchronization.
 
+TaskFlow never implements in the base working tree: each task runs on its own short-lived branch created before the first edit, and concurrent tasks get separate working trees. `CONTRIBUTING.md` states the branch rule; the Skill states the worktree rule.
+
 Before creating or updating a pull request, TaskFlow reads the applicable `.github/pull_request_template.md`, satisfies every required item, records the field mapping and verification in `plan.md`, and blocks PR mutation when a required item is missing or ambiguous.
 
 Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`; it is not attached to automatic hooks.

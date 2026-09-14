@@ -55,6 +55,8 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 涉及 fork、远端或 Pull Request 时，TaskFlow 会记录已配置的 remote、目标仓库、base 分支、本地分支关系、远端跟踪信息的新鲜度限制、适用的托管平台规则和提交 PR 前检查。remote 名称不能证明其角色；TaskFlow 不会静默添加或改写 remote、fetch、rebase、merge、push、创建 PR 或声称已同步。
 
+TaskFlow 从不在 base 工作区直接实施：每个任务在动手前先建独立短生命周期分支，并行任务各自使用独立工作区。分支规则写在 `CONTRIBUTING.md`，worktree 规则写在 Skill 中。
+
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
 可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，不会挂到自动 hook 上。

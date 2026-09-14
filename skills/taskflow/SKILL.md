@@ -205,6 +205,8 @@ Record approval as:
 
 ### 5. Build — implement by Plan
 
+Before the first edit, put the task on its own short-lived branch rather than the base working tree. Read the applicable repository guidance first — `CONTRIBUTING.md` names the branch prefixes and the base-branch rule; follow it when the repository states one, and otherwise branch as `<type>/<description>` off the intended base. When several tasks are in progress at once, give each one its own working tree (`git worktree add`) instead of switching branches in a shared checkout, so concurrent tasks cannot overwrite each other's uncommitted work. Record the branch and worktree in `plan.md` when they are not obvious from the task directory.
+
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
 If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
