@@ -13,8 +13,21 @@ if [ "${1:-}" = "--echo-args" ]; then
   printf '\n'
   exit 0
 fi
+
+# Portable SHA-256: GNU coreutils provides sha256sum; stock macOS has shasum.
+digest() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
 tmp="${1:-$(mktemp -d)}"
-trap 'rm -rf "$tmp"' EXIT
+# Auto-clean only roots this script created; a caller-provided root is left
+# in place so it is never deleted and stays inspectable.
+if [ $# -eq 0 ]; then
+  trap 'rm -rf "$tmp"' EXIT
+fi
 
 echo "== summarize-state with no TaskFlowDocs prints nothing =="
 empty="$(mktemp -d)"; rm -rf "$empty"; mkdir -p "$empty"
@@ -102,9 +115,9 @@ grep -q 'Read authoritative sources: CONTRIBUTING.md' "$tmp/routes.txt" || { ech
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
 grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | .* | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
 ! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
-before=$(sha256sum "$index" | awk '{print $1}')
+before=$(digest "$index")
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
-[ "$before" = "$(sha256sum "$index" | awk '{print $1}')" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+[ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
 echo ok
 
 echo "== repository document index rejects unsafe paths and busy writers =="
@@ -119,12 +132,12 @@ if TASKFLOW_REPO_ROOT="$unsafe" bash "$HERE/repository-docs-context" >/dev/null 
 fi
 grep -q 'unsafe repository-document path' "$tmp/unsafe.err" || { echo "FAIL unsafe path error missing"; exit 1; }
 printf '# Repository documents\n| malformed row |\n' > "$unsafe/TaskFlowDocs/repository-docs/index.md"
-before=$(sha256sum "$unsafe/TaskFlowDocs/repository-docs/index.md" | awk '{print $1}')
+before=$(digest "$unsafe/TaskFlowDocs/repository-docs/index.md")
 if TASKFLOW_REPO_ROOT="$unsafe" bash "$HERE/repository-docs-context" >/dev/null 2>"$tmp/malformed.err"; then
   echo "FAIL malformed index row accepted"; exit 1
 fi
 grep -q 'invalid row' "$tmp/malformed.err" || { echo "FAIL malformed row error missing"; exit 1; }
-[ "$before" = "$(sha256sum "$unsafe/TaskFlowDocs/repository-docs/index.md" | awk '{print $1}')" ] || { echo "FAIL malformed index was overwritten"; exit 1; }
+[ "$before" = "$(digest "$unsafe/TaskFlowDocs/repository-docs/index.md")" ] || { echo "FAIL malformed index was overwritten"; exit 1; }
 mkdir "$unsafe/TaskFlowDocs/repository-docs/index.md.lock"
 busy="$tmp/busy"
 mkdir -p "$busy/TaskFlowDocs/repository-docs"
@@ -214,11 +227,11 @@ grep -q "reopen" "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL reopen log"; e
 echo ok
 
 echo "== version bumps root + archives only changed docs =="
-old_prd=$(sha256sum "$docs/2026-09-08-smoke/prd.md" | awk '{print $1}')
+old_prd=$(digest "$docs/2026-09-08-smoke/prd.md")
 bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
 [ -f "$docs/2026-09-08-smoke/old/v1/prd.md" ] || { echo "FAIL old prd"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/prd.md" ] || { echo "FAIL changed prd missing at root"; exit 1; }
-[ "$old_prd" = "$(sha256sum "$docs/2026-09-08-smoke/old/v1/prd.md" | awk '{print $1}')" ] || { echo "FAIL archived prd changed"; exit 1; }
+[ "$old_prd" = "$(digest "$docs/2026-09-08-smoke/old/v1/prd.md")" ] || { echo "FAIL archived prd changed"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/spec.md" ] || { echo "FAIL unchanged spec should stay"; exit 1; }
 [ ! -f "$docs/2026-09-08-smoke/old/v1/spec.md" ] || { echo "FAIL unchanged spec archived"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/plan.md" ] || { echo "FAIL plan not left"; exit 1; }
@@ -240,19 +253,21 @@ mkdir -p "$lifecycle/verification-dir"
 bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null
 todo="$lifecycle/TaskFlowDocs/todo.md"
 todo_id=$(awk '/^- ID: TF-/{print $3; exit}' "$todo")
-before=$(sha256sum "$todo" | awk '{print $1}')
+before=$(digest "$todo")
 if bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL duplicate goal accepted"; exit 1; fi
-[ "$before" = "$(sha256sum "$todo" | awk '{print $1}')" ] || { echo "FAIL duplicate goal mutated Todo"; exit 1; }
+[ "$before" = "$(digest "$todo")" ] || { echo "FAIL duplicate goal mutated Todo"; exit 1; }
 bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --root "$lifecycle" >/dev/null
 active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
 [ -f "$active/prd.md" ] && [ -f "$active/plan.md" ] && [ ! -e "$active/spec.md" ] || { echo "FAIL small promotion artifacts"; exit 1; }
 grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
 if bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unapproved state accepted"; exit 1; fi
 grep -q '> Status: planning' "$active/plan.md" || { echo "FAIL rejected state mutated Plan"; exit 1; }
-sed -i 's/- Status: requested/- Status: approved/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md"
+sed 's/- Status: requested/- Status: approved/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md" > "$active/plan.md.tmp"
+mv "$active/plan.md.tmp" "$active/plan.md"
 bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null
 if bash "$HERE/task" progress 2026-09-10-lifecycle-smoke 1 done --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unchecked Step accepted"; exit 1; fi
-sed -i 's/- \[ \]/- [x]/g' "$active/plan.md"
+sed 's/- \[ \]/- [x]/g' "$active/plan.md" > "$active/plan.md.tmp"
+mv "$active/plan.md.tmp" "$active/plan.md"
 bash "$HERE/task" progress 2026-09-10-lifecycle-smoke 1 done "verification-dir" --root "$lifecycle" >/dev/null
 grep -q 'Step 1: verification-dir' "$active/plan.md" || { echo "FAIL verification not recorded"; exit 1; }
 if bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL completion without acceptance"; exit 1; fi
