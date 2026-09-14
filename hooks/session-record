@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# session-record — record the host session id in the selected task's sessions.md.
+# Called by session-start after summarize-state/repository-docs-context. Owns only
+# hook-verifiable fields; Last completed / Next step / Notes stay Agent-owned.
+# Writes nothing to stdout and never fails its caller's context output.
+
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+python_cmd="$(bash "${PLUGIN_ROOT}/hooks/python-runtime")"
+
+TASKFLOW_REPO_ROOT="${TASKFLOW_REPO_ROOT:-}" \
+TASKFLOW_TASK_ID="${TASKFLOW_TASK_ID:-}" \
+TASKFLOW_SESSION_ID="${TASKFLOW_SESSION_ID:-}" \
+TASKFLOW_SESSION_CWD="${TASKFLOW_SESSION_CWD:-}" \
+"$python_cmd" - <<'PY'
+import datetime, os, pathlib, re, sys
+
+root_hint = os.environ.get("TASKFLOW_SESSION_CWD") or os.environ.get("TASKFLOW_REPO_ROOT", "")
+root = pathlib.Path(root_hint).resolve() if root_hint else pathlib.Path.cwd().resolve()
+session_id = os.environ.get("TASKFLOW_SESSION_ID", "").strip()
+task_id = os.environ.get("TASKFLOW_TASK_ID", "").strip()
+docs = root / "TaskFlowDocs"
+
+if not session_id or not docs.is_dir():
+    raise SystemExit(0)
+
+active = sorted(d.name for d in docs.iterdir()
+                if d.is_dir() and d.name not in {"achieved", "repository-docs"} and (d / "plan.md").is_file())
+if task_id:
+    if task_id not in active:
+        raise SystemExit(0)
+    task = task_id
+elif len(active) == 1:
+    task = active[0]
+else:
+    raise SystemExit(0)
+
+task_dir = docs / task
+plan = (task_dir / "plan.md").read_text(encoding="utf-8")
+def plan_value(pattern):
+    match = re.search(pattern, plan, re.M)
+    return match.group(1).strip() if match else "?"
+version, status = plan_value(r"^> Task version:\s*(.+)$"), plan_value(r"^> Status:\s*(.+)$")
+
+env = os.environ
+if env.get("CLAUDECODE") or env.get("CLAUDE_CODE_SESSION_ID") or "claude" in env.get("AI_AGENT", ""):
+    agent = "Claude"
+elif env.get("CODEX_HOME") or env.get("CODEX_SANDBOX") or "codex" in env.get("AI_AGENT", ""):
+    agent = "Codex"
+else:
+    agent = ""
+label = agent or "Unknown agent"
+resume = {"Claude": f"`claude --resume {session_id}` (same machine, same project directory)",
+          "Codex": f"`codex resume {session_id} -C {root}`"}.get(
+    agent, "Not recorded — platform unknown; use the host's own resume command.")
+
+def now():
+    return datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %z")
+
+def field(block, name):
+    match = re.search(rf"(?m)^- {re.escape(name)}:\s*(.*)$", block)
+    return match.group(1).strip() if match else None
+
+def set_field(block, name, value):
+    if re.search(rf"(?m)^- {re.escape(name)}:.*$", block):
+        return re.sub(rf"(?m)^- {re.escape(name)}:.*$", lambda _: f"- {name}: {value}", block, count=1)
+    return block.rstrip("\n") + f"\n- {name}: {value}\n"
+
+def render_block(rest, other_resumable):
+    rest = re.sub(r"(?m)^- Started / Last active:\s*(.*)$",
+                  lambda m: f"- Started: {m.group(1)}\n- Last active: {now()}", rest, count=1)
+    for name, value in (
+        ("Status", "resumable"),
+        ("Primary", "no" if other_resumable else "yes"),
+        ("Session availability", "local-only"),
+        ("Session ID", session_id),
+        ("Started", field(rest, "Started") or field(rest, "Started / Last active") or now()),
+        ("Last active", now()),
+        ("Code working directory", str(root)),
+        ("Task artifact directory", f"TaskFlowDocs/{task}/"),
+        ("Task version / phase", f"{version} / {status}"),
+        ("Resume", resume),
+    ):
+        rest = set_field(rest, name, value)
+    return re.sub(r"\n{3,}", "\n\n", rest).strip("\n")
+
+def next_id(blocks):
+    used = [int(m.group(1)) for block in blocks if (m := re.match(r"### S(\d+)\b", block["heading"]))]
+    return max(used, default=0) + 1
+
+path = task_dir / "sessions.md"
+text = path.read_text(encoding="utf-8") if path.is_file() else None
+
+if text is None:
+    new_text = (f"# Sessions — {task}\n> Current Task version: {version}\n\n"
+                f"## Active / Resumable\n\n### S1 — {label}\n"
+                f"{render_block('', other_resumable=False)}\n"
+                f"## Closed / Reference Only\n")
+else:
+    parts = re.split(r"(?m)^(## .*)$", text)
+    index = next((i for i in range(1, len(parts), 2) if parts[i].strip() == "## Active / Resumable"), None)
+    if index is None:
+        print(f"TaskFlow session-record: no '## Active / Resumable' section in {path}; left unchanged",
+              file=sys.stderr)
+        raise SystemExit(0)
+    body = parts[index + 1]
+    heads = list(re.finditer(r"(?m)^(### .+?)\s*$", body))
+    blocks = [{"start": m.start(),
+               "end": heads[n + 1].start() if n + 1 < len(heads) else len(body),
+               "heading": m.group(1),
+               "rest": body[m.end():heads[n + 1].start() if n + 1 < len(heads) else len(body)]}
+              for n, m in enumerate(heads)]
+    other_resumable = any(field(b["rest"], "Status") == "resumable" and field(b["rest"], "Session ID") != session_id
+                          for b in blocks)
+    target = next((b for b in blocks if field(b["rest"], "Session ID") == session_id), None)
+    if target is None:
+        target = next((b for b in blocks if not field(b["rest"], "Session ID")), None)
+    appended = target is None
+    if appended:
+        heading, rest = f"### S{next_id(blocks)} — {label}", ""
+    else:
+        heading, rest = target["heading"], target["rest"]
+        if not field(rest, "Session ID"):
+            number = re.search(r"### S(\d+)\b", heading)
+            heading = f"### S{number.group(1) if number else next_id(blocks)} — {label}"
+    rebuilt = heading + "\n" + render_block(rest, other_resumable=other_resumable)
+    if appended:
+        new_body = body.rstrip("\n") + "\n\n" + rebuilt + "\n\n"
+    else:
+        new_body = body[:target["start"]] + rebuilt + "\n\n" + body[target["end"]:].lstrip("\n")
+    parts[index + 1] = new_body
+    new_text = "".join(parts)
+
+if new_text != text:
+    path.write_text(new_text, encoding="utf-8")
+    print(f"TaskFlow session-record: {'created' if text is None else 'updated'} {path}", file=sys.stderr)
+PY

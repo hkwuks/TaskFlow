@@ -50,6 +50,51 @@ fi
 grep -q 'Python 3 is required' "$tmp/runtime-err" || { echo "FAIL runtime error missing guidance"; exit 1; }
 echo ok
 
+echo "== session-record writes the host session into the selected task =="
+record_root="$tmp/session-record"
+mkdir -p "$record_root/TaskFlowDocs/2026-09-08-record"
+cat > "$record_root/TaskFlowDocs/2026-09-08-record/plan.md" <<'EOF'
+# Plan — Record
+> Task version: v1
+> Status: in_progress
+EOF
+record="$record_root/TaskFlowDocs/2026-09-08-record/sessions.md"
+printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"smoke-a"}\n' "$record_root" |
+  TASKFLOW_REPO_ROOT="$record_root" CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >/dev/null
+grep -q '^- Session ID: smoke-a$' "$record" || { echo "FAIL session id not recorded"; exit 1; }
+grep -q '^- Status: resumable$' "$record" || { echo "FAIL session status missing"; exit 1; }
+grep -q "^### S1 — Claude$" "$record" || { echo "FAIL session entry heading missing"; exit 1; }
+# A same-session restart updates in place instead of duplicating the entry.
+cp "$record" "$tmp/session-record.before"
+sleep 1
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-a" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+[ "$(grep -c '^### S' "$record")" -eq 1 ] || { echo "FAIL same session duplicated"; exit 1; }
+diff "$tmp/session-record.before" "$record" >/dev/null && { echo "FAIL same session did not refresh"; exit 1; }
+grep -q '^- Last completed: Step 1 done$' "$record" || true
+# A different session appends a second entry and preserves the first.
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-b" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+grep -q '^- Session ID: smoke-b$' "$record" || { echo "FAIL second session not recorded"; exit 1; }
+[ "$(grep -c '^### S' "$record")" -eq 2 ] || { echo "FAIL second session did not append"; exit 1; }
+# Agent-owned lines survive an upsert.
+sed -i.bak 's/^- Session ID: smoke-b$/- Session ID: smoke-b\n- Last completed: Step 1 done\n- Next step: Run Step 2/' "$record"
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-b" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+grep -q '^- Last completed: Step 1 done$' "$record" && grep -q '^- Next step: Run Step 2$' "$record" || { echo "FAIL agent-owned fields overwritten"; exit 1; }
+# No session id, no active task, and ambiguous multi-task state all stay no-ops.
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+mkdir -p "$record_root/TaskFlowDocs/2026-09-08-second"
+cp "$record_root/TaskFlowDocs/2026-09-08-record/plan.md" "$record_root/TaskFlowDocs/2026-09-08-second/plan.md"
+rm -f "$record"
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-c" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+[ ! -e "$record" ] || { echo "FAIL ambiguous task state wrote a session record"; exit 1; }
+# An unparseable sessions.md is reported and left byte-identical.
+printf 'hand-written notes\n' > "$record"
+before=$(digest "$record")
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_TASK_ID="2026-09-08-record" TASKFLOW_SESSION_ID="smoke-d" \
+  TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record" 2>"$tmp/session-record.err"
+[ "$before" = "$(digest "$record")" ] || { echo "FAIL unparseable sessions.md was rewritten"; exit 1; }
+grep -q "'## Active / Resumable' section" "$tmp/session-record.err" || { echo "FAIL unparseable diagnostic missing"; exit 1; }
+echo ok
+
 echo "== session-start emits a platform JSON shape =="
 docs="$tmp/TaskFlowDocs"
 mkdir -p "$docs/2026-09-08-smoke" "$docs/achieved"

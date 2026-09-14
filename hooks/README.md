@@ -10,6 +10,7 @@ taskflow/hooks/
 ├── hooks.json          # Claude Code wiring
 ├── hooks-codex.json    # Codex CLI wiring
 ├── session-start       # SessionStart entry (extensionless bash)
+├── session-record      # records the host session id in the selected task
 ├── summarize-state     # derives the state summary (shared logic)
 ├── python-runtime      # validates and selects a Python 3 interpreter
 ├── repository-docs-context # syncs index metadata and derives routes
@@ -89,8 +90,13 @@ Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.jso
 ## Scope / safety
 
 - `session-start` synchronizes only deterministic routing metadata in
-  `TaskFlowDocs/repository-docs/index.md`, then injects derived routes/state.
-  It never edits source policies, core task documents, or approval state.
+  `TaskFlowDocs/repository-docs/index.md` and, through `session-record`, writes
+  one entry in the selected task's `sessions.md` session index, then injects
+  derived routes/state. Both writes are append/update-only: `session-record`
+  owns the session id, availability, timestamps, directories, and Task
+  version/phase, while `Last completed`, `Next step`, and `Notes` stay
+  Agent-owned. It never edits source policies, any other core task document,
+  `TaskFlowDocs/achieved/`, or approval state.
   `task`, `archive`, `version`, and `reopen` are run **explicitly** by the
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
