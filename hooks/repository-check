@@ -12,7 +12,6 @@ fi
 
 cd "$root"
 needs=0
-blocked=0
 echo "Repository: $root"
 echo "Branch: $(git branch --show-current)"
 
@@ -61,10 +60,7 @@ else
   echo "Working tree: has changes (review before rebasing or submitting)"
 fi
 
-if [ "$blocked" -eq 1 ]; then
-  echo "STATUS: blocked"
-  exit 3
-elif [ "$needs" -eq 1 ]; then
+if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"
   exit 2
 else

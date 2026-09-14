@@ -24,7 +24,7 @@ selected=()
 for f in "${files[@]}"; do
   case "$f" in prd.md|spec.md|plan.md) ;; *) echo "invalid core document: $f"; exit 1;; esac
   [ -f "$docs/$task/$f" ] || { [ "$f" = spec.md ] && continue; echo "cannot archive $f (not present)"; exit 1; }
-  [[ " ${selected[*]} " == *" $f "* ]] || selected+=("$f")
+  [[ " ${selected[*]:-} " == *" $f "* ]] || selected+=("$f")
 done
 [ "${#selected[@]}" -gt 0 ] || { echo "no core documents selected"; exit 1; }
 
@@ -65,13 +65,18 @@ EOF
 # copy only changed core docs; retained roots become the new version
 for f in "${selected[@]}"; do cp "$docs/$task/$f" "$archdir/$f"; done
 
-# prepare all root docs for the new approval cycle
+# prepare all root docs for the new approval cycle (temp file + mv keeps
+# BSD/macOS sed working, which has no GNU-style bare `sed -i`)
 for f in prd.md spec.md plan.md; do
   fpath="$docs/$task/$f"
   [ -f "$fpath" ] || continue
-  sed -i "s/^> Task version: .*/> Task version: $newv/" "$fpath"
+  sed "s/^> Task version: .*/> Task version: $newv/" "$fpath" > "$fpath.tmp"
+  mv "$fpath.tmp" "$fpath"
 done
-sed -i 's/^> Status: .*/> Status: ready/' "$docs/$task/prd.md" "$plan"
+for fpath in "$docs/$task/prd.md" "$plan"; do
+  sed 's/^> Status: .*/> Status: ready/' "$fpath" > "$fpath.tmp"
+  mv "$fpath.tmp" "$fpath"
+done
 awk '
   /^## Approval$/ { approval=1; print; next }
   approval && /^## / { approval=0 }

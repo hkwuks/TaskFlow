@@ -368,3 +368,16 @@ Every direct request or imported requireme
 - Goal: Revise release flow to support direct tag releases
 - Task: `TaskFlowDocs/achieved/2026-09-13-revise-release-flow/`
 - Next action: None — completed and archived.
+
+## Restore macOS portability for hooks and smoke tests
+
+- ID: TF-20260914-01
+- Status: promoted
+- Priority: normal
+- Owner: external contributor
+- Source: external code review (fork pull request)
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: Make the hooks and smoke tests pass on stock macOS (bash 3.2 + BSD sed), cover macOS and the evals in CI, and align plugin license metadata with the AGPL-3.0 LICENSE.
+- Task: `TaskFlowDocs/2026-09-14-macos-hook-portability/`
+- Next action: Maintainer review of the fork pull request; approval stays with the maintainer.
