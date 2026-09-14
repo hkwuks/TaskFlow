@@ -292,6 +292,24 @@ grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || 
 grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
 echo ok
 
+echo "== phases map to concept classes without naming a capability =="
+grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
+grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
+grep -q '^| 6\. Verify and review | acceptance and findings | testing strategy' "$skill/SKILL.md" || { echo "FAIL verify phase concept row"; exit 1; }
+for heading in "1. Define — PRD" "2. Research — Reference" "3. Design — Spec decision" \
+               "4. Plan — execution contract" "5. Build — implement by Plan" \
+               "6. Verify and review" "7. Complete and archive"; do
+  grep -q "^| $heading |" "$skill/SKILL.md" || { echo "FAIL concept table is missing: $heading"; exit 1; }
+done
+concept_table=$(sed -n '/^| Phase | Artifact | Equivalent concept class/,/^$/p' "$skill/SKILL.md")
+[ -n "$concept_table" ] || { echo "FAIL concept table missing"; exit 1; }
+if printf '%s' "$concept_table" | grep -qiE 'taskflow|claude|codex|agent-skills|openai|anthropic|mcp'; then
+  echo "FAIL concept table names a product instead of a concept"; exit 1
+fi
+grep -q 'must be a choice, not an oversight' "$skill/SKILL.md" || { echo "FAIL unaided-phase signal missing"; exit 1; }
+grep -q 'says what class to look for' "$skill/references/artifacts.md" || { echo "FAIL accounting rule pointer missing"; exit 1; }
+echo ok
+
 echo "== repository-check is read-only and reports actionable status =="
 check_root="$tmp/repository-check"
 mkdir -p "$check_root/.git" "$check_root/TaskFlowDocs/repository-docs"
