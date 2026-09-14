@@ -69,13 +69,18 @@ if phase == "auto":
             inferred.add(mapped)
     phase = inferred.pop() if len(inferred) == 1 else "unclassified"
 
-personal = docs / "personal"
-if personal.is_dir():
-    for path in sorted(personal.glob("*.md")):
-        if path.name != "README.md":
-            entries.append(("personal-supplement", path.relative_to(root).as_posix(), "all"))
+# Personal supplements sit directly in repository-docs/, so their identity comes
+# from the class column: every recognized repository-owned path above is listed by
+# its conventional source location and is never copied in here.
+owned = {path for _, path, _ in entries}
+for path in sorted(docs.glob("*.md")):
+    if path.name == "index.md":
+        continue
+    relative = path.relative_to(root).as_posix()
+    if relative not in owned:
+        entries.append(("personal-rule", relative, "all", "local-only"))
 
-known = {path for _, path, _ in entries}
+known = {entry[1] for entry in entries}
 old = index.read_text(encoding="utf-8") if index.exists() else ""
 table_rows = [line for line in old.splitlines()
               if line.startswith("|") and not line.startswith(("| ---", "| Class |"))]
@@ -83,9 +88,12 @@ parsed_rows = []
 for match in re.finditer(r"(?m)^\| ([^|]+) \| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", old):
     kind, relative, phases, exists, checked, status = (value.strip() for value in match.groups())
     relative = validate_relative_path(relative)
-    if relative not in known:
-        entries.append((kind, relative, phases, status))
-        known.add(relative)
+    # Personal rules live beside this record and are derived from the live scan
+    # above, so a removed one must not survive as a carried-over stale row.
+    if not relative.startswith("TaskFlowDocs/repository-docs/"):
+        if relative not in known:
+            entries.append((kind, relative, phases, status))
+            known.add(relative)
     parsed_rows.append(match.group(0))
 if set(table_rows) - set(parsed_rows):
     raise ValueError("repository-document index contains an invalid row")
@@ -113,15 +121,15 @@ This index is the authoritative routing and check record for repository document
 | --- | --- | --- | --- | --- | --- |
 {rows}
 
-## Personal supplements
+## Personal rules
 
 {personal}
 """.format(
     today=today,
     rows="\n".join(f"| {k} | `{p}` | {ph} | {ex} | {checked} | {status} |"
                      for k, p, ph, ex, checked, status in rows),
-    personal=("Cataloged above when present." if any(r[0] == "personal-supplement" for r in rows)
-              else "None."),
+    personal=("Cataloged above when present; they are local-only and never committed."
+              if any(r[0] == "personal-rule" for r in rows) else "None."),
 )
 
 docs.mkdir(parents=True, exist_ok=True)
@@ -146,6 +154,7 @@ finally:
 selected = [row for row in rows if row[3] == "yes" and
             row[5] == "ready" and
             (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
+personal = [row[1] for row in rows if row[0] == "personal-rule"]
 missing = [row[1] for row in rows if row[3] == "no" and row[5] == "missing" and
            (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
 print(f"# Repository document routes ({phase})")
@@ -156,6 +165,9 @@ if phase == "unclassified":
     print("- Phase is unclear; classify the current work before following phase-specific routes.")
 if selected:
     print("- Read authoritative sources: " + ", ".join(row[1] for row in selected))
+if personal:
+    print("- Local personal rules (local-only, never committed; they cannot override the sources above): "
+          + ", ".join(personal))
 if missing:
     print("- Missing catalog entries: " + ", ".join(missing))
 review = [row[1] for row in rows if row[5] == "needs-review"]
