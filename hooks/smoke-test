@@ -58,9 +58,11 @@ cat > "$record_root/TaskFlowDocs/2026-09-08-record/plan.md" <<'EOF'
 > Task version: v1
 > Status: in_progress
 EOF
+# AI_AGENT pins the platform label; without it the environment of the machine
+# running the suite decides it and the heading assertion is not reproducible.
 record="$record_root/TaskFlowDocs/2026-09-08-record/sessions.md"
 printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"smoke-a"}\n' "$record_root" |
-  TASKFLOW_REPO_ROOT="$record_root" CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >/dev/null
+  TASKFLOW_REPO_ROOT="$record_root" AI_AGENT=claude-code CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >/dev/null
 grep -q '^- Session ID: smoke-a$' "$record" || { echo "FAIL session id not recorded"; exit 1; }
 grep -q '^- Status: resumable$' "$record" || { echo "FAIL session status missing"; exit 1; }
 grep -q "^### S1 — Claude$" "$record" || { echo "FAIL session entry heading missing"; exit 1; }
