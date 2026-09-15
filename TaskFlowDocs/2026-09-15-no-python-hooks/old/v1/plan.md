@@ -1,5 +1,5 @@
 # Plan — Run TaskFlow hooks without a Python interpreter
-> Task version: v2
+> Task version: v1
 > Status: ready
 
 ## Spec Pointers
@@ -17,23 +17,22 @@
 
 - `TaskFlowDocs/2026-09-14-macos-hook-portability/` (achieved) — established bash
   3.2 + BSD userland as the supported floor.
-- `TaskFlowDocs/2026-09-15-todo-merge-driver/` — the concurrent-Todo strategy
-  task. Separate worktree; both touch `runtime.md`, so their PRs merge one at a
-  time.
+- Todo `TF-20260915-02` — concurrent-Todo strategy; separate task, separate
+  worktree. Both touch `runtime.md`, so their PRs merge one at a time.
 
 ## Skills / Tools Used (Optional)
 
 ## Preconditions
 
-- Approval of this Plan at Task version v2.
+- Approval of this Plan at Task version v1.
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-15 13:14 +0800
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan
 
 ## Steps
 
@@ -135,5 +134,3 @@
 ## Version History
 
 - v1 — planning.
-- v2 — approved: records the confirmed POSIX-only direction and the fixture
-  comparator; supersedes v1 (archived under `old/v1/`).

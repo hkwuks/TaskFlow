@@ -1,5 +1,5 @@
 # Spec — Run TaskFlow hooks without a Python interpreter
-> Task version: v1
+> Task version: v2
 
 ## Objective and Success Criteria
 
@@ -15,8 +15,9 @@ which would also be true of a subtly different implementation.
 - The portability floor is bash 3.2 with BSD userland, per the achieved
   `2026-09-14-macos-hook-portability` task. `awk` and `sed` are the extension
   points; they are the only structured-text tools a POSIX host guarantees.
-- Git for Windows Bash is the Windows runtime. There is exactly one
-  implementation of each hook, and it is the POSIX one.
+- Git for Windows Bash is the Windows runtime, and there is exactly one
+  implementation of each hook: the POSIX one. No native PowerShell implementation
+  is in scope, and a host without Git Bash is not a supported target.
 - Removal is part of the change: `hooks/python-runtime` exists only to serve the
   dependency being removed, and it goes with it.
 
@@ -34,6 +35,8 @@ hooks/
 ├── python-runtime          # DELETED
 ├── smoke-test              # python-runtime section → no-interpreter assertion
 └── smoke-test-windows.ps1  # reference check only
+tools/
+└── fixture-compare         # NEW: byte-compare two smoke roots
 ```
 
 ## Interfaces, Data Flow, and Contracts
@@ -68,6 +71,9 @@ hooks/
   (`session-record` must still never change `session-start`'s exit code).
 - Unparseable input still writes nothing and still reports on stderr. This is the
   property most likely to regress in a rewrite, so it is verified explicitly.
+- Error diagnostics keep the message and may drop the interpreter's traceback
+  text. The smoke suite asserts the message; a Python traceback in the captured
+  fixtures is not behavior this task preserves.
 
 ## Code and Test Constraints
 
@@ -77,6 +83,8 @@ hooks/
 - One new assertion is added: the suite passes with no Python reachable.
 - Verification is byte comparison against fixtures captured from the Python
   implementation before it is removed, not against freshly written expectations.
+- The comparator is validated before it is trusted: run it between two unchanged
+  runs and require 0 differences, so it cannot pass by comparing nothing.
 
 ## Design Decisions and Alternatives
 
@@ -86,9 +94,12 @@ hooks/
   two-place-edit rule, in exchange for supporting hosts without Git Bash — which
   the supported Windows path already requires.
 - **Removing `python-runtime` rather than leaving it unused.** Keeping a
-  validator for a dependency that no longer exists is the definition of dead
-  weight, and its WindowsApps aliasing logic is exactly the class of environment
-  failure this task removes.
+  validator for a dependency that no longer exists is dead weight, and its
+  WindowsApps aliasing logic is exactly the class of environment failure this
+  task removes.
+- **Comparing fixtures over comparing test outcomes.** A rewrite can pass every
+  smoke assertion while changing bytes the assertions do not cover. The fixture
+  comparator is what makes "unchanged behavior" a measurement instead of a claim.
 - **`evals/runner.py` stays.** It is a repository-side harness, not shipped
   runtime, so it does not carry the compatibility risk that motivated the change.
 

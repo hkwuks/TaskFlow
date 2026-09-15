@@ -1,5 +1,5 @@
 # Remove the Python runtime dependency from TaskFlow hooks
-> Task version: v2
+> Task version: v1
 > Status: ready
 
 ## Goal
@@ -101,5 +101,3 @@ output, or exit code.
 ## Version History
 
 - v1 — planning.
-- v2 — approved: POSIX-only direction confirmed; diagnostics keep the message
-  and may drop interpreter traceback text. Supersedes v1 (`old/v1/`).
