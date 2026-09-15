@@ -259,7 +259,7 @@ Publishing, merging, deployment, or delivery processes managed by other tools ar
 
 ## Sessions and collaboration
 
-Use `sessions.md` only when cross-session or cross-agent continuation is useful. Record platform, session ID, availability, code working directory, task artifact directory, Task version, phase, last completed Step, next Step, status, and resume command. Do not store chat transcripts, model reasoning, full logs, secrets, or tokens.
+Use `sessions.md` only when cross-session or cross-agent continuation is useful. Record platform, session ID, availability, code working directory, task artifact directory, Task version, phase, last completed Step, next Step, status, and resume command. Do not store chat transcripts, model reasoning, full logs, secrets, or tokens. The SessionStart hook maintains the mechanical fields of the selected task's session entry — session id, agent, availability, timestamps, directories, Task version/phase — so normally you only add `Last completed`, `Next step`, and `Notes`, and you remain the only writer that closes an entry. Never treat the hook's entry as progress: `plan.md` stays authoritative for steps and verification.
 
 Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/index.md` at a time. Agents may read in parallel and produce independent research/review notes. The Primary Agent or user merges conclusions, changes Task version, records approval, and changes the phase. On handoff, the old owner updates `sessions.md` and `plan.md`; the new owner reads the current artifacts before writing. If a task has multiple agents, designate at most one `Primary` session.
 
