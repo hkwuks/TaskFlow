@@ -94,7 +94,7 @@ Because every task appends to the one `TaskFlowDocs/todo.md`, TaskFlow ships a G
 
 Before creating or updating a pull request, TaskFlow reads the applicable `.github/pull_request_template.md`, satisfies every required item, records the field mapping and verification in `plan.md`, and blocks PR mutation when a required item is missing or ambiguous.
 
-Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`; it is not attached to automatic hooks.
+Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`; it is not attached to automatic hooks. `bash hooks/release-check [repo-root]` is the same kind of report for a release: it compares the version literals in both plugin manifests, the newest `CHANGELOG.md` section, and each README's `claude plugin list` sample, and confirms the marketplace `ref` resolves to the commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is missing; CI runs it on every change.
 
 Any user correction or addition to an approved task is classified before documents change: wording or approach clarifications are work revisions that update only affected records and the Plan change log; changes to an approved goal, requirement, acceptance criterion, scope, or contract create a Task version and return to approval. TaskFlow never continues implementation using an outdated plan.
 

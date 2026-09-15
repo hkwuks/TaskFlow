@@ -29,6 +29,19 @@ jobs:
         shell: powershell
         run: .\hooks\smoke-test-windows.ps1
 
+  # The release literals are compared on every change, not only when someone
+  # remembers to run the checklist: a README sample or CHANGELOG section left on
+  # the previous version is otherwise invisible until a user sees it.
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The marketplace pin names a tag, so the check needs the tags.
+          fetch-depth: 0
+      - name: Check release version consistency
+        run: bash hooks/release-check .
+
   # The eval runner is repository tooling, not shipped plugin runtime, so it keeps
   # its own Python and is not part of the no-runtime guarantee above.
   evals:

@@ -19,6 +19,7 @@ taskflow/hooks/
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
+├── release-check       # version literals + marketplace pin agree
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 └── smoke-test          # assert-style smoke tests

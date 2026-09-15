@@ -109,6 +109,14 @@ TaskFlowDocs/
 
 List a capability only after an actual invocation attempt. Discovery or selection is not use. A failed or unavailable optional invocation may be recorded when relevant, but it has no incorporated conclusion and does not block the base flow unless it is required for correctness. The phase-to-concept table in `SKILL.md` says what class to look for; this rule says what may be recorded afterwards.
 
+## Release task documents
+
+A release runs an existing procedure rather than designing one, so its documents record decisions and results and do not restate the procedure. `RELEASE.md` is the plan; a release task that copies its checklist into `## Steps` creates a second copy that drifts.
+
+- `prd.md` carries the goal, the version number and why it was chosen, the changes being released with a pointer to their task directories, and the acceptance criteria. It does not re-describe the workflow or restate the changelog.
+- `plan.md` has one Step per phase of `RELEASE.md` — metadata, then tag and GitHub Release — referring to that document by section instead of repeating its commands. Record what actually ran, its result, and the recorded tag, release URL, commit, and marketplace pin.
+- Keep `## Approval` and archiving unchanged: pushing a tag and publishing a release are the irreversible outward actions, and the approval block is what makes "who approved which version, when" answerable afterwards.
+
 ## Output routing
 
 | Generic output | Task destination |

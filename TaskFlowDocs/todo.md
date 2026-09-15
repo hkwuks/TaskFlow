@@ -485,3 +485,16 @@ Every direct request or imported requireme
 - Goal: Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and the hook-integrity fixes
 - Task: `TaskFlowDocs/achieved/2026-09-15-release-v1-0-5/`
 - Next action: None — completed and archived.
+
+## Cut the mechanical overhead out of a release: one version-consistency check, a r
+
+- ID: TF-20260915-1f0f66
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: local fixture
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Cut the mechanical overhead out of a release: one version-consistency check, a release document rule, and an archive that clears the Todo next action.
+- Task: `TaskFlowDocs/2026-09-15-release-friction/`
+- Next action: Complete PRD / Spec / Plan and request approval.

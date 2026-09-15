@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# release-check — read-only version-consistency check for a release.
+# Usage: release-check [repository-root]
+# Every version literal a release has to move must agree, and the marketplace pin
+# must resolve to the commit it names. Not attached to automatic hooks.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+if [ -z "$root" ] || [ ! -d "$root" ]; then
+  echo "STATUS: blocked"
+  echo "- Cannot identify a repository root."
+  exit 3
+fi
+cd "$root"
+
+claude_manifest=".claude-plugin/plugin.json"
+codex_manifest=".codex-plugin/plugin.json"
+marketplace=".claude-plugin/marketplace.json"
+
+# The version literals are validated by field name rather than by parsing JSON:
+# the manifests are repository-owned and CODE_STYLE fixes their shape, so a
+# parser would be a dependency bought for a format that does not move. A missing
+# file blocks the check instead — an absent manifest is a repository defect, not
+# a version mismatch to report.
+blocked=0
+for file in "$claude_manifest" "$codex_manifest" "$marketplace" CHANGELOG.md README.md README.zh-CN.md; do
+  if [ ! -f "$file" ]; then
+    echo "- $file: missing"
+    blocked=1
+  fi
+done
+if [ "$blocked" -eq 1 ]; then
+  echo "Repository: $root"
+  echo "STATUS: blocked"
+  exit 3
+fi
+
+needs=0
+echo "Repository: $root"
+
+jversion() { sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1; }
+jfield() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -1; }
+
+claude_v="$(jversion "$claude_manifest")"
+# The Codex cachebuster suffixes the version (`1.0.5+codex.20260915`); only the
+# release number has to agree with the tag.
+codex_v="$(jversion "$codex_manifest")"
+codex_release="${codex_v%%+*}"
+# The newest *version* section, not simply the newest section: an `## [Unreleased]`
+# heading is the normal state between releases and is not a version literal.
+changelog_v="$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)"
+readme_v="$(sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' README.md | head -1)"
+readme_zh_v="$(sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' README.zh-CN.md | head -1)"
+
+echo "Version literals:"
+printf -- '- %s: %s\n' "$claude_manifest" "$claude_v"
+printf -- '- %s: %s\n' "$codex_manifest" "$codex_v"
+printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
+printf -- '- README.md (plugin list sample): %s\n' "$readme_v"
+printf -- '- README.zh-CN.md (plugin list sample): %s\n' "$readme_zh_v"
+
+if ! printf '%s\n' "$claude_v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo "- $claude_manifest version is not X.Y.Z: $claude_v"
+  needs=1
+fi
+for pair in "CHANGELOG.md:$changelog_v" "README.md:$readme_v" "README.zh-CN.md:$readme_zh_v" \
+            "$codex_manifest:$codex_release"; do
+  label="${pair%%:*}"; value="${pair#*:}"
+  if [ "$value" != "$claude_v" ]; then
+    echo "- $label says ${value:-nothing}, $claude_manifest says $claude_v"
+    needs=1
+  fi
+done
+
+# The pin is checked against the tag it names, not against the version literals:
+# the marketplace intentionally still points at the previous release while the
+# next one is being prepared, so a version comparison would fail on the one run
+# that matters. What must hold is `ref` and `sha` naming the same commit — the
+# disagreement Claude Code refuses at install time as `sha_pin_mismatch`.
+pin_ref="$(jfield "$marketplace" ref)"
+pin_sha="$(jfield "$marketplace" sha)"
+if [ -z "$pin_ref" ]; then
+  echo "Marketplace pin: none recorded"
+elif ! pin_commit="$(git rev-parse --verify -q "$pin_ref^{commit}" 2>/dev/null)"; then
+  echo "- marketplace ref $pin_ref is not present locally; fetch tags before releasing"
+  needs=1
+elif [ -z "$pin_sha" ]; then
+  echo "- marketplace ref $pin_ref resolves to $pin_commit, but no sha is recorded"
+  needs=1
+elif [ "$pin_sha" != "$pin_commit" ]; then
+  echo "- marketplace ref $pin_ref is $pin_commit, but sha says $pin_sha"
+  needs=1
+else
+  echo "Marketplace pin: $pin_ref -> $pin_sha"
+fi
+
+if [ "$needs" -eq 1 ]; then
+  echo "STATUS: needs-user-input"
+  exit 2
+else
+  echo "STATUS: pass"
+fi
