@@ -450,7 +450,7 @@ Every direct request or imported requireme
 ## Make concurrent Todo updates merge cleanly in parallel-task branches
 
 - ID: TF-20260915-02
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: user request

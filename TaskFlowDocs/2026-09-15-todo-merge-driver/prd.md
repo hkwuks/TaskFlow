@@ -1,6 +1,6 @@
 # Ship a Todo merge driver so parallel task branches merge cleanly
 > Task version: v1
-> Status: ready
+> Status: in_progress
 
 ## Goal
 

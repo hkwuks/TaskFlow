@@ -1,6 +1,6 @@
 # Plan — Ship a Todo merge driver so parallel task branches merge cleanly
 > Task version: v1
-> Status: ready
+> Status: in_progress
 
 No spec required — small, self-contained task.
 
@@ -23,11 +23,11 @@ No spec required — small, self-contained task.
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-15 13:14 +0800
+- Approved version: v1
+- Approved scope: PRD / Plan
 
 ## Steps
 
