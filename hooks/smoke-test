@@ -462,4 +462,198 @@ echo "$check_out" | grep -q 'Document CONTRIBUTING.md: missing' || { echo "FAIL 
 echo "$check_out" | grep -q 'Base: ambiguous' || { echo "FAIL repository-check base finding"; exit 1; }
 echo ok
 
+echo "== todo merge driver keeps both branches' entries =="
+# A real repository, so the assertion exercises `git merge` rather than a
+# simulation of it. The driver is installed the way a user gets it, by the hook.
+md="$tmp/merge-driver"
+mkdir -p "$md"
+git -C "$md" init -q
+git -C "$md" symbolic-ref HEAD refs/heads/main
+git -C "$md" config user.email smoke@example.invalid
+git -C "$md" config user.name smoke
+TASKFLOW_REPO_ROOT="$md" bash "$HERE/install-merge-driver"
+mkdir -p "$md/TaskFlowDocs"
+todo_write() {  # todo_write <file> <entries...>  (preamble, then one block per arg)
+  local f="$1"
+  shift
+  { printf '# Todo inbox\n\n## Items\n\n'
+    for e in "$@"; do printf '%s\n\n' "$e"; done
+  } > "$f"
+}
+entry() {  # entry <heading> <id> <status>
+  printf '## %s\n- ID: %s\n- Status: %s\n' "$1" "$2" "$3"
+}
+todo_write "$md/TaskFlowDocs/todo.md" "$(entry Base TF-20260101-01 done)"
+git -C "$md" add -A
+git -C "$md" commit -qm base
+
+# Both entries deliberately end in the same two lines. That shared tail is what
+# `merge=union` mishandles: it interleaves the two insertions and keeps the tail
+# once, silently dropping a field from one entry. This fixture is that case.
+git -C "$md" checkout -qb ours
+todo_write "$md/TaskFlowDocs/todo.md" \
+  "$(entry 'Task ours' TF-20260915-01 inbox)" "$(entry Base TF-20260101-01 done)"
+git -C "$md" commit -qam ours
+git -C "$md" checkout -q main
+git -C "$md" checkout -qb theirs
+todo_write "$md/TaskFlowDocs/todo.md" \
+  "$(entry 'Task theirs' TF-20260915-02 inbox)" "$(entry Base TF-20260101-01 done)"
+git -C "$md" commit -qam theirs
+git -C "$md" checkout -q ours
+git -C "$md" merge -q --no-edit theirs
+merged="$md/TaskFlowDocs/todo.md"
+grep -q '^## Task ours$' "$merged" || { echo "FAIL driver dropped our entry"; exit 1; }
+grep -q '^## Task theirs$' "$merged" || { echo "FAIL driver dropped their entry"; exit 1; }
+[ "$(grep -cE '^## Base$' "$merged")" -eq 1 ] || { echo "FAIL driver duplicated the shared entry"; exit 1; }
+[ "$(grep -c '^- ID: ' "$merged")" -eq 3 ] || { echo "FAIL driver lost or duplicated an ID field"; exit 1; }
+[ "$(grep -c '^- Status: ' "$merged")" -eq 3 ] || { echo "FAIL driver lost or duplicated a Status field (the merge=union failure)"; exit 1; }
+grep -q '^<<<<<<<' "$merged" && { echo "FAIL driver conflicted on disjoint entries"; exit 1; }
+# Ours keeps its position; their new entry is appended after, so a merge never
+# reorders what the user already sees.
+[ "$(grep -n '^## ' "$merged" | head -2 | tail -1 | cut -d: -f2-)" = "## Task ours" ] || { echo "FAIL driver reordered our entries"; exit 1; }
+echo ok
+
+echo "== todo merge driver still conflicts on one entry changed twice =="
+git -C "$md" checkout -q -B edit-ours ours
+# Via a temp file: the merge driver writes into the same path, and a redirect onto
+# the file being read truncates it first, which would make this branch the base.
+awk '/^- Status: / { sub(/inbox/, "done") } { print }' "$merged" > "$md/.todo.next"
+mv "$md/.todo.next" "$md/TaskFlowDocs/todo.md"
+git -C "$md" commit -qam 'ours: mark done'
+git -C "$md" checkout -q -B edit-theirs theirs
+todo_write "$md/TaskFlowDocs/todo.md" \
+  "$(entry 'Task theirs' TF-20260915-02 in_progress)" \
+  "$(entry Base TF-20260101-01 done)" \
+  "$(entry 'Task ours' TF-20260915-01 cancelled)"
+git -C "$md" commit -qam 'theirs: cancel ours instead'
+git -C "$md" checkout -q edit-ours
+set +e
+git -C "$md" merge -q --no-edit edit-theirs >/dev/null 2>&1
+edit_status=$?
+set -e
+[ "$edit_status" -ne 0 ] || { echo "FAIL merge of one edited entry succeeded silently"; exit 1; }
+grep -q '^<<<<<<< ours$' "$md/TaskFlowDocs/todo.md" || { echo "FAIL no conflict markers for a real conflict"; exit 1; }
+grep -q '^>>>>>>> theirs$' "$md/TaskFlowDocs/todo.md" || { echo "FAIL conflict markers not closed"; exit 1; }
+git -C "$md" merge --abort 2>/dev/null || true
+echo ok
+
+echo "== todo merge driver takes a one-sided edit without conflicting =="
+# The ordinary TaskFlow case: one branch archives its task and marks the entry
+# `done` while another branch added its own entry and never touched this one.
+git -C "$md" checkout -q -B side-other ours
+todo_write "$md/TaskFlowDocs/todo.md" \
+  "$(entry 'Task ours' TF-20260915-01 inbox)" \
+  "$(entry 'Task side' TF-20260915-03 inbox)" \
+  "$(entry Base TF-20260101-01 done)"
+git -C "$md" commit -qam 'other: add an unrelated entry'
+git -C "$md" checkout -q -B side-edit ours
+awk '/^- ID: TF-20260915-01$/ { found = 1 } found && /^- Status: / { sub(/inbox/, "done"); found = 0 } { print }' \
+  "$md/TaskFlowDocs/todo.md" > "$md/.todo.next"
+mv "$md/.todo.next" "$md/TaskFlowDocs/todo.md"
+git -C "$md" commit -qam 'edit: mark our own entry done'
+git -C "$md" checkout -q side-other
+git -C "$md" merge -q --no-edit side-edit
+merged="$md/TaskFlowDocs/todo.md"
+grep -q '^## Task side$' "$merged" || { echo "FAIL one-sided merge dropped the added entry"; exit 1; }
+grep -q '^<<<<<<<' "$merged" && { echo "FAIL one-sided edit conflicted"; exit 1; }
+# The edit must survive, and it must be the Edit branch's value that won.
+[ "$(awk '/^- ID: TF-20260915-01$/ { f = 1 } f && /^- Status: / { print $3; exit }' "$merged")" = "done" ] \
+  || { echo "FAIL one-sided edit was discarded"; exit 1; }
+# Four entries: ours, theirs (kept from the merge above), the one this branch
+# added, and the shared base.
+[ "$(grep -c '^- ID: ' "$merged")" -eq 4 ] || { echo "FAIL one-sided merge lost an entry"; exit 1; }
+echo ok
+
+echo "== merge driver installation is local, idempotent, and silent =="
+install_root="$tmp/install"
+mkdir -p "$install_root"
+git -C "$install_root" init -q
+expected="bash '$HERE/merge-todo' %O %A %B"
+install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-merge-driver" 2>&1)"
+[ -z "$install_out" ] || { echo "FAIL installer was not silent:"; printf '%s\n' "$install_out"; exit 1; }
+[ "$(git -C "$install_root" config --local --get merge.taskflow-todo.driver)" = "$expected" ] \
+  || { echo "FAIL installer did not configure the driver"; exit 1; }
+info="$(git -C "$install_root" rev-parse --git-path info/attributes)"
+case "$info" in /*) ;; *) info="$install_root/$info" ;; esac
+[ "$(grep -cxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$info")" = 1 ] \
+  || { echo "FAIL installer did not set the attribute"; exit 1; }
+# `git check-attr` is the assertion that matters: it reads the same sources Git
+# does, so it also catches an attribute line written into the wrong file.
+[ "$(git -C "$install_root" check-attr merge -- TaskFlowDocs/todo.md | awk '{print $NF}')" = "taskflow-todo" ] \
+  || { echo "FAIL Git does not resolve the merge attribute"; exit 1; }
+# Second run: same config, still one attribute line, still silent.
+install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-merge-driver" 2>&1)"
+[ -z "$install_out" ] || { echo "FAIL second install was not silent"; exit 1; }
+[ "$(grep -cxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$info")" = 1 ] \
+  || { echo "FAIL second install duplicated the attribute"; exit 1; }
+# A tracked .gitattributes must not be required, and must not be created.
+[ -f "$install_root/.gitattributes" ] && { echo "FAIL installer wrote a tracked file"; exit 1; }
+# Nothing outside the repository: the global config is untouched.
+git config --global --get merge.taskflow-todo.driver >/dev/null 2>&1 \
+  && { echo "FAIL installer wrote global config"; exit 1; }
+# A TaskFlow root that is not a Git repository at all must be a silent no-op:
+# `git config --local` outside a repository prints a fatal error otherwise.
+non_git="$tmp/install-non-git"
+mkdir -p "$non_git"
+install_out="$(TASKFLOW_REPO_ROOT="$non_git" bash "$HERE/install-merge-driver" 2>&1)"
+[ -z "$install_out" ] || { echo "FAIL installer spoke on a non-Git root:"; printf '%s\n' "$install_out"; exit 1; }
+[ -z "$(ls -A "$non_git")" ] || { echo "FAIL installer wrote into a non-Git root"; exit 1; }
+echo ok
+
+echo "== Todo IDs are derived from the goal, not from a shared counter =="
+# The bug this prevents: two branches cut from the same base both run the day's
+# first intake, both compute "-01", and a merge that keeps both entries leaves two
+# entries claiming one ID. A digest of the goal makes the branches agree instead.
+id_a="$tmp/id-a"; id_b="$tmp/id-b"
+mkdir -p "$id_a" "$id_b"
+# `intake` prints "intake OK: <id>"; the ID itself is the last field.
+intake() { bash "$HERE/task" intake "$1" "fixture" --root "$2" | awk '{ print $NF }'; }
+first="$(intake "Todo ID determinism, first goal." "$id_a")"
+second="$(intake "Todo ID determinism, second goal." "$id_a")"
+[ "$first" != "$second" ] || { echo "FAIL two goals got one ID: $first"; exit 1; }
+case "$first" in TF-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;; *)
+  echo "FAIL ID is not TF-<yyyymmdd>-<6 hex>: $first"; exit 1 ;;
+esac
+# The same goal in an independent clone must produce the same ID, or the two
+# branches would merge as two entries for one task.
+clone_first="$(intake "Todo ID determinism, first goal." "$id_b")"
+[ "$clone_first" = "$first" ] || { echo "FAIL same goal got different IDs: $first vs $clone_first"; exit 1; }
+# Re-intaking the same goal still fails as a duplicate rather than silently
+# allocating a fresh ID for it.
+if bash "$HERE/task" intake "Todo ID determinism, first goal." "fixture" --root "$id_a" >/dev/null 2>&1; then
+  echo "FAIL duplicate goal accepted"; exit 1
+fi
+grep -q "^- ID: $first$" "$id_a/TaskFlowDocs/todo.md" || { echo "FAIL ID not written"; exit 1; }
+[ "$(grep -c '^- ID: ' "$id_a/TaskFlowDocs/todo.md")" -eq 2 ] || { echo "FAIL duplicate goal wrote an entry"; exit 1; }
+
+# The end the two mechanisms exist for: two branches cut from one base each intake
+# their own goal on the same day, then merge. A shared counter would hand both of
+# them "-01"; deterministic IDs give them different keys, so the driver sees two
+# distinct entries and keeps both without a conflict.
+par="$tmp/parallel-intake"
+mkdir -p "$par"
+git -C "$par" init -q
+git -C "$par" symbolic-ref HEAD refs/heads/main
+git -C "$par" config user.email smoke@example.invalid
+git -C "$par" config user.name smoke
+TASKFLOW_REPO_ROOT="$par" bash "$HERE/install-merge-driver"
+bash "$HERE/task" intake "The goal both branches start from." "fixture" --root "$par" >/dev/null
+git -C "$par" add -A
+git -C "$par" commit -qm base
+git -C "$par" checkout -qb left
+bash "$HERE/task" intake "The goal only the left branch took." "fixture" --root "$par" >/dev/null
+left_id="$(awk '/^- ID: /{ print $3 }' "$par/TaskFlowDocs/todo.md" | tail -1)"
+git -C "$par" commit -qam 'left: intake its goal'
+git -C "$par" checkout -q main && git -C "$par" checkout -qb right
+bash "$HERE/task" intake "The goal only the right branch took." "fixture" --root "$par" >/dev/null
+right_id="$(awk '/^- ID: /{ print $3 }' "$par/TaskFlowDocs/todo.md" | tail -1)"
+git -C "$par" commit -qam 'right: intake its goal'
+[ "$left_id" != "$right_id" ] || { echo "FAIL both branches allocated $left_id"; exit 1; }
+git -C "$par" checkout -q left
+git -C "$par" merge -q --no-edit right
+[ "$(grep -c '^- ID: ' "$par/TaskFlowDocs/todo.md")" -eq 3 ] \
+  || { echo "FAIL parallel intake lost an entry:"; grep '^- ID: ' "$par/TaskFlowDocs/todo.md"; exit 1; }
+grep -q '^<<<<<<<' "$par/TaskFlowDocs/todo.md" && { echo "FAIL parallel intake conflicted"; exit 1; }
+echo ok
+
 echo "ALL SMOKE PASSED"

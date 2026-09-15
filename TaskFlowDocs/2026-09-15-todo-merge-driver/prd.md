@@ -66,7 +66,10 @@ line.
   fallback shape only if a deterministic suffix proves impractical.
 - Ship a `.gitattributes` entry marking `TaskFlowDocs/todo.md` with that driver,
   and install the corresponding `merge.<driver>.driver` config from a hook so a
-  fresh clone gets it without manual setup.
+  fresh clone gets it without manual setup. The attribute belongs in the clone's
+  `.git/info/attributes` rather than a tracked `.gitattributes`: it configures a
+  tool only some clones have, and tracking it would put one user's choice into
+  every other user's working tree.
 - The install step is idempotent, repository-local (never `--global`), silent on
   success, and best-effort: it must not change the hook's exit code or context
   output.

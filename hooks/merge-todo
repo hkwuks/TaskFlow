@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# merge-todo — resolve TaskFlowDocs/todo.md by Todo entry instead of by line.
+#
+# Installed as the `taskflow-todo` merge driver for `TaskFlowDocs/todo.md` (see
+# `.gitattributes`). Git invokes it with three paths in this order: the common
+# ancestor (%O), our version (%A), and their version (%B). The driver must leave
+# the resolution in %A and exit 0; a nonzero exit tells Git the merge failed.
+#
+# Scope: this is not a general three-way merge. It answers the one case that
+# actually occurs — two branches each added a Todo entry, or touched different
+# entries — and refuses the rest.
+#
+# Rules:
+#   * The preamble before the first `## ` heading comes from ours.
+#   * An entry is identified by its `- ID:` value, or by its heading when it has
+#     no ID yet. Entries are matched by that key, not by position.
+#   * An entry present on only one side is taken from that side.
+#   * An entry both sides have, byte-identical, is taken once.
+#   * An entry only one side changed relative to the ancestor is taken from that
+#     side — this is the ordinary case, two branches each touching their own entry.
+#   * An entry both sides changed differently is a real conflict: rewrite %A with
+#     Git conflict markers and exit 1, so `git merge` reports it.
+#   * Order is ours, then the entries only theirs, appended, so a merge cannot
+#     reorder entries the user already sees.
+#
+# The ancestor is consulted only to tell "we changed it" from "they did". A Todo
+# entry is never deleted and its heading is never rewritten, so there is no
+# delete/modify or rename/modify case for a full three-way merge to arbitrate.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+# Git passes them in this order: ancestor, ours, theirs.
+base="$1"; ours="$2"; theirs="$3"
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+# Split a todo file into its preamble and one record per `## ` entry. Entries are
+# written to `entry.N`; `key.N` holds the heading, which is the fallback identity.
+split_todo() {  # split_todo <file> <outdir>
+  mkdir -p "$2"
+  awk -v dir="$2" '
+    # Entry text is written without its separating blank line; emit() adds it back,
+    # so the separator is uniform whether or not the source had one.
+    function flush() {
+      if (idx == 0) return
+      sub(/\n+$/, "", buf)
+      printf "%s", buf > (dir "/entry." idx)
+      close(dir "/entry." idx)
+    }
+    /^## / {
+      flush()
+      idx++
+      key = $0
+      sub(/^##[ \t]*/, "", key)
+      sub(/[ \t\r]+$/, "", key)
+      printf "%s\n", key > (dir "/key." idx)
+      close(dir "/key." idx)
+      buf = $0 "\n"
+      next
+    }
+    { if (idx == 0) { pre = pre $0 "\n" } else { buf = buf $0 "\n" } }
+    END {
+      flush()
+      printf "%s", pre > (dir "/preamble")
+      close(dir "/preamble")
+      printf "%d\n", idx > (dir "/count")
+      close(dir "/count")
+    }
+  ' "$1"
+}
+
+# A richer key than the heading, when the entry has an ID: two branches can pick
+# the same heading text for different items, but the ID is what Todo commands
+# resolve against. It is emitted alongside the heading so an entry whose ID one
+# side has not written yet still matches its counterpart.
+key_of() {  # key_of <entryfile> <headingkey>
+  # One key per entry, no more: `exit` still runs END in awk, so the fallback has
+  # to be suppressed by a flag rather than by exiting early. An extra line here
+  # would shift every later key against its entry.
+  awk -v fallback="$2" '
+    /^- ID:/ {
+      v = substr($0, 7)
+      sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
+      if (v != "" && !found) { print "id:" v; found = 1 }
+    }
+    END { if (!found) print "head:" fallback }
+  ' "$1"
+}
+
+# Emit one entry as a block: its text, then the blank line that separates it from
+# whatever follows. flush() strips trailing newlines, so the separator is uniform
+# whether or not the source entry had one.
+emit() {  # emit <entryfile>
+  cat "$1" >> "$work/result"
+  printf '\n\n' >> "$work/result"
+}
+
+split_todo "$ours"   "$work/ours"
+split_todo "$theirs" "$work/theirs"
+split_todo "$base"   "$work/base"
+no="$(cat "$work/ours/count")"
+nt="$(cat "$work/theirs/count")"
+nb="$(cat "$work/base/count")"
+
+# Index a side's entry files by key and heading, so a lookup is a grep over a list
+# rather than a scan of the entries themselves (an entry's body can contain a line
+# that looks like another entry's key).
+index_side() {  # index_side <outdir> <count> <keysfile> <headsfile>
+  local i=1
+  : > "$3"
+  : > "$4"
+  while [ "$i" -le "$2" ]; do
+    key_of "$1/entry.$i" "$(cat "$1/key.$i")" >> "$3"
+    printf 'head:%s\n' "$(cat "$1/key.$i")" >> "$4"
+    i=$((i + 1))
+  done
+}
+
+index_side "$work/ours"   "$no" "$work/keys.ours"   "$work/heads.ours"
+index_side "$work/theirs" "$nt" "$work/keys.theirs" "$work/heads.theirs"
+index_side "$work/base"   "$nb" "$work/keys.base"   "$work/heads.base"
+
+conflict=0
+: > "$work/result"
+cat "$work/ours/preamble" >> "$work/result"
+
+# `grep` exits 1 when it finds nothing, which under `set -o pipefail` would abort
+# the whole merge on the ordinary "only we have this entry" case. The lookups are
+# therefore explicitly allowed to fail.
+lookup() {  # lookup <needle> <listfile>
+  local out
+  out="$(grep -nxF -- "$1" "$2" 2>/dev/null | head -1 | cut -d: -f1)" || true
+  printf '%s' "$out"
+}
+has() {  # has <needle> <listfile>
+  grep -qxF -- "$1" "$2" 2>/dev/null
+}
+
+# Their entry matching ours, by ID when both have one and by heading otherwise.
+# The second lookup is what keeps an entry that one side gave an ID to from being
+# appended a second time as a new entry.
+match_of() {  # match_of <our-key> <our-head>
+  local j
+  j="$(lookup "$1" "$work/keys.theirs")"
+  if [ -z "$j" ]; then j="$(lookup "$2" "$work/heads.theirs")"; fi
+  printf '%s' "$j"
+}
+
+# The ancestor's copy of our entry, so a one-sided change is not mistaken for a
+# two-sided one. Without this, the branch that archived a task while another
+# branch left the same entry alone would conflict for no reason.
+base_of() {  # base_of <our-key> <our-head>
+  local b
+  b="$(lookup "$1" "$work/keys.base")"
+  if [ -z "$b" ]; then b="$(lookup "$2" "$work/heads.base")"; fi
+  printf '%s' "$b"
+}
+
+i=1
+while [ "$i" -le "$no" ]; do
+  key="$(sed -n "${i}p" "$work/keys.ours")"
+  head="$(sed -n "${i}p" "$work/heads.ours")"
+  entry="$work/ours/entry.$i"
+  j="$(match_of "$key" "$head")"
+  if [ -z "$j" ]; then
+    # Only we have it: either we added it, or they removed it. Keep it — a
+    # resurrected entry is visible and fixable, a silently dropped one is neither.
+    emit "$entry"
+  else
+    other="$work/theirs/entry.$j"
+    if cmp -s "$entry" "$other"; then
+      emit "$entry"
+    else
+      b="$(base_of "$key" "$head")"
+      if [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
+        emit "$other"        # only they changed it
+      elif [ -n "$b" ] && cmp -s "$other" "$work/base/entry.$b"; then
+        emit "$entry"        # only we changed it
+      else
+        # Both sides changed this entry, or it is new on both sides under one key.
+        # Report it the way Git would, so the normal conflict-review workflow
+        # applies instead of a silent pick.
+        conflict=1
+        {
+          printf '<<<<<<< ours\n'
+          cat "$entry"
+          printf '\n=======\n'
+          cat "$other"
+          printf '\n>>>>>>> theirs\n'
+        } >> "$work/result"
+      fi
+    fi
+  fi
+  i=$((i + 1))
+done
+
+# Entries only they have, in their order, after ours. Both keys are consulted so
+# an entry matched by heading above is not appended here as well.
+i=1
+while [ "$i" -le "$nt" ]; do
+  key="$(sed -n "${i}p" "$work/keys.theirs")"
+  head="$(sed -n "${i}p" "$work/heads.theirs")"
+  if ! has "$key" "$work/keys.ours" && ! has "$head" "$work/heads.ours"; then
+    emit "$work/theirs/entry.$i"
+  fi
+  i=$((i + 1))
+done
+
+cp "$work/result" "$ours"
+exit "$conflict"

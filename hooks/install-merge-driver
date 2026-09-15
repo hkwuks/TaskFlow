@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# install-merge-driver — point this repository's Git at TaskFlow's Todo merge
+# driver, so parallel task branches merge `TaskFlowDocs/todo.md` by entry.
+#
+# Everything this writes is repository-local and untracked:
+#   * `merge.taskflow-todo.driver` in the repository's own config
+#   * a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`
+#
+# Nothing is written outside the repository, and nothing tracked is edited: a
+# fresh clone picks both up on its first SessionStart. Idempotent, silent on
+# success, and best-effort — a repository that cannot be configured (no Git, a
+# read-only .git) must not disturb the session.
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+root="${TASKFLOW_REPO_ROOT:-}"
+[ -n "$root" ] && [ -d "$root" ] || root=""
+[ -n "$root" ] || root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$root" ] && [ -d "$root" ] || exit 0
+command -v git >/dev/null 2>&1 || exit 0
+
+# `TASKFLOW_REPO_ROOT` is the TaskFlow root, which is not necessarily inside a Git
+# repository at all (a fixture, or a project kept out of version control). Every
+# `git` call below is silenced and every failure exits 0: this hook must never
+# print anything a user would see on a repository it cannot configure.
+git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || exit 0
+
+# Reachable as a path, not as a program: `merge-todo` is invoked by whatever shell
+# Git uses to run the driver, which is not necessarily this one.
+driver="$HERE/merge-todo"
+if command -v cygpath >/dev/null 2>&1; then
+  # Mixed-mode (`C:/...`) rather than POSIX: it is understood by Git for Windows'
+  # own shell and by `bash.exe`, whichever runs the driver.
+  driver="$(cygpath -m "$driver" 2>/dev/null || printf '%s' "$driver")"
+fi
+wanted="bash '$driver' %O %A %B"
+
+current="$(git -C "$root" config --local --get merge.taskflow-todo.driver 2>/dev/null)" || true
+if [ "$current" != "$wanted" ]; then
+  git -C "$root" config --local merge.taskflow-todo.driver "$wanted" >/dev/null 2>&1 || exit 0
+fi
+
+# `info/attributes` rather than the tracked `.gitattributes`: it is per-clone, so a
+# repository that has not adopted the driver is unaffected by another's setup.
+info="$(git -C "$root" rev-parse --git-path info/attributes 2>/dev/null)" || exit 0
+[ -n "$info" ] || exit 0
+case "$info" in /*|[A-Za-z]:[/\\]*) ;; *) info="$root/$info" ;; esac
+if [ ! -f "$info" ] || ! grep -qxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$info" 2>/dev/null; then
+  mkdir -p "$(dirname "$info")" 2>/dev/null || exit 0
+  printf 'TaskFlowDocs/todo.md merge=taskflow-todo\n' >> "$info" 2>/dev/null || exit 0
+fi
+
+exit 0

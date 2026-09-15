@@ -57,6 +57,8 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 TaskFlow 从不在 base 工作区直接实施：每个任务在动手前先建独立短生命周期分支，并行任务各自使用独立工作区。分支规则写在 `CONTRIBUTING.md`，worktree 规则写在 Skill 中。
 
+由于所有任务都追加同一个 `TaskFlowDocs/todo.md`，TaskFlow 为它内置了 Git 合并驱动，由 `hooks/session-start` 按克隆安装。两个分支各自新增条目、或修改不同条目时无需人工介入；同一条目两侧改法不同仍会保留为真实冲突。Todo ID 由目标内容派生而非递增计数，因此同一基点切出的两个分支不会分到同一个 ID。在托管平台网页端合并 PR 时由服务端执行，不会使用该驱动，这条路径仍退化为普通内容冲突。
+
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
 可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，不会挂到自动 hook 上。

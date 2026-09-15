@@ -112,7 +112,6 @@ BEGIN {
   value = ENVIRON["TASKFLOW_VALUE"]
   goal = ENVIRON["TASKFLOW_GOAL"]
   source = ENVIRON["TASKFLOW_SOURCE"]
-  prefix = ENVIRON["TASKFLOW_PREFIX"]
   step = ENVIRON["TASKFLOW_STEP"]
   step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
   verification = ENVIRON["TASKFLOW_VERIFICATION"]
@@ -147,17 +146,13 @@ END {
 
   if (cmd == "intake") {
     for (j = 1; j <= hc; j++) {
-      if (rfield(bstart(j), bend(j), "Goal") == goal) die("duplicate Todo goal")
+      a = bstart(j); b = bend(j)
+      if (rfield(a, b, "Goal") == goal) die("duplicate Todo goal")
+      # Two different goals colliding in the digest is a 1-in-16-million event;
+      # refusing loudly is better than writing an ID that `todo_part` cannot
+      # resolve to one entry.
+      if (rfield(a, b, "ID") == id) die("Todo ID already in use: " id)
     }
-    max = 0
-    for (j = 1; j <= hc; j++) {
-      v = rfield(bstart(j), bend(j), "ID")
-      if (at(v, prefix)) {
-        s = substr(v, length(prefix) + 1)
-        if (s ~ /^[0-9]+$/) { x = s + 0; if (x > max) max = x }
-      }
-    }
-    todo_id = prefix sprintf("%02d", max + 1)
     # str.rstrip(".") first, then truncate: the two steps are not commutative.
     t = goal
     sub(/\.+$/, "", t)
@@ -171,7 +166,7 @@ END {
       printf "%s", line[n]
     }
     printf "\n\n## %s\n\n- ID: %s\n- Status: inbox\n- Priority: normal\n- Owner: Codex\n- Source: %s\n- Added: %s\n- Updated: %s\n- Goal: %s\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n", \
-      title, todo_id, source, today, today, goal
+      title, id, source, today, today, goal
     exit 0
   }
 
@@ -300,10 +295,16 @@ case "$command" in
     mkdir -p "$root/TaskFlowDocs"
     todo="$root/TaskFlowDocs/todo.md"
     [ -f "$todo" ] || printf '# Todo\n' | write_file "$todo"
-    prefix="TF-$(printf '%s' "$today" | tr -d '-')-"
+    # The ID is derived from the goal, not from the highest existing ID: two
+    # branches cut from the same base would otherwise both compute "-01" on the
+    # first intake of the day and collide on merge. A digest of the goal makes
+    # the two branches agree, so the merge driver sees one entry, not two.
+    # `cksum` rather than `sha256sum`: it is in POSIX, so it is present on macOS,
+    # Windows' Git Bash, and Linux alike.
+    digest="$(printf '%s' "$goal" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
+    todo_id="TF-$(printf '%s' "$today" | tr -d '-')-$digest"
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
-      TASKFLOW_PREFIX="$prefix"
-    todo_id="$(grep -o "^- ID: ${prefix}[0-9]*$" "$todo" | tail -1 | sed 's/^- ID: //')"
+      TASKFLOW_ID="$todo_id"
     echo "intake OK: $todo_id"
     ;;
 
