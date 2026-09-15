@@ -1,2 +1,7 @@
 .sxng/
 tasks/
+# Personal rules are local-only and are never committed: everything beside
+# TaskFlowDocs/repository-docs/index.md is personal, so ignore its contents
+# and re-include the routing record itself.
+TaskFlowDocs/repository-docs/*
+!TaskFlowDocs/repository-docs/index.md

@@ -2,13 +2,13 @@
 
 Use this reference when creating or reviewing task documents. The task directory is `TaskFlowDocs/<YYYY-MM-DD-short-slug>/`.
 
-`TaskFlowDocs/repository-docs/index.md` is the authoritative routing and check record for repository rules, repository guidance, and personal supplements. Maintain or read it first, route by phase, load the listed authoritative sources, then record selected paths and incorporated conclusions in `plan.md`. Repository documents prevail over scoped personal supplements.
+`TaskFlowDocs/repository-docs/index.md` is the authoritative routing and check record for repository rules, repository guidance, and personal rules. Maintain or read it first, route by phase, load the listed authoritative sources, then record selected paths and incorporated conclusions in `plan.md`. Repository documents prevail over scoped personal rules.
 
-If a task needs a rule the repository does not supply, first classify it as shared governance or a personal habit. For non-trivial development, derive missing `CONTRIBUTING.md` and `CODE_STYLE.md` from repository evidence, ask at most three dependency-ordered questions per turn for undecidable policy, and require explicit approval before either becomes binding. Draft `ROADMAP.md` only from confirmed product direction and other repository documents only when task-dependent. Put only stricter or orthogonal personal habits under `repository-docs/personal/`; supplements never replace repository-owned policy. Stop for any conflict.
+If a task needs a rule the repository does not supply, first classify it as shared governance or a personal habit. For non-trivial development, derive missing `CONTRIBUTING.md` and `CODE_STYLE.md` from repository evidence, ask at most three dependency-ordered questions per turn for undecidable policy, and require explicit approval before either becomes binding. Draft `ROADMAP.md` only from confirmed product direction and other repository documents only when task-dependent. Put only stricter or orthogonal personal habits as `repository-docs/*.md`; personal rules never replace repository-owned policy and are never committed — the shared alternative is a repository-owned document. Stop for any conflict.
 
 `TaskFlowDocs/todo.md` is the mandatory first record only after a request passes the Skill's applicability gate: a repository development request or an explicit `$taskflow` invocation. Read-only explanation, translation, status, research, review, and diagnosis do not create Todo or task documents. Each qualifying batch import creates or updates one Todo item per source requirement, retaining source plus external identifier/link when available; the batch itself is metadata only. Todo retains triage metadata and a task link after promotion; PRD, Spec, Plan, and verification remain authoritative in that task directory.
 
-Each index entry records document class, repository-relative source path, applicable phases, existence, last-checked date, and status. The index contains routing metadata only; repository-owned documents remain authoritative at conventional source locations. When authorized to create a missing document, reuse an established conventional filename or use `README.md`, `CONTRIBUTING.md`, `CODE_STYLE.md`, or `ROADMAP.md` for those classes. Never copy or symbolically link repository-owned documents into `repository-docs/`, which contains only `index.md` and optional `personal/`.
+Each index entry records document class, repository-relative source path, applicable phases, existence, last-checked date, and status. The index contains routing metadata only; repository-owned documents remain authoritative at conventional source locations. When authorized to create a missing document, reuse an established conventional filename or use `README.md`, `CONTRIBUTING.md`, `CODE_STYLE.md`, or `ROADMAP.md` for those classes. Never copy or symbolically link repository-owned documents into `repository-docs/`, which contains `index.md` plus optional local personal rules named `*.md` (never committed).
 
 When a user changes an approved task fact, classify it before editing artifacts. The classification (work revision vs Task-version material change) and the required action for each are defined in `SKILL.md` under User-change trigger; this reference does not restate them. Never update only one core document after a material user change.
 
@@ -74,7 +74,7 @@ TaskFlowDocs/
 ## Skills / Tools Used (Optional)
 - `<name>` — purpose: `<why it was invoked>`; outcome: `succeeded | failed | unavailable`; incorporated: `<reviewed conclusion or None>`
 ## Preconditions
-- [ ] Applicable repository documents and personal supplements inspected; precedence/conflicts recorded.
+- [ ] Applicable repository documents and personal rules inspected; precedence/conflicts recorded.
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
 - [ ] For PR creation/update: applicable template path, every required-field mapping, and template verification recorded.
 - [ ] Missing governance drafts and explicit approvals recorded before they become binding.
