@@ -42,12 +42,13 @@ Host event names and output fields are version-sensitive; check each host's curr
 A hook MAY:
 - update a `TaskFlowDocs/todo.md` item's triage metadata (status, priority, date, `Next`) — Todo is triage metadata only;
 - inject a derived, clearly non-authoritative context summary (e.g. the SessionStart state summary);
+- maintain the selected task's `sessions.md` session index from the host event: one entry per session, limited to the session id, agent/platform, availability, started/last-active timestamps, code working directory, task artifact directory, and Task version/phase. `Last completed`, `Next step`, and `Notes` stay Agent-owned; the hook never creates the entry in another task, never touches `TaskFlowDocs/achieved/`, and never marks a session `closed`;
 - run one of the single-command transition scripts below.
 
 A hook MUST NOT:
 - create, rewrite, or delete `prd.md`, `spec.md`, `plan.md`, `reference/index.md`, or move anything under `TaskFlowDocs/achieved/` on its own;
 - create or alter an `## Approval` block, or otherwise approve;
-- duplicate promoted task facts into Todo or into any hook output;
+- duplicate promoted task facts into Todo, `sessions.md`, or any hook output;
 - read secrets or carry sensitive payloads in hook output (both hosts spill oversized output to disk).
 
 If a hook fails (nonzero exit or stderr), it must fail safe: no partial core writes. The host surfaces the error as a reminder; the Agent recovers.
@@ -60,6 +61,7 @@ Reference scripts:
 - `hooks/summarize-state` — prints the selected active task and its next Plan Step by default. Set `TASKFLOW_TASK_ID` for explicit selection or `TASKFLOW_VERBOSE=1` to include the full Todo and active-task inventory. Ambiguous state is reported without guessing. Prints nothing when no TaskFlowDocs exists.
 - `hooks/repository-docs-context` — atomically synchronizes deterministic index metadata for recognized sources and prints phase-filtered paths/status. It never edits source policies or core task documents.
 - `hooks/session-start` — consumes the host event JSON, processes only `SessionStart`, uses its `cwd` for repository routing, and wraps the summary into the platform's context field (Claude Code → `hookSpecificOutput.additionalContext`; Cursor → `additional_context`; Copilot/other → top-level `additionalContext`).
+- `hooks/session-record` — called by `session-start`; records the host `session_id` in the selected task's `sessions.md` (see the must/may-not list for the field boundary). Selection is the same as `summarize-state`: explicit `TASKFLOW_TASK_ID`, else the single active task; otherwise it writes nothing. It is best-effort — a failure never changes the SessionStart exit code or context output — and reports skipped or unparseable input on stderr only.
 
 Keep summaries short; both hosts cap oversized hook context (Claude Code caps at 10,000 chars and Codex spills past ~2,500 tokens). If nothing is present, print nothing.
 
@@ -102,6 +104,10 @@ repo-root/
         ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
+        ├── session-record               # records the host session id in the task index
+        ├── repository-docs-context      # syncs index metadata + derives routes
+        ├── python-runtime               # validates and selects a Python 3 interpreter
+        ├── task                         # explicit intake/promote/state/progress/complete
         ├── summarize-state              # shared state-summary generator
         ├── archive                      # full archive transaction (incl. Todo update)
         ├── version                      # archive changed docs + version bump

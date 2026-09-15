@@ -50,6 +50,53 @@ fi
 grep -q 'Python 3 is required' "$tmp/runtime-err" || { echo "FAIL runtime error missing guidance"; exit 1; }
 echo ok
 
+echo "== session-record writes the host session into the selected task =="
+record_root="$tmp/session-record"
+mkdir -p "$record_root/TaskFlowDocs/2026-09-08-record"
+cat > "$record_root/TaskFlowDocs/2026-09-08-record/plan.md" <<'EOF'
+# Plan — Record
+> Task version: v1
+> Status: in_progress
+EOF
+# AI_AGENT pins the platform label; without it the environment of the machine
+# running the suite decides it and the heading assertion is not reproducible.
+record="$record_root/TaskFlowDocs/2026-09-08-record/sessions.md"
+printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"smoke-a"}\n' "$record_root" |
+  TASKFLOW_REPO_ROOT="$record_root" AI_AGENT=claude-code CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >/dev/null
+grep -q '^- Session ID: smoke-a$' "$record" || { echo "FAIL session id not recorded"; exit 1; }
+grep -q '^- Status: resumable$' "$record" || { echo "FAIL session status missing"; exit 1; }
+grep -q "^### S1 — Claude$" "$record" || { echo "FAIL session entry heading missing"; exit 1; }
+# A same-session restart updates in place instead of duplicating the entry.
+cp "$record" "$tmp/session-record.before"
+sleep 1
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-a" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+[ "$(grep -c '^### S' "$record")" -eq 1 ] || { echo "FAIL same session duplicated"; exit 1; }
+diff "$tmp/session-record.before" "$record" >/dev/null && { echo "FAIL same session did not refresh"; exit 1; }
+grep -q '^- Last completed: Step 1 done$' "$record" || true
+# A different session appends a second entry and preserves the first.
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-b" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+grep -q '^- Session ID: smoke-b$' "$record" || { echo "FAIL second session not recorded"; exit 1; }
+[ "$(grep -c '^### S' "$record")" -eq 2 ] || { echo "FAIL second session did not append"; exit 1; }
+# Agent-owned lines survive an upsert.
+sed -i.bak 's/^- Session ID: smoke-b$/- Session ID: smoke-b\n- Last completed: Step 1 done\n- Next step: Run Step 2/' "$record"
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-b" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+grep -q '^- Last completed: Step 1 done$' "$record" && grep -q '^- Next step: Run Step 2$' "$record" || { echo "FAIL agent-owned fields overwritten"; exit 1; }
+# No session id, no active task, and ambiguous multi-task state all stay no-ops.
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+mkdir -p "$record_root/TaskFlowDocs/2026-09-08-second"
+cp "$record_root/TaskFlowDocs/2026-09-08-record/plan.md" "$record_root/TaskFlowDocs/2026-09-08-second/plan.md"
+rm -f "$record"
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_SESSION_ID="smoke-c" TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record"
+[ ! -e "$record" ] || { echo "FAIL ambiguous task state wrote a session record"; exit 1; }
+# An unparseable sessions.md is reported and left byte-identical.
+printf 'hand-written notes\n' > "$record"
+before=$(digest "$record")
+TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_TASK_ID="2026-09-08-record" TASKFLOW_SESSION_ID="smoke-d" \
+  TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record" 2>"$tmp/session-record.err"
+[ "$before" = "$(digest "$record")" ] || { echo "FAIL unparseable sessions.md was rewritten"; exit 1; }
+grep -q "'## Active / Resumable' section" "$tmp/session-record.err" || { echo "FAIL unparseable diagnostic missing"; exit 1; }
+echo ok
+
 echo "== session-start emits a platform JSON shape =="
 docs="$tmp/TaskFlowDocs"
 mkdir -p "$docs/2026-09-08-smoke" "$docs/achieved"
@@ -117,7 +164,15 @@ grep -q 'Read authoritative sources: .*CONTRIBUTING.md' "$tmp/design-routes.txt"
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
 grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | .* | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
 ! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
+# A personal rule sits directly in repository-docs/ and must be routed on its own
+# line so its local-only, subordinate status is visible.
 before=$(digest "$index")
+printf '# My rule\n' > "$docs/repository-docs/my-card.md"
+TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/personal-routes.txt"
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/my-card.md` | all | yes | .* | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/my-card.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
+! grep -q 'Read authoritative sources:.*my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
+rm -f "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
 echo ok
@@ -292,6 +347,25 @@ grep -q 'explicit user request to use `\$taskflow` opts any planning or research
 grep -q 'never assume `origin` is the fork or `upstream` exists' "$skill/SKILL.md" || { echo "FAIL fork remote boundary"; exit 1; }
 grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || { echo "FAIL baseline governance drafting"; exit 1; }
 grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
+grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
+echo ok
+
+echo "== phases map to concept classes without naming a capability =="
+grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
+grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
+grep -q '^| 6\. Verify and review | acceptance and findings | testing strategy' "$skill/SKILL.md" || { echo "FAIL verify phase concept row"; exit 1; }
+for heading in "1. Define — PRD" "2. Research — Reference" "3. Design — Spec decision" \
+               "4. Plan — execution contract" "5. Build — implement by Plan" \
+               "6. Verify and review" "7. Complete and archive"; do
+  grep -q "^| $heading |" "$skill/SKILL.md" || { echo "FAIL concept table is missing: $heading"; exit 1; }
+done
+concept_table=$(sed -n '/^| Phase | Artifact | Equivalent concept class/,/^$/p' "$skill/SKILL.md")
+[ -n "$concept_table" ] || { echo "FAIL concept table missing"; exit 1; }
+if printf '%s' "$concept_table" | grep -qiE 'taskflow|claude|codex|agent-skills|openai|anthropic|mcp'; then
+  echo "FAIL concept table names a product instead of a concept"; exit 1
+fi
+grep -q 'must be a choice, not an oversight' "$skill/SKILL.md" || { echo "FAIL unaided-phase signal missing"; exit 1; }
+grep -q 'says what class to look for' "$skill/references/artifacts.md" || { echo "FAIL accounting rule pointer missing"; exit 1; }
 echo ok
 
 echo "== repository-check is read-only and reports actionable status =="

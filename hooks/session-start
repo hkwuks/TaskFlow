@@ -42,6 +42,10 @@ fi
 if [ -n "$event_session_id" ]; then
   export TASKFLOW_SESSION_ID="$event_session_id"
 fi
+export TASKFLOW_SESSION_CWD="$event_cwd"
+# Record the host session id in the selected task's session index. Best-effort:
+# a failure here must never change this hook's exit code or context output.
+bash "${PLUGIN_ROOT}/hooks/session-record" || true
 
 # Synchronize the routing record, then derive compact context from it and task state.
 if ! state_summary="$(bash "${PLUGIN_ROOT}/hooks/summarize-state" 2>&1)"; then
