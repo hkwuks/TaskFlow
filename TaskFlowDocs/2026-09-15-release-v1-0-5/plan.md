@@ -56,16 +56,16 @@ No spec required — a release checklist run against a known-good base.
 - Dependencies: Step 1 合入 `origin/main`。
 - Files: 无仓库文件改动（Git 对象与 GitHub Release）。
 - Implementation checklist:
-  - [ ] `git fetch` 后确认 `origin/main` 就是发布提交，工作区干净。
-  - [ ] 复核两个 manifest 版本与 CHANGELOG 段落。
-  - [ ] 创建注解标签 `v1.0.5`，**推送前停下向用户确认**（`RELEASE.md` 要求显式发布批准）。
-  - [ ] 推送标签后，用该 tag 的提交 SHA 更新 `.claude-plugin/marketplace.json` 的 `ref`/`sha` 并再次验证。
-  - [ ] 从 tag 建 GitHub Release，正文用 CHANGELOG 的 `1.0.5` 段落。
-  - [ ] 记录 tag、Release URL、commit、marketplace pin。
+  - [x] `git fetch` 后确认 `origin/main` 就是发布提交，工作区干净。
+  - [x] 复核两个 manifest 版本与 CHANGELOG 段落。
+  - [x] 创建注解标签 `v1.0.5`，推送前停下向用户确认（用户回复「推」）。
+  - [x] 推送标签后，用该 tag 的提交 SHA 更新 `.claude-plugin/marketplace.json` 的 `ref`/`sha` 并再次验证。
+  - [x] 从 tag 建 GitHub Release，正文用 CHANGELOG 的 `1.0.5` 段落。
+  - [x] 记录 tag、Release URL、commit、marketplace pin。
 - Acceptance: tag 是 `main` 的祖先、指向发布提交；Release 存在且正文一致；marketplace 的 `ref`/`sha` 与 tag 对应。
-- Verification: `git ls-remote --tags origin | grep v1.0.5`、`git merge-base --is-ancestor`、`gh release view v1.0.5`、marketplace 的 JSON 断言。
+- Verification: 见 `## Verification / Review` 的发布记录。
 - Rollback: 不移动/删除已推送标签；出问题走补丁版。标签推送前的失败直接不推送即可。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -80,12 +80,16 @@ No spec required — a release checklist run against a known-good base.
 - `quick_validate.py skills/taskflow` → `Skill is valid!`。
 - `git diff --check` → clean。
 - 两个 manifest 版本断言：`.codex-plugin/plugin.json taskflow 1.0.5+codex.20260915`、`.claude-plugin/plugin.json taskflow 1.0.5`。
+- 发布记录：注解标签 `v1.0.5` → tag 对象 `010dee28eaa01f815ae083b64533fdd8575ed00a`，指向提交 `3151d2707d7bae3602f1dfaf5d70d11370dd4f8f`（`origin/main`，`git merge-base --is-ancestor` 确认）。
+- GitHub Release：`https://github.com/hkwuks/TaskFlow/releases/tag/v1.0.5`，正文即 CHANGELOG 的 `[1.0.5]` 段落。
+- marketplace pin：`.claude-plugin/marketplace.json` 的 `ref` = `v1.0.5`、`sha` = `3151d2707d7bae3602f1dfaf5d70d11370dd4f8f`，与标签提交逐字符一致。
 - 三个完成任务的归档在同一提交内：`TaskFlowDocs/2026-09-15-*` → `TaskFlowDocs/achieved/2026-09-15-*`，三份 `plan.md` 均为 `> Status: completed`，Todo 条目为 `- Status: done`。
 
 ## Change Log
 
 - 2026-09-15 发布范围原为「三件事拆三个 PR、然后发布」；用户改为一次性交付，随后选定版本号 `v1.0.5`，并要求归档先行。
 - 2026-09-15 用户批准 v1，并指定「推送标签前再确认一次」，因此 Step 2 的标签推送是唯一的中途停顿点。
+- 2026-09-15 用户在 Step 2 前回复「推」，标签于 2026-09-15 推送；标签一经推送即不可移动，本次发布至此不可回退，只能靠后续补丁版。
 - 2026-09-15 归档时发现 `hooks/archive` 只改 Todo 的 `Status` 与 `Task:` 路径，不更新 `Next action`，三条归档记录的 Next action 仍写着「Complete PRD / Spec / Plan and request approval.」；已手工改为 `None — completed and archived.`（hook-integrity 那条改为等待用户验收）。
 
 ## Follow-ups
