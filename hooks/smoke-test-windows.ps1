@@ -93,7 +93,7 @@ try {
     $context = $first.hookSpecificOutput.additionalContext
     if ($context -notmatch 'Repository document routes \(pr\)') { throw 'PR phase route missing from SessionStart JSON' }
     if ($context -notmatch 'CONTRIBUTING\.md') { throw 'Applicable source missing from SessionStart JSON' }
-    if ([IO.File]::ReadAllText($index) -notmatch '\| repository-rule \| `CONTRIBUTING\.md` \| code,commit,pr,release \| yes \|') { throw 'Index did not record existing source' }
+    if ([IO.File]::ReadAllText($index) -notmatch '\| repository-rule \| `CONTRIBUTING\.md` \| design,code,commit,pr,release \| yes \|') { throw 'Index did not record existing source' }
     $before = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
     $second = Invoke-SessionStart 'pr'
     $after = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
