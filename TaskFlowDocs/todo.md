@@ -382,15 +382,15 @@ Every direct request or imported requireme
 - Task: `TaskFlowDocs/2026-09-14-macos-hook-portability/`
 - Next action: Maintainer review of the fork pull request; approval stays with the maintainer.
 
-## Map TaskFlow phases to the concept class each one corresponds to in external wor
+## Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not
 
-- ID: TF-20260915-01
+- ID: TF-20260914-05
 - Status: promoted
 - Priority: normal
 - Owner: Codex
 - Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-15
-- Goal: Map TaskFlow phases to the concept class each one corresponds to in external workflows, so PRD/Spec/Plan work selects the right capability instead of working unaided.
-- Task: `TaskFlowDocs/2026-09-15-phase-concept-mapping/`
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not part of the TaskFlowDocs artifact system.
+- Task: `TaskFlowDocs/2026-09-14-untrack-workflow-draft/`
 - Next action: Complete PRD / Spec / Plan and request approval.
