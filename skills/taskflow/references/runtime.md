@@ -88,6 +88,24 @@ Run explicitly by the Agent as one operation. Only SessionStart summary injectio
 
 `task complete` performs the validated completion plus the existing archive transaction. The Agent still owns semantic document content and every Approval record.
 
+## Parallel branches and the Todo merge driver
+
+`TaskFlowDocs/todo.md` is one file every task appends to, so two task branches merge-conflict there even when they touched nothing in common. TaskFlow ships a Git merge driver for it, so the two ordinary cases resolve without a human:
+
+- two branches each added an entry — both entries survive;
+- two branches changed different entries — both changes survive.
+
+Two branches changing *the same* entry differently is still a real conflict and is left for review with ordinary conflict markers.
+
+The wiring is per-clone and untracked: `merge.taskflow-todo.driver` in the repository's own Git config, plus a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`. `hooks/install-merge-driver` writes both, `hooks/session-start` calls it on every session start, and it is idempotent, `--local`-only, silent on success, and best-effort. Nothing tracked is edited, so a repository that has not adopted TaskFlow is unaffected; `hooks/merge-todo` is the driver itself.
+
+Two limits are worth stating plainly:
+
+- **Only local merges.** A hosted-platform merge (a pull request merged in the web UI) runs server-side and does not run a custom driver — Git does not ship the driver command to the server. It degrades to an ordinary content conflict, which is resolvable but manual. Merging the branches locally and pushing is what uses the driver.
+- **Text, not semantics.** The driver matches entries by `- ID:` and falls back to the heading. Tasks that intentionally reuse an ID for different items are not detected as a conflict.
+
+Todo IDs are derived from the goal (`TF-<yyyymmdd>-<6 hex>` from a `cksum` digest), not from the highest existing ID. A shared counter makes two branches cut from the same base both allocate the day's first ID, and a merge that keeps both entries then leaves two entries claiming one ID — no merge strategy can repair that, because the ambiguity is in the content. Deriving the ID makes the branches agree instead.
+
 ## Folder layout
 
 ```text
@@ -107,6 +125,8 @@ repo-root/
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── session-record               # records the host session id in the task index
+        ├── install-merge-driver         # configures the repo-local Todo merge driver
+        ├── merge-todo                   # the driver: merges todo.md by entry
         ├── repository-docs-context      # syncs index metadata + derives routes
         ├── task                         # explicit intake/promote/state/progress/complete
         ├── summarize-state              # shared state-summary generator

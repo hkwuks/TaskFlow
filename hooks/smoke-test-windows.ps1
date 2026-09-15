@@ -58,7 +58,9 @@ try {
     $goal = 'Windows ' + [char]0x5B8C + [char]0x6574 + [char]0x751F + [char]0x547D + [char]0x5468 + [char]0x671F + '.'
     Invoke-TaskFlow (@('intake', $goal, 'PowerShell 5.1 fixture') + $common)
     $todo = Join-Path $Root 'TaskFlowDocs\todo.md'
-    $todoId = ([regex]::Match([IO.File]::ReadAllText($todo), '(?m)^- ID: (TF-\d+-\d+)$')).Groups[1].Value
+    # The suffix is a hex digest of the goal, not a counter, so this must accept
+    # both hex digits and any future letter case.
+    $todoId = ([regex]::Match([IO.File]::ReadAllText($todo), '(?m)^- ID: (TF-\d{8}-[0-9a-f]{6})$')).Groups[1].Value
     if (-not $todoId) { throw 'Todo ID missing' }
     if ([IO.File]::ReadAllText($todo) -notmatch [regex]::Escape($goal)) { throw 'Unicode goal was not preserved' }
 

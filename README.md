@@ -90,6 +90,8 @@ For fork, remote, or pull-request work, TaskFlow records the configured remotes,
 
 TaskFlow never implements in the base working tree: each task runs on its own short-lived branch created before the first edit, and concurrent tasks get separate working trees. `CONTRIBUTING.md` states the branch rule; the Skill states the worktree rule.
 
+Because every task appends to the one `TaskFlowDocs/todo.md`, TaskFlow ships a Git merge driver for it, installed per clone by `hooks/session-start`. Two branches that each added an entry, or that changed different entries, merge without a human; the same entry changed differently on both sides is still left as a real conflict. Todo IDs are derived from the goal rather than from a counter, so two branches cut from the same base cannot allocate the same ID. Merging a pull request in a hosting web UI runs server-side and does not use the driver, so that path falls back to an ordinary content conflict.
+
 Before creating or updating a pull request, TaskFlow reads the applicable `.github/pull_request_template.md`, satisfies every required item, records the field mapping and verification in `plan.md`, and blocks PR mutation when a required item is missing or ambiguous.
 
 Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`; it is not attached to automatic hooks.

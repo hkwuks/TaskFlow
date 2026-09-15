@@ -446,3 +446,16 @@ Every direct request or imported requireme
 - Goal: Run TaskFlow hooks without a Python interpreter
 - Task: `TaskFlowDocs/2026-09-15-no-python-hooks/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Make concurrent Todo updates merge cleanly in parallel-task branches
+
+- ID: TF-20260915-02
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Make concurrent Todo updates merge cleanly in parallel-task branches
+- Task: `TaskFlowDocs/2026-09-15-todo-merge-driver/`
+- Next action: Complete PRD / Spec / Plan and request approval.

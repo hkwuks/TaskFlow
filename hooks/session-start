@@ -166,6 +166,11 @@ export TASKFLOW_SESSION_CWD="$event_cwd"
 # a failure here must never change this hook's exit code or context output.
 bash "${PLUGIN_ROOT}/hooks/session-record" || true
 
+# Point this repository at the Todo merge driver, so parallel task branches merge
+# the intake list by entry. Also best-effort, and independent of any task state:
+# a repository that has not adopted TaskFlow still gets the driver installed.
+bash "${PLUGIN_ROOT}/hooks/install-merge-driver" || true
+
 # Synchronize the routing record, then derive compact context from it and task state.
 if ! state_summary="$(bash "${PLUGIN_ROOT}/hooks/summarize-state" 2>&1)"; then
   printf '%s\n' "$state_summary" >&2
