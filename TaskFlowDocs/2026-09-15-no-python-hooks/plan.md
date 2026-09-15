@@ -1,6 +1,6 @@
 # Plan — Run TaskFlow hooks without a Python interpreter
 > Task version: v2
-> Status: ready
+> Status: in_progress
 
 ## Spec Pointers
 
@@ -29,11 +29,11 @@
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-15 13:14 +0800
+- Approved version: v2
+- Approved scope: PRD / Spec / Plan
 
 ## Steps
 

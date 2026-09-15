@@ -437,7 +437,7 @@ Every direct request or imported requireme
 ## Run TaskFlow hooks without a Python interpreter
 
 - ID: TF-20260915-01
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: user request

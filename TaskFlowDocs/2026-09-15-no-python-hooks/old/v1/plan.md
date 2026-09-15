@@ -36,33 +36,26 @@
 
 ## Steps
 
-### Step 1 — Prove byte-identical output on the two heaviest hooks
+### Step 1 — Prove the target idiom on the two heaviest hooks
 
 - Goal: Rewrite `hooks/repository-docs-context` and `hooks/session-record` with
   POSIX `awk`/`sed` and confirm byte-identical output on the existing smoke
   fixtures. These two carry the most structured logic (index sync, session
   upsert) and exercise every construct the other hooks need.
 - Dependencies: None.
-- Files: `hooks/repository-docs-context`, `hooks/session-record`,
-  `hooks/smoke-test` (new equivalence section), `tools/fixture-compare` (new).
+- Files: `hooks/repository-docs-context`, `hooks/session-record`.
 - Implementation checklist:
-  - [x] Capture the Python implementation's output as the reference: run
+  - [ ] Capture the Python implementation's output as the reference: run
         `bash hooks/smoke-test <dir>` against the unmodified hooks and keep the
         produced fixture files.
-  - [x] Add a fixture comparator that byte-compares two smoke roots, normalizing
-        only the root path and excluding `.git/` and the WindowsApps shim.
-  - [x] Confirm the comparator itself is safe: it reports no differences when run
-        against an unchanged second run, so it measures equality rather than the
-        absence of a smoke failure.
   - [ ] Rewrite both hooks; keep each script's external interface, exit codes,
         and stderr diagnostics identical.
   - [ ] Confirm the reference fixtures are reproduced byte for byte, including
         the no-op and unparseable-input paths.
 - Acceptance: The two rewritten hooks reproduce the reference fixtures exactly,
   and the smoke sections covering them pass unmodified.
-- Verification: `tools/fixture-compare` reports 0 differences over the captured
-  fixture set; the Python-runtime error fixture is the one intentional
-  difference (the message stays, the traceback text does not).
+- Verification: Byte comparison of every file the fixtures produce; the new
+  no-Python smoke assertion.
 - Rollback: `git checkout` the two hook files.
 - Status: pending
 
@@ -111,20 +104,13 @@
 
 ## Verification / Review
 
-- `tools/fixture-compare <reference> <candidate>` reports 0 differences. The
-  reference is captured from the Python implementation before it is removed.
+- Reference fixtures captured from the Python implementation and compared byte
+  for byte.
 - `bash hooks/smoke-test` with `PATH` containing no `python*`.
 - `bash -n` on every hook; manual review of `awk`/`sed` for GNU-only constructs.
 - CI: ubuntu, macos, windows.
 
 ## Change Log
-
-- 2026-09-15 — Task version bumped from v1 to v2 and re-approved: the PRD recorded
-  a POSIX `awk`/`sed` direction but not the user's confirmed answers (Git for
-  Windows Bash stays required; no PowerShell implementation; error diagnostics
-  keep the message and may drop traceback text).
-- 2026-09-15 — Captured the reference fixture set from the Python implementation
-  and validated the comparator against a second unchanged run.
 
 ## Follow-ups
 

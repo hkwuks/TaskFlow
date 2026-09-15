@@ -1,6 +1,6 @@
 # Remove the Python runtime dependency from TaskFlow hooks
 > Task version: v1
-> Status: ready
+> Status: in_progress
 
 ## Goal
 
@@ -18,9 +18,6 @@ output, or exit code.
 - `hooks/python-runtime` exists solely to locate and validate an interpreter and
   to reject WindowsApps Microsoft Store aliases. Removing the dependency deletes
   the problem it was written for, along with `TASKFLOW_PYTHON`.
-- The user confirmed the direction is POSIX `awk`/`sed` at bash 3.2 level, not a
-  native PowerShell implementation. Git for Windows Bash is a required Windows
-  runtime; a host without it is not a supported target.
 - `hooks/version`, `hooks/repository-check`, and `hooks/run-hook.cmd` are already
   Python-free; `hooks/version` already uses the temp-file + `mv` idiom and `awk`
   field rewriting, so the target idiom exists in this repository.
@@ -90,9 +87,6 @@ output, or exit code.
   implementation produced (`newline=""`), or diff churn appears on Windows.
 - A host without any POSIX toolchain is already unsupported; this change removes
   one dependency without adding any.
-- Error diagnostics lose Python's traceback text and keep the message: the smoke
-  suite asserts the message, so a traceback in the reference fixtures is not a
-  behavior this task preserves.
 
 ## Open Questions
 
