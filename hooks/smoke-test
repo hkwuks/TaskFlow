@@ -146,14 +146,16 @@ expected='- Status
 - Code working directory
 - Task artifact directory
 - Task version / phase'
-actual="$(sed -n 's/^- \(Status\|Primary\|Session availability\|Session ID\|Started\|Last active\|Code working directory\|Task artifact directory\|Task version \/ phase\):.*/- \1/p' "$order_record")"
+# awk rather than sed: `\|` alternation is a GNU extension, so the same pattern
+# matches nothing under BSD sed and the assertion would pass vacuously on macOS.
+actual="$(awk '/^- (Status|Primary|Session availability|Session ID|Started|Last active|Code working directory|Task artifact directory|Task version \/ phase):/ { sub(/:.*/, ""); print }' "$order_record")"
 [ "$actual" = "$expected" ] || { echo "FAIL session field order changed:"; printf '%s\n' "$actual"; exit 1; }
 # The entry reports the task's own version and status, not a hardcoded pair.
 grep -q '^- Task version / phase: v3 / in_progress$' "$order_record" || { echo "FAIL task version/phase not read from the Plan"; exit 1; }
 # A second run for the same session keeps the same order.
 TASKFLOW_REPO_ROOT="$order_root" TASKFLOW_TASK_ID=2026-09-08-order TASKFLOW_SESSION_ID=order-a \
   TASKFLOW_SESSION_CWD="$order_root" AI_AGENT=claude-code bash "$HERE/session-record"
-actual="$(sed -n 's/^- \(Status\|Primary\|Session availability\|Session ID\|Started\|Last active\|Code working directory\|Task artifact directory\|Task version \/ phase\):.*/- \1/p' "$order_record")"
+actual="$(awk '/^- (Status|Primary|Session availability|Session ID|Started|Last active|Code working directory|Task artifact directory|Task version \/ phase):/ { sub(/:.*/, ""); print }' "$order_record")"
 [ "$actual" = "$expected" ] || { echo "FAIL session field order changed on upsert"; exit 1; }
 [ "$(grep -c '^### S' "$order_record")" -eq 1 ] || { echo "FAIL upsert duplicated the entry"; exit 1; }
 echo ok
@@ -311,7 +313,7 @@ if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; the
   echo "== Windows launcher finds Git Bash =="
   win_hook=$(cygpath -w "$HERE/run-hook.cmd")
   json=$(cd "$tmp" && TASKFLOW_REPO_ROOT="$tmp" cmd.exe //d //c "$win_hook" session-start 2>&1)
-  echo "$json" | grep -q 'additionalContext\|additional_context\|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
+  echo "$json" | grep -qE 'additionalContext|additional_context|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
   echo ok
 fi
 
