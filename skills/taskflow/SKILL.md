@@ -118,6 +118,20 @@ TaskFlow is the task-lifecycle and artifact layer, not the expert-capability lay
 
 If none apply, continue with the base TaskFlow flow. If an optional invocation is unavailable or fails, continue with the base flow and record the failed or unavailable attempt only when it materially affects the task; block only when the capability is required for correctness and no safe alternative exists. Review successful outputs before incorporating them; raw outputs are not authoritative. When `plan.md` exists, record only actual invocation attempts: for success, record purpose and incorporated conclusions; for a relevant failure, record the failed or unavailable outcome without claiming incorporation. Do not record discovery, selection, or an uninvoked capability as used.
 
+A phase's artifact has an equivalent outside TaskFlow. TaskFlow names these itself, so an available capability rarely advertises "PRD"; match on the concept instead, and consider the class below before writing the artifact unaided. The class says what to look for, never what to use: availability, fit, and the decision to proceed unaided stay yours.
+
+| Phase | Artifact | Equivalent concept class | Consider a capability for |
+| --- | --- | --- | --- |
+| 1. Define — PRD | `prd.md` | requirements elicitation and framing | interviewing the user, refining a vague idea into testable requirements, writing a requirements document |
+| 2. Research — Reference | `reference/` | literature and evidence review | searching external sources, assessing evidence quality, annotating findings |
+| 3. Design — Spec decision | `spec.md`, or the recorded `No spec required` | architecture and design specification | methodology or architecture design, interface/contract definition |
+| 4. Plan — execution contract | `plan.md` | work breakdown and task decomposition | decomposing work into verifiable steps, sequencing dependencies, estimating |
+| 5. Build — implement by Plan | the change itself | incremental implementation | language and framework conventions, pattern guidance for the code being written |
+| 6. Verify and review | acceptance and findings | testing strategy and code review | designing or writing tests, adversarial review, security or performance review |
+| 7. Complete and archive | archived directory, promoted rules | documentation and decision records | writing durable documentation or an ADR, recording the decision trail |
+
+A phase ran unaided when its artifact exists but nothing was invoked for its concept class; that is a legitimate outcome, but it must be a choice, not an oversight. Record it as one.
+
 For a non-trivial task:
 
 ```text

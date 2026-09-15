@@ -381,3 +381,16 @@ Every direct request or imported requireme
 - Goal: Make the hooks and smoke tests pass on stock macOS (bash 3.2 + BSD sed), cover macOS and the evals in CI, and align plugin license metadata with the AGPL-3.0 LICENSE.
 - Task: `TaskFlowDocs/2026-09-14-macos-hook-portability/`
 - Next action: Maintainer review of the fork pull request; approval stays with the maintainer.
+
+## Map TaskFlow phases to the concept class each one corresponds to in external wor
+
+- ID: TF-20260915-01
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Map TaskFlow phases to the concept class each one corresponds to in external workflows, so PRD/Spec/Plan work selects the right capability instead of working unaided.
+- Task: `TaskFlowDocs/2026-09-15-phase-concept-mapping/`
+- Next action: Complete PRD / Spec / Plan and request approval.
