@@ -30,22 +30,16 @@ Run and record applicable results:
 
 ```bash
 bash hooks/repository-check .
+bash hooks/release-check .
 bash hooks/smoke-test
 python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow
 git diff --check
 ```
 
-Verify both manifests report the intended version:
-
-```bash
-python3 - <<'PY'
-import json
-for path in ('.codex-plugin/plugin.json', '.claude-plugin/plugin.json'):
-    with open(path, encoding='utf-8') as handle:
-        data = json.load(handle)
-    print(path, data['name'], data['version'])
-PY
-```
+`hooks/release-check` compares the version literals a release has to move — both
+plugin manifests, the newest `CHANGELOG.md` section, and the `claude plugin list`
+sample in each README — and confirms the marketplace `ref` resolves to the commit
+its `sha` names. It exits `2` on a mismatch and `3` when a manifest is missing.
 
 Do not claim an unavailable check passed; record limitations in the release task.
 
@@ -59,11 +53,18 @@ After the release scope is merged to the intended base (or the optional Release 
 
 1. Check out the exact merged base commit and confirm a clean working tree.
 2. Verify manifest versions and release notes again.
-3. Create an annotated tag such as `v1.0.5`.
+3. Create an annotated tag such as `vX.Y.Z`.
 4. Push the tag only after explicit release-owner approval.
 5. Create the GitHub Release from that tag with the approved notes.
-6. Update the marketplace entry on `main` so its Git source uses the release tag as `ref` and the exact tagged commit as `sha`; validate it with both Claude Code and Codex tooling before publishing the catalog change.
+6. Update the marketplace entry on `main` so its Git source uses the release tag as `ref` and the exact tagged commit as `sha`; then run `bash hooks/release-check .` and validate it with both Claude Code and Codex tooling before publishing the catalog change.
 7. Record the tag, release URL, commit, marketplace pin, and checks in the release task.
+
+Steps 3–6 make a release two commits, by construction: the tag cannot be created
+before the release commit exists on the base, and the pinned `sha` cannot be
+written before the tag exists. Claude Code verifies the pin at install time and
+refuses a mismatch as `sha_pin_mismatch`, and it clones by the pinned commit
+rather than by the tag, so the pin is what keeps an installation on the reviewed
+release if the tag is ever moved. The second commit is the pin, not a mistake.
 
 The marketplace catalog itself remains on `main` so refreshes can discover the latest stable entry. The plugin source must not point at moving `main`; local-directory marketplace registration remains the development path.
 

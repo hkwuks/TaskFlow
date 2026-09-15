@@ -354,6 +354,12 @@ bash "$HERE/archive" 2026-09-08-smoke "$tmp" >/dev/null
 [ -d "$docs/achieved/2026-09-08-smoke" ] || { echo "FAIL not archived"; exit 1; }
 grep -q -- "- Status: done" "$docs/todo.md" || { echo "FAIL todo not done"; exit 1; }
 grep -q "achieved/2026-09-08-smoke" "$docs/todo.md" || { echo "FAIL todo path"; exit 1; }
+# This fixture entry has no `- Next action:` at all, so archiving has to add the
+# canonical line rather than silently leave a done entry with no next action.
+grep -A1 -- "- Status: done" "$docs/todo.md" | grep -q -- "- Next action: None — completed and archived." || { echo "FAIL next action not added to an entry that lacked one"; exit 1; }
+# Exactly one, not one more: an archive that adds the line without replacing an
+# existing one leaves the entry with two next actions and only the first is read.
+[ "$(grep -c '^- Next action:' "$docs/todo.md")" -eq 1 ] || { echo "FAIL archive left more than one next action:"; grep -n '^- Next action:' "$docs/todo.md"; exit 1; }
 echo ok
 
 echo "== reopen restores =="
@@ -462,6 +468,13 @@ if bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --root "$lifecycle" >/d
 bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --user-accepted --root "$lifecycle" >/dev/null
 [ ! -d "$active" ] && [ -d "$lifecycle/TaskFlowDocs/achieved/2026-09-10-lifecycle-smoke" ] || { echo "FAIL lifecycle archive"; exit 1; }
 grep -q -- '- Status: done' "$todo" || { echo "FAIL lifecycle Todo not done"; exit 1; }
+# The next action `promote` wrote is only true before completion; an archived
+# entry that still carries it claims outstanding work next to `Status: done`.
+grep -q -- '- Next action: None — completed and archived\.' "$todo" || { echo "FAIL lifecycle Todo next action not cleared"; exit 1; }
+# The entry already had the field, so it must have been replaced in place rather
+# than joined by a second one.
+[ "$(grep -c '^- Next action:' "$todo")" -eq 1 ] || { echo "FAIL lifecycle archive added a second next action:"; grep -n '^- Next action:' "$todo"; exit 1; }
+grep -q -- '- Next action: Complete PRD' "$todo" && { echo "FAIL lifecycle archive kept the pre-completion next action"; exit 1; }
 echo ok
 
 echo "== approval gates block progress and completion =="
@@ -536,6 +549,16 @@ grep -q 'are not rewritten for language' "$skill/references/artifacts.md" || { e
 for token in '^## Approval$' '^- Status:' '> Task version:' '### Step '; do
   grep -q -- "$token" "$skill/references/artifacts.md" || { echo "FAIL language rule does not pin: $token"; exit 1; }
 done
+echo ok
+
+echo "== release task documents point at the procedure instead of restating it =="
+# A release copies its checklist into the Plan whenever the rule is unstated, and
+# the copy is what drifts from RELEASE.md. Pin the rule, then pin that the
+# approval and archive requirements survive it.
+grep -q '^## Release task documents$' "$skill/references/artifacts.md" || { echo "FAIL release document rule missing"; exit 1; }
+grep -q 'RELEASE.md` is the plan' "$skill/references/artifacts.md" || { echo "FAIL release rule does not name the procedure"; exit 1; }
+grep -q 'referring to that document by section instead of repeating its commands' "$skill/references/artifacts.md" || { echo "FAIL release rule does not forbid restating the checklist"; exit 1; }
+grep -q 'Keep `## Approval` and archiving unchanged' "$skill/references/artifacts.md" || { echo "FAIL release rule dropped the approval requirement"; exit 1; }
 echo ok
 
 echo "== phases map to concept classes without naming a capability =="
@@ -763,6 +786,79 @@ git -C "$par" merge -q --no-edit right
 [ "$(grep -c '^- ID: ' "$par/TaskFlowDocs/todo.md")" -eq 3 ] \
   || { echo "FAIL parallel intake lost an entry:"; grep '^- ID: ' "$par/TaskFlowDocs/todo.md"; exit 1; }
 grep -q '^<<<<<<<' "$par/TaskFlowDocs/todo.md" && { echo "FAIL parallel intake conflicted"; exit 1; }
+echo ok
+
+echo "== release-check catches version drift and a bad marketplace pin =="
+# Release literals live in five files and nothing else compares them: the checks
+# in RELEASE.md covered the two manifests and left the CHANGELOG section, both
+# README samples, and the marketplace `ref`/`sha` pair to the release author. Each
+# case below is a drift that shipped silently before.
+rel="$tmp/release-check"
+mkdir -p "$rel/.claude-plugin" "$rel/.codex-plugin"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/.claude-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rel/.codex-plugin/plugin.json"
+printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$rel/CHANGELOG.md"
+printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$rel/README.md"
+cp "$rel/README.md" "$rel/README.zh-CN.md"
+git -C "$rel" init -q
+git -C "$rel" config user.email smoke@example.invalid
+git -C "$rel" config user.name smoke
+git -C "$rel" add -A
+git -C "$rel" commit -qm init
+git -C "$rel" tag v9.9.9
+printf '{\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.9",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$(git -C "$rel" rev-parse HEAD)" \
+  > "$rel/.claude-plugin/marketplace.json"
+
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL consistent release rejected:"; cat "$rel/out"; exit 1; }
+grep -q 'STATUS: pass' "$rel/out" || { echo "FAIL consistent release did not pass"; cat "$rel/out"; exit 1; }
+
+# One README sample left on the previous version.
+sed 's/Version: 9.9.9/Version: 9.9.8/' "$rel/README.md" > "$rel/README.tmp"; mv "$rel/README.tmp" "$rel/README.md"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL stale README sample accepted"; exit 1; fi
+grep -q 'README.md says 9.9.8' "$rel/out" || { echo "FAIL stale README sample not named"; cat "$rel/out"; exit 1; }
+cp "$rel/README.zh-CN.md" "$rel/README.md"
+
+# A CHANGELOG whose newest section is not the version being released.
+sed 's/^## \[9.9.9\]/## [9.9.8]/' "$rel/CHANGELOG.md" > "$rel/CHANGELOG.tmp"; mv "$rel/CHANGELOG.tmp" "$rel/CHANGELOG.md"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL stale CHANGELOG section accepted"; exit 1; fi
+grep -q 'CHANGELOG.md says 9.9.8' "$rel/out" || { echo "FAIL stale CHANGELOG section not named"; cat "$rel/out"; exit 1; }
+sed 's/^## \[9.9.8\]/## [9.9.9]/' "$rel/CHANGELOG.md" > "$rel/CHANGELOG.tmp"; mv "$rel/CHANGELOG.tmp" "$rel/CHANGELOG.md"
+
+# Codex cachebuster: the release number agrees, the suffix is not compared.
+sed 's/9\.9\.9+codex\.20260915/9.9.9+codex.20991231/' "$rel/.codex-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codex-plugin/plugin.json"
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL cachebuster suffix compared as a version"; cat "$rel/out"; exit 1; }
+
+# The pin and the tag must name one commit; this is what Claude Code refuses at
+# install time as `sha_pin_mismatch`, and it is the one failure a release cannot
+# notice by comparing version numbers.
+sed 's/9\.9\.9+codex\.20991231/9.9.9+codex.20260915/' "$rel/.codex-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codex-plugin/plugin.json"
+sed 's/"sha": "[0-9a-f]*"/"sha": "0000000000000000000000000000000000000000"/' "$rel/.claude-plugin/marketplace.json" > "$rel/m.tmp"
+mv "$rel/m.tmp" "$rel/.claude-plugin/marketplace.json"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL mismatched sha accepted"; exit 1; fi
+grep -q 'but sha says 0000000000000000000000000000000000000000' "$rel/out" || { echo "FAIL mismatched sha not named"; cat "$rel/out"; exit 1; }
+
+# The pin staying on the previous release while the next one is prepared is the
+# normal mid-release state, so it must not be reported as a mismatch.
+git -C "$rel" tag v9.9.8
+sed 's/"ref": "v9.9.9"/"ref": "v9.9.8"/; s/"sha": "0000000000000000000000000000000000000000"/"sha": "'"$(git -C "$rel" rev-parse HEAD)"'"/' \
+  "$rel/.claude-plugin/marketplace.json" > "$rel/m.tmp"; mv "$rel/m.tmp" "$rel/.claude-plugin/marketplace.json"
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL pin on the previous release rejected"; cat "$rel/out"; exit 1; }
+
+# A tag that is not present locally is a blocked check, not a version mismatch:
+# releasing without fetched tags would otherwise compare against nothing.
+git -C "$rel" tag -d v9.9.8 >/dev/null
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL missing ref tag accepted"; exit 1; fi
+grep -q 'is not present locally' "$rel/out" || { echo "FAIL missing ref tag not named"; cat "$rel/out"; exit 1; }
+
+# A missing manifest blocks rather than reports: exit 3 is the documented
+# blocked status, distinct from needs-user-input.
+rm "$rel/CHANGELOG.md"
+set +e
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1
+rel_status=$?
+set -e
+[ "$rel_status" -eq 3 ] || { echo "FAIL missing manifest exit code: $rel_status"; cat "$rel/out"; exit 1; }
+grep -q 'STATUS: blocked' "$rel/out" || { echo "FAIL missing manifest not blocked"; cat "$rel/out"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

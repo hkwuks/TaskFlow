@@ -26,7 +26,9 @@ fi
 mv "$docs/$task" "$docs/achieved/$task"
 
 # 3. update the linked Todo item: Task: path -> achieved, Status -> done
-awk -v task="$task" '
+#    `promote` writes a next action that is only true before completion, so
+#    leaving it would make every archived entry claim outstanding work.
+awk -v task="$task" -v next_action='None — completed and archived.' '
   { n++; line[n] = $0 }
   END {
     needle = "`TaskFlowDocs/" task "/`"
@@ -42,9 +44,22 @@ awk -v task="$task" '
     for (i = start + 1; i <= n; i++) {
       if (index(line[i], "## ") == 1) { finish = i; break }
     }
+    status_i = 0
     for (i = start + 1; i < finish; i++) {
       p = "- Status:"
-      if (index(line[i], p) == 1) { line[i] = "- Status: done"; break }
+      if (index(line[i], p) == 1) { line[i] = "- Status: done"; status_i = i; break }
+    }
+    next_i = 0
+    for (i = start + 1; i < finish; i++) {
+      p = "- Next action:"
+      if (index(line[i], p) == 1) { line[i] = p " " next_action; next_i = i; break }
+    }
+    # `promote` always writes the field, but a hand-written or older entry may not
+    # carry it: add the canonical line rather than fail an archive over Todo shape.
+    if (!next_i && status_i) {
+      for (i = n; i > status_i; i--) line[i + 1] = line[i]
+      n++
+      line[status_i + 1] = "- Next action: " next_action
     }
     for (i = 1; i <= n; i++) {
       gsub(needle, "`TaskFlowDocs/achieved/" task "/`", line[i])
@@ -61,4 +76,5 @@ fail=0
 grep -q '> Status: completed' "$docs/achieved/$task/prd.md" || { echo "FAIL: achieved prd not completed"; fail=1; }
 grep -q '> Status: completed' "$docs/achieved/$task/plan.md" || { echo "FAIL: achieved plan not completed"; fail=1; }
 grep -q "achieved/$task/\`" "$todo" || { echo "FAIL: Todo Task: path not updated"; fail=1; }
+grep -q "^- Next action: None — completed and archived\.$" "$todo" || { echo "FAIL: Todo next action not cleared"; fail=1; }
 if [ "$fail" = "0" ]; then echo "archive OK: $task -> achieved, Todo done"; else echo "archive FAILED"; exit 1; fi

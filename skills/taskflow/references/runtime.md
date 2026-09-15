@@ -133,6 +133,7 @@ repo-root/
         ├── archive                      # full archive transaction (incl. Todo update)
         ├── version                      # archive changed docs + version bump
         ├── reopen                       # retrieve an achieved task
+        ├── release-check                # version literals + marketplace pin agree
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests
 ```
