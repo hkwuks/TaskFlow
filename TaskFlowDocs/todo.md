@@ -459,3 +459,16 @@ Every direct request or imported requireme
 - Goal: Make concurrent Todo updates merge cleanly in parallel-task branches
 - Task: `TaskFlowDocs/2026-09-15-todo-merge-driver/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Fix hook integrity so archived versions are never polluted, unimplemented work c
+
+- ID: TF-20260915-0f6dda
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Fix hook integrity so archived versions are never polluted, unimplemented work cannot pass the approval gates, and task documents follow the user's language
+- Task: `TaskFlowDocs/2026-09-15-hook-integrity/`
+- Next action: Complete PRD / Spec / Plan and request approval.
