@@ -10,6 +10,32 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Record the host SessionStart session_id in the active task's sessions.md
+
+- ID: TF-20260914-02
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
+- Task: `TaskFlowDocs/2026-09-14-session-id-record/`
+- Next action: Awaiting user acceptance of the implemented change; then complete and archive.
+
+## State in the Skill that personal supplements are local-only
+
+- ID: TF-20260914-03
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: State in the Skill that personal supplements are local-only and must not be committed to Git, and align this repository with that boundary.
+- Task: `TaskFlowDocs/2026-09-14-personal-docs-git-boundary/`
+- Next action: Awaiting user acceptance of the implemented change; then complete and archive.
+
 ## TF-20260913-03 — Pin stable marketplace installs to released revisions
 - Status: done
 - Priority: normal
@@ -393,4 +419,17 @@ Every direct request or imported requireme
 - Updated: 2026-09-14
 - Goal: Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not part of the TaskFlowDocs artifact system.
 - Task: `TaskFlowDocs/2026-09-14-untrack-workflow-draft/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
+## Require a short-lived branch or dedicated worktree before implementation starts,
+
+- ID: TF-20260914-04
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: Require a short-lived branch or dedicated worktree before implementation starts, and route contribution rules to the design phase.
+- Task: `TaskFlowDocs/2026-09-14-branch-and-worktree-gate/`
 - Next action: Complete PRD / Spec / Plan and request approval.

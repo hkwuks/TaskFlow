@@ -9,7 +9,7 @@ This index is the authoritative routing and check record for repository document
 | repository-guidance | `README.md` | design,roadmap | yes | 2026-09-15 | ready |
 | repository-guidance | `README.zh-CN.md` | design,roadmap | yes | 2026-09-15 | ready |
 | repository-rule | `LICENSE` | all | yes | 2026-09-15 | ready |
-| repository-rule | `CONTRIBUTING.md` | code,commit,pr,release | yes | 2026-09-15 | ready |
+| repository-rule | `CONTRIBUTING.md` | design,code,commit,pr,release | yes | 2026-09-15 | ready |
 | repository-rule | `CODE_STYLE.md` | code,review | yes | 2026-09-15 | ready |
 | repository-guidance | `ROADMAP.md` | design,roadmap,release | yes | 2026-09-15 | ready |
 | repository-rule | `.github/pull_request_template.md` | pr | yes | 2026-09-15 | ready |

@@ -11,6 +11,21 @@
 
 Non-trivial changes require a Todo item, `prd.md`, `spec.md` when large, and `plan.md`. Do not implement until the Plan records user approval. Record verification and follow-ups in the Plan. Archive completed tasks under `TaskFlowDocs/achieved/` only after acceptance.
 
+## Working branches
+
+Never implement in the base working tree. One task, one short-lived branch, created before the first edit:
+
+```bash
+git switch -c fix/<description> <base-branch>
+```
+
+- Name the branch for its TaskFlow task, using the prefixes below.
+- Keep a task's documents and its code on the same branch so the Plan, the diff, and the verification stay together.
+- Confirm where you are before editing. `git branch --show-current` shows the branch; `bash hooks/repository-check .` reports the local branch and warns with `Base: ambiguous` when no upstream is set.
+- Run `bash hooks/smoke-test` on the branch whose files changed, not on another checkout.
+
+Agents working several tasks at once isolate each one in its own working tree; `skills/taskflow/SKILL.md` states that rule.
+
 ## Branches and commits
 
 Use short-lived branches named `feature/<description>`, `fix/<description>`, `docs/<description>`, or `chore/<description>`. Keep commits focused and use `<type>: <imperative description>` (for example, `docs: clarify fork workflow`). Separate unrelated refactors and formatting changes.

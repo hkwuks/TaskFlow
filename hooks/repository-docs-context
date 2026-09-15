@@ -35,7 +35,7 @@ entries = [
     ("repository-guidance", "README.md", "design,roadmap"),
     ("repository-guidance", "README.zh-CN.md", "design,roadmap"),
     ("repository-rule", "LICENSE", "all"),
-    ("repository-rule", "CONTRIBUTING.md", "code,commit,pr,release"),
+    ("repository-rule", "CONTRIBUTING.md", "design,code,commit,pr,release"),
     ("repository-rule", "CODE_STYLE.md", "code,review"),
     ("repository-guidance", "ROADMAP.md", "design,roadmap,release"),
     ("repository-rule", ".github/pull_request_template.md", "pr"),
