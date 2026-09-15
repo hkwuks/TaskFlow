@@ -437,38 +437,51 @@ Every direct request or imported requireme
 ## Run TaskFlow hooks without a Python interpreter
 
 - ID: TF-20260915-01
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-15
 - Updated: 2026-09-15
 - Goal: Run TaskFlow hooks without a Python interpreter
-- Task: `TaskFlowDocs/2026-09-15-no-python-hooks/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-15-no-python-hooks/`
+- Next action: None — completed and archived.
 
 ## Make concurrent Todo updates merge cleanly in parallel-task branches
 
 - ID: TF-20260915-02
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-15
 - Updated: 2026-09-15
 - Goal: Make concurrent Todo updates merge cleanly in parallel-task branches
-- Task: `TaskFlowDocs/2026-09-15-todo-merge-driver/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-15-todo-merge-driver/`
+- Next action: None — completed and archived.
 
 ## Fix hook integrity so archived versions are never polluted, unimplemented work c
 
 - ID: TF-20260915-0f6dda
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-15
 - Updated: 2026-09-15
 - Goal: Fix hook integrity so archived versions are never polluted, unimplemented work cannot pass the approval gates, and task documents follow the user's language
-- Task: `TaskFlowDocs/2026-09-15-hook-integrity/`
+- Task: `TaskFlowDocs/achieved/2026-09-15-hook-integrity/`
+- Next action: Awaiting user acceptance of the implemented change; this task's Step 1 also shipped as PR #24 and Steps 2/3 as PR #25, both merged.
+
+## Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and th
+
+- ID: TF-20260915-a9cabf
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and the hook-integrity fixes
+- Task: `TaskFlowDocs/2026-09-15-release-v1-0-5/`
 - Next action: Complete PRD / Spec / Plan and request approval.

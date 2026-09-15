@@ -162,7 +162,7 @@ claude plugin install taskflow@taskflow
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.0.4    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.0.5    Status: ✔ enabled
 ```
 
 更新已有安装：

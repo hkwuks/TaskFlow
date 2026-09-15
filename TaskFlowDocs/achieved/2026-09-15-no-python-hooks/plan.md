@@ -1,6 +1,6 @@
 # Plan — Run TaskFlow hooks without a Python interpreter
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 

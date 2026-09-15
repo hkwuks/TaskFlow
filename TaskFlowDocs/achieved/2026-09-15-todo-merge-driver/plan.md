@@ -1,6 +1,6 @@
 # Plan — Ship a Todo merge driver so parallel task branches merge cleanly
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 

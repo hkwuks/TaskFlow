@@ -59,7 +59,7 @@ After the release scope is merged to the intended base (or the optional Release 
 
 1. Check out the exact merged base commit and confirm a clean working tree.
 2. Verify manifest versions and release notes again.
-3. Create an annotated tag such as `v1.0.4`.
+3. Create an annotated tag such as `v1.0.5`.
 4. Push the tag only after explicit release-owner approval.
 5. Create the GitHub Release from that tag with the approved notes.
 6. Update the marketplace entry on `main` so its Git source uses the release tag as `ref` and the exact tagged commit as `sha`; validate it with both Claude Code and Codex tooling before publishing the catalog change.

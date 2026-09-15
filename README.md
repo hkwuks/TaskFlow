@@ -204,7 +204,7 @@ Verify it loaded:
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.0.4    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.0.5    Status: ✔ enabled
 ```
 
 To update an existing installation:
