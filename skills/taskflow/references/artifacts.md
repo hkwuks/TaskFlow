@@ -12,6 +12,12 @@ Each index entry records document class, repository-relative source path, applic
 
 When a user changes an approved task fact, classify it before editing artifacts. The classification (work revision vs Task-version material change) and the required action for each are defined in `SKILL.md` under User-change trigger; this reference does not restate them. Never update only one core document after a material user change.
 
+## Artifact language
+
+Write `prd.md`, `spec.md`, `plan.md`, and `reference/` prose in the user's working language. Hooks parse task documents, so the lines they match stay English verbatim: `> Task version:`, `> Status:`, `## ` section headings, the `## Approval` fields, `### Step N`, the `- Status:` lines inside Steps and Todo entries, Todo field names (`- ID:`, `- Goal:`, `- Task:`, …), and the `- [ ]` / `- [x]` checklist markers. Field *values* written by a hook are fixed English tokens (`approved`, `done`, `in_progress`) and are not translated; prose inside a value you write yourself may be in either language.
+
+This applies to documents created from now on. Existing documents are not rewritten for language, in particular not under `TaskFlowDocs/achieved/`, which is read-only history.
+
 ## Minimal layout
 
 ```text

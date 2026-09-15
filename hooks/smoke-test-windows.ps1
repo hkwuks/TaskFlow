@@ -71,7 +71,11 @@ try {
 
     Invoke-TaskFlow (@('state', '2026-09-11-windows-smoke', 'in_progress') + $common) -MustFail
     $utf8 = New-Object Text.UTF8Encoding($false)
-    $text = [IO.File]::ReadAllText($plan).Replace('- Status: requested', '- Status: approved').Replace('- Approved version: pending', '- Approved version: v1')
+    # The approval gate reads the approver as well as the version: the template
+    # ships `pending` in every Approval field, so a version match alone still
+    # admits an unapproved task. `progress` and `complete` use the same gate as
+    # `state in_progress`, which is why this fixture has to record a real one.
+    $text = [IO.File]::ReadAllText($plan).Replace('- Status: requested', '- Status: approved').Replace('- Approved by: pending', '- Approved by: user').Replace('- Approved version: pending', '- Approved version: v1')
     [IO.File]::WriteAllText($plan, $text, $utf8)
     Invoke-TaskFlow (@('state', '2026-09-11-windows-smoke', 'in_progress') + $common)
     Invoke-TaskFlow (@('progress', '2026-09-11-windows-smoke', '1', 'done') + $common) -MustFail

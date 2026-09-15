@@ -449,7 +449,7 @@ active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
 grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
 if bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unapproved state accepted"; exit 1; fi
 grep -q '> Status: planning' "$active/plan.md" || { echo "FAIL rejected state mutated Plan"; exit 1; }
-sed 's/- Status: requested/- Status: approved/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md" > "$active/plan.md.tmp"
+sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md" > "$active/plan.md.tmp"
 mv "$active/plan.md.tmp" "$active/plan.md"
 bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null
 if bash "$HERE/task" progress 2026-09-10-lifecycle-smoke 1 done --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unchecked Step accepted"; exit 1; fi
@@ -463,6 +463,51 @@ bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --user-accepted --root "$l
 [ ! -d "$active" ] && [ -d "$lifecycle/TaskFlowDocs/achieved/2026-09-10-lifecycle-smoke" ] || { echo "FAIL lifecycle archive"; exit 1; }
 grep -q -- '- Status: done' "$todo" || { echo "FAIL lifecycle Todo not done"; exit 1; }
 echo ok
+
+echo "== approval gates block progress and completion =="
+# `state in_progress` had this check from the start; `progress` and `complete`
+# did not, so a task that was never approved could be marked done and archived.
+gate="$tmp/gate"
+mkdir -p "$gate"
+bash "$HERE/task" intake "Gate smoke goal." "local fixture" --root "$gate" >/dev/null
+gate_id=$(awk '/^- ID: TF-/{print $3; exit}' "$gate/TaskFlowDocs/todo.md")
+bash "$HERE/task" promote "$gate_id" 2026-09-09-gate-smoke small --root "$gate" >/dev/null
+gate_task="$gate/TaskFlowDocs/2026-09-09-gate-smoke"
+gate_before=$(digest "$gate_task/plan.md")
+if bash "$HERE/task" progress 2026-09-09-gate-smoke 1 done --root "$gate" >/dev/null 2>&1; then
+  echo "FAIL progress accepted an unapproved task"; exit 1
+fi
+[ "$gate_before" = "$(digest "$gate_task/plan.md")" ] || { echo "FAIL rejected progress mutated the Plan"; exit 1; }
+if bash "$HERE/task" complete 2026-09-09-gate-smoke --user-accepted --root "$gate" >/dev/null 2>&1; then
+  echo "FAIL complete accepted an unapproved task"; exit 1
+fi
+[ -d "$gate_task" ] || { echo "FAIL rejected completion moved the task"; exit 1; }
+grep -q '^> Status: planning$' "$gate_task/plan.md" || { echo "FAIL rejected completion changed the Plan status"; exit 1; }
+# The template ships `pending` in every Approval field, so a version match alone
+# still admits an approval copied from the previous version. The approver is what
+# separates a real approval from the template.
+sed 's/^- Status: requested$/- Status: approved/; s/^- Approved version: pending$/- Approved version: v1/' "$gate_task/plan.md" > "$gate_task/plan.md.tmp"
+mv "$gate_task/plan.md.tmp" "$gate_task/plan.md"
+if bash "$HERE/task" progress 2026-09-09-gate-smoke 1 done --root "$gate" >/dev/null 2>&1; then
+  echo "FAIL progress accepted an approval with no approver"; exit 1
+fi
+sed 's/^- Approved by: pending$/- Approved by: user/' "$gate_task/plan.md" > "$gate_task/plan.md.tmp"
+mv "$gate_task/plan.md.tmp" "$gate_task/plan.md"
+sed 's/- \[ \]/- [x]/g' "$gate_task/plan.md" > "$gate_task/plan.md.tmp"
+mv "$gate_task/plan.md.tmp" "$gate_task/plan.md"
+bash "$HERE/task" progress 2026-09-09-gate-smoke 1 done --root "$gate" >/dev/null
+# A version bump without re-approval: the Approval still names the version it
+# superseded, which is exactly the state `hooks/version` leaves behind.
+sed 's/^> Task version: v1$/> Task version: v2/' "$gate_task/plan.md" > "$gate_task/plan.md.tmp"
+mv "$gate_task/plan.md.tmp" "$gate_task/plan.md"
+if bash "$HERE/task" progress 2026-09-09-gate-smoke 1 in_progress --root "$gate" >/dev/null 2>&1; then
+  echo "FAIL progress accepted a version bump without re-approval"; exit 1
+fi
+if bash "$HERE/task" complete 2026-09-09-gate-smoke --user-accepted --root "$gate" >/dev/null 2>&1; then
+  echo "FAIL complete accepted a version bump without re-approval"; exit 1
+fi
+echo ok
+
 echo "== TaskFlow packaged Skill contract =="
 repo=$(cd "$HERE/.." && pwd)
 skill="$repo/skills/taskflow"
@@ -478,6 +523,21 @@ grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || 
 grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
 grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
 echo ok
+
+echo "== artifact language rule is documented without contradicting the parsers =="
+# The rule splits one document into prose and machine-read structure. If it ever
+# names a structural line as translatable, the hooks stop finding it, so pin both
+# the rule and the English shape the parsers rely on.
+grep -q '^## Artifact language$' "$skill/references/artifacts.md" || { echo "FAIL artifact language rule missing"; exit 1; }
+grep -q "the lines they match stay English verbatim" "$skill/references/artifacts.md" || { echo "FAIL artifact language boundary missing"; exit 1; }
+grep -q 'in the user.s working language' "$skill/SKILL.md" || { echo "FAIL SKILL language rule missing"; exit 1; }
+grep -q 'user.s working language' "$repo/CODE_STYLE.md" || { echo "FAIL code style language rule missing"; exit 1; }
+grep -q 'are not rewritten for language' "$skill/references/artifacts.md" || { echo "FAIL no-rewrite rule missing"; exit 1; }
+for token in '^## Approval$' '^- Status:' '> Task version:' '### Step '; do
+  grep -q -- "$token" "$skill/references/artifacts.md" || { echo "FAIL language rule does not pin: $token"; exit 1; }
+done
+echo ok
+
 echo "== phases map to concept classes without naming a capability =="
 grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
 grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }

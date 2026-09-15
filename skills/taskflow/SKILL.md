@@ -41,6 +41,8 @@ Conditional artifacts:
 
 Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, or an automatic review file for the same task. `TaskFlowDocs/todo.md` is the sole repository Todo inbox; it contains triage metadata only and never duplicates promoted task facts.
 
+Task documents are read by the user and parsed by hooks, so they carry two languages at once. Write the prose in the user's working language; keep the lines hooks match — `> Task version:`, `> Status:`, `## ` headings, the `## Approval` fields, `### Step N`, `- Status:` lines, Todo field names, and `- [ ]` / `- [x]` markers — in English exactly as the hooks expect. `references/artifacts.md` lists the boundary. Existing documents, including everything under `TaskFlowDocs/achieved/`, are not rewritten for language.
+
 ## Triage and lifecycle
 
 After the request passes the applicability gate, first record or update its Todo item. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.

@@ -284,6 +284,25 @@ task_paths() {  # task_paths <root> <task>
   [ -d "$base" ] || fail "active task not found: $2"
 }
 
+# The approval gate every command that acts on approved work shares. `state
+# in_progress` proved it was needed; `progress` and `complete` were reachable
+# without it, so unimplemented-and-unapproved work could be marked done and
+# even archived.
+require_approval() {  # require_approval <task-id>
+  local text version approval
+  text="$(cat "$plan")"
+  version="$(printf '%s\n' "$text" | sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' | head -1)"
+  [ -n "$version" ] || fail "missing Plan Task version"
+  approval="$(printf '%s\n' "$text" | sed -n '/^## Approval$/,/^## /p')"
+  printf '%s\n' "$approval" | grep -qx -- "- Status: approved" || fail "current Task version is not approved"
+  printf '%s\n' "$approval" | grep -qx -- "- Approved version: $version" || fail "current Task version is not approved"
+  # A version match alone still admits the template: it ships `pending` in every
+  # Approval field, so an approval copied from a previous version validates as
+  # long as its version is bumped. A real approval always carries an approver.
+  printf '%s\n' "$approval" | grep -q '^- Approved by: pending$' && fail "current Task version is not approved"
+  return 0
+}
+
 # --- commands --------------------------------------------------------------
 case "$command" in
   intake)
@@ -462,13 +481,8 @@ case "$command" in
       *) fail 'usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]' ;;
     esac
     task_paths "$root" "$task"
-    plan_text="$(cat "$plan")"
-    version="$(printf '%s\n' "$plan_text" | sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' | head -1)"
-    [ -n "$version" ] || fail "missing Plan Task version"
     if [ "$new_state" = "in_progress" ]; then
-      approval="$(printf '%s\n' "$plan_text" | sed -n '/^## Approval$/,/^## /p')"
-      printf '%s\n' "$approval" | grep -qx -- "- Status: approved" || fail "current Task version is not approved"
-      printf '%s\n' "$approval" | grep -qx -- "- Approved version: $version" || fail "current Task version is not approved"
+      require_approval "$task"
     fi
     todo="$root/TaskFlowDocs/todo.md"
     [ -f "$todo" ] || fail "todo.md missing; state change not started"
@@ -497,6 +511,7 @@ case "$command" in
     esac
     if [ "${#rest[@]}" -eq 4 ]; then verification="${rest[3]}"; else verification=""; fi
     task_paths "$root" "$task"
+    require_approval "$task"
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=step TASKFLOW_STEP="$number" \
       TASKFLOW_STEP_STATUS="$step_status" TASKFLOW_VERIFICATION="$verification"
     echo "progress OK: $task Step $number -> $step_status"
@@ -509,6 +524,7 @@ case "$command" in
     task_paths "$root" "$task"
     docs="$root/TaskFlowDocs"
     plan_text="$(cat "$plan")"
+    require_approval "$task"
     printf '%s\n' "$plan_text" | grep -q '^[[:space:]]*- \[ \]' && fail "Plan has unchecked items"
     printf '%s\n' "$plan_text" | grep -qE '^- Status: (pending|in_progress|blocked)$' && fail "Plan has unfinished Steps"
     [ -e "$docs/achieved/$task" ] && fail "achieved/$task already exists"
