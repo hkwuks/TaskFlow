@@ -90,8 +90,8 @@ function emit(   i) {
     else printf "%s\n", line[i]
   }
 }
-# a and b are the target section's body range; they are parameters, not extras,
-# or awk would scope them as local copies and every setr would miss.
+# a and b are the target body range; they are parameters, not extras, or awk
+# would scope them as local copies and every setr would miss.
 function loadpairs(f, a, b,   pl, k, name, value) {
   while ((getline pl < f) > 0) {
     if (pl == "") continue
