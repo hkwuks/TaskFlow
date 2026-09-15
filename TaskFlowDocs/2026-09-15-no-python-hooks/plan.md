@@ -55,17 +55,21 @@
   - [x] Confirm the comparator itself is safe: it reports no differences when run
         against an unchanged second run, so it measures equality rather than the
         absence of a smoke failure.
-  - [ ] Rewrite both hooks; keep each script's external interface, exit codes,
+  - [x] Rewrite both hooks; keep each script's external interface, exit codes,
         and stderr diagnostics identical.
-  - [ ] Confirm the reference fixtures are reproduced byte for byte, including
+  - [x] Confirm the reference fixtures are reproduced byte for byte, including
         the no-op and unparseable-input paths.
 - Acceptance: The two rewritten hooks reproduce the reference fixtures exactly,
   and the smoke sections covering them pass unmodified.
-- Verification: `tools/fixture-compare` reports 0 differences over the captured
-  fixture set; the Python-runtime error fixture is the one intentional
-  difference (the message stays, the traceback text does not).
+- Verification: `tools/fixture-compare /tmp/refcap/ref <fresh root>` reports
+  `compared 43 fixture files` with 0 differences. The only differences it
+  normalizes are the fixture root path, wall-clock stamps, and interpreter
+  traceback framing — the last being the one intentional change, since the spec
+  keeps the diagnostic message and drops the traceback text.
+  `bash hooks/smoke-test` prints `ALL SMOKE PASSED`, and its stdout differs from
+  the reference only by the one section added below.
 - Rollback: `git checkout` the two hook files.
-- Status: pending
+- Status: done
 
 ### Step 2 — Convert the remaining hooks and delete the runtime
 

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# compare-fixtures — byte-compare every text fixture a previous smoke-test run
+# produced against a fresh run, so a hook rewrite can be proven equivalent.
+# Usage: compare-fixtures <reference-root> <candidate-root>
+set -euo pipefail
+ref="$1"; cand="$2"
+[ -d "$ref" ] || { echo "missing reference root: $ref"; exit 2; }
+[ -d "$cand" ] || { echo "missing candidate root: $cand"; exit 2; }
+
+status=0
+compared=0
+while IFS= read -r file; do
+  rel="${file#"$ref"/}"
+  if [ ! -e "$cand/$rel" ]; then
+    echo "MISSING  $rel"
+    status=1
+    continue
+  fi
+  if ! cmp -s "$file" "$cand/$rel"; then
+    # Fixture roots and wall-clock stamps appear inside captured output; both are
+    # normalized away so a path or a minute boundary is not reported as a change.
+    # Interpreter traceback framing is also dropped: the spec keeps the message
+    # and does not keep the exception class or the traceback text.
+    normalize() {
+      sed -e "s|$ref|@ROOT@|g" -e "s|$cand|@ROOT@|g" \
+          -e 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\} [0-9]\{2\}:[0-9]\{2\} [+-][0-9]\{4\}/@TS@/g' \
+          -e 's/[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}/@DATE@/g' "$1" |
+        grep -v -e '^Traceback (most recent call last):$' -e '^  File "' |
+        sed -e 's/^[A-Za-z_][A-Za-z0-9_.]*\(Error\|Exception\): //'
+    }
+    if cmp -s <(normalize "$file") <(normalize "$cand/$rel"); then
+      compared=$((compared + 1))
+      continue
+    fi
+    echo "DIFFERS  $rel"
+    # pipefail would abort the run on diff's exit 1; the report is the point.
+    diff -u <(normalize "$file") <(normalize "$cand/$rel") | head -20 || true
+    status=1
+  fi
+  compared=$((compared + 1))
+done < <(find "$ref" -type f \
+           -not -path '*/.git/*' -not -path '*/WindowsApps/*' -not -name '*.bak' |
+         sort)
+
+# Files the candidate produced that the reference did not are also a change.
+while IFS= read -r file; do
+  rel="${file#"$cand"/}"
+  [ -e "$ref/$rel" ] || { echo "EXTRA    $rel"; status=1; }
+done < <(find "$cand" -type f \
+           -not -path '*/.git/*' -not -path '*/WindowsApps/*' -not -name '*.bak' |
+         sort)
+
+echo "compared $compared fixture files"
+exit "$status"

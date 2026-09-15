@@ -3,136 +3,349 @@
 # Called by session-start after summarize-state/repository-docs-context. Owns only
 # hook-verifiable fields; Last completed / Next step / Notes stay Agent-owned.
 # Writes nothing to stdout and never fails its caller's context output.
+# POSIX shell + awk only: the plugin must run with no language runtime available.
 
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-python_cmd="$(bash "${PLUGIN_ROOT}/hooks/python-runtime")"
+shopt -s nullglob
+# Byte-order collation keeps glob order and awk's byte-oriented string functions
+# consistent across hosts, which is what makes the output byte-stable.
+LC_ALL=C
+export LC_ALL
 
-TASKFLOW_REPO_ROOT="${TASKFLOW_REPO_ROOT:-}" \
-TASKFLOW_TASK_ID="${TASKFLOW_TASK_ID:-}" \
-TASKFLOW_SESSION_ID="${TASKFLOW_SESSION_ID:-}" \
-TASKFLOW_SESSION_CWD="${TASKFLOW_SESSION_CWD:-}" \
-"$python_cmd" - <<'PY'
-import datetime, os, pathlib, re, sys
+root_hint="${TASKFLOW_SESSION_CWD:-${TASKFLOW_REPO_ROOT:-}}"
+if [ -n "$root_hint" ]; then
+  root="$(cd "$root_hint" && pwd -P)"
+else
+  root="$(pwd -P)"
+fi
+session_id="${TASKFLOW_SESSION_ID:-}"
+task_id="${TASKFLOW_TASK_ID:-}"
+docs="$root/TaskFlowDocs"
 
-root_hint = os.environ.get("TASKFLOW_SESSION_CWD") or os.environ.get("TASKFLOW_REPO_ROOT", "")
-root = pathlib.Path(root_hint).resolve() if root_hint else pathlib.Path.cwd().resolve()
-session_id = os.environ.get("TASKFLOW_SESSION_ID", "").strip()
-task_id = os.environ.get("TASKFLOW_TASK_ID", "").strip()
-docs = root / "TaskFlowDocs"
+[ -n "$session_id" ] || exit 0
+[ -d "$docs" ] || exit 0
 
-if not session_id or not docs.is_dir():
-    raise SystemExit(0)
+# Task selection mirrors summarize-state: explicit TASKFLOW_TASK_ID, else the
+# single active task, else nothing is written.
+active=""
+for dir in "$docs"/*/; do
+  name="${dir%/}"
+  name="${name##*/}"
+  case "$name" in achieved|repository-docs) continue ;; esac
+  [ -f "$dir/plan.md" ] || continue
+  active="${active}${name}
+"
+done
+active="${active%
+}"
 
-active = sorted(d.name for d in docs.iterdir()
-                if d.is_dir() and d.name not in {"achieved", "repository-docs"} and (d / "plan.md").is_file())
-if task_id:
-    if task_id not in active:
-        raise SystemExit(0)
-    task = task_id
-elif len(active) == 1:
-    task = active[0]
-else:
-    raise SystemExit(0)
+if [ -n "$task_id" ]; then
+  case "
+$active
+" in
+    *"
+$task_id
+"*) task="$task_id" ;;
+    *) exit 0 ;;
+  esac
+elif [ "$active" = "${active#*
+}" ]; then
+  [ -n "$active" ] || exit 0
+  task="$active"
+else
+  exit 0
+fi
 
-task_dir = docs / task
-plan = (task_dir / "plan.md").read_text(encoding="utf-8")
-def plan_value(pattern):
-    match = re.search(pattern, plan, re.M)
-    return match.group(1).strip() if match else "?"
-version, status = plan_value(r"^> Task version:\s*(.+)$"), plan_value(r"^> Status:\s*(.+)$")
+task_dir="$docs/$task"
+plan="$task_dir/plan.md"
+plan_value() {
+  awk -v key="$1" '
+    BEGIN { prefix = "> " key ":" }
+    index($0, prefix) == 1 {
+      value = substr($0, length(prefix) + 1)
+      sub(/^[ \t]+/, "", value)
+      sub(/[ \t\r]+$/, "", value)
+      print value
+      exit
+    }
+  ' "$plan"
+}
+version="$(plan_value 'Task version')"
+version="${version:-?}"
+status="$(plan_value 'Status')"
+status="${status:-?}"
 
-env = os.environ
-if env.get("CLAUDECODE") or env.get("CLAUDE_CODE_SESSION_ID") or "claude" in env.get("AI_AGENT", ""):
-    agent = "Claude"
-elif env.get("CODEX_HOME") or env.get("CODEX_SANDBOX") or "codex" in env.get("AI_AGENT", ""):
-    agent = "Codex"
-else:
-    agent = ""
-label = agent or "Unknown agent"
-resume = {"Claude": f"`claude --resume {session_id}` (same machine, same project directory)",
-          "Codex": f"`codex resume {session_id} -C {root}`"}.get(
-    agent, "Not recorded — platform unknown; use the host's own resume command.")
+# Platform identity is what the host exposes; an unrecognized host gets an
+# explicit "not recorded" resume note rather than a guessed command.
+agent=""
+case "${AI_AGENT:-}" in *claude*) agent=Claude ;; esac
+if [ -z "$agent" ] && { [ -n "${CLAUDECODE:-}" ] || [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; }; then
+  agent=Claude
+fi
+if [ -z "$agent" ]; then
+  case "${AI_AGENT:-}" in *codex*) agent=Codex ;; esac
+  if [ -z "$agent" ] && { [ -n "${CODEX_HOME:-}" ] || [ -n "${CODEX_SANDBOX:-}" ]; }; then
+    agent=Codex
+  fi
+fi
+label="${agent:-Unknown agent}"
+case "$agent" in
+  Claude) resume="\`claude --resume $session_id\` (same machine, same project directory)" ;;
+  Codex)  resume="\`codex resume $session_id -C $root\`" ;;
+  *)      resume="Not recorded — platform unknown; use the host's own resume command." ;;
+esac
 
-def now():
-    return datetime.datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %z")
+now="$(date '+%Y-%m-%d %H:%M %z')"
+path="$task_dir/sessions.md"
 
-def field(block, name):
-    match = re.search(rf"(?m)^- {re.escape(name)}:\s*(.*)$", block)
-    return match.group(1).strip() if match else None
+exists=0
+ends_nl=0
+if [ -f "$path" ]; then
+  exists=1
+  if [ -s "$path" ] && [ "$(tail -c 1 "$path" | od -An -tx1 | tr -d ' \n')" = "0a" ]; then
+    ends_nl=1
+  fi
+fi
 
-def set_field(block, name, value):
-    if re.search(rf"(?m)^- {re.escape(name)}:.*$", block):
-        return re.sub(rf"(?m)^- {re.escape(name)}:.*$", lambda _: f"- {name}: {value}", block, count=1)
-    return block.rstrip("\n") + f"\n- {name}: {value}\n"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+# awk reads the existing record (or an empty input when there is none) and writes
+# the replacement to a temp file; the target is only truncated once awk succeeds.
+if [ "$exists" = 1 ]; then input="$path"; else input=/dev/null; fi
 
-def render_block(rest, other_resumable):
-    rest = re.sub(r"(?m)^- Started / Last active:\s*(.*)$",
-                  lambda m: f"- Started: {m.group(1)}\n- Last active: {now()}", rest, count=1)
-    for name, value in (
-        ("Status", "resumable"),
-        ("Primary", "no" if other_resumable else "yes"),
-        ("Session availability", "local-only"),
-        ("Session ID", session_id),
-        ("Started", field(rest, "Started") or field(rest, "Started / Last active") or now()),
-        ("Last active", now()),
-        ("Code working directory", str(root)),
-        ("Task artifact directory", f"TaskFlowDocs/{task}/"),
-        ("Task version / phase", f"{version} / {status}"),
-        ("Resume", resume),
-    ):
-        rest = set_field(rest, name, value)
-    return re.sub(r"\n{3,}", "\n\n", rest).strip("\n")
+TASKFLOW_SR_PATH="$path" \
+TASKFLOW_SR_TASK="$task" \
+TASKFLOW_SR_SID="$session_id" \
+TASKFLOW_SR_LABEL="$label" \
+TASKFLOW_SR_RESUME="$resume" \
+TASKFLOW_SR_VERSION="$version" \
+TASKFLOW_SR_STATUS="$status" \
+TASKFLOW_SR_ROOT="$root" \
+TASKFLOW_SR_NOW="$now" \
+TASKFLOW_SR_EXISTS="$exists" \
+TASKFLOW_SR_ENDSNL="$ends_nl" \
+awk '
+function rstripws(s) { sub(/[ \t\r]+$/, "", s); return s }
+function trimws(s) { sub(/^[ \t]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
+function lstripnl(s,   i) {
+  i = 1
+  while (i <= length(s) && substr(s, i, 1) == "\n") i++
+  return substr(s, i)
+}
+function rstripnl(s,   i) {
+  i = length(s)
+  while (i > 0 && substr(s, i, 1) == "\n") i--
+  return substr(s, 1, i)
+}
+function segtext(a, b,   i, s) {
+  s = ""
+  for (i = a; i <= b; i++) {
+    s = s line[i]
+    if (!(i == n && !ends_nl)) s = s "\n"
+  }
+  return s
+}
+function emitrange(a, b,   i) {
+  for (i = a; i <= b; i++) {
+    if (i == n && !ends_nl) printf "%s", line[i]
+    else printf "%s\n", line[i]
+  }
+}
+function load(arr, a, b,   i, k) {
+  for (k in arr) delete arr[k]
+  k = 0
+  for (i = a; i <= b; i++) arr[++k] = line[i]
+  return k
+}
+function fieldval(arr, nl, name,   i, p) {
+  p = "- " name ":"
+  for (i = 1; i <= nl; i++) {
+    if (index(arr[i], p) == 1) return trimws(substr(arr[i], length(p) + 1))
+  }
+  return ""
+}
+function hasfield(arr, nl, name,   i, p) {
+  p = "- " name ":"
+  for (i = 1; i <= nl; i++) if (index(arr[i], p) == 1) return 1
+  return 0
+}
+function setfield(arr, nl, name, value,   i, p) {
+  p = "- " name ":"
+  for (i = 1; i <= nl; i++) {
+    if (index(arr[i], p) == 1) { arr[i] = "- " name ": " value; return nl }
+  }
+  # Append after the last field, matching the string form s.rstrip("\n") + line.
+  while (nl > 0 && arr[nl] == "") nl--
+  arr[++nl] = "- " name ": " value
+  return nl
+}
+function shiftdown(arr, nl, at, k,   i) {
+  for (i = nl; i >= at; i--) arr[i + k] = arr[i]
+}
+# Collapse runs of blank lines to at most one and drop leading/trailing blanks,
+# the line-level equivalent of re.sub(r"\n{3,}", "\n\n", s).strip("\n").
+function normalize(arr, nl,   i, m, blank, out) {
+  m = 0
+  blank = 1
+  for (i = 1; i <= nl; i++) {
+    if (arr[i] == "") {
+      if (blank) continue
+      blank = 1
+    } else {
+      blank = 0
+    }
+    out[++m] = arr[i]
+  }
+  while (m > 0 && out[m] == "") m--
+  for (i = 1; i <= m; i++) arr[i] = out[i]
+  return m
+}
+function render_block(arr, nl, other_resumable,   i, v, prefix) {
+  # A retained "- Started / Last active:" line becomes two fields, preserving the
+  # recorded start so a resume does not reset it.
+  prefix = "- Started / Last active:"
+  for (i = 1; i <= nl; i++) {
+    if (index(arr[i], prefix) == 1) {
+      v = substr(arr[i], length(prefix) + 1)
+      sub(/^[ \t\r]+/, "", v)
+      shiftdown(arr, nl, i, 1)
+      arr[i] = "- Started: " v
+      arr[i + 1] = "- Last active: " now
+      nl++
+      break
+    }
+  }
+  nl = setfield(arr, nl, "Status", "resumable")
+  nl = setfield(arr, nl, "Primary", other_resumable ? "no" : "yes")
+  nl = setfield(arr, nl, "Session availability", "local-only")
+  nl = setfield(arr, nl, "Session ID", sid)
+  v = fieldval(arr, nl, "Started")
+  if (v == "") v = fieldval(arr, nl, "Started / Last active")
+  if (v == "") v = now
+  nl = setfield(arr, nl, "Started", v)
+  nl = setfield(arr, nl, "Last active", now)
+  nl = setfield(arr, nl, "Code working directory", rootdir)
+  nl = setfield(arr, nl, "Task artifact directory", "TaskFlowDocs/" task "/")
+  nl = setfield(arr, nl, "Task version / phase", version " / " status)
+  nl = setfield(arr, nl, "Resume", resume)
+  return normalize(arr, nl)
+}
+function next_id(   j, s) {
+  max = 0
+  for (j = 1; j <= hc; j++) {
+    s = line[h[j]]
+    if (match(s, /### S[0-9]+/)) {
+      v = substr(s, RSTART + 5, RLENGTH - 5) + 0
+      if (v > max) max = v
+    }
+  }
+  return max + 1
+}
+function joinlines(arr, nl,   i, s) {
+  s = ""
+  for (i = 1; i <= nl; i++) s = s (i > 1 ? "\n" : "") arr[i]
+  return s
+}
 
-def next_id(blocks):
-    used = [int(m.group(1)) for block in blocks if (m := re.match(r"### S(\d+)\b", block["heading"]))]
-    return max(used, default=0) + 1
+BEGIN {
+  path = ENVIRON["TASKFLOW_SR_PATH"]
+  task = ENVIRON["TASKFLOW_SR_TASK"]
+  sid = ENVIRON["TASKFLOW_SR_SID"]
+  label = ENVIRON["TASKFLOW_SR_LABEL"]
+  resume = ENVIRON["TASKFLOW_SR_RESUME"]
+  version = ENVIRON["TASKFLOW_SR_VERSION"]
+  status = ENVIRON["TASKFLOW_SR_STATUS"]
+  rootdir = ENVIRON["TASKFLOW_SR_ROOT"]
+  now = ENVIRON["TASKFLOW_SR_NOW"]
+  exists = ENVIRON["TASKFLOW_SR_EXISTS"] + 0
+  ends_nl = ENVIRON["TASKFLOW_SR_ENDSNL"] + 0
+  n = 0
+}
+{ n++; line[n] = $0 }
+END {
+  if (!exists) {
+    bn = render_block(block, 0, 0)
+    printf "# Sessions — %s\n> Current Task version: %s\n\n", task, version
+    printf "## Active / Resumable\n\n### S1 — %s\n", label
+    printf "%s\n", joinlines(block, bn)
+    printf "## Closed / Reference Only\n"
+    exit 0
+  }
+  section = 0
+  for (i = 1; i <= n; i++) {
+    if (substr(line[i], 1, 3) == "## " && rstripws(line[i]) == "## Active / Resumable") {
+      section = i
+      break
+    }
+  }
+  if (section == 0) {
+    printf "TaskFlow session-record: no '\''## Active / Resumable'\'' section in %s; left unchanged\n", path > "/dev/stderr"
+    emitrange(1, n)
+    exit 0
+  }
+  nextsec = n + 1
+  for (i = section + 1; i <= n; i++) {
+    if (substr(line[i], 1, 3) == "## ") { nextsec = i; break }
+  }
+  hc = 0
+  for (i = section + 1; i < nextsec; i++) {
+    s = rstripws(line[i])
+    if (substr(s, 1, 4) == "### ") { hc++; h[hc] = i }
+  }
+  other = 0
+  for (j = 1; j <= hc; j++) {
+    from = h[j] + 1
+    to = (j < hc) ? h[j + 1] - 1 : nextsec - 1
+    bn = load(block, from, to)
+    if (fieldval(block, bn, "Status") == "resumable" && fieldval(block, bn, "Session ID") != sid) other = 1
+  }
+  tj = 0
+  for (j = 1; j <= hc; j++) {
+    from = h[j] + 1
+    to = (j < hc) ? h[j + 1] - 1 : nextsec - 1
+    bn = load(block, from, to)
+    if (fieldval(block, bn, "Session ID") == sid) { tj = j; break }
+  }
+  if (tj == 0) {
+    for (j = 1; j <= hc; j++) {
+      from = h[j] + 1
+      to = (j < hc) ? h[j + 1] - 1 : nextsec - 1
+      bn = load(block, from, to)
+      if (!hasfield(block, bn, "Session ID")) { tj = j; break }
+    }
+  }
+  if (tj == 0) {
+    heading = "### S" next_id() " — " label
+    bn = load(block, 1, 0)
+    newbody = rstripnl("\n" segtext(section + 1, nextsec - 1)) "\n\n"
+    bn = render_block(block, bn, other)
+    newbody = newbody heading "\n" joinlines(block, bn) "\n\n"
+  } else {
+    from = h[tj] + 1
+    to = (tj < hc) ? h[tj + 1] - 1 : nextsec - 1
+    bn = load(block, from, to)
+    heading = rstripws(line[h[tj]])
+    if (!hasfield(block, bn, "Session ID")) {
+      if (match(heading, /### S[0-9]+/)) num = substr(heading, RSTART + 5, RLENGTH - 5)
+      else num = next_id()
+      heading = "### S" num " — " label
+    }
+    bn = render_block(block, bn, other)
+    tail = (tj < hc) ? lstripnl(segtext(h[tj + 1], nextsec - 1)) : ""
+    newbody = "\n" segtext(section + 1, h[tj] - 1) heading "\n" joinlines(block, bn) "\n\n" tail
+  }
+  printf "%s", segtext(1, section - 1)
+  printf "%s", line[section]
+  printf "%s", newbody
+  printf "%s", segtext(nextsec, n)
+}
+' "$input" > "$work/out"
 
-path = task_dir / "sessions.md"
-text = path.read_text(encoding="utf-8") if path.is_file() else None
-
-if text is None:
-    new_text = (f"# Sessions — {task}\n> Current Task version: {version}\n\n"
-                f"## Active / Resumable\n\n### S1 — {label}\n"
-                f"{render_block('', other_resumable=False)}\n"
-                f"## Closed / Reference Only\n")
-else:
-    parts = re.split(r"(?m)^(## .*)$", text)
-    index = next((i for i in range(1, len(parts), 2) if parts[i].strip() == "## Active / Resumable"), None)
-    if index is None:
-        print(f"TaskFlow session-record: no '## Active / Resumable' section in {path}; left unchanged",
-              file=sys.stderr)
-        raise SystemExit(0)
-    body = parts[index + 1]
-    heads = list(re.finditer(r"(?m)^(### .+?)\s*$", body))
-    blocks = [{"start": m.start(),
-               "end": heads[n + 1].start() if n + 1 < len(heads) else len(body),
-               "heading": m.group(1),
-               "rest": body[m.end():heads[n + 1].start() if n + 1 < len(heads) else len(body)]}
-              for n, m in enumerate(heads)]
-    other_resumable = any(field(b["rest"], "Status") == "resumable" and field(b["rest"], "Session ID") != session_id
-                          for b in blocks)
-    target = next((b for b in blocks if field(b["rest"], "Session ID") == session_id), None)
-    if target is None:
-        target = next((b for b in blocks if not field(b["rest"], "Session ID")), None)
-    appended = target is None
-    if appended:
-        heading, rest = f"### S{next_id(blocks)} — {label}", ""
-    else:
-        heading, rest = target["heading"], target["rest"]
-        if not field(rest, "Session ID"):
-            number = re.search(r"### S(\d+)\b", heading)
-            heading = f"### S{number.group(1) if number else next_id(blocks)} — {label}"
-    rebuilt = heading + "\n" + render_block(rest, other_resumable=other_resumable)
-    if appended:
-        new_body = body.rstrip("\n") + "\n\n" + rebuilt + "\n\n"
-    else:
-        new_body = body[:target["start"]] + rebuilt + "\n\n" + body[target["end"]:].lstrip("\n")
-    parts[index + 1] = new_body
-    new_text = "".join(parts)
-
-if new_text != text:
-    path.write_text(new_text, encoding="utf-8")
-    print(f"TaskFlow session-record: {'created' if text is None else 'updated'} {path}", file=sys.stderr)
-PY
+if [ "$exists" = 0 ] || ! cmp -s "$work/out" "$path"; then
+  # `cat >` truncates in place, preserving the file's inode and mode; only the
+  # successful completion of awk reaches this point, so a failed run leaves the
+  # existing record intact.
+  cat "$work/out" > "$path"
+  echo "TaskFlow session-record: $([ "$exists" = 0 ] && echo created || echo updated) $path" >&2
+fi
+exit 0
