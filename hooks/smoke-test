@@ -383,6 +383,57 @@ if bash "$HERE/version" 2026-09-08-smoke v3 "$tmp" notes.md >/dev/null 2>&1; the
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL invalid input mutated root"; exit 1; }
 echo ok
 
+echo "== version refuses to archive uncommitted tracked documents =="
+# `version` copies the superseded documents from the working tree, so a document
+# already edited for the next version was archived as if it were the old one and
+# `old/vN/` stopped recording what was approved. A real repository is required:
+# the guard is `git ls-files` plus `git diff`, which a plain fixture cannot
+# exercise.
+write_dirty_fixture() {  # write_dirty_fixture <task-dir>
+  mkdir -p "$1"
+  printf '# PRD — Dirty\n> Task version: v2\n> Status: in_progress\n' > "$1/prd.md"
+  printf '# Plan — Dirty\n> Task version: v2\n> Status: in_progress\n\n## Approval\n- Status: approved\n- Approved by: user\n- Approved at: 2026-09-09 12:00 +0000\n- Approved version: v2\n- Approved scope: PRD / Plan\n' > "$1/plan.md"
+}
+vroot="$tmp/version-dirty"
+write_dirty_fixture "$vroot/TaskFlowDocs/2026-09-09-dirty"
+(
+  cd "$vroot" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  git add -A && git commit -q -m fixture
+) || { echo "FAIL version fixture repository"; exit 1; }
+dirty="$vroot/TaskFlowDocs/2026-09-09-dirty"
+# The next version's content, written before the bump was taken: the case that
+# silently polluted old/v1 for 2026-09-15-no-python-hooks.
+printf '# PRD — Dirty\n> Task version: v2\n> Status: in_progress\n\n## Goal\n\nv3 CONTENT ALREADY WRITTEN\n' > "$dirty/prd.md"
+dirty_before=$(digest "$dirty/prd.md")
+if bash "$HERE/version" 2026-09-09-dirty v3 "$vroot" prd.md >/dev/null 2>&1; then
+  echo "FAIL version archived an uncommitted tracked document"; exit 1
+fi
+[ ! -e "$dirty/old/v2" ] || { echo "FAIL rejected version still created the archive"; exit 1; }
+[ "$dirty_before" = "$(digest "$dirty/prd.md")" ] || { echo "FAIL rejected version mutated the root document"; exit 1; }
+grep -q '> Task version: v2' "$dirty/plan.md" || { echo "FAIL rejected version bumped the root Plan"; exit 1; }
+# Committing the superseded version is the documented way out, and then the
+# archive holds that committed content.
+( cd "$vroot" && git add -A && git commit -q -m superseded ) || { echo "FAIL fixture commit"; exit 1; }
+bash "$HERE/version" 2026-09-09-dirty v3 "$vroot" prd.md >/dev/null
+[ -f "$dirty/old/v2/prd.md" ] || { echo "FAIL clean superseded version not archived"; exit 1; }
+[ "$dirty_before" = "$(digest "$dirty/old/v2/prd.md")" ] || { echo "FAIL archive differs from the committed version"; exit 1; }
+# Documents kept out of Git have no committed baseline to protect and stay
+# archivable while dirty.
+uroot="$tmp/version-untracked"
+write_dirty_fixture "$uroot/TaskFlowDocs/2026-09-09-untracked"
+printf '# PRD — Dirty\n> Task version: v2\n> Status: in_progress\n\n## Goal\n\nfile-mode edit\n' > "$uroot/TaskFlowDocs/2026-09-09-untracked/prd.md"
+(
+  cd "$uroot" || exit 1
+  git init -q . && git config user.email smoke@example.invalid && git config user.name smoke
+) || { echo "FAIL untracked fixture repository"; exit 1; }
+bash "$HERE/version" 2026-09-09-untracked v3 "$uroot" prd.md >/dev/null ||
+  { echo "FAIL untracked document refused"; exit 1; }
+[ -f "$uroot/TaskFlowDocs/2026-09-09-untracked/old/v2/prd.md" ] || { echo "FAIL untracked document not archived"; exit 1; }
+echo ok
+
 echo "== task lifecycle dispatcher =="
 lifecycle="$tmp/lifecycle"
 mkdir -p "$lifecycle/verification-dir"
@@ -412,7 +463,6 @@ bash "$HERE/task" complete 2026-09-10-lifecycle-smoke --user-accepted --root "$l
 [ ! -d "$active" ] && [ -d "$lifecycle/TaskFlowDocs/achieved/2026-09-10-lifecycle-smoke" ] || { echo "FAIL lifecycle archive"; exit 1; }
 grep -q -- '- Status: done' "$todo" || { echo "FAIL lifecycle Todo not done"; exit 1; }
 echo ok
-
 echo "== TaskFlow packaged Skill contract =="
 repo=$(cd "$HERE/.." && pwd)
 skill="$repo/skills/taskflow"
@@ -428,7 +478,6 @@ grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || 
 grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
 grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
 echo ok
-
 echo "== phases map to concept classes without naming a capability =="
 grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
 grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }

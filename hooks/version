@@ -38,6 +38,22 @@ for field in Status 'Approved by' 'Approved at' 'Approved version' 'Approved sco
   grep -A8 '^## Approval$' "$plan" | grep -q "^- $field:" || { echo "missing Approval field: $field"; exit 1; }
 done
 
+# The archive must hold the superseded *version*, not the working tree after the
+# new version's edits landed. When v2 was written before the bump was taken, the
+# copy below would carry v2's text and `old/vN/` would silently stop recording
+# what was approved. Untracked documents (file-mode, documents kept out of Git)
+# have no such baseline and are left to the author.
+if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  for f in "${selected[@]}"; do
+    fpath="$docs/$task/$f"
+    git -C "$root" ls-files --error-unmatch "$fpath" >/dev/null 2>&1 || continue
+    if ! git -C "$root" diff --quiet -- "$fpath" || ! git -C "$root" diff --cached --quiet -- "$fpath"; then
+      echo "$f has uncommitted changes; commit the superseded version first, then re-run version"
+      exit 1
+    fi
+  done
+fi
+
 archdir="$docs/$task/old/$oldv"
 [ ! -e "$archdir" ] || { echo "archive already exists: $archdir"; exit 1; }
 mkdir -p "$archdir"
