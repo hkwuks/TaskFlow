@@ -12,7 +12,6 @@ taskflow/hooks/
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── session-record      # records the host session id in the selected task
 ├── summarize-state     # derives the state summary (shared logic)
-├── python-runtime      # validates and selects a Python 3 interpreter
 ├── repository-docs-context # syncs index metadata and derives routes
 ├── task                # explicit intake/promote/state/progress/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
@@ -32,11 +31,12 @@ taskflow/hooks/
   falling through to WSL Bash; on Unix the `:` no-op makes it a bash no-op. One
   `command` value works on every OS for Claude Code. Windows requires Git for
   Windows Bash; the launcher fails visibly when it is unavailable.
-- **Python** is used only for small Markdown edits. All scripts share
-  `python-runtime`, which validates a real Python 3 interpreter and rejects
-  WindowsApps Microsoft Store aliases. Set `TASKFLOW_PYTHON` to an explicit
-  executable when PATH discovery is insufficient; a missing or invalid runtime
-  fails visibly with installation guidance.
+- **No language runtime.** Every hook is POSIX shell using only `awk` and
+  `sed`, at the bash 3.2 + BSD userland level that stock macOS ships. There is
+  no interpreter to locate, validate, or fall back from: an interpreter that is
+  missing, shimmed, or a different major version is a failure mode the plugin
+  does not have. Hooks are written to the POSIX subset deliberately — no
+  `declare -A`, no `mapfile`, no GNU-only `sed -i`.
 - **One JSON per host** (`hooks.json` for Claude Code, `hooks-codex.json` for
   Codex CLI); Codex's `commandWindows` lets the codex file point at the same
   launcher on Windows.

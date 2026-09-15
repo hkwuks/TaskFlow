@@ -10,6 +10,9 @@ permissions:
   contents: read
 
 jobs:
+  # The hooks carry no language runtime, so this job installs none: setup-python
+  # is deliberately absent. If a hook ever grows an interpreter dependency, the
+  # smoke suite's curated PATH fails here rather than in a user's session.
   smoke:
     strategy:
       fail-fast: false
@@ -18,9 +21,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
       - name: Run bash smoke tests
         if: runner.os != 'Windows'
         run: bash hooks/smoke-test
@@ -28,6 +28,15 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: .\hooks\smoke-test-windows.ps1
+
+  # The eval runner is repository tooling, not shipped plugin runtime, so it keeps
+  # its own Python and is not part of the no-runtime guarantee above.
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
       - name: Run evals
-        if: runner.os != 'Windows'
         run: python3 evals/runner.py

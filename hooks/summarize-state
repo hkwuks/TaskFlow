@@ -2,8 +2,14 @@
 # summarize-state — derive a short, non-authoritative TaskFlow state summary.
 # Prints nothing when no TaskFlowDocs exists. Runs from the repo root.
 # Cross-platform: invoked via run-hook.cmd (Git-bash on Windows).
-
+# POSIX shell + awk only: the plugin must run with no language runtime available.
 set -euo pipefail
+shopt -s nullglob
+# Byte-order collation keeps glob order identical across hosts, which is what
+# makes the printed task order byte-stable.
+LC_ALL=C
+export LC_ALL
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
@@ -14,71 +20,137 @@ docs="$repo_root/TaskFlowDocs"
 todo="$docs/todo.md"
 verbose="${TASKFLOW_VERBOSE:-0}"
 task_id="${TASKFLOW_TASK_ID:-}"
-python_cmd="$(bash "$(dirname "$0")/python-runtime")"
-active_count=$(find "$docs" -mindepth 2 -maxdepth 2 -name plan.md -not -path '*/achieved/*' -not -path '*/repository-docs/*' | wc -l)
-if [ -f "$todo" ] && { [ "$verbose" = 1 ] || [ "$active_count" -eq 0 ]; }; then
+
+active=()
+for dir in "$docs"/*/; do
+  name="${dir%/}"
+  name="${name##*/}"
+  case "$name" in achieved|repository-docs) continue ;; esac
+  [ -f "$dir/plan.md" ] || continue
+  active+=("$name")
+done
+
+# The Todo inbox is only worth printing when there is no active task to report,
+# or on request: the active-task list is the more useful default.
+if [ -f "$todo" ] && { [ "$verbose" = "1" ] || [ "${#active[@]}" -eq 0 ]; }; then
   echo "# TaskFlow inbox (not done)"
-  "$python_cmd" - "$todo" <<'PY'
-import re, sys
-text = open(sys.argv[1], encoding='utf-8').read()
-parts = re.split(r'(?m)^(## .*)$', text)
-for i in range(1, len(parts), 2):
-    body = parts[i+1]
-    m = re.search(r'(?m)^- ID:\s*(\S+)', body)
-    if not m or m.group(1) in {'T-YYYYMMDD-001', 'YYYYMMDD-001'}: continue
-    st = re.search(r'(?m)^- Status:\s*(\S+)', body)
-    if st and st.group(1) == 'done': continue
-    g = re.search(r'(?m)^- Goal:\s*(.+)', body)
-    print(f"- {m.group(1)} | {st.group(1) if st else '?'} | {(g.group(1) if g else '').strip()[:120]}")
-PY
+  awk '
+    function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
+    function rtrim(s) { sub(/[[:space:]]+$/, "", s); return s }
+    function trim(s) { return rtrim(ltrim(s)) }
+    function rfield(a, b, name,   i, p) {
+      p = "- " name ":"
+      for (i = a; i <= b; i++) if (index(line[i], p) == 1) return trim(substr(line[i], length(p) + 1))
+      return ""
+    }
+    { n++; line[n] = $0 }
+    END {
+      hc = 0
+      for (i = 1; i <= n; i++) if (index(line[i], "## ") == 1) { hc++; hd[hc] = i }
+      for (j = 1; j <= hc; j++) {
+        a = hd[j] + 1; b = (j < hc) ? hd[j + 1] - 1 : n
+        id = rfield(a, b, "ID")
+        # The template placeholders are documentation, not entries.
+        if (id == "" || id == "T-YYYYMMDD-001" || id == "YYYYMMDD-001") continue
+        # The string form matches \S+, so a value with whitespace is not an ID.
+        if (id ~ /[[:space:]]/) continue
+        st = rfield(a, b, "Status")
+        if (st == "done") continue
+        g = rfield(a, b, "Goal")
+        if (length(g) > 120) g = substr(g, 1, 120)
+        printf "- %s | %s | %s\n", id, (st == "" ? "?" : st), g
+      }
+    }
+  ' "$todo"
 fi
 
 echo "# Active tasks"
-"$python_cmd" - "$docs" <<'PY'
-import os, pathlib, re, sys
-task_id = os.environ.get("TASKFLOW_TASK_ID", "").strip()
-verbose = os.environ.get("TASKFLOW_VERBOSE", "0") == "1"
-active = []
-for directory in sorted(pathlib.Path(sys.argv[1]).iterdir()):
-    if not directory.is_dir() or directory.name in {'achieved', 'repository-docs'}: continue
-    plan = directory / 'plan.md'
-    if not plan.is_file(): continue
-    text = plan.read_text(encoding='utf-8')
-    def value(pattern, default='?'):
-        match = re.search(pattern, text, re.M)
-        return match.group(1).strip() if match else default
-    version = value(r'^> Task version:\s*(.+)$')
-    status = value(r'^> Status:\s*(.+)$')
-    title = value(r'^# Plan\s*(?:—|-)?\s*(.+)$', directory.name)
-    approval_section = re.search(r'(?ms)^## Approval\s*(.*?)(?=^## |\Z)', text)
-    approval = '?'
-    if approval_section:
-        match = re.search(r'(?m)^- Status:\s*(.+)$', approval_section.group(1))
-        approval = match.group(1).strip() if match else '?'
-    next_step = None
-    for step in re.finditer(r'(?ms)^### Step (\d+)\s*(?:—|-)?\s*(.*?)(?=^### Step |^## |\Z)', text):
-        step_status = re.search(r'(?m)^- Status:\s*(\S+)', step.group(2))
-        if not step_status or step_status.group(1) != 'done':
-            step_title = step.group(2).splitlines()[0].strip()
-            next_step = f"Step {step.group(1)} {step_title} [{step_status.group(1) if step_status else '?'}]"
-            break
-    active.append((directory, version, status, title, approval, next_step))
-if task_id:
-    selected = [item for item in active if item[0].name == task_id]
-    if not selected:
-        print(f"- Requested task unavailable: {task_id}")
-        raise SystemExit(0)
-elif len(active) == 1:
-    selected = active
-elif len(active) > 1:
-    print(f"- Multiple active tasks ({len(active)}); set TASKFLOW_TASK_ID to select one.")
-    selected = []
-else:
-    selected = []
-if verbose:
-    selected = active
-for directory, version, status, title, approval, next_step in selected:
-    suffix = f" | approval: {approval}" + (f" | next: {next_step}" if next_step else '')
-    print(f"- {directory.name} | {version} | {status} — {title}{suffix}")
-PY
+
+# One line per selected task: id, version, status, title, approval, next Step.
+summarize_plan() {  # summarize_plan <task-name> <plan-path>
+  awk -v dirname="$1" '
+    function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
+    function rtrim(s) { sub(/[[:space:]]+$/, "", s); return s }
+    function trim(s) { return rtrim(ltrim(s)) }
+    function at(s, p) { return index(s, p) == 1 }
+    function pvalue(key,   p, i, v) {
+      p = "> " key ":"
+      for (i = 1; i <= n; i++) {
+        if (at(line[i], p)) {
+          v = trim(substr(line[i], length(p) + 1))
+          return v
+        }
+      }
+      return ""
+    }
+    { n++; line[n] = $0 }
+    END {
+      version = pvalue("Task version"); if (version == "") version = "?"
+      status = pvalue("Status"); if (status == "") status = "?"
+      title = dirname
+      # The Plan heading is "# Plan - Title" with an optional separator.
+      for (i = 1; i <= n; i++) {
+        if (at(line[i], "# Plan")) {
+          h = substr(line[i], 7)
+          sub(/^[[:space:]]*/, "", h)
+          sub(/^(\xe2\x80\x94|-)/, "", h)
+          sub(/^[[:space:]]*/, "", h)
+          h = rtrim(h)
+          if (h != "") title = h
+          break
+        }
+      }
+      approval = "?"
+      for (i = 1; i <= n; i++) {
+        if (at(line[i], "## Approval")) {
+          for (j = i + 1; j <= n; j++) {
+            if (at(line[j], "## ")) break
+            if (at(line[j], "- Status:")) { approval = trim(substr(line[j], 10)); break }
+          }
+          break
+        }
+      }
+      # The first Step that is not done. The Step heading separator is optional.
+      ns = ""
+      for (i = 1; i <= n; i++) {
+        if (!at(line[i], "### Step ")) continue
+        rest = substr(line[i], 10)
+        if (!match(rest, /^[0-9]+/)) continue
+        num = substr(rest, 1, RLENGTH)
+        stitle = substr(rest, RLENGTH + 1)
+        sub(/^[[:space:]]*/, "", stitle)
+        sub(/^(\xe2\x80\x94|-)/, "", stitle)
+        sub(/^[[:space:]]*/, "", stitle)
+        stitle = rtrim(stitle)
+        st = "?"
+        for (j = i + 1; j <= n; j++) {
+          if (at(line[j], "### Step ") || at(line[j], "## ")) break
+          if (at(line[j], "- Status:")) { st = trim(substr(line[j], 10)); break }
+        }
+        if (st != "done") { ns = "Step " num " " stitle " [" st "]"; break }
+      }
+      suffix = " | approval: " approval
+      if (ns != "") suffix = suffix " | next: " ns
+      printf "- %s | %s | %s \xe2\x80\x94 %s%s\n", dirname, version, status, title, suffix
+    }
+  ' "$2"
+}
+
+if [ -n "$task_id" ]; then
+  found=0
+  for name in "${active[@]}"; do
+    [ "$name" = "$task_id" ] || continue
+    summarize_plan "$name" "$docs/$name/plan.md"
+    found=1
+  done
+  [ "$found" = "1" ] || echo "- Requested task unavailable: $task_id"
+elif [ "${#active[@]}" -eq 1 ]; then
+  summarize_plan "${active[0]}" "$docs/${active[0]}/plan.md"
+elif [ "${#active[@]}" -gt 1 ]; then
+  if [ "$verbose" = "1" ]; then
+    for name in "${active[@]}"; do summarize_plan "$name" "$docs/$name/plan.md"; done
+  else
+    echo "- Multiple active tasks (${#active[@]}); set TASKFLOW_TASK_ID to select one."
+  fi
+fi
 exit 0

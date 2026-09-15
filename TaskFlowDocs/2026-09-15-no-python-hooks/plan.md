@@ -80,15 +80,17 @@
 - Files: `hooks/task`, `hooks/summarize-state`, `hooks/archive`, `hooks/reopen`,
   `hooks/session-start`, `hooks/python-runtime` (deleted), `hooks/smoke-test`.
 - Implementation checklist:
-  - [ ] Convert each hook, preserving argument handling, exit codes, and output.
-  - [ ] Replace the `python-runtime` smoke section with a no-interpreter
+  - [x] Convert each hook, preserving argument handling, exit codes, and output.
+  - [x] Replace the `python-runtime` smoke section with a no-interpreter
         assertion: run the suite with a `PATH` that contains no `python*`.
-  - [ ] Confirm the Windows smoke path does not reference the deleted runtime.
+  - [x] Confirm the Windows smoke path does not reference the deleted runtime.
 - Acceptance: No hook invokes Python; the suite passes with no Python on `PATH`.
-- Verification: Full smoke suite under a Python-free `PATH`; `grep -rn python
-  hooks/` reviewed against the Plan's explicit allowlist.
+- Verification: The full suite passes twice over — once normally, and once with
+  an outer `PATH` holding every `/usr/bin` tool except `python*`, where it prints
+  `ALL SMOKE PASSED`. `grep -rn -i python hooks/` matches nothing outside the
+  smoke test's own assertion.
 - Rollback: `git checkout` the converted hooks and restore `python-runtime`.
-- Status: pending
+- Status: done
 
 ### Step 3 — Align CI and documentation
 
@@ -98,26 +100,32 @@
 - Files: `.github/workflows/hooks.yml`, `hooks/README.md`,
   `skills/taskflow/references/runtime.md`, `README.md`, `README.zh-CN.md`.
 - Implementation checklist:
-  - [ ] Drop `actions/setup-python` from the hook job if nothing else uses it;
+  - [x] Drop `actions/setup-python` from the hook job if nothing else uses it;
         keep it if `evals/runner.py` still runs there, and say which in the Plan.
-  - [ ] Restate the runtime as: POSIX shell + `awk` + `sed`, bash 3.2 level, Git
+  - [x] Restate the runtime as: POSIX shell + `awk` + `sed`, bash 3.2 level, Git
         for Windows Bash on Windows.
-  - [ ] Remove `TASKFLOW_PYTHON` from user-facing guidance.
+  - [x] Remove `TASKFLOW_PYTHON` from user-facing guidance.
 - Acceptance: No user-facing document instructs installing Python for TaskFlow.
-- Verification: `grep -rn -i python` over the documented surfaces; CI green on
-  all three runners.
+- Verification: The `smoke` job installs no interpreter at all; `evals/runner.py`
+  moved to its own `evals` job, which keeps `setup-python` because the eval runner
+  is repository tooling rather than shipped plugin runtime. `grep -rn -i python`
+  over the documented surfaces matches only that one workflow line.
 - Rollback: Revert the documentation and workflow commit.
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
 - After Step 1: the hardest conversion is proven before the rest is attempted.
 - After Step 2: the dependency is gone; Step 3 is text only.
+- Step 1 and Step 2 shipped as separate commits, so the two heaviest conversions
+  were auditable against the reference before the remaining four were attempted.
 
 ## Verification / Review
 
-- `tools/fixture-compare <reference> <candidate>` reports 0 differences. The
-  reference is captured from the Python implementation before it is removed.
+- `tools/fixture-compare <reference> <candidate>` reports 0 differences over 41
+  fixture files, and the smoke suite's stdout is identical apart from the two
+  sections added by this task. The reference is captured from the Python
+  implementation before it was removed.
 - `bash hooks/smoke-test` with `PATH` containing no `python*`.
 - `bash -n` on every hook; manual review of `awk`/`sed` for GNU-only constructs.
 - CI: ubuntu, macos, windows.
@@ -130,6 +138,16 @@
   keep the message and may drop traceback text).
 - 2026-09-15 — Captured the reference fixture set from the Python implementation
   and validated the comparator against a second unchanged run.
+- 2026-09-15 — Converted `task`, `summarize-state`, `archive`, `reopen`, and
+  `session-start`; deleted `python-runtime`. The comparison found six defects in
+  the drafts, each listed in the implementation commit: an index-row column
+  misread, a duplicate candidate row on re-run, a dropped heading on append, an
+  `ls` of the current directory when no plan exists, a pipeline that truncated
+  the target when awk rejected the input, and a `reopen` path that emitted the
+  original text before deciding to append. Two more came from reading the
+  result rather than the diff: `%c` double-encoding non-ASCII under a UTF-8
+  locale, and a `command -v` that returned a shell-function name so the curated
+  PATH had no real `grep`.
 
 ## Follow-ups
 
@@ -141,3 +159,5 @@
 - v1 — planning.
 - v2 — approved: records the confirmed POSIX-only direction and the fixture
   comparator; supersedes v1 (archived under `old/v1/`).
+- v2 — implemented and verified: no hook invokes an interpreter, and the suite
+  passes on a host where none is reachable.

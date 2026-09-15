@@ -10,26 +10,145 @@
 # to any command containing ".sh") never interferes.
 
 set -euo pipefail
+# The JSON parser below emits UTF-8 one byte at a time. Under a UTF-8 locale
+# gawk's `%c` re-encodes a codepoint, double-encoding every non-ASCII escape, so
+# byte-order collation is required rather than merely preferred here.
+LC_ALL=C
+export LC_ALL
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Command hooks receive the event JSON on stdin. Empty input remains
 # compatible with direct CLI invocation and older hook hosts.
+#
+# The event decides where this hook writes, so it is parsed as JSON rather than
+# pattern-matched: a value containing an escaped quote or a nested object must not
+# be able to masquerade as a top-level field. Only `hook_event_name`, `cwd`, and
+# `session_id` are read; every other value is validated and skipped.
 event_json="$(cat)"
-python_cmd="$(bash "${PLUGIN_ROOT}/hooks/python-runtime")"
-event_fields="$(TASKFLOW_EVENT_JSON="$event_json" "$python_cmd" - <<'PY'
-import json, os
-payload = os.environ.get("TASKFLOW_EVENT_JSON", "").strip()
-try:
-    event = json.loads(payload) if payload else {}
-except json.JSONDecodeError as exc:
-    raise SystemExit(f"TaskFlow SessionStart error: invalid event JSON: {exc}")
-print(event.get("hook_event_name", ""))
-print(event.get("cwd", ""))
-print(event.get("session_id", ""))
-PY
-)"
+event_fields="$(printf '%s' "$event_json" | awk '
+  function die(msg) {
+    printf "TaskFlow SessionStart error: invalid event JSON: %s\n", msg > "/dev/stderr"
+    exit 2
+  }
+  function peek() { return (P <= L) ? substr(S, P, 1) : "" }
+  function ws(   c) {
+    while (P <= L) { c = substr(S, P, 1); if (c == " " || c == "\t" || c == "\n" || c == "\r") P++; else break }
+  }
+  function hexnum(h,   i, c, v) {
+    v = 0
+    for (i = 1; i <= 4; i++) {
+      c = tolower(substr(h, i, 1))
+      v = v * 16
+      if (c >= "0" && c <= "9") v += c + 0
+      else if (c >= "a" && c <= "f") v += index("abcdef", c) + 9
+      else die("bad \\u escape")
+    }
+    return v
+  }
+  function utf8(cp,   b1, b2, b3, b4) {
+    if (cp < 0x80) return sprintf("%c", cp)
+    if (cp < 0x800) return sprintf("%c%c", 0xC0 + int(cp / 64), 0x80 + cp % 64)
+    if (cp < 0x10000) return sprintf("%c%c%c", 0xE0 + int(cp / 4096), 0x80 + int(cp / 64) % 64, 0x80 + cp % 64)
+    return sprintf("%c%c%c%c", 0xF0 + int(cp / 262144), 0x80 + int(cp / 4096) % 64, 0x80 + int(cp / 64) % 64, 0x80 + cp % 64)
+  }
+  function str(   out, c, e, h, n, m) {
+    if (peek() != "\"") die("expected a string")
+    P++
+    out = ""
+    while (1) {
+      if (P > L) die("unterminated string")
+      c = substr(S, P, 1)
+      if (c == "\"") { P++; return out }
+      if (c != "\\") { out = out c; P++; continue }
+      P++
+      if (P > L) die("unterminated escape")
+      e = substr(S, P, 1)
+      if (e == "u") {
+        h = substr(S, P + 1, 4)
+        if (h !~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) die("bad \\u escape")
+        n = hexnum(h)
+        P += 5
+        # A leading surrogate pairs with the following escape into one codepoint.
+        if (n >= 0xD800 && n <= 0xDBFF && substr(S, P, 2) == "\\u") {
+          h = substr(S, P + 2, 4)
+          if (h ~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+            m = hexnum(h)
+            if (m >= 0xDC00 && m <= 0xDFFF) { n = 0x10000 + (n - 0xD800) * 0x400 + (m - 0xDC00); P += 6 }
+          }
+        }
+        out = out utf8(n)
+        continue
+      }
+      if (e == "n") { out = out "\n"; P++; continue }
+      if (e == "t") { out = out "\t"; P++; continue }
+      if (e == "r") { out = out "\r"; P++; continue }
+      if (e == "b") { out = out sprintf("%c", 8); P++; continue }
+      if (e == "f") { out = out sprintf("%c", 12); P++; continue }
+      if (e == "\"" || e == "\\" || e == "/") { out = out e; P++; continue }
+      die("bad escape")
+    }
+  }
+  function skipval(   c, depth) {
+    ws()
+    c = peek()
+    if (c == "\"") { str(); return }
+    if (c == "{" || c == "[") {
+      depth = 0
+      while (P <= L) {
+        c = peek()
+        if (c == "\"") { str(); continue }
+        if (c == "{" || c == "[") depth++
+        else if (c == "}" || c == "]") { depth--; P++; if (depth == 0) return; continue }
+        P++
+      }
+      die("unterminated value")
+    }
+    # number, true, false, null
+    while (P <= L) {
+      c = peek()
+      if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") return
+      P++
+    }
+  }
+  { S = S $0 "\n" }
+  END {
+    L = length(S)
+    P = 1
+    ws()
+    if (P > L) { print ""; print ""; print ""; exit 0 }   # empty input means no event
+    if (peek() != "{") die("expected a JSON object")
+    P++
+    ws()
+    if (peek() == "}") P++
+    else {
+      while (1) {
+        ws()
+        k = str()
+        ws()
+        if (peek() != ":") die("expected a colon")
+        P++
+        ws()
+        if (k == "hook_event_name" || k == "cwd" || k == "session_id") {
+          if (substr(S, P, 4) == "null") { P += 4; v = "" }
+          else if (peek() == "\"") v = str()
+          else { skipval(); v = "" }
+          if (k == "hook_event_name") ev = v
+          else if (k == "cwd") cwd = v
+          else sid = v
+        } else skipval()
+        ws()
+        if (peek() == ",") { P++; continue }
+        if (peek() == "}") { P++; break }
+        die("expected a comma or a closing brace")
+      }
+    }
+    ws()
+    if (P <= L) die("unexpected trailing content")
+    printf "%s\n%s\n%s\n", ev, cwd, sid
+  }
+')" || exit 1
 event_name="$(printf '%s\n' "$event_fields" | sed -n '1p')"
 event_cwd="$(printf '%s\n' "$event_fields" | sed -n '2p')"
 event_session_id="$(printf '%s\n' "$event_fields" | sed -n '3p')"

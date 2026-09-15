@@ -67,6 +67,8 @@ Keep summaries short; both hosts cap oversized hook context (Claude Code caps at
 
 Scripts are extensionless bash so Claude Code's Windows auto-detection (prepends `bash` to any command containing `.sh`) never interferes. On Windows, `hooks/run-hook.cmd` is a polyglot batch/bash wrapper that locates Git Bash; the same `command` value works on every OS for Claude Code, and Codex `hooks-codex.json` uses `commandWindows` where desired.
 
+Hooks carry no language runtime. Text work is done with `awk` and `sed` at the bash 3.2 + BSD userland level, which is the floor `2026-09-14-macos-hook-portability` established and which `tools/fixture-compare` protects: no `declare -A`, no `mapfile`, and no GNU-only `sed -i` may appear in a hook. The smoke suite runs the hooks against a curated `PATH` containing no interpreter, so a reintroduced runtime dependency fails CI rather than a user's session.
+
 Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and `cmd.exe` do not maintain separate lifecycle logic. `hooks/smoke-test-windows.ps1` exercises the complete lifecycle through that launcher, including a repository path with spaces and Chinese characters.
 
 ## Single-command transitions
@@ -106,7 +108,6 @@ repo-root/
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── session-record               # records the host session id in the task index
         ├── repository-docs-context      # syncs index metadata + derives routes
-        ├── python-runtime               # validates and selects a Python 3 interpreter
         ├── task                         # explicit intake/promote/state/progress/complete
         ├── summarize-state              # shared state-summary generator
         ├── archive                      # full archive transaction (incl. Todo update)

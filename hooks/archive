@@ -17,33 +17,42 @@ grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not compl
 
 todo="$docs/todo.md"
 [ -f "$todo" ] || { echo "todo.md missing; archive not started"; exit 1; }
-python_cmd="$(bash "$(dirname "$0")/python-runtime")"
-"$python_cmd" - "$todo" "$task" <<'PY'
-import re, sys
-text, task = open(sys.argv[1], encoding='utf-8').read(), sys.argv[2]
-parts = re.split(r'(?m)^(## .*)$', text)
-if not any(f'`TaskFlowDocs/{task}/`' in parts[i+1] for i in range(1, len(parts), 2)):
-    raise SystemExit(f"Todo entry for {task} missing; archive not started")
-PY
+if ! grep -q "\`TaskFlowDocs/$task/\`" "$todo"; then
+  echo "Todo entry for $task missing; archive not started"; exit 1
+fi
 
 # 2. move whole dir
 [ -d "$docs/achieved" ] || mkdir -p "$docs/achieved"
 mv "$docs/$task" "$docs/achieved/$task"
 
 # 3. update the linked Todo item: Task: path -> achieved, Status -> done
-"$python_cmd" - "$todo" "$task" <<'PY'
-import re, sys
-todo, task = sys.argv[1], sys.argv[2]
-text = open(todo, encoding='utf-8').read()
-parts = re.split(r'(?m)^(## .*)$', text)
-for i in range(1, len(parts), 2):
-    header, body = parts[i], parts[i+1]
-    if f'`TaskFlowDocs/{task}/`' in body:
-        body = re.sub(r'(?m)^(- Status: ).*$', r'\1done', body)
-        body = body.replace(f'`TaskFlowDocs/{task}/`', f'`TaskFlowDocs/achieved/{task}/`')
-        parts[i+1] = body
-open(todo, 'w', encoding='utf-8').write(''.join(parts))
-PY
+awk -v task="$task" '
+  { n++; line[n] = $0 }
+  END {
+    needle = "`TaskFlowDocs/" task "/`"
+    # Locate the entry: its section starts at the last "## " heading at or before
+    # the line that links this task, and ends before the next "## " heading.
+    found = 0
+    for (i = 1; i <= n; i++) {
+      if (index(line[i], "## ") == 1) start = i
+      if (index(line[i], needle)) { found = 1; break }
+    }
+    if (!found) { for (i = 1; i <= n; i++) print line[i]; exit 0 }
+    finish = n + 1
+    for (i = start + 1; i <= n; i++) {
+      if (index(line[i], "## ") == 1) { finish = i; break }
+    }
+    for (i = start + 1; i < finish; i++) {
+      p = "- Status:"
+      if (index(line[i], p) == 1) { line[i] = "- Status: done"; break }
+    }
+    for (i = 1; i <= n; i++) {
+      gsub(needle, "`TaskFlowDocs/achieved/" task "/`", line[i])
+      print line[i]
+    }
+  }
+' "$todo" > "$todo.tmp"
+mv "$todo.tmp" "$todo"
 
 # 4. verify
 fail=0
