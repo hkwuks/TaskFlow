@@ -31,7 +31,7 @@
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-09-15 13:14 +0800
+- Approved at: 2026-09-15 14:49 +0800
 - Approved version: v2
 - Approved scope: PRD / Spec / Plan
 
@@ -131,6 +131,13 @@
 - CI: ubuntu, macos, windows.
 
 ## Change Log
+
+- 2026-09-15 14:49 — Implementation verified: `bash hooks/smoke-test` prints
+  `ALL SMOKE PASSED` both normally and with an outer `PATH` containing every
+  `/usr/bin` tool except `python*`; `python3 evals/runner.py` prints
+  `PASS (6 evals)`; `tools/fixture-compare` reports 0 differences over 41
+  fixture files captured from the Python implementation.
+- 2026-09-15 — Approval recorded at v2 after the version bump.
 
 - 2026-09-15 — Task version bumped from v1 to v2 and re-approved: the PRD recorded
   a POSIX `awk`/`sed` direction but not the user's confirmed answers (Git for
