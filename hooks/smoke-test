@@ -115,7 +115,15 @@ grep -q 'Read authoritative sources: CONTRIBUTING.md' "$tmp/routes.txt" || { ech
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
 grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | .* | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
 ! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
+# A personal rule sits directly in repository-docs/ and must be routed on its own
+# line so its local-only, subordinate status is visible.
 before=$(digest "$index")
+printf '# My rule\n' > "$docs/repository-docs/my-card.md"
+TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/personal-routes.txt"
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/my-card.md` | all | yes | .* | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/my-card.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
+! grep -q 'Read authoritative sources:.*my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
+rm -f "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
 echo ok
@@ -290,6 +298,25 @@ grep -q 'explicit user request to use `\$taskflow` opts any planning or research
 grep -q 'never assume `origin` is the fork or `upstream` exists' "$skill/SKILL.md" || { echo "FAIL fork remote boundary"; exit 1; }
 grep -q 'For missing `CONTRIBUTING.md` or `CODE_STYLE.md`' "$skill/SKILL.md" || { echo "FAIL baseline governance drafting"; exit 1; }
 grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$skill/SKILL.md" || { echo "FAIL roadmap direction gate"; exit 1; }
+grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
+echo ok
+
+echo "== phases map to concept classes without naming a capability =="
+grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
+grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
+grep -q '^| 6\. Verify and review | acceptance and findings | testing strategy' "$skill/SKILL.md" || { echo "FAIL verify phase concept row"; exit 1; }
+for heading in "1. Define — PRD" "2. Research — Reference" "3. Design — Spec decision" \
+               "4. Plan — execution contract" "5. Build — implement by Plan" \
+               "6. Verify and review" "7. Complete and archive"; do
+  grep -q "^| $heading |" "$skill/SKILL.md" || { echo "FAIL concept table is missing: $heading"; exit 1; }
+done
+concept_table=$(sed -n '/^| Phase | Artifact | Equivalent concept class/,/^$/p' "$skill/SKILL.md")
+[ -n "$concept_table" ] || { echo "FAIL concept table missing"; exit 1; }
+if printf '%s' "$concept_table" | grep -qiE 'taskflow|claude|codex|agent-skills|openai|anthropic|mcp'; then
+  echo "FAIL concept table names a product instead of a concept"; exit 1
+fi
+grep -q 'must be a choice, not an oversight' "$skill/SKILL.md" || { echo "FAIL unaided-phase signal missing"; exit 1; }
+grep -q 'says what class to look for' "$skill/references/artifacts.md" || { echo "FAIL accounting rule pointer missing"; exit 1; }
 echo ok
 
 echo "== repository-check is read-only and reports actionable status =="
