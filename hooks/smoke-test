@@ -29,25 +29,68 @@ if [ $# -eq 0 ]; then
   trap 'rm -rf "$tmp"' EXIT
 fi
 
+echo "== every hook parses under the shell that is running =="
+# macOS ships bash 3.2, so this loop is a real 3.2 parser check in CI. It is worth
+# its own section because a 3.2 parse error otherwise surfaces as a puzzling
+# behavioural failure several sections later: 3.2's parser does not accept an
+# apostrophe inside a heredoc that is itself inside `$( )`, and it reports the
+# error against the line where the substitution ends.
+for hook in "$HERE"/*; do
+  case "$hook" in *.md|*.ps1|*.json|*.cmd) continue ;; esac
+  [ -f "$hook" ] || continue
+  if ! err="$(bash -n "$hook" 2>&1)"; then
+    printf '%s: %s\n' "$(basename "$hook")" "$err"
+    exit 1
+  fi
+done
+echo ok
+
 echo "== summarize-state with no TaskFlowDocs prints nothing =="
 empty="$(mktemp -d)"; rm -rf "$empty"; mkdir -p "$empty"
 out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo ok
 rm -rf "$empty"
 
-echo "== Python runtime preflight is explicit and rejects unusable shims =="
-runtime="$(bash "$HERE/python-runtime")"
-resolved=$(TASKFLOW_PYTHON="$runtime" bash "$HERE/python-runtime")
-[ "$resolved" = "$runtime" ] || { echo "FAIL runtime did not honor usable override"; exit 1; }
-shim_dir="$tmp/WindowsApps"
-mkdir -p "$shim_dir"
-shim="$shim_dir/python3"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$shim"
-chmod +x "$shim"
-if TASKFLOW_PYTHON="$shim" bash "$HERE/python-runtime" >"$tmp/runtime-out" 2>"$tmp/runtime-err"; then
-  echo "FAIL WindowsApps shim accepted"
-  exit 1
+echo "== hooks run with no interpreter available =="
+# The whole point of the change: every hook must work on a host with no Python at
+# all. A PATH holding only a curated bin directory is the closest a test can get
+# to that, and it also fails loudly if a hook grows a new runtime dependency.
+toolbin="$tmp/toolbin"
+mkdir -p "$toolbin"
+# bash and sh are linked because the hooks are shell scripts that call each other;
+# they are the runtime being kept, not a dependency being removed.
+for tool in awk sed grep cut tr od printf mktemp dirname basename cat date mv rm mkdir \
+            find head tail sort wc chmod cmp diff env ls pwd bash sh \
+            ln touch git; do
+  # `type -P` reports the executable path and ignores shell functions; an agent
+  # harness that wraps `grep` in a function would otherwise contribute a bare name
+  # and leave the curated PATH without a real grep.
+  resolved="$(type -P "$tool" 2>/dev/null)" || resolved="$(command -v "$tool" 2>/dev/null)" || continue
+  case "$resolved" in /*) ln -sf "$resolved" "$toolbin/$tool" ;; esac
+done
+[ -x "$toolbin/awk" ] || { echo "SKIP no awk to link"; exit 1; }
+[ -x "$toolbin/bash" ] || { echo "SKIP no bash to link"; exit 1; }
+# Nothing named python* may resolve.
+[ -z "$(PATH="$toolbin" command -v python3 python py 2>/dev/null)" ] || {
+  echo "FAIL a python interpreter is reachable on the curated PATH"; exit 1
+}
+interp_root="$tmp/no-interpreter"
+mkdir -p "$interp_root/TaskFlowDocs/2026-09-08-nointerp"
+cat > "$interp_root/TaskFlowDocs/2026-09-08-nointerp/plan.md" <<'EOF'
+# Plan — No interpreter
+> Task version: v1
+> Status: in_progress
+EOF
+if ! PATH="$toolbin" TASKFLOW_REPO_ROOT="$interp_root" TASKFLOW_TASK_ID=2026-09-08-nointerp \
+     TASKFLOW_SESSION_ID=nointerp AI_AGENT=claude-code bash "$HERE/session-record" 2>"$tmp/nointerp.err"; then
+  echo "FAIL session-record failed without an interpreter"; cat "$tmp/nointerp.err"; exit 1
 fi
-grep -q 'Python 3 is required' "$tmp/runtime-err" || { echo "FAIL runtime error missing guidance"; exit 1; }
+grep -q '^- Session ID: nointerp$' "$interp_root/TaskFlowDocs/2026-09-08-nointerp/sessions.md" ||
+  { echo "FAIL session-record wrote nothing without an interpreter"; exit 1; }
+printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"nointerp"}\n' "$interp_root" |
+  PATH="$toolbin" CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" >"$tmp/nointerp.json" 2>"$tmp/nointerp2.err" ||
+  { echo "FAIL session-start failed without an interpreter"; cat "$tmp/nointerp2.err"; exit 1; }
+grep -q '"hookSpecificOutput"' "$tmp/nointerp.json" ||
+  { echo "FAIL session-start produced no context without an interpreter"; exit 1; }
 echo ok
 
 echo "== session-record writes the host session into the selected task =="
@@ -95,6 +138,42 @@ TASKFLOW_REPO_ROOT="$record_root" TASKFLOW_TASK_ID="2026-09-08-record" TASKFLOW_
   TASKFLOW_SESSION_CWD="$record_root" bash "$HERE/session-record" 2>"$tmp/session-record.err"
 [ "$before" = "$(digest "$record")" ] || { echo "FAIL unparseable sessions.md was rewritten"; exit 1; }
 grep -q "'## Active / Resumable' section" "$tmp/session-record.err" || { echo "FAIL unparseable diagnostic missing"; exit 1; }
+echo ok
+
+echo "== session-record keeps a stable field order across upserts =="
+# The rewrite's riskiest property: rebuilding an entry must not reorder the hook's
+# fields or disturb the Agent-owned ones around them.
+order_root="$tmp/session-order"
+mkdir -p "$order_root/TaskFlowDocs/2026-09-08-order"
+cat > "$order_root/TaskFlowDocs/2026-09-08-order/plan.md" <<'EOF'
+# Plan — Order
+> Task version: v3
+> Status: in_progress
+EOF
+order_record="$order_root/TaskFlowDocs/2026-09-08-order/sessions.md"
+TASKFLOW_REPO_ROOT="$order_root" TASKFLOW_TASK_ID=2026-09-08-order TASKFLOW_SESSION_ID=order-a \
+  TASKFLOW_SESSION_CWD="$order_root" AI_AGENT=claude-code bash "$HERE/session-record"
+expected='- Status
+- Primary
+- Session availability
+- Session ID
+- Started
+- Last active
+- Code working directory
+- Task artifact directory
+- Task version / phase'
+# awk rather than sed: `\|` alternation is a GNU extension, so the same pattern
+# matches nothing under BSD sed and the assertion would pass vacuously on macOS.
+actual="$(awk '/^- (Status|Primary|Session availability|Session ID|Started|Last active|Code working directory|Task artifact directory|Task version \/ phase):/ { sub(/:.*/, ""); print }' "$order_record")"
+[ "$actual" = "$expected" ] || { echo "FAIL session field order changed:"; printf '%s\n' "$actual"; exit 1; }
+# The entry reports the task's own version and status, not a hardcoded pair.
+grep -q '^- Task version / phase: v3 / in_progress$' "$order_record" || { echo "FAIL task version/phase not read from the Plan"; exit 1; }
+# A second run for the same session keeps the same order.
+TASKFLOW_REPO_ROOT="$order_root" TASKFLOW_TASK_ID=2026-09-08-order TASKFLOW_SESSION_ID=order-a \
+  TASKFLOW_SESSION_CWD="$order_root" AI_AGENT=claude-code bash "$HERE/session-record"
+actual="$(awk '/^- (Status|Primary|Session availability|Session ID|Started|Last active|Code working directory|Task artifact directory|Task version \/ phase):/ { sub(/:.*/, ""); print }' "$order_record")"
+[ "$actual" = "$expected" ] || { echo "FAIL session field order changed on upsert"; exit 1; }
+[ "$(grep -c '^### S' "$order_record")" -eq 1 ] || { echo "FAIL upsert duplicated the entry"; exit 1; }
 echo ok
 
 echo "== session-start emits a platform JSON shape =="
@@ -250,7 +329,7 @@ if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; the
   echo "== Windows launcher finds Git Bash =="
   win_hook=$(cygpath -w "$HERE/run-hook.cmd")
   json=$(cd "$tmp" && TASKFLOW_REPO_ROOT="$tmp" cmd.exe //d //c "$win_hook" session-start 2>&1)
-  echo "$json" | grep -q 'additionalContext\|additional_context\|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
+  echo "$json" | grep -qE 'additionalContext|additional_context|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
   echo ok
 fi
 

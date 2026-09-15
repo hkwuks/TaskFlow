@@ -1,177 +1,246 @@
 #!/usr/bin/env bash
 # repository-docs-context — synchronize the routing record and print compact routes.
+# POSIX shell + awk only: the plugin must run with no language runtime available.
 set -euo pipefail
+shopt -s nullglob
 
 repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 phase="${TASKFLOW_PHASE:-auto}"
 task_id="${TASKFLOW_TASK_ID:-}"
-python_cmd="$(bash "$(dirname "$0")/python-runtime")"
+# Byte-order collation keeps glob and sort order identical across hosts, which is
+# what makes the index byte-stable.
+LC_ALL=C
+export LC_ALL
 
-"$python_cmd" - "$repo_root" "$phase" "$task_id" <<'PY'
-import datetime, os, pathlib, re, sys, tempfile
+docs="$repo_root/TaskFlowDocs/repository-docs"
+index="$docs/index.md"
+today="$(date +%Y-%m-%d)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 
-root = pathlib.Path(sys.argv[1]).resolve()
-phase = sys.argv[2].strip().lower()
-task_id = sys.argv[3].strip()
-docs = root / "TaskFlowDocs" / "repository-docs"
-index = docs / "index.md"
-today = datetime.date.today().isoformat()
+fail() { echo "$*" >&2; exit 1; }
 
-def validate_relative_path(value: str) -> str:
-    """Return a repository-relative POSIX path or fail before any write."""
-    candidate = value.strip().replace("\\", "/")
-    pure = pathlib.PurePosixPath(candidate)
-    if (not candidate or pure.is_absolute() or ".." in pure.parts or
-            re.match(r"^[A-Za-z]:/", candidate)):
-        raise ValueError(f"unsafe repository-document path: {value!r}")
-    resolved = (root / pathlib.Path(*pure.parts)).resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(f"repository-document path escapes repository: {value!r}") from exc
-    return pure.as_posix()
+# --- phase inference -------------------------------------------------------
+if [ "$phase" = "auto" ]; then
+  inferred=""
+  candidates=""
+  if [ -n "$task_id" ]; then
+    candidates="$repo_root/TaskFlowDocs/$task_id/plan.md"
+  else
+    # nullglob makes an unmatched pattern disappear, so a plan-less repository
+    # yields no candidates rather than a literal pattern or an `ls` of the cwd.
+    candidates="$repo_root"/TaskFlowDocs/20*/plan.md
+  fi
+  for plan in $candidates; do
+    [ -f "$plan" ] || continue
+    status=$(sed -n 's/^> Status: *//p' "$plan" | head -1)
+    case "$status" in
+      planning|ready) mapped=design ;;
+      in_progress)    mapped=code ;;
+      checking)       mapped=review ;;
+      *)              continue ;;
+    esac
+    case " $inferred " in *" $mapped "*) ;; *) inferred="$inferred $mapped" ;; esac
+  done
+  # shellcheck disable=SC2086
+  set -- $inferred
+  if [ "$#" -eq 1 ]; then phase="$1"; else phase="unclassified"; fi
+fi
 
-entries = [
-    ("repository-guidance", "README.md", "design,roadmap"),
-    ("repository-guidance", "README.zh-CN.md", "design,roadmap"),
-    ("repository-rule", "LICENSE", "all"),
-    ("repository-rule", "CONTRIBUTING.md", "design,code,commit,pr,release"),
-    ("repository-rule", "CODE_STYLE.md", "code,review"),
-    ("repository-guidance", "ROADMAP.md", "design,roadmap,release"),
-    ("repository-rule", ".github/pull_request_template.md", "pr"),
-    ("repository-rule", ".github/CODEOWNERS", "pr,review"),
-    ("repository-rule", "CODE_OF_CONDUCT.md", "all"),
-    ("repository-rule", "SECURITY.md", "code,review,release"),
-    ("repository-rule", "RELEASE.md", "release"),
-    ("repository-rule", "CHANGELOG.md", "release"),
-]
-optional_paths = {
-    ".github/CODEOWNERS", "CODE_OF_CONDUCT.md", "SECURITY.md",
-    "RELEASE.md", "CHANGELOG.md",
+# --- entry assembly --------------------------------------------------------
+# Entries are tab-separated: kind, path, phases, status-override ("-" = derive).
+# `known` must grow with every added entry: it is what stops a carried-over row
+# and a derived candidate from both claiming the same path on the next run.
+: > "$work/entries"
+: > "$work/known"
+have_known() { grep -Fxq "$1" "$work/known"; }
+add_entry() {
+  printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" >> "$work/entries"
+  printf '%s\n' "$2" >> "$work/known"
 }
 
-if phase == "auto":
-    inferred = set()
-    plans = []
-    if task_id:
-        candidate = root / "TaskFlowDocs" / task_id / "plan.md"
-        if candidate.is_file():
-            plans.append(candidate)
-    else:
-        plans = list((root / "TaskFlowDocs").glob("20*/plan.md"))
-    for plan in plans:
-        content = plan.read_text(encoding="utf-8")
-        status = next((line.split(":", 1)[1].strip() for line in content.splitlines()
-                       if line.startswith("> Status:")), "")
-        mapped = {"planning": "design", "ready": "design", "in_progress": "code",
-                  "checking": "review"}.get(status)
-        if mapped:
-            inferred.add(mapped)
-    phase = inferred.pop() if len(inferred) == 1 else "unclassified"
+add_entry repository-guidance README.md design,roadmap -
+add_entry repository-guidance README.zh-CN.md design,roadmap -
+add_entry repository-rule LICENSE all -
+add_entry repository-rule CONTRIBUTING.md design,code,commit,pr,release -
+add_entry repository-rule CODE_STYLE.md code,review -
+add_entry repository-guidance ROADMAP.md design,roadmap,release -
+add_entry repository-rule .github/pull_request_template.md pr -
+add_entry repository-rule .github/CODEOWNERS pr,review -
+add_entry repository-rule CODE_OF_CONDUCT.md all -
+add_entry repository-rule SECURITY.md code,review,release -
+add_entry repository-rule RELEASE.md release -
+add_entry repository-rule CHANGELOG.md release -
 
-# Personal supplements sit directly in repository-docs/, so their identity comes
-# from the class column: every recognized repository-owned path above is listed by
-# its conventional source location and is never copied in here.
-owned = {path for _, path, _ in entries}
-for path in sorted(docs.glob("*.md")):
-    if path.name == "index.md":
-        continue
-    relative = path.relative_to(root).as_posix()
-    if relative not in owned:
-        entries.append(("personal-rule", relative, "all", "local-only"))
+# Personal rules sit directly in repository-docs/, so their identity comes from
+# the class column: every recognized repository-owned path above is listed at its
+# conventional source location and is never copied in here.
+for path in "$docs"/*.md; do
+  name="$(basename "$path")"
+  [ "$name" = "index.md" ] && continue
+  relative="TaskFlowDocs/repository-docs/$name"
+  have_known "$relative" && continue
+  add_entry personal-rule "$relative" all local-only
+done
 
-known = {entry[1] for entry in entries}
-old = index.read_text(encoding="utf-8") if index.exists() else ""
-table_rows = [line for line in old.splitlines()
-              if line.startswith("|") and not line.startswith(("| ---", "| Class |"))]
-parsed_rows = []
-for match in re.finditer(r"(?m)^\| ([^|]+) \| `([^`]+)` \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$", old):
-    kind, relative, phases, exists, checked, status = (value.strip() for value in match.groups())
-    relative = validate_relative_path(relative)
-    # Personal rules live beside this record and are derived from the live scan
-    # above, so a removed one must not survive as a carried-over stale row.
-    if not relative.startswith("TaskFlowDocs/repository-docs/"):
-        if relative not in known:
-            entries.append((kind, relative, phases, status))
-            known.add(relative)
-    parsed_rows.append(match.group(0))
-if set(table_rows) - set(parsed_rows):
-    raise ValueError("repository-document index contains an invalid row")
+# validate_relative_path — fail before any write on a path that could escape the
+# repository. ".." and absolute or drive-qualified paths are rejected outright;
+# the resolved parent directory is then checked against the resolved root so a
+# symlinked directory cannot smuggle the target outside either.
+validate_relative_path() {
+  local candidate="$1" dir resolved root_real
+  candidate="$(printf '%s' "$candidate" | tr '\\' '/')"
+  candidate="$(printf '%s' "$candidate" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [ -n "$candidate" ] || fail "unsafe repository-document path: '$1'"
+  case "$candidate" in
+    /*) fail "unsafe repository-document path: '$1'" ;;
+    [A-Za-z]:/*) fail "unsafe repository-document path: '$1'" ;;
+  esac
+  case "/$candidate/" in
+    */../*) fail "unsafe repository-document path: '$1'" ;;
+  esac
+  dir="$(dirname "$candidate")"
+  if [ -d "$repo_root/$dir" ]; then
+    resolved="$(cd "$repo_root/$dir" && pwd -P)"
+    root_real="$(cd "$repo_root" && pwd -P)"
+    case "$resolved/" in
+      "$root_real"/*) ;;
+      *) fail "repository-document path escapes repository: '$1'" ;;
+    esac
+  fi
+}
 
-for path in sorted(root.glob("*GOVERNANCE*.md")):
-    relative = path.relative_to(root).as_posix()
-    if relative not in known:
-        entries.append(("candidate", relative, "review", "needs-review"))
+# --- carry over rows this run does not derive -------------------------------
+# A carried-over row keeps its recorded class, phases, and status; a personal
+# rule is derived from the live scan above, so a removed one must not survive as
+# a stale row.
+if [ -f "$index" ]; then
+  awk -v out="$work/oldrows" '
+    BEGIN { FS = "" }
+    /^\|/ {
+      if ($0 ~ /^\| ---/ || $0 ~ /^\| Class \|/) next
+      n = split($0, f, "|")
+      if (n != 8) { bad++; next }
+      for (i = 2; i <= 7; i++) { gsub(/^[ \t]+|[ \t]+$/, "", f[i]) }
+      path = f[3]
+      if (path !~ /^`[^`]+`$/) { bad++; next }
+      gsub(/`/, "", path)
+      # Columns: 2 class, 3 path, 4 phases, 5 exists, 6 last-checked, 7 status.
+      print f[2] "\t" path "\t" f[4] "\t" f[7] >> out
+    }
+    END { if (bad) print bad > "/dev/stderr" }
+  ' "$index" 2> "$work/badcount" || fail "repository-document index contains an invalid row"
+  [ ! -s "$work/badcount" ] || fail "repository-document index contains an invalid row"
+  # An index with no recognizable rows (header only) is valid but leaves no file.
+  [ -f "$work/oldrows" ] || : > "$work/oldrows"
 
-rows = []
-for entry in entries:
-    kind, relative, phases = entry[:3]
-    exists = (root / relative).is_file()
-    status = entry[3] if len(entry) == 4 else (
-        "ready" if exists else ("optional" if relative in optional_paths else "missing"))
-    rows.append((kind, relative, phases, "yes" if exists else "no", today, status))
+  while IFS="$(printf '\t')" read -r kind relative phases status; do
+    [ -n "$relative" ] || continue
+    validate_relative_path "$relative"
+    case "$relative" in TaskFlowDocs/repository-docs/*) continue ;; esac
+    have_known "$relative" && continue
+    add_entry "$kind" "$relative" "$phases" "$status"
+  done < "$work/oldrows"
+fi
 
-text = """# Repository documents
+for path in "$repo_root"/*GOVERNANCE*.md; do
+  relative="$(basename "$path")"
+  have_known "$relative" && continue
+  add_entry candidate "$relative" review needs-review
+done
 
-> Last checked: {today}
+# --- derive rows -----------------------------------------------------------
+optional_paths=" .github/CODEOWNERS CODE_OF_CONDUCT.md SECURITY.md RELEASE.md CHANGELOG.md "
+: > "$work/rows"
+phase_matches() {
+  [ "$phase" = "all" ] && return 0
+  case ",$1," in *",all,"*) return 0 ;; esac
+  case ",$1," in *",$phase,"*) return 0 ;; esac
+  return 1
+}
 
-This index is the authoritative routing and check record for repository documents. The documents at their repository-relative source paths remain authoritative for policy content. Maintain this record first, route by phase from it, then read the routed sources. Do not copy source policy text here.
+while IFS="$(printf '\t')" read -r kind relative phases override; do
+  [ -n "$relative" ] || continue
+  if [ -f "$repo_root/$relative" ]; then exists=yes; else exists=no; fi
+  if [ "$override" = "-" ]; then
+    if [ "$exists" = yes ]; then
+      status=ready
+    else
+      case "$optional_paths" in *" $relative "*) status=optional ;; *) status=missing ;; esac
+    fi
+  else
+    status="$override"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$kind" "$relative" "$phases" "$exists" "$today" "$status" >> "$work/rows"
+done < "$work/entries"
 
-| Class | Source path | Phases | Exists | Last checked | Status |
-| --- | --- | --- | --- | --- | --- |
-{rows}
+# --- render ----------------------------------------------------------------
+{
+  printf '# Repository documents\n\n'
+  printf '> Last checked: %s\n\n' "$today"
+  printf 'This index is the authoritative routing and check record for repository documents. The documents at their repository-relative source paths remain authoritative for policy content. Maintain this record first, route by phase from it, then read the routed sources. Do not copy source policy text here.\n\n'
+  printf '| Class | Source path | Phases | Exists | Last checked | Status |\n'
+  printf '| --- | --- | --- | --- | --- | --- |\n'
+  cut -f1-6 "$work/rows" | awk -F'\t' '{ printf "| %s | `%s` | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6 }'
+  printf '\n## Personal rules\n\n'
+  if cut -f1 "$work/rows" | grep -qx personal-rule; then
+    printf 'Cataloged above when present; they are local-only and never committed.\n'
+  else
+    printf 'None.\n'
+  fi
+} > "$work/index.new"
 
-## Personal rules
+# --- write -----------------------------------------------------------------
+mkdir -p "$docs"
+lock="$docs/index.md.lock"
+if ! mkdir "$lock" 2>/dev/null; then
+  fail "repository-docs index is busy: $lock"
+fi
+trap 'rmdir "$lock" 2>/dev/null || true; rm -rf "$work"' EXIT
+if [ ! -f "$index" ] || ! cmp -s "$work/index.new" "$index"; then
+  temporary="$(mktemp "$docs/index.md.XXXXXX")"
+  cat "$work/index.new" > "$temporary"
+  mv "$temporary" "$index"
+fi
 
-{personal}
-""".format(
-    today=today,
-    rows="\n".join(f"| {k} | `{p}` | {ph} | {ex} | {checked} | {status} |"
-                     for k, p, ph, ex, checked, status in rows),
-    personal=("Cataloged above when present; they are local-only and never committed."
-              if any(r[0] == "personal-rule" for r in rows) else "None."),
-)
+# --- routes ----------------------------------------------------------------
+echo "# Repository document routes ($phase)"
+[ -n "$task_id" ] && echo "- Current task: TaskFlowDocs/$task_id/"
+echo "- Read routing record first: TaskFlowDocs/repository-docs/index.md"
+if [ "$phase" = unclassified ]; then
+  echo "- Phase is unclear; classify the current work before following phase-specific routes."
+fi
+list=""
+while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+  [ "$exists" = yes ] || continue
+  [ "$status" = ready ] || continue
+  phase_matches "$phases" || continue
+  list="$list, $relative"
+done < "$work/rows"
+[ -z "$list" ] || echo "- Read authoritative sources: ${list#, }"
 
-docs.mkdir(parents=True, exist_ok=True)
-lock = docs / "index.md.lock"
-try:
-    lock.mkdir()
-except FileExistsError:
-    raise SystemExit(f"repository-docs index is busy: {lock}")
-try:
-    if old != text:
-        fd, temporary = tempfile.mkstemp(dir=docs, prefix="index.md.", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-                stream.write(text)
-            os.replace(temporary, index)
-        finally:
-            if os.path.exists(temporary):
-                os.unlink(temporary)
-finally:
-    lock.rmdir()
+list=""
+while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+  [ "$kind" = personal-rule ] || continue
+  list="$list, $relative"
+done < "$work/rows"
+[ -z "$list" ] || echo "- Local personal rules (local-only, never committed; they cannot override the sources above): ${list#, }"
 
-selected = [row for row in rows if row[3] == "yes" and
-            row[5] == "ready" and
-            (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
-personal = [row[1] for row in rows if row[0] == "personal-rule"]
-missing = [row[1] for row in rows if row[3] == "no" and row[5] == "missing" and
-           (phase == "all" or "all" in row[2].split(",") or phase in row[2].split(","))]
-print(f"# Repository document routes ({phase})")
-if task_id:
-    print(f"- Current task: TaskFlowDocs/{task_id}/")
-print("- Read routing record first: TaskFlowDocs/repository-docs/index.md")
-if phase == "unclassified":
-    print("- Phase is unclear; classify the current work before following phase-specific routes.")
-if selected:
-    print("- Read authoritative sources: " + ", ".join(row[1] for row in selected))
-if personal:
-    print("- Local personal rules (local-only, never committed; they cannot override the sources above): "
-          + ", ".join(personal))
-if missing:
-    print("- Missing catalog entries: " + ", ".join(missing))
-review = [row[1] for row in rows if row[5] == "needs-review"]
-if review:
-    print("- Needs review before routing: " + ", ".join(review))
-print("- Record applicable paths and incorporated conclusions in the active task plan.md.")
-PY
+list=""
+while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+  [ "$exists" = no ] || continue
+  [ "$status" = missing ] || continue
+  phase_matches "$phases" || continue
+  list="$list, $relative"
+done < "$work/rows"
+[ -z "$list" ] || echo "- Missing catalog entries: ${list#, }"
+
+list=""
+while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+  [ "$status" = needs-review ] || continue
+  list="$list, $relative"
+done < "$work/rows"
+[ -z "$list" ] || echo "- Needs review before routing: ${list#, }"
+
+echo "- Record applicable paths and incorporated conclusions in the active task plan.md."

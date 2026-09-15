@@ -1,195 +1,530 @@
 #!/usr/bin/env bash
 # task — token-saving TaskFlow lifecycle edits.
 # Usage: task intake|promote|state|progress|complete ...
+# POSIX shell + awk only: the plugin must run with no language runtime available.
+#
+# Every parameter is passed to awk through the environment rather than -v: awk
+# interprets escape sequences in -v values, so a goal containing a backslash would
+# be silently rewritten.
 set -euo pipefail
+shopt -s nullglob
+LC_ALL=C
+export LC_ALL
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-python_cmd="$(bash "$(dirname "$0")/python-runtime")"
 bash_cmd="$(command -v bash)"
 command -v cygpath >/dev/null 2>&1 && bash_cmd="$(cygpath -w "$bash_cmd")"
 
-"$python_cmd" - "$SCRIPT_DIR" "$bash_cmd" "$@" <<'PY'
-import datetime, os, pathlib, re, subprocess, sys, tempfile
+today="$(date +%Y-%m-%d)"
 
-script_dir = pathlib.Path(sys.argv[1]).resolve()
-bash_cmd = sys.argv[2]
-args = sys.argv[3:]
-if not args:
-    raise SystemExit("usage: task intake|promote|state|progress|complete ...")
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+tmp_pairs="$work/pairs"
 
-def repo_root(value=None):
-    if value:
-        return pathlib.Path(value).resolve()
-    try:
-        return pathlib.Path(subprocess.check_output(
-            ["git", "rev-parse", "--show-toplevel"], text=True,
-            stderr=subprocess.DEVNULL).strip()).resolve()
-    except Exception:
-        return pathlib.Path.cwd().resolve()
+fail() { echo "$*" >&2; exit 1; }
 
-def split_root(values):
-    if "--root" not in values:
-        return values, repo_root()
-    if values.count("--root") != 1 or values[-2:-1] != ["--root"]:
-        raise SystemExit("--root must be the final option: --root <path>")
-    return values[:-2], repo_root(values[-1])
+# --- shared text helpers ---------------------------------------------------
+# Reads stdin, writes <path> through a temp file in the same directory so an
+# interrupted run cannot truncate a task document.
+write_file() {
+  local path="$1" dir tmp
+  dir="$(dirname "$path")"
+  mkdir -p "$dir"
+  tmp="$(mktemp "$dir/.taskflow.XXXXXX")"
+  cat > "$tmp"
+  mv "$tmp" "$path"
+}
 
-def read(path):
-    return path.read_text(encoding="utf-8")
+ends_with_newline() {
+  [ -s "$1" ] || return 1
+  [ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" = "0a" ]
+}
 
-def write(path, text):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="") as stream:
-            stream.write(text)
-        os.replace(name, path)
-    finally:
-        if os.path.exists(name): os.unlink(name)
+# The awk program is shared by every command; TASKFLOW_CMD selects the branch.
+TASK_AWK="$(cat <<'AWK'
+function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
+function rtrim(s) { sub(/[[:space:]]+$/, "", s); return s }
+function trim(s) { return rtrim(ltrim(s)) }
+function is_blank(s) { return s ~ /^[[:space:]]*$/ }
+function at(s, p) { return index(s, p) == 1 }
+function die(msg) { print msg > "/dev/stderr"; exit 1 }
 
-def sections(text):
-    parts = re.split(r"(?m)^(## .*)$", text)
-    return parts
+# Section scan: a section is a line starting exactly with "## ".
+function scan(   i) {
+  hc = 0
+  for (i = 1; i <= n; i++) if (at(line[i], "## ")) { hc++; hd[hc] = i }
+}
+function bstart(j) { return hd[j] + 1 }
+function bend(j) { return (j < hc) ? hd[j + 1] - 1 : n }
+function rfield(a, b, name,   i, p) {
+  p = "- " name ":"
+  for (i = a; i <= b; i++) if (at(line[i], p)) return trim(substr(line[i], length(p) + 1))
+  return ""
+}
+function rhas(a, b, name,   i, p) {
+  p = "- " name ":"
+  for (i = a; i <= b; i++) if (at(line[i], p)) return 1
+  return 0
+}
+function rfind(a, b, needle,   i) {
+  for (i = a; i <= b; i++) if (index(line[i], needle)) return 1
+  return 0
+}
+function findsec(id, task,   j, a, b) {
+  for (j = 1; j <= hc; j++) {
+    a = bstart(j); b = bend(j)
+    if (id != "" && rfield(a, b, "ID") == id) return j
+    if (task != "" && rfind(a, b, "`TaskFlowDocs/" task "/`")) return j
+  }
+  return 0
+}
+# Replaces the first "^- <name>:" line in the range; returns 0 when absent.
+function setr(a, b, name, value,   i, p) {
+  p = "- " name ":"
+  for (i = a; i <= b; i++) if (at(line[i], p)) { line[i] = "- " name ": " value; return 1 }
+  return 0
+}
+function emit(   i) {
+  for (i = 1; i <= n; i++) {
+    if (i == n && !ends_nl) printf "%s", line[i]
+    else printf "%s\n", line[i]
+  }
+}
+# a and b are the target body range; they are parameters, not extras, or awk
+# would scope them as local copies and every setr would miss.
+function loadpairs(f, a, b,   pl, k, name, value) {
+  while ((getline pl < f) > 0) {
+    if (pl == "") continue
+    k = index(pl, "\t")
+    if (k == 0) continue
+    name = substr(pl, 1, k - 1)
+    value = substr(pl, k + 1)
+    if (!setr(a, b, name, value)) die("missing Todo field: " name)
+  }
+  close(f)
+}
+BEGIN {
+  cmd = ENVIRON["TASKFLOW_CMD"]
+  id = ENVIRON["TASKFLOW_ID"]
+  task = ENVIRON["TASKFLOW_TASK"]
+  keys = ENVIRON["TASKFLOW_KEYS"]
+  pairs = ENVIRON["TASKFLOW_PAIRS"]
+  value = ENVIRON["TASKFLOW_VALUE"]
+  goal = ENVIRON["TASKFLOW_GOAL"]
+  source = ENVIRON["TASKFLOW_SOURCE"]
+  prefix = ENVIRON["TASKFLOW_PREFIX"]
+  step = ENVIRON["TASKFLOW_STEP"]
+  step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
+  verification = ENVIRON["TASKFLOW_VERIFICATION"]
+  ends_nl = ENVIRON["TASKFLOW_ENDS_NL"] + 0
+  today = ENVIRON["TASKFLOW_TODAY"]
+  n = 0
+}
+{ n++; line[n] = $0 }
+END {
+  scan()
 
-def todo_part(text, *, todo_id=None, task=None):
-    parts = sections(text)
-    for i in range(1, len(parts), 2):
-        body = parts[i + 1]
-        if todo_id and re.search(rf"(?m)^- ID:\s*{re.escape(todo_id)}\s*$", body):
-            return parts, i
-        if task and f"`TaskFlowDocs/{task}/`" in body:
-            return parts, i
-    raise SystemExit(f"Todo entry not found: {todo_id or task}")
+  if (cmd == "get") {
+    j = findsec(id, task)
+    if (j == 0) die(ENVIRON["TASKFLOW_NOTFOUND"])
+    # removeprefix("## ").strip()
+    printf "%s\n", trim(substr(line[hd[j]], 4))
+    if (keys != "") {
+      k = split(keys, kl, ",")
+      for (i = 1; i <= k; i++) print rfield(bstart(j), bend(j), kl[i])
+    }
+    exit 0
+  }
 
-def field(body, name, default=""):
-    match = re.search(rf"(?m)^- {re.escape(name)}:\s*(.*)$", body)
-    return match.group(1).strip() if match else default
+  if (cmd == "edit") {
+    j = findsec(id, task)
+    if (j == 0) die(ENVIRON["TASKFLOW_NOTFOUND"])
+    a = bstart(j); b = bend(j)
+    loadpairs(pairs, a, b)
+    emit()
+    exit 0
+  }
 
-def replace_field(body, name, value):
-    pattern = rf"(?m)^(- {re.escape(name)}: ).*$"
-    if not re.search(pattern, body):
-        raise SystemExit(f"missing Todo field: {name}")
-    return re.sub(pattern, rf"\g<1>{value}", body, count=1)
+  if (cmd == "intake") {
+    for (j = 1; j <= hc; j++) {
+      if (rfield(bstart(j), bend(j), "Goal") == goal) die("duplicate Todo goal")
+    }
+    max = 0
+    for (j = 1; j <= hc; j++) {
+      v = rfield(bstart(j), bend(j), "ID")
+      if (at(v, prefix)) {
+        s = substr(v, length(prefix) + 1)
+        if (s ~ /^[0-9]+$/) { x = s + 0; if (x > max) max = x }
+      }
+    }
+    todo_id = prefix sprintf("%02d", max + 1)
+    # str.rstrip(".") first, then truncate: the two steps are not commutative.
+    t = goal
+    sub(/\.+$/, "", t)
+    title = substr(t, 1, 80)
+    while (n > 0 && is_blank(line[n])) n--
+    # text.rstrip() drops every trailing space and newline, so the last retained
+    # line is trimmed and emitted without its own newline before the blank pair.
+    if (n > 0) {
+      line[n] = rtrim(line[n])
+      for (i = 1; i < n; i++) printf "%s\n", line[i]
+      printf "%s", line[n]
+    }
+    printf "\n\n## %s\n\n- ID: %s\n- Status: inbox\n- Priority: normal\n- Owner: Codex\n- Source: %s\n- Added: %s\n- Updated: %s\n- Goal: %s\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n", \
+      title, todo_id, source, today, today, goal
+    exit 0
+  }
 
-def doc_status(text, value):
-    if not re.search(r"(?m)^> Status: .*$", text):
-        raise SystemExit("missing document Status")
-    return re.sub(r"(?m)^> Status: .*$", f"> Status: {value}", text, count=1)
+  if (cmd == "step") {
+    a = 0; b = 0
+    for (i = 1; i <= n; i++) {
+      if (at(line[i], "### Step ")) {
+        rest = substr(line[i], 10)
+        if (match(rest, /^[0-9]+/)) {
+          num = substr(rest, 1, RLENGTH)
+          following = substr(rest, RLENGTH + 1, 1)
+          if (num == step && following !~ /[A-Za-z0-9_]/) { a = i; break }
+        }
+      }
+    }
+    if (a == 0) die("Step " step " not found")
+    for (i = a + 1; i <= n; i++) {
+      if (at(line[i], "### Step ") || at(line[i], "## ")) break
+    }
+    b = i - 1
+    if (step_status == "done") {
+      for (i = a; i <= b; i++) {
+        if (line[i] ~ /^[[:space:]]*- \[ \]/) die("Step " step " has unchecked items")
+      }
+    }
+    if (!setr(a, b, "Status", step_status)) die("Step " step " missing Status")
+    if (verification != "") {
+      vline = "- " today " Step " step ": " verification
+      for (i = 1; i <= n; i++) {
+        if (line[i] == "## Verification / Review") {
+          # Equivalent to replacing "## Verification / Review\n" with
+          # "## Verification / Review\n\n<line>\n": a blank line and the entry are
+          # inserted directly after the heading, and whatever followed stays.
+          for (k = n; k > i; k--) line[k + 2] = line[k]
+          line[i + 1] = ""
+          line[i + 2] = vline
+          n += 2
+          break
+        }
+      }
+    }
+    emit()
+    exit 0
+  }
 
-def task_paths(root, task):
-    docs = root / "TaskFlowDocs"
-    base = docs / task
-    if not base.is_dir(): raise SystemExit(f"active task not found: {task}")
-    return docs, base, base / "prd.md", base / "plan.md"
+  if (cmd == "docstatus") {
+    for (i = 1; i <= n; i++) {
+      if (at(line[i], "> Status: ")) { line[i] = "> Status: " value; emit(); exit 0 }
+    }
+    die("missing document Status")
+  }
 
-command = args.pop(0)
-today = datetime.date.today().isoformat()
+  die("unknown TASKFLOW_CMD: " cmd)
+}
+AWK
+)"
 
-if command == "intake":
-    values, root = split_root(args)
-    if not 1 <= len(values) <= 2:
-        raise SystemExit('usage: task intake <goal> [source] [--root <path>]')
-    goal, source = values[0].strip(), values[1].strip() if len(values) == 2 else "direct user request"
-    if not goal: raise SystemExit("goal must not be empty")
-    docs, todo = root / "TaskFlowDocs", root / "TaskFlowDocs" / "todo.md"
-    docs.mkdir(parents=True, exist_ok=True)
-    text = read(todo) if todo.exists() else "# Todo\n"
-    if any(field(sections(text)[i + 1], "Goal") == goal for i in range(1, len(sections(text)), 2)):
-        raise SystemExit("duplicate Todo goal")
-    prefix = "TF-" + today.replace("-", "") + "-"
-    nums = [int(x) for x in re.findall(rf"(?m)^- ID: {re.escape(prefix)}(\d+)$", text)]
-    todo_id = prefix + f"{max(nums, default=0) + 1:02d}"
-    title = goal.rstrip(".")[:80]
-    block = f"""\n\n## {title}\n\n- ID: {todo_id}\n- Status: inbox\n- Priority: normal\n- Owner: Codex\n- Source: {source}\n- Added: {today}\n- Updated: {today}\n- Goal: {goal}\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n"""
-    write(todo, text.rstrip() + block)
-    print(f"intake OK: {todo_id}")
+# Reads <input> and replaces <target> only when awk succeeds, so a rejected
+# command leaves the target untouched. Redirecting rather than piping is what
+# makes that atomic: a pipeline's later stage still runs when awk exits early.
+run_awk_to() {  # run_awk_to <target> <input|-> [key=value ...]
+  local target="$1" input="$2" dir tmp ends=0
+  shift 2
+  # The source's trailing-newline state is carried through the environment: awk
+  # cannot observe it through stdin, and dropping it would add a newline to files
+  # that never had one.
+  if [ "$input" != "-" ] && ends_with_newline "$input"; then ends=1; fi
+  dir="$(dirname "$target")"
+  mkdir -p "$dir"
+  tmp="$(mktemp "$dir/.taskflow.XXXXXX")"
+  if ! env TASKFLOW_TODAY="$today" TASKFLOW_ENDS_NL="$ends" "$@" awk "$TASK_AWK" "$input" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$target"
+}
 
-elif command == "promote":
-    values, root = split_root(args)
-    if len(values) != 3 or values[2] not in {"small", "large"}:
-        raise SystemExit("usage: task promote <todo-id> <task-id> <small|large> [--root <path>]")
-    todo_id, task, size = values
-    docs, todo, base = root / "TaskFlowDocs", root / "TaskFlowDocs" / "todo.md", root / "TaskFlowDocs" / task
-    if base.exists(): raise SystemExit(f"task already exists: {task}")
-    text = read(todo); parts, i = todo_part(text, todo_id=todo_id); body = parts[i + 1]
-    if field(body, "Task") != "Not promoted.": raise SystemExit("Todo already promoted")
-    goal = field(body, "Goal"); title = parts[i].removeprefix("## ").strip()
-    prd = f"""# {title}\n> Task version: v1\n> Status: planning\n\n## Goal\n\n{goal}\n\n## Background / Confirmed Facts\n\n## Requirements\n\n## Acceptance Criteria\n\n## In Scope\n\n## Out of Scope\n\n## Risks / Deferred Items\n\n## Open Questions\n\n## Version History\n\n- v1 — planning.\n"""
-    plan = f"""# Plan — {title}\n> Task version: v1\n> Status: planning\n\n{'## Spec Pointers\n\n- `spec.md`\n\n' if size == 'large' else 'No spec required — small, self-contained task.\n\n'}## Reference Pointers\n\n## Related Tasks\n\n## Skills / Tools Used (Optional)\n\n## Preconditions\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Steps\n\n### Step 1 — Implement and verify\n\n- Goal:\n- Dependencies:\n- Files:\n- Implementation checklist:\n  - [ ] Implement the approved change.\n  - [ ] Run focused verification.\n- Acceptance:\n- Verification:\n- Rollback:\n- Status: pending\n\n## Checkpoints\n\n## Verification / Review\n\n## Change Log\n\n## Follow-ups\n\n## Version History\n\n- v1 — planning.\n"""
-    spec = f"""# Spec — {title}\n> Task version: v1\n\n## Objective and Success Criteria\n\n## Architecture Boundaries and Responsibilities\n\n## Project Structure / Affected Files\n\n## Interfaces, Data Flow, and Contracts\n\n## Invariants and Compatibility\n\n## Validation and Error Semantics\n\n## Code and Test Constraints\n\n## Design Decisions and Alternatives\n\n## Open Questions\n"""
-    base.mkdir(parents=True)
-    write(base / "prd.md", prd); write(base / "plan.md", plan)
-    if size == "large": write(base / "spec.md", spec)
-    body = replace_field(body, "Status", "promoted")
-    body = replace_field(body, "Updated", today)
-    body = replace_field(body, "Task", f"`TaskFlowDocs/{task}/`")
-    body = replace_field(body, "Next action", "Complete PRD / Spec / Plan and request approval.")
-    parts[i + 1] = body; write(todo, "".join(parts))
-    print(f"promote OK: {todo_id} -> {task} ({size})")
+# Read-only query: prints awk's stdout and never writes a file.
+run_task_awk() {  # run_task_awk <file> [key=value ...]
+  local file="${1:-/dev/null}"
+  shift
+  env TASKFLOW_TODAY="$today" TASKFLOW_ENDS_NL=0 "$@" awk "$TASK_AWK" "$file"
+}
 
-elif command == "state":
-    values, root = split_root(args)
-    allowed = {"planning", "ready", "in_progress", "checking", "blocked"}
-    if len(values) != 2 or values[1] not in allowed:
-        raise SystemExit("usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]")
-    task, state = values; docs, base, prd, plan = task_paths(root, task)
-    prd_text, plan_text = read(prd), read(plan)
-    version = re.search(r"(?m)^> Task version: (v\d+)$", plan_text)
-    if not version: raise SystemExit("missing Plan Task version")
-    if state == "in_progress":
-        approval = re.search(r"(?ms)^## Approval\s*(.*?)(?=^## |\Z)", plan_text)
-        if not approval or not re.search(r"(?m)^- Status: approved$", approval.group(1)) or not re.search(rf"(?m)^- Approved version: {version.group(1)}$", approval.group(1)):
-            raise SystemExit("current Task version is not approved")
-    todo = docs / "todo.md"; todo_text = read(todo); parts, i = todo_part(todo_text, task=task)
-    mapping = {"planning":"promoted", "ready":"promoted", "in_progress":"in_progress", "checking":"in_progress", "blocked":"in_progress"}
-    body = replace_field(parts[i + 1], "Status", mapping[state]); body = replace_field(body, "Updated", today)
-    parts[i + 1] = body
-    write(prd, doc_status(prd_text, state)); write(plan, doc_status(plan_text, state)); write(todo, "".join(parts))
-    print(f"state OK: {task} -> {state}")
+# --- argument handling -----------------------------------------------------
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|progress|complete ..."
+command="$1"; shift
 
-elif command == "progress":
-    values, root = split_root(args)
-    if not 3 <= len(values) <= 4 or values[2] not in {"pending", "in_progress", "done", "blocked"}:
-        raise SystemExit("usage: task progress <task-id> <step-number> <pending|in_progress|done|blocked> [verification] [--root <path>]")
-    task, number, status = values[:3]; verification = values[3].strip() if len(values) == 4 else ""
-    _, _, _, plan = task_paths(root, task); text = read(plan)
-    match = re.search(rf"(?ms)(^### Step {re.escape(number)}\b.*?)(?=^### Step |^## |\Z)", text)
-    if not match: raise SystemExit(f"Step {number} not found")
-    block = match.group(1)
-    if status == "done" and re.search(r"(?m)^\s*- \[ \]", block):
-        raise SystemExit(f"Step {number} has unchecked items")
-    if not re.search(r"(?m)^- Status: .*$", block): raise SystemExit(f"Step {number} missing Status")
-    block = re.sub(r"(?m)^- Status: .*$", f"- Status: {status}", block, count=1)
-    text = text[:match.start()] + block + text[match.end():]
-    if verification:
-        line = f"- {today} Step {number}: {verification}"
-        if "## Verification / Review" in text:
-            text = text.replace("## Verification / Review\n", "## Verification / Review\n\n" + line + "\n", 1)
-    write(plan, text)
-    print(f"progress OK: {task} Step {number} -> {status}")
+# Mirrors the existing contract: --root, when present, is the final two arguments.
+split_root() {
+  root=""
+  rest=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --root)
+        [ "$#" -eq 2 ] || fail "--root must be the final option: --root <path>"
+        root="$2"
+        shift 2
+        ;;
+      *) rest+=("$1"); shift ;;
+    esac
+  done
+  if [ -n "$root" ]; then
+    if [ -d "$root" ]; then root="$(cd "$root" && pwd -P)"; else fail "root not found: $root"; fi
+  else
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+  fi
+}
 
-elif command == "complete":
-    values, root = split_root(args)
-    if len(values) != 2 or values[1] != "--user-accepted":
-        raise SystemExit("usage: task complete <task-id> --user-accepted [--root <path>]")
-    task = values[0]; docs, _, prd, plan = task_paths(root, task)
-    plan_text = read(plan); prd_text = read(prd)
-    if re.search(r"(?m)^\s*- \[ \]", plan_text): raise SystemExit("Plan has unchecked items")
-    if re.search(r"(?m)^- Status: (pending|in_progress|blocked)$", plan_text): raise SystemExit("Plan has unfinished Steps")
-    if (docs / "achieved" / task).exists(): raise SystemExit(f"achieved/{task} already exists")
-    todo = docs / "todo.md"
-    if not todo.is_file(): raise SystemExit("todo.md missing; completion not started")
-    todo_part(read(todo), task=task)
-    completed_prd = doc_status(prd_text, "completed")
-    completed_plan = doc_status(plan_text, "completed")
-    write(prd, completed_prd); write(plan, completed_plan)
-    result = subprocess.run([bash_cmd, str(script_dir / "archive"), task], cwd=root,
-                            text=True, encoding="utf-8", errors="replace", capture_output=True,
-                            env=os.environ.copy())
-    if result.returncode:
-        raise SystemExit((result.stderr or result.stdout).strip() or "archive failed")
-    print(f"complete OK: {task}")
+task_paths() {  # task_paths <root> <task>
+  docs="$1/TaskFlowDocs"
+  base="$docs/$2"
+  prd="$base/prd.md"
+  plan="$base/plan.md"
+  [ -d "$base" ] || fail "active task not found: $2"
+}
 
-else:
-    raise SystemExit(f"unknown task command: {command}")
-PY
+# --- commands --------------------------------------------------------------
+case "$command" in
+  intake)
+    split_root "$@"
+    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--root <path>]'
+    goal="${rest[0]}"
+    if [ "${#rest[@]}" -eq 2 ]; then source="${rest[1]}"; else source="direct user request"; fi
+    [ -n "$goal" ] || fail "goal must not be empty"
+    mkdir -p "$root/TaskFlowDocs"
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] || printf '# Todo\n' | write_file "$todo"
+    prefix="TF-$(printf '%s' "$today" | tr -d '-')-"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
+      TASKFLOW_PREFIX="$prefix"
+    todo_id="$(grep -o "^- ID: ${prefix}[0-9]*$" "$todo" | tail -1 | sed 's/^- ID: //')"
+    echo "intake OK: $todo_id"
+    ;;
+
+  promote)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]'
+    todo_id="${rest[0]}"; task="${rest[1]}"; size="${rest[2]}"
+    case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]' ;; esac
+    # Not task_paths: that helper exits when the task is missing, and this command
+    # requires it to be absent. `A && B` also aborts under `set -e` when A fails,
+    # so the guard is written as an explicit test.
+    if [ -e "$root/TaskFlowDocs/$task" ]; then fail "task already exists: $task"; fi
+    docs="$root/TaskFlowDocs"
+    base="$docs/$task"
+    prd="$base/prd.md"
+    plan="$base/plan.md"
+    todo="$docs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; promotion not started"
+
+    # Task is "Not promoted." on a promotable entry; anything else is a repeat.
+    state_of="$(run_task_awk "$todo" TASKFLOW_CMD=get TASKFLOW_ID="$todo_id" \
+      TASKFLOW_KEYS="Task" TASKFLOW_NOTFOUND="Todo entry not found: $todo_id")"
+    task_field="$(printf '%s\n' "$state_of" | sed -n '2p')"
+    [ "$task_field" = "Not promoted." ] || fail "Todo already promoted"
+    title="$(printf '%s\n' "$state_of" | sed -n '1p')"
+    goal="$(run_task_awk "$todo" TASKFLOW_CMD=get TASKFLOW_ID="$todo_id" TASKFLOW_KEYS="Goal" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id" | sed -n '2p')"
+
+    mkdir -p "$base"
+    {
+      printf '%s\n' "# $title"
+      printf '%s\n' '> Task version: v1' '> Status: planning' ''
+      printf '%s\n' '## Goal' ''
+      printf '%s\n' "$goal" ''
+      printf '%s' '## Background / Confirmed Facts
+
+## Requirements
+
+## Acceptance Criteria
+
+## In Scope
+
+## Out of Scope
+
+## Risks / Deferred Items
+
+## Open Questions
+
+## Version History
+
+- v1 — planning.
+'
+    } | write_file "$prd"
+
+    {
+      printf '%s\n' "# Plan — $title"
+      printf '%s\n' '> Task version: v1' '> Status: planning' ''
+      if [ "$size" = "large" ]; then
+        printf '%s' '## Spec Pointers
+
+- `spec.md`
+
+'
+      else
+        printf '%s' 'No spec required — small, self-contained task.
+
+'
+      fi
+      printf '%s' '## Reference Pointers
+
+## Related Tasks
+
+## Skills / Tools Used (Optional)
+
+## Preconditions
+
+## Approval
+
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
+
+## Steps
+
+### Step 1 — Implement and verify
+
+- Goal:
+- Dependencies:
+- Files:
+- Implementation checklist:
+  - [ ] Implement the approved change.
+  - [ ] Run focused verification.
+- Acceptance:
+- Verification:
+- Rollback:
+- Status: pending
+
+## Checkpoints
+
+## Verification / Review
+
+## Change Log
+
+## Follow-ups
+
+## Version History
+
+- v1 — planning.
+'
+    } | write_file "$plan"
+
+    if [ "$size" = "large" ]; then
+      {
+        printf '%s\n' "# Spec — $title" '> Task version: v1' ''
+        printf '%s' '## Objective and Success Criteria
+
+## Architecture Boundaries and Responsibilities
+
+## Project Structure / Affected Files
+
+## Interfaces, Data Flow, and Contracts
+
+## Invariants and Compatibility
+
+## Validation and Error Semantics
+
+## Code and Test Constraints
+
+## Design Decisions and Alternatives
+
+## Open Questions
+'
+      } | write_file "$base/spec.md"
+    fi
+
+    {
+      printf 'Status\tpromoted\n'
+      printf 'Updated\t%s\n' "$today"
+      printf 'Task\t`TaskFlowDocs/%s/`\n' "$task"
+      printf 'Next action\tComplete PRD / Spec / Plan and request approval.\n'
+    } > "$tmp_pairs"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_ID="$todo_id" TASKFLOW_PAIRS="$tmp_pairs" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
+    echo "promote OK: $todo_id -> $task ($size)"
+    ;;
+
+  state)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 2 ] || fail 'usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]'
+    task="${rest[0]}"; new_state="${rest[1]}"
+    case "$new_state" in
+      planning|ready|in_progress|checking|blocked) ;;
+      *) fail 'usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]' ;;
+    esac
+    task_paths "$root" "$task"
+    plan_text="$(cat "$plan")"
+    version="$(printf '%s\n' "$plan_text" | sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' | head -1)"
+    [ -n "$version" ] || fail "missing Plan Task version"
+    if [ "$new_state" = "in_progress" ]; then
+      approval="$(printf '%s\n' "$plan_text" | sed -n '/^## Approval$/,/^## /p')"
+      printf '%s\n' "$approval" | grep -qx -- "- Status: approved" || fail "current Task version is not approved"
+      printf '%s\n' "$approval" | grep -qx -- "- Approved version: $version" || fail "current Task version is not approved"
+    fi
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; state change not started"
+    case "$new_state" in
+      planning|ready) todo_status=promoted ;;
+      *) todo_status=in_progress ;;
+    esac
+    {
+      printf 'Status\t%s\n' "$todo_status"
+      printf 'Updated\t%s\n' "$today"
+    } > "$tmp_pairs"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_TASK="$task" TASKFLOW_PAIRS="$tmp_pairs" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $task"
+    run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$new_state"
+    run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$new_state"
+    echo "state OK: $task -> $new_state"
+    ;;
+
+  progress)
+    split_root "$@"
+    [ "${#rest[@]}" -ge 3 ] && [ "${#rest[@]}" -le 4 ] || fail 'usage: task progress <task-id> <step-number> <pending|in_progress|done|blocked> [verification] [--root <path>]'
+    task="${rest[0]}"; number="${rest[1]}"; step_status="${rest[2]}"
+    case "$step_status" in
+      pending|in_progress|done|blocked) ;;
+      *) fail 'usage: task progress <task-id> <step-number> <pending|in_progress|done|blocked> [verification] [--root <path>]' ;;
+    esac
+    if [ "${#rest[@]}" -eq 4 ]; then verification="${rest[3]}"; else verification=""; fi
+    task_paths "$root" "$task"
+    run_awk_to "$plan" "$plan" TASKFLOW_CMD=step TASKFLOW_STEP="$number" \
+      TASKFLOW_STEP_STATUS="$step_status" TASKFLOW_VERIFICATION="$verification"
+    echo "progress OK: $task Step $number -> $step_status"
+    ;;
+
+  complete)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 2 ] && [ "${rest[1]}" = "--user-accepted" ] || fail 'usage: task complete <task-id> --user-accepted [--root <path>]'
+    task="${rest[0]}"
+    task_paths "$root" "$task"
+    docs="$root/TaskFlowDocs"
+    plan_text="$(cat "$plan")"
+    printf '%s\n' "$plan_text" | grep -q '^[[:space:]]*- \[ \]' && fail "Plan has unchecked items"
+    printf '%s\n' "$plan_text" | grep -qE '^- Status: (pending|in_progress|blocked)$' && fail "Plan has unfinished Steps"
+    [ -e "$docs/achieved/$task" ] && fail "achieved/$task already exists"
+    todo="$docs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; completion not started"
+    run_task_awk "$todo" TASKFLOW_CMD=get TASKFLOW_TASK="$task" TASKFLOW_KEYS="ID" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $task"
+    run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
+    run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
+    archive_out=""
+    if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" 2>&1)"; then
+      fail "${archive_out:-archive failed}"
+    fi
+    echo "complete OK: $task"
+    ;;
+
+  *)
+    fail "unknown task command: $command"
+    ;;
+esac
