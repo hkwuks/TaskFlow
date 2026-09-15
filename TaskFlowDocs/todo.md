@@ -433,3 +433,16 @@ Every direct request or imported requireme
 - Goal: Require a short-lived branch or dedicated worktree before implementation starts, and route contribution rules to the design phase.
 - Task: `TaskFlowDocs/2026-09-14-branch-and-worktree-gate/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Run TaskFlow hooks without a Python interpreter
+
+- ID: TF-20260915-01
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Run TaskFlow hooks without a Python interpreter
+- Task: `TaskFlowDocs/2026-09-15-no-python-hooks/`
+- Next action: Complete PRD / Spec / Plan and request approval.
