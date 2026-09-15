@@ -380,7 +380,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-13
 - Goal: Prepare TaskFlow v1.0.4 release
 - Task: `TaskFlowDocs/achieved/2026-09-13-release-v1-0-4/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Revise release flow to support direct tag releases
 
@@ -419,7 +419,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-14
 - Goal: Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not part of the TaskFlowDocs artifact system.
 - Task: `TaskFlowDocs/2026-09-14-untrack-workflow-draft/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Require a short-lived branch or dedicated worktree before implementation starts,
 
@@ -432,7 +432,7 @@ Every direct request or imported requireme
 - Updated: 2026-09-14
 - Goal: Require a short-lived branch or dedicated worktree before implementation starts, and route contribution rules to the design phase.
 - Task: `TaskFlowDocs/2026-09-14-branch-and-worktree-gate/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Next action: None — completed and archived.
 
 ## Run TaskFlow hooks without a Python interpreter
 
@@ -476,12 +476,12 @@ Every direct request or imported requireme
 ## Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and th
 
 - ID: TF-20260915-a9cabf
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-15
 - Updated: 2026-09-15
 - Goal: Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and the hook-integrity fixes
-- Task: `TaskFlowDocs/2026-09-15-release-v1-0-5/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-15-release-v1-0-5/`
+- Next action: None — completed and archived.

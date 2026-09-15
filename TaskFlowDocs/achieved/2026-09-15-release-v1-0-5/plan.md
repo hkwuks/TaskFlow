@@ -1,6 +1,6 @@
 # Plan — Publish TaskFlow v1.0.5
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — a release checklist run against a known-good base.
 
