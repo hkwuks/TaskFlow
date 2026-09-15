@@ -6,6 +6,7 @@
 - Keep one requirement or rule per bullet.
 - Use repository-relative paths in documentation.
 - Keep English and Chinese README behaviorally aligned.
+- Write task-document prose in the user's working language; keep the lines hooks parse in English (see the Skill's artifact-language rule).
 - Put durable requirements in the Skill or repository document; keep task facts in the task directory.
 
 ## Shell
