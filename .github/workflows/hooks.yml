@@ -42,6 +42,34 @@ jobs:
       - name: Check release version consistency
         run: bash hooks/release-check .
 
+  # A hosted-platform merge runs server-side, where the Todo merge driver cannot
+  # go, and this repository lost a whole Todo entry that way on 2026-09-15. The
+  # driver cannot be fixed from here, so the result is checked instead: every
+  # entry the pushed range's merge commits' parents held must survive. A push
+  # whose tip is a clean merge can still have dropped an entry earlier in the
+  # same push, which is why the range is audited rather than only its tip.
+  todo-merge-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Both ends of the push range have to be present locally.
+          fetch-depth: 0
+      - name: Check that no merge dropped a Todo entry
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -eu
+          after="${AFTER:-$(git rev-parse HEAD)}"
+          # `before` is all zeros for a first push or after a force push, and
+          # absent on pull_request; fall back to the tip's own parents there.
+          case "${BEFORE:-}" in
+            ""|0000000000000000000000000000000000000000) range="$after" ;;
+            *) range="$BEFORE..$after" ;;
+          esac
+          bash hooks/todo-check . "$range"
+
   # The eval runner is repository tooling, not shipped plugin runtime, so it keeps
   # its own Python and is not part of the no-runtime guarantee above.
   evals:

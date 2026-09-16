@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # todo-check — read-only check that a commit did not drop a Todo entry.
-# Usage: todo-check [repository-root] [commit]
+# Usage: todo-check [repository-root] [commit | <before>..<after>]
 #
 # `hooks/merge-todo` states the invariant it relies on — a Todo entry is never
 # deleted — but nothing enforced it, and one merge in this repository's history
@@ -9,9 +9,15 @@
 # check answers that failure mode directly: every `- ID:` a parent commit held
 # must still be present in the merge result, or the drop is reported by name.
 #
-# Only the commit's own parents are compared, so a push whose tip is a clean
-# merge passes even when an earlier merge in the same push dropped an entry.
-# Auditing a whole history means running this once per merge commit.
+# A hosted-platform merge runs server-side, so the driver cannot run there and
+# the only place this can be caught is after the fact. Passing a rev range as
+# the second argument audits every merge commit inside it, which is what lets a
+# push be checked as one unit from CI.
+#
+# Only the named commit's own parents are compared, so a single commit whose tip
+# is a clean merge passes even when an earlier merge — in the same push or in
+# history — dropped an entry. Auditing a range covers that; auditing a whole
+# history means asking for `git rev-list --merges HEAD` as the range.
 #
 # Not attached to automatic hooks: it reports, it never edits or restores.
 set -euo pipefail
@@ -27,13 +33,6 @@ fi
 
 echo "Repository: $root"
 
-commit="${2:-HEAD}"
-if ! rev="$(git -C "$root" rev-parse --verify -q "$commit^{commit}" 2>/dev/null)"; then
-  echo "- Cannot resolve commit: $commit"
-  echo "STATUS: blocked"
-  exit 3
-fi
-
 todo="TaskFlowDocs/todo.md"
 
 # The `- ID:` values at a commit, sorted for `comm`. A commit without the Todo
@@ -43,57 +42,93 @@ ids_at() {  # ids_at <commit>
     | sed -n 's/^- ID:[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1/p' | sort -u
 }
 
-if ! git -C "$root" cat-file -e "$rev:$todo" 2>/dev/null; then
-  # Nothing to compare, and not an error: a repository that has not adopted
-  # TaskFlowDocs, or a commit that predates it, has no entries to lose. A commit
-  # that *deletes* the file outright is out of scope — that is a whole-file
-  # removal, visible in the diff, not a merge dropping one entry from many.
+# One commit's report. Prints that commit's lines and returns 0 when every entry
+# its parents held survives, 2 when one was dropped. The caller owns the status
+# line and the exit code, so a range can keep going after a commit fails.
+audit_commit() {  # audit_commit <rev>
+  local rev="$1" parents parent_count commit_ids parent lost bad
+  if ! git -C "$root" cat-file -e "$rev:$todo" 2>/dev/null; then
+    # Nothing to compare, and not an error: a repository that has not adopted
+    # TaskFlowDocs, or a commit that predates it, has no entries to lose. A
+    # commit that *deletes* the file outright is out of scope — that is a
+    # whole-file removal, visible in the diff, not a merge dropping one entry.
+    echo "Commit: $rev"
+    echo "- No $todo at this commit; nothing to compare."
+    return 0
+  fi
+  # `rev-list --parents` prints the commit then every parent on one line, so the
+  # hashes are split onto their own lines before they are counted or iterated.
+  parents="$(git -C "$root" rev-list --parents -n1 "$rev" | cut -d' ' -f2- | tr ' ' '\n' | grep . || true)"
+  parent_count="$(printf '%s\n' "$parents" | grep -c . || true)"
   echo "Commit: $rev"
-  echo "- No $todo at this commit; nothing to compare."
+  if [ "$parent_count" -lt 2 ]; then
+    echo "- $parent_count parent(s): not a merge commit; nothing to compare."
+    return 0
+  fi
+  commit_ids="$(ids_at "$rev")"
+  echo "- Parents: $parent_count"
+  bad=0
+  while IFS= read -r parent; do
+    [ -n "$parent" ] || continue
+    if ! git -C "$root" cat-file -e "$parent:$todo" 2>/dev/null; then
+      echo "- $parent: no $todo; skipped"
+      continue
+    fi
+    # In the parent but not in the result: the entry this merge dropped, when
+    # there is one. `comm` needs both sides sorted, which `ids_at` guarantees.
+    lost="$(comm -13 <(printf '%s\n' "$commit_ids") <(ids_at "$parent") || true)"
+    if [ -z "$lost" ]; then
+      echo "- $parent: every entry it held is still present"
+      continue
+    fi
+    bad=1
+    printf '%s\n' "$lost" | while IFS= read -r id; do
+      [ -n "$id" ] || continue
+      echo "- $id present in $parent but missing from $rev"
+    done
+  done < <(printf '%s\n' "$parents")
+  [ "$bad" -eq 0 ] || return 2
+}
+
+commit="${2:-HEAD}"
+case "$commit" in
+  *..*)
+    echo "Range: $commit"
+    # A range that does not resolve is not the same as a range with no merges:
+    # the first is an unusable argument, the second is a clean push.
+    if ! merges="$(git -C "$root" rev-list --merges "$commit" 2>/dev/null)"; then
+      echo "- Cannot resolve range: $commit"
+      echo "STATUS: blocked"
+      exit 3
+    fi
+    merge_count="$(printf '%s\n' "$merges" | grep -c . || true)"
+    echo "- Merge commits in range: $merge_count"
+    needs=0
+    while IFS= read -r merge; do
+      [ -n "$merge" ] || continue
+      audit_commit "$merge" || needs=1
+    done < <(printf '%s\n' "$merges")
+    if [ "$needs" -eq 1 ]; then
+      echo "Recover the dropped entry from the parent: git show <parent>:$todo"
+      echo "STATUS: needs-user-input"
+      exit 2
+    fi
+    echo "STATUS: pass"
+    exit 0
+    ;;
+esac
+
+if ! rev="$(git -C "$root" rev-parse --verify -q "$commit^{commit}" 2>/dev/null)"; then
+  echo "- Cannot resolve commit: $commit"
+  echo "STATUS: blocked"
+  exit 3
+fi
+
+if audit_commit "$rev"; then
   echo "STATUS: pass"
   exit 0
 fi
 
-# `rev-list --parents` prints the commit then every parent on one line, so the
-# hashes are split onto their own lines before they are counted or iterated.
-parents="$(git -C "$root" rev-list --parents -n1 "$rev" | cut -d' ' -f2- | tr ' ' '\n' | grep . || true)"
-parent_count="$(printf '%s\n' "$parents" | grep -c . || true)"
-echo "Commit: $rev"
-
-if [ "$parent_count" -lt 2 ]; then
-  echo "- $parent_count parent(s): not a merge commit; nothing to compare."
-  echo "STATUS: pass"
-  exit 0
-fi
-
-commit_ids="$(ids_at "$rev")"
-echo "- Parents: $parent_count"
-
-needs=0
-while IFS= read -r parent; do
-  [ -n "$parent" ] || continue
-  if ! git -C "$root" cat-file -e "$parent:$todo" 2>/dev/null; then
-    echo "- $parent: no $todo; skipped"
-    continue
-  fi
-  # In the parent but not in the result: the entry this merge dropped, when
-  # there is one. `comm` needs both sides sorted, which `ids_at` guarantees.
-  lost="$(comm -13 <(printf '%s\n' "$commit_ids") <(ids_at "$parent") || true)"
-  if [ -z "$lost" ]; then
-    echo "- $parent: every entry it held is still present"
-    continue
-  fi
-  needs=1
-  printf '%s\n' "$lost" | while IFS= read -r id; do
-    [ -n "$id" ] || continue
-    echo "- $id present in $parent but missing from $rev"
-  done
-done < <(printf '%s\n' "$parents")
-
-if [ "$needs" -eq 1 ]; then
-  echo "Recover the dropped entry from the parent: git show <parent>:$todo"
-  echo "STATUS: needs-user-input"
-  exit 2
-fi
-
-echo "STATUS: pass"
+echo "Recover the dropped entry from the parent: git show <parent>:$todo"
+echo "STATUS: needs-user-input"
+exit 2

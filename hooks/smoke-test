@@ -939,6 +939,13 @@ git -C "$tc" commit -qm 'merge resolving todo by keeping ours (the platform beha
 tc_merge_rev="$(git -C "$tc" rev-parse HEAD)"
 grep -q 'TF-20260101-77' "$tc_todo" && { echo "FAIL fixture kept the entry it is supposed to drop"; exit 1; }
 
+# Put `main` on that merge, so the drop sits on the branch the range cases below
+# audit — which is what happened for real: the loss reached `main`. `main` cannot
+# fast-forward here (it carries the plain-commit cases), so it is reset to it.
+git -C "$tc" checkout -q main
+git -C "$tc" reset -q --hard "$tc_merge_rev"
+[ "$(git -C "$tc" rev-parse HEAD)" = "$tc_merge_rev" ] || { echo "FAIL fixture main is not the drop merge"; exit 1; }
+
 set +e
 bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
 tc_status=$?
@@ -995,6 +1002,57 @@ set -e
 rm -rf "$notrepo"
 [ "$tc_status" -eq 3 ] || { echo "FAIL non-repository exit code: $tc_status"; cat "$tc/out"; exit 1; }
 grep -q 'STATUS: blocked' "$tc/out" || { echo "FAIL non-repository not blocked"; cat "$tc/out"; exit 1; }
+
+# Range mode is what CI runs, because a hosted-platform merge is only visible
+# after it lands: the push that carries it is audited as one unit. The fixture
+# already holds the drop (`$tc_merge_rev`) and the good merge, so the range cases
+# reuse that history rather than building a second repository.
+set +e
+bash "$HERE/todo-check" "$tc" "$(git -C "$tc" rev-parse base)..HEAD" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 2 ] || { echo "FAIL range containing a drop exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q "TF-20260101-77 present in .* but missing from" "$tc/out" || { echo "FAIL range did not name the dropped entry"; cat "$tc/out"; exit 1; }
+grep -q 'Merge commits in range:' "$tc/out" || { echo "FAIL range did not report how many merges it audited"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: needs-user-input' "$tc/out" || { echo "FAIL range with a drop not reported as needs-user-input"; cat "$tc/out"; exit 1; }
+
+# The drop is at the *tip's ancestor*, not the tip. A range that starts after it
+# must pass, which is the whole reason the range form exists: auditing only the
+# tip is what let the real loss through.
+set +e
+bash "$HERE/todo-check" "$tc" "$tc_merge_rev..HEAD" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL range excluding the drop exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL range excluding the drop did not pass"; cat "$tc/out"; exit 1; }
+
+# An empty range and a range with no merge commits are both clean pushes, not
+# unusable arguments: pass, so a normal push is not reported as broken.
+set +e
+bash "$HERE/todo-check" "$tc" "HEAD..HEAD" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL empty range exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q 'Merge commits in range: 0' "$tc/out" || { echo "FAIL empty range not reported as zero merges"; cat "$tc/out"; exit 1; }
+
+# A range that cannot be resolved is blocked. An unusable argument must never
+# read as a clean push, or a typo in CI would silently stop the audit.
+set +e
+bash "$HERE/todo-check" "$tc" "nope..also-nope" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 3 ] || { echo "FAIL bad range exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q 'Cannot resolve range' "$tc/out" || { echo "FAIL bad range not reported as unresolvable"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: blocked' "$tc/out" || { echo "FAIL bad range not blocked"; cat "$tc/out"; exit 1; }
+
+# The degenerate single-commit path CI falls back to (all-zero `before`) has to
+# agree with the range form on the same commit, or the two answers would differ
+# by event type alone.
+set +e
+bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 2 ] || { echo "FAIL single-commit fallback exit code: $tc_status"; cat "$tc/out"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"
