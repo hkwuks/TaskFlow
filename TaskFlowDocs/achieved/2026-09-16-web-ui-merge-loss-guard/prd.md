@@ -1,6 +1,6 @@
 # Hold Todo protection on the web-UI merge path
 > Task version: v1
-> Status: ready
+> Status: completed
 
 ## Goal
 

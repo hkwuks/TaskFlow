@@ -20,7 +20,7 @@ taskflow/hooks/
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
 ├── release-check       # version literals + marketplace pin agree
-├── todo-check          # no parent commit's Todo entry is missing from a merge
+├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 └── smoke-test          # assert-style smoke tests

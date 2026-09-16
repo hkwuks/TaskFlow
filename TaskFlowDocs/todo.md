@@ -525,18 +525,18 @@ Every direct request or imported requireme
 - Task: `TaskFlowDocs/achieved/2026-09-16-todo-entry-loss-detection/`
 - Next action: None — completed and archived.
 
-## Make the Todo merge protection hold on the path where merges actually happen: a
+## Hold Todo protection on the web-UI merge path
 
 - ID: TF-20260916-2a89e2
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-16
-- Updated: 2026-09-16
+- Updated: 2026-09-17
 - Goal: Make the Todo merge protection hold on the path where merges actually happen: a hosting web-UI pull-request merge.
-- Task: `TaskFlowDocs/2026-09-16-web-ui-merge-loss-guard/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-16-web-ui-merge-loss-guard/`
+- Next action: None — completed and archived.
 
 ## Repair the duplicate Todo ID that the old counter-derived scheme shipped: two li
 
