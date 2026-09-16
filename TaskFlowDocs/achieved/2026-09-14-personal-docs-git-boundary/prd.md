@@ -1,6 +1,6 @@
 # Personal rules live in repository-docs/ and are local-only
 > Task version: v2
-> Status: ready
+> Status: completed
 
 ## Goal
 

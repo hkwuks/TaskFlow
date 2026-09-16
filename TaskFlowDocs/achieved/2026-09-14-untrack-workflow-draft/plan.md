@@ -1,6 +1,6 @@
 # Plan — Stop tracking the workflow draft in TaskFlowDocs
 > Task version: v1
-> Status: planning
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -61,6 +61,7 @@ No spec required — small, self-contained task.
 ## Change Log
 
 - 2026-09-14 work revision — untrack the draft via `git rm --cached` plus a local `.git/info/exclude` entry; no content or history change.
+- 2026-09-15 work revision — Closed out: the work shipped as PR #17 (merged) and is on `main`; `git ls-files TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md` is empty there. Recorded as a work revision rather than a Task version bump because implementation is complete and no approved contract is being changed.
 
 ## Follow-ups
 

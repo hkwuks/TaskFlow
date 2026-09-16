@@ -1,6 +1,6 @@
 # Stop tracking the workflow draft in TaskFlowDocs
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 

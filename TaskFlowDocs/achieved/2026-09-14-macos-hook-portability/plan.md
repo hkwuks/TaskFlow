@@ -1,6 +1,6 @@
 # Plan — Restore macOS portability for hooks and smoke tests
 > Task version: v1
-> Status: ready
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -92,11 +92,11 @@ External fork contribution: implementation and verification are complete; approv
 - Files: `TaskFlowDocs/todo.md`, `TaskFlowDocs/2026-09-14-macos-hook-portability/`.
 - Implementation checklist:
   - [x] Add the Todo item and task records.
-  - [ ] Push focused commits to the fork and open the PR against `hkwuks/TaskFlow:main`.
+  - [x] Push focused commits to the fork and open the PR against `hkwuks/TaskFlow:main`.
 - Acceptance: PR opened with the template fields completed.
 - Verification: PR URL recorded in the change log.
 - Rollback: close the PR; delete the branch.
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -115,6 +115,7 @@ External fork contribution: implementation and verification are complete; approv
 ## Change Log
 
 - 2026-09-14 — v1 records created by an external fork contributor; approval requested via pull request.
+- 2026-09-15 work revision — Closed out: the work shipped as PR #16 (merged) and is on `main`. Step 5's PR is that merged pull request, so its checklist item is ticked and the Step is done. Archived with `## Approval` left at `Status: requested`: the approval was requested via PR but no commit in this repository's history records a maintainer decision, so no approver is named.
 
 ## Follow-ups
 

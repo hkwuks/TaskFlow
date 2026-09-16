@@ -1,6 +1,6 @@
 # Restore macOS portability for hooks and smoke tests
 > Task version: v1
-> Status: ready
+> Status: completed
 
 ## Goal
 

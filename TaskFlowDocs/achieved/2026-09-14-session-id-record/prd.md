@@ -1,6 +1,6 @@
 # Record the host SessionStart session_id in the active task's sessions.md
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
