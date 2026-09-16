@@ -1,6 +1,6 @@
 # Plan — Personal rules live in repository-docs/ and are local-only
 > Task version: v2
-> Status: ready
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -67,6 +67,7 @@ No spec required — small, self-contained task.
 
 - 2026-09-15 Task version — `personal/` subdirectory dropped: personal rules now sit directly in `repository-docs/` with their own injected route line, an ignore rule, and a staleness-aware index sync; affects `hooks/repository-docs-context`, `hooks/smoke-test`, `TaskFlowDocs/repository-docs/`, `skills/taskflow/`, `README*`, `.gitignore`.
 - 2026-09-14 work revision — ignore `personal/` in Git and untrack the placeholder README; wording also added to `README.md` and `README.zh-CN.md`.
+- 2026-09-15 work revision — Closed out: the work shipped as PR #19 (merged) and is on `main`. Archived with `## Approval` left at `Status: requested`: no commit in this repository's history records an approval for v2, so no approver is named. Recorded as a work revision because implementation is complete and the delivered contract is not being changed.
 
 ## Follow-ups
 

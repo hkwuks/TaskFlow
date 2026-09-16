@@ -1,6 +1,6 @@
 # Plan — Require a working branch or dedicated worktree before implementation starts
 > Task version: v1
-> Status: planning
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -59,6 +59,8 @@ No spec required — small, self-contained task.
 ## Verification / Review
 
 ## Change Log
+
+- 2026-09-15 work revision — Closed out: the work shipped as PR #20 (merged) and is on `main`; `CONTRIBUTING.md` carries the Working branches section it added. Archived with `## Approval` left at `Status: requested`: no commit in this repository's history records an approval for this task, so no approver is named. Recorded as a work revision because implementation is complete and no approved contract is being changed.
 
 ## Follow-ups
 

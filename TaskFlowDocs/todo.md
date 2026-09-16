@@ -13,28 +13,28 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Record the host SessionStart session_id in the active task's sessions.md
 
 - ID: TF-20260914-02
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-14
 - Updated: 2026-09-14
 - Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
-- Task: `TaskFlowDocs/2026-09-14-session-id-record/`
-- Next action: Awaiting user acceptance of the implemented change; then complete and archive.
+- Task: `TaskFlowDocs/achieved/2026-09-14-session-id-record/`
+- Next action: None — completed and archived.
 
 ## State in the Skill that personal supplements are local-only
 
 - ID: TF-20260914-03
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-14
 - Updated: 2026-09-14
 - Goal: State in the Skill that personal supplements are local-only and must not be committed to Git, and align this repository with that boundary.
-- Task: `TaskFlowDocs/2026-09-14-personal-docs-git-boundary/`
-- Next action: Awaiting user acceptance of the implemented change; then complete and archive.
+- Task: `TaskFlowDocs/achieved/2026-09-14-personal-docs-git-boundary/`
+- Next action: None — completed and archived.
 
 ## TF-20260913-03 — Pin stable marketplace installs to released revisions
 - Status: done
@@ -398,40 +398,53 @@ Every direct request or imported requireme
 ## Restore macOS portability for hooks and smoke tests
 
 - ID: TF-20260914-01
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: external contributor
 - Source: external code review (fork pull request)
 - Added: 2026-09-14
 - Updated: 2026-09-14
 - Goal: Make the hooks and smoke tests pass on stock macOS (bash 3.2 + BSD sed), cover macOS and the evals in CI, and align plugin license metadata with the AGPL-3.0 LICENSE.
-- Task: `TaskFlowDocs/2026-09-14-macos-hook-portability/`
-- Next action: Maintainer review of the fork pull request; approval stays with the maintainer.
+- Task: `TaskFlowDocs/achieved/2026-09-14-macos-hook-portability/`
+- Next action: None — completed and archived.
+
+## Map TaskFlow phases to the concept class each one corresponds to in external wor
+
+- ID: TF-20260915-01
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-15
+- Updated: 2026-09-15
+- Goal: Map TaskFlow phases to the concept class each one corresponds to in external workflows, so PRD/Spec/Plan work selects the right capability instead of working unaided.
+- Task: `TaskFlowDocs/achieved/2026-09-15-phase-concept-mapping/`
+- Next action: None — completed and archived.
 
 ## Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not
 
 - ID: TF-20260914-05
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-14
 - Updated: 2026-09-14
 - Goal: Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not part of the TaskFlowDocs artifact system.
-- Task: `TaskFlowDocs/2026-09-14-untrack-workflow-draft/`
+- Task: `TaskFlowDocs/achieved/2026-09-14-untrack-workflow-draft/`
 - Next action: None — completed and archived.
 
 ## Require a short-lived branch or dedicated worktree before implementation starts,
 
 - ID: TF-20260914-04
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-14
 - Updated: 2026-09-14
 - Goal: Require a short-lived branch or dedicated worktree before implementation starts, and route contribution rules to the design phase.
-- Task: `TaskFlowDocs/2026-09-14-branch-and-worktree-gate/`
+- Task: `TaskFlowDocs/achieved/2026-09-14-branch-and-worktree-gate/`
 - Next action: None — completed and archived.
 
 ## Run TaskFlow hooks without a Python interpreter
@@ -489,12 +502,12 @@ Every direct request or imported requireme
 ## Cut the mechanical overhead out of a release: one version-consistency check, a r
 
 - ID: TF-20260915-1f0f66
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: local fixture
 - Added: 2026-09-15
 - Updated: 2026-09-15
 - Goal: Cut the mechanical overhead out of a release: one version-consistency check, a release document rule, and an archive that clears the Todo next action.
-- Task: `TaskFlowDocs/2026-09-15-release-friction/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-15-release-friction/`
+- Next action: None — completed and archived.

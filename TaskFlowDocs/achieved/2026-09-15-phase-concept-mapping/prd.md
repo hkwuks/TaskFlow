@@ -1,6 +1,6 @@
 # Map TaskFlow phases to the concept class each phase corresponds to
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 

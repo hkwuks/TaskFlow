@@ -1,6 +1,6 @@
 # Plan — Record the host SessionStart session_id in the active task's sessions.md
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -66,6 +66,7 @@ No spec required — small, self-contained task.
 ## Change Log
 
 - 2026-09-14 work revision — one entry per session id, hook-owned fields only, note field ownership at the template; affects `hooks/session-record`, `hooks/session-start`, `hooks/smoke-test`, `hooks/README.md`, `skills/taskflow/references/runtime.md`, `skills/taskflow/references/artifacts.md`, `skills/taskflow/SKILL.md`.
+- 2026-09-15 work revision — Closed out: the work shipped as PR #18 (merged) and is on `main`. Recorded as a work revision rather than a Task version bump because implementation is complete and no approved contract is being changed.
 
 ## Follow-ups
 
