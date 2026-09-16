@@ -1,6 +1,6 @@
 # Plan — Cut the mechanical overhead out of a release
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
