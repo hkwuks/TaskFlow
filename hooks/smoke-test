@@ -861,4 +861,140 @@ set -e
 grep -q 'STATUS: blocked' "$rel/out" || { echo "FAIL missing manifest not blocked"; cat "$rel/out"; exit 1; }
 echo ok
 
+echo "== todo-check reports an entry a merge dropped =="
+# The check exists because a hosted-platform merge resolved a conflict by taking
+# one side wholesale and a whole Todo section left `main` with no conflict marker.
+# The fixture reproduces that resolution in a real repository rather than
+# simulating it: a genuine conflicting merge, then `--ours` for the todo file.
+tc="$tmp/todo-check"
+mkdir -p "$tc/TaskFlowDocs"
+git -C "$tc" init -q
+git -C "$tc" symbolic-ref HEAD refs/heads/main
+git -C "$tc" config user.email smoke@example.invalid
+git -C "$tc" config user.name smoke
+tc_write() {  # tc_write <file> <entry-block>...
+  local f="$1"
+  shift
+  { printf '# Todo inbox\n\n## Items\n\n'
+    for e in "$@"; do printf '%s\n\n' "$e"; done
+  } > "$f"
+}
+tc_entry() { printf '## %s\n- ID: %s\n- Status: %s\n' "$1" "$2" "$3"; }
+tc_todo="$tc/TaskFlowDocs/todo.md"
+
+# The root commit predates TaskFlowDocs, so one parent in the last case has no
+# Todo file at all. Every later case branches from `base`.
+mkdir -p "$tc/src"
+printf 'fixture\n' > "$tc/src/README.md"
+git -C "$tc" add -A
+git -C "$tc" commit -qm root
+git -C "$tc" tag root
+
+# Both base entries sit above the shared anchor and are never edited by the
+# append-only branches, so the two additions land on the same hunk and conflict.
+tc_write "$tc_todo" "$(tc_entry Base1 TF-20260101-01 done)" "$(tc_entry Base2 TF-20260101-02 done)"
+git -C "$tc" add -A
+git -C "$tc" commit -qm base
+git -C "$tc" tag base
+
+# A non-merge commit is never a drop, even when it edits Todo. The guard matters
+# because deleting an entry by hand is an intentional edit, not a merge that
+# silently resolved a conflict — only a merge result is this check's business.
+tc_write "$tc_todo" "$(tc_entry Base1 TF-20260101-01 done)" "$(tc_entry Base2 TF-20260101-02 done)" \
+  "$(tc_entry Plain TF-20260101-03 inbox)"
+git -C "$tc" commit -qam 'plain commit adds an entry'
+set +e
+bash "$HERE/todo-check" "$tc" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL clean non-merge commit rejected ($tc_status):"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL clean non-merge commit did not pass"; cat "$tc/out"; exit 1; }
+tc_write "$tc_todo" "$(tc_entry Base1 TF-20260101-01 done)" "$(tc_entry Base2 TF-20260101-02 done)"
+git -C "$tc" commit -qam 'plain commit removes an entry by hand'
+set +e
+bash "$HERE/todo-check" "$tc" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL hand-deleted entry in a plain commit rejected ($tc_status):"; cat "$tc/out"; exit 1; }
+git -C "$tc" reset -q --hard 'HEAD~1'
+
+# Both branches append at the same anchor, which is what made the real merge
+# conflict; resolving it by keeping this branch's file is what dropped the entry.
+git -C "$tc" checkout -qb theirs "$(git -C "$tc" rev-parse base)"
+tc_write "$tc_todo" "$(tc_entry Base1 TF-20260101-01 done)" "$(tc_entry Base2 TF-20260101-02 done)" \
+  "$(tc_entry TheirOnly TF-20260101-77 inbox)"
+git -C "$tc" commit -qam 'theirs: add TF-20260101-77'
+git -C "$tc" checkout -qb ours "$(git -C "$tc" rev-parse base)"
+tc_write "$tc_todo" "$(tc_entry Base1 TF-20260101-01 done)" "$(tc_entry Base2 TF-20260101-02 done)" \
+  "$(tc_entry OursOnly TF-20260101-88 inbox)"
+git -C "$tc" commit -qam 'ours: add TF-20260101-88'
+set +e
+git -C "$tc" merge -q --no-edit theirs >/dev/null 2>&1
+tc_merge=$?
+set -e
+[ "$tc_merge" -ne 0 ] || { echo "FAIL fixture merge did not conflict; the drop case is not reproduced"; exit 1; }
+git -C "$tc" checkout --ours "$tc_todo"
+git -C "$tc" add "$tc_todo"
+git -C "$tc" commit -qm 'merge resolving todo by keeping ours (the platform behaviour)'
+tc_merge_rev="$(git -C "$tc" rev-parse HEAD)"
+grep -q 'TF-20260101-77' "$tc_todo" && { echo "FAIL fixture kept the entry it is supposed to drop"; exit 1; }
+
+set +e
+bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 2 ] || { echo "FAIL dropped entry exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q "TF-20260101-77 present in .* but missing from" "$tc/out" || { echo "FAIL dropped entry not named with its parent"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: needs-user-input' "$tc/out" || { echo "FAIL dropped entry not reported as needs-user-input"; cat "$tc/out"; exit 1; }
+grep -q 'TF-20260101-88' "$tc/out" && { echo "FAIL check blamed an entry the merge kept"; cat "$tc/out"; exit 1; }
+
+# A merge that kept everything must pass. Ours edits an entry the other side
+# never touches while theirs appends, so the two hunks are disjoint and Git
+# merges them without a conflict.
+git -C "$tc" checkout -qb good "$(git -C "$tc" rev-parse base)"
+awk '/^- ID: TF-20260101-01$/ { f = 1 } f && /^- Status: / { sub(/done/, "in_progress"); f = 0 } { print }' \
+  "$tc_todo" > "$tc/.todo.next"
+mv "$tc/.todo.next" "$tc_todo"
+git -C "$tc" commit -qam 'good: edit our own entry'
+git -C "$tc" merge -q --no-edit theirs
+bash "$HERE/todo-check" "$tc" > "$tc/out" 2>&1 ||
+  { echo "FAIL merge that kept both entries rejected:"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL good merge did not pass"; cat "$tc/out"; exit 1; }
+
+# A parent that has no Todo file yet must be skipped, not treated as losing
+# everything: this is a repository adopting TaskFlowDocs mid-history. The branch
+# is cut from `root` and carries its own commit, so merging it into `main` is a
+# real merge with one parent that predates `TaskFlowDocs/todo.md` entirely.
+git -C "$tc" checkout -qb nofile "$(git -C "$tc" rev-parse root)"
+printf 'branch\n' > "$tc/src/branch.txt"
+git -C "$tc" add -A
+git -C "$tc" commit -qm 'nofile: a commit before TaskFlowDocs existed'
+git -C "$tc" checkout -q main
+git -C "$tc" merge -q --no-edit nofile
+bash "$HERE/todo-check" "$tc" > "$tc/out" 2>&1 ||
+  { echo "FAIL parent without a Todo file was not skipped:"; cat "$tc/out"; exit 1; }
+grep -q 'no TaskFlowDocs/todo.md; skipped' "$tc/out" || { echo "FAIL parent without a Todo file not reported as skipped"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL parent without a Todo file did not pass"; cat "$tc/out"; exit 1; }
+
+# An unresolvable commit and a non-repository are blocked, not a pass.
+set +e
+bash "$HERE/todo-check" "$tc" does-not-exist > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 3 ] || { echo "FAIL unresolvable commit exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: blocked' "$tc/out" || { echo "FAIL unresolvable commit not blocked"; cat "$tc/out"; exit 1; }
+
+# A directory outside any repository blocks too. It is created beside the OS
+# temp root rather than under `$tmp`, so the assertion cannot be defeated by a
+# caller who passed a `$tmp` that happens to live inside a Git repository.
+notrepo="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-not-a-repo.XXXXXX")"
+set +e
+bash "$HERE/todo-check" "$notrepo" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+rm -rf "$notrepo"
+[ "$tc_status" -eq 3 ] || { echo "FAIL non-repository exit code: $tc_status"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: blocked' "$tc/out" || { echo "FAIL non-repository not blocked"; cat "$tc/out"; exit 1; }
+echo ok
+
 echo "ALL SMOKE PASSED"

@@ -104,6 +104,8 @@ Two limits are worth stating plainly:
 - **Only local merges.** A hosted-platform merge (a pull request merged in the web UI) runs server-side and does not run a custom driver — Git does not ship the driver command to the server. It degrades to an ordinary content conflict, which is resolvable but manual. Merging the branches locally and pushing is what uses the driver.
 - **Text, not semantics.** The driver matches entries by `- ID:` and falls back to the heading. Tasks that intentionally reuse an ID for different items are not detected as a conflict.
 
+Because the web UI path has no driver, the driver's own invariant — a Todo entry is never deleted — is not enforced there by anything. `hooks/todo-check [repo-root] [commit]` is the read-only check for it: every `- ID:` a merge's parent commits held must still be present in the result, or the dropped entry is named along with the parent that held it (`0` pass, `2` dropped, `3` cannot tell). Run it explicitly, or once per merge commit to audit a range. Only the named commit's own parents are compared, so a push whose tip is clean passes even when an earlier merge in the same push dropped an entry.
+
 Todo IDs are derived from the goal (`TF-<yyyymmdd>-<6 hex>` from a `cksum` digest), not from the highest existing ID. A shared counter makes two branches cut from the same base both allocate the day's first ID, and a merge that keeps both entries then leaves two entries claiming one ID — no merge strategy can repair that, because the ambiguity is in the content. Deriving the ID makes the branches agree instead.
 
 ## Folder layout
@@ -134,6 +136,7 @@ repo-root/
         ├── version                      # archive changed docs + version bump
         ├── reopen                       # retrieve an achieved task
         ├── release-check                # version literals + marketplace pin agree
+        ├── todo-check                   # no parent commit's Todo entry is missing from a merge
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests
 ```
