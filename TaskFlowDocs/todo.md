@@ -524,3 +524,56 @@ Every direct request or imported requireme
 - Goal: Detect a Todo entry that a merge dropped, so a silent loss cannot reach main unnoticed.
 - Task: `TaskFlowDocs/achieved/2026-09-16-todo-entry-loss-detection/`
 - Next action: None — completed and archived.
+
+## Make the Todo merge protection hold on the path where merges actually happen: a
+
+- ID: TF-20260916-2a89e2
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-16
+- Updated: 2026-09-16
+- Goal: Make the Todo merge protection hold on the path where merges actually happen: a hosting web-UI pull-request merge.
+- Task: `TaskFlowDocs/2026-09-16-web-ui-merge-loss-guard/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
+## Repair the duplicate Todo ID that the old counter-derived scheme shipped: two li
+
+- ID: TF-20260916-01bd1a
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-16
+- Updated: 2026-09-16
+- Goal: Repair the duplicate Todo ID that the old counter-derived scheme shipped: two live entries both carry TF-20260915-01, so an ID lookup can resolve to the wrong task.
+- Task: `TaskFlowDocs/2026-09-16-duplicate-todo-id/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
+## Isolate a task before its documents are written, and make the choice auditable
+
+- ID: TF-20260916-ab381b
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user review
+- Added: 2026-09-16
+- Updated: 2026-09-16
+- Goal: Isolate a task before its documents are written, and make the choice auditable: task documents are created in Phase 1 while the branch/worktree rule only applied from Phase 5, so documents landed in a shared checkout (usually another task's branch) and could not be checked out away; separately, the Plan's capability-selection section was marked optional, so "chose not to invoke" and "forgot the step" were indistinguishable.
+- Task: `TaskFlowDocs/2026-09-16-capability-selection-enforcement/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
+## Detect a task directory that no Todo entry references
+
+- ID: TF-20260916-a357ee
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user review
+- Added: 2026-09-16
+- Updated: 2026-09-16
+- Goal: Detect a task directory that no Todo entry references, so a lost Todo record cannot leave orphaned task documents behind.
+- Task: Not promoted.
+- Next action: Clarify whether this belongs in the existing `hooks/todo-check` or is a separate check; then promote.
+- Notes: 发现于 2026-09-16 —— 提交 PR #28 时为让提交只含任务 A 而摘掉 B/C/D 的 Todo 条目，随后一次 `git checkout -- TaskFlowDocs/todo.md` 把工作区文件整体回退，三条条目一度丢失（同日已按原样补回），而三个任务目录始终在 `TaskFlowDocs/` 下，形成「目录存在、无 Todo 指向」的孤儿态（仅工作区，未进入任何提交）。同一形态在历史里也有一例：`TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`，全部历史中从未有过对应的 Todo 条目。目前该缺口无自动检查兜住。注意：只查「任务目录 → Todo」这一个方向；反方向（Todo 条目指向不存在的目录）本轮已实测为空。2026-09-16 追问：本条与 `TF-20260916-ab381b` 是同一根因的两个方向——孤儿目录是「文档先于隔离产生」的结果，`ab381b` 修根因并在 `hooks/repository-check` 里报告错位产物；本条仍是更广的历史审计（含已提交、已归档的目录），是否仍要独立成检查待定。
