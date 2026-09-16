@@ -511,3 +511,16 @@ Every direct request or imported requireme
 - Goal: Cut the mechanical overhead out of a release: one version-consistency check, a release document rule, and an archive that clears the Todo next action.
 - Task: `TaskFlowDocs/achieved/2026-09-15-release-friction/`
 - Next action: None — completed and archived.
+
+## Detect a Todo entry that a merge dropped, so a silent loss cannot reach main unn
+
+- ID: TF-20260916-2561e8
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-16
+- Updated: 2026-09-16
+- Goal: Detect a Todo entry that a merge dropped, so a silent loss cannot reach main unnoticed.
+- Task: `TaskFlowDocs/achieved/2026-09-16-todo-entry-loss-detection/`
+- Next action: None — completed and archived.
