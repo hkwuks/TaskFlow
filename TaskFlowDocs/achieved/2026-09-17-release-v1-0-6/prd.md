@@ -1,6 +1,6 @@
 # Publish TaskFlow v1.0.6
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

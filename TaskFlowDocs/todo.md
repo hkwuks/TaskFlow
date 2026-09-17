@@ -581,12 +581,12 @@ Every direct request or imported requireme
 ## Publish TaskFlow v1.0.6 with the CodeBuddy host, the Todo merge-drop audit, and the release version check
 
 - ID: TF-20260917-b7bc40
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-17
 - Updated: 2026-09-17
 - Goal: Publish TaskFlow v1.0.6 with the CodeBuddy host, the Todo merge-drop audit, and the release version check
-- Task: `TaskFlowDocs/2026-09-17-release-v1-0-6/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-17-release-v1-0-6/`
+- Next action: None — completed and archived.
