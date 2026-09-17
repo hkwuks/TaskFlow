@@ -4,7 +4,7 @@ This is the manual, auditable release checklist for TaskFlow. Do not create a ta
 
 ## Release scope
 
-TaskFlow ships as a repository plugin for Codex and Claude Code. Keep these artifacts aligned:
+TaskFlow ships as a repository plugin for Codex, Claude Code, and CodeBuddy. Keep these artifacts aligned:
 
 - `.codex-plugin/plugin.json` — Codex manifest and development cachebuster;
 - `.claude-plugin/plugin.json` — Claude Code manifest version;
@@ -33,7 +33,7 @@ Run and record applicable results:
 bash hooks/repository-check .
 bash hooks/release-check .
 bash hooks/smoke-test
-python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow
+python3 <skill-creator>/scripts/quick_validate.py skills/taskflow   # <skill-creator> is wherever that checkout lives
 git diff --check
 ```
 
