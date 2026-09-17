@@ -1,0 +1,17 @@
+{
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary (CodeBuddy plugin form).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

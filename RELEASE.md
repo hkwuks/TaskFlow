@@ -8,7 +8,8 @@ TaskFlow ships as a repository plugin for Codex and Claude Code. Keep these arti
 
 - `.codex-plugin/plugin.json` — Codex manifest and development cachebuster;
 - `.claude-plugin/plugin.json` — Claude Code manifest version;
-- `.claude-plugin/marketplace.json` — catalog entry pinned to the stable release tag and full commit SHA;
+- `.codebuddy-plugin/plugin.json` — CodeBuddy manifest and development cachebuster;
+- `.claude-plugin/marketplace.json` and `.codebuddy-plugin/marketplace.json` — catalog entries pinned to the stable release tag and full commit SHA;
 - `skills/taskflow/` and `hooks/` — plugin contents;
 - README, governance documents, and release notes.
 
@@ -38,8 +39,9 @@ git diff --check
 
 `hooks/release-check` compares the version literals a release has to move — both
 plugin manifests, the newest `CHANGELOG.md` section, and the `claude plugin list`
-sample in each README — and confirms the marketplace `ref` resolves to the commit
-its `sha` names. It exits `2` on a mismatch and `3` when a manifest is missing.
+sample in each README — and confirms each marketplace `ref` resolves to the
+commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is
+missing.
 
 Do not claim an unavailable check passed; record limitations in the release task.
 
@@ -56,7 +58,7 @@ After the release scope is merged to the intended base (or the optional Release 
 3. Create an annotated tag such as `vX.Y.Z`.
 4. Push the tag only after explicit release-owner approval.
 5. Create the GitHub Release from that tag with the approved notes.
-6. Update the marketplace entry on `main` so its Git source uses the release tag as `ref` and the exact tagged commit as `sha`; then run `bash hooks/release-check .` and validate it with both Claude Code and Codex tooling before publishing the catalog change.
+6. Update both marketplace entries on `main` so each Git source uses the release tag as `ref` and the exact tagged commit as `sha`; then run `bash hooks/release-check .` and validate it with Claude Code, Codex, and CodeBuddy tooling before publishing the catalog change.
 7. Record the tag, release URL, commit, marketplace pin, and checks in the release task.
 
 Steps 3–6 make a release two commits, by construction: the tag cannot be created

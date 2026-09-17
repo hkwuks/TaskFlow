@@ -17,7 +17,9 @@ cd "$root"
 
 claude_manifest=".claude-plugin/plugin.json"
 codex_manifest=".codex-plugin/plugin.json"
+codebuddy_manifest=".codebuddy-plugin/plugin.json"
 marketplace=".claude-plugin/marketplace.json"
+codebuddy_marketplace=".codebuddy-plugin/marketplace.json"
 
 # The version literals are validated by field name rather than by parsing JSON:
 # the manifests are repository-owned and CODE_STYLE fixes their shape, so a
@@ -25,7 +27,7 @@ marketplace=".claude-plugin/marketplace.json"
 # file blocks the check instead — an absent manifest is a repository defect, not
 # a version mismatch to report.
 blocked=0
-for file in "$claude_manifest" "$codex_manifest" "$marketplace" CHANGELOG.md README.md README.zh-CN.md; do
+for file in "$claude_manifest" "$codex_manifest" "$codebuddy_manifest" "$marketplace" "$codebuddy_marketplace" CHANGELOG.md README.md README.zh-CN.md; do
   if [ ! -f "$file" ]; then
     echo "- $file: missing"
     blocked=1
@@ -41,13 +43,27 @@ needs=0
 echo "Repository: $root"
 
 jversion() { sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1; }
-jfield() { sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$1" | head -1; }
+
+# Reads one scalar field *inside the plugin's `source` object* rather than
+# anywhere in the file. A flat "first match wins" scan would silently read the
+# wrong value as soon as a second top-level string repeats the field name (a
+# second plugin entry, a later `ref`/`sha` pair), and a wrong pin read is
+# precisely the failure this check exists to catch. The address range bounds the
+# match to the object.
+jpin() {
+  sed -n '/"source"[[:space:]]*:[[:space:]]*{/,/}/p' "$1" \
+    | sed -n "s/.*\"$2\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" \
+    | head -1
+}
 
 claude_v="$(jversion "$claude_manifest")"
-# The Codex cachebuster suffixes the version (`1.0.5+codex.20260915`); only the
-# release number has to agree with the tag.
+# The Codex and CodeBuddy cachebusters suffix the version
+# (`1.0.5+codex.20260915`, `1.0.5+codebuddy.20260917`); only the release number
+# has to agree with the tag.
 codex_v="$(jversion "$codex_manifest")"
 codex_release="${codex_v%%+*}"
+codebuddy_v="$(jversion "$codebuddy_manifest")"
+codebuddy_release="${codebuddy_v%%+*}"
 # The newest *version* section, not simply the newest section: an `## [Unreleased]`
 # heading is the normal state between releases and is not a version literal.
 changelog_v="$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)"
@@ -57,16 +73,24 @@ readme_zh_v="$(sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' READM
 echo "Version literals:"
 printf -- '- %s: %s\n' "$claude_manifest" "$claude_v"
 printf -- '- %s: %s\n' "$codex_manifest" "$codex_v"
+printf -- '- %s: %s\n' "$codebuddy_manifest" "$codebuddy_v"
 printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
 printf -- '- README.md (plugin list sample): %s\n' "$readme_v"
 printf -- '- README.zh-CN.md (plugin list sample): %s\n' "$readme_zh_v"
 
-if ! printf '%s\n' "$claude_v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-  echo "- $claude_manifest version is not X.Y.Z: $claude_v"
-  needs=1
-fi
+# Every manifest states a release number; the suffix after `+` is a cachebuster
+# and is checked separately. An unparseable literal would otherwise slip past the
+# equality loop as long as it matched something else, so the shape is validated
+# for all three rather than only the one that happens to have no suffix.
+for pair in "$claude_manifest:$claude_v" "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release"; do
+  label="${pair%%:*}"; value="${pair#*:}"
+  if ! printf '%s\n' "$value" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "- $label version is not X.Y.Z: ${value:-nothing}"
+    needs=1
+  fi
+done
 for pair in "CHANGELOG.md:$changelog_v" "README.md:$readme_v" "README.zh-CN.md:$readme_zh_v" \
-            "$codex_manifest:$codex_release"; do
+            "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release"; do
   label="${pair%%:*}"; value="${pair#*:}"
   if [ "$value" != "$claude_v" ]; then
     echo "- $label says ${value:-nothing}, $claude_manifest says $claude_v"
@@ -79,22 +103,30 @@ done
 # next one is being prepared, so a version comparison would fail on the one run
 # that matters. What must hold is `ref` and `sha` naming the same commit — the
 # disagreement Claude Code refuses at install time as `sha_pin_mismatch`.
-pin_ref="$(jfield "$marketplace" ref)"
-pin_sha="$(jfield "$marketplace" sha)"
-if [ -z "$pin_ref" ]; then
-  echo "Marketplace pin: none recorded"
-elif ! pin_commit="$(git rev-parse --verify -q "$pin_ref^{commit}" 2>/dev/null)"; then
-  echo "- marketplace ref $pin_ref is not present locally; fetch tags before releasing"
-  needs=1
-elif [ -z "$pin_sha" ]; then
-  echo "- marketplace ref $pin_ref resolves to $pin_commit, but no sha is recorded"
-  needs=1
-elif [ "$pin_sha" != "$pin_commit" ]; then
-  echo "- marketplace ref $pin_ref is $pin_commit, but sha says $pin_sha"
-  needs=1
-else
-  echo "Marketplace pin: $pin_ref -> $pin_sha"
-fi
+#
+# Both catalogs carry the pin, and both are checked: the two files are separate
+# copies of the same entry, so a pin corrected in one and missed in the other
+# would install a different commit depending on which catalog a host reads. Each
+# catalog's pin is read from its own `source` object so the comparison is
+# between the two recorded pins, not between a pin and an unrelated field.
+for catalog in "$marketplace" "$codebuddy_marketplace"; do
+  pin_ref="$(jpin "$catalog" ref)"
+  pin_sha="$(jpin "$catalog" sha)"
+  if [ -z "$pin_ref" ]; then
+    echo "Marketplace pin ($catalog): none recorded"
+  elif ! pin_commit="$(git rev-parse --verify -q "$pin_ref^{commit}" 2>/dev/null)"; then
+    echo "- $catalog ref $pin_ref is not present locally; fetch tags before releasing"
+    needs=1
+  elif [ -z "$pin_sha" ]; then
+    echo "- $catalog ref $pin_ref resolves to $pin_commit, but no sha is recorded"
+    needs=1
+  elif [ "$pin_sha" != "$pin_commit" ]; then
+    echo "- $catalog ref $pin_ref is $pin_commit, but sha says $pin_sha"
+    needs=1
+  else
+    echo "Marketplace pin ($catalog): $pin_ref -> $pin_sha"
+  fi
+done
 
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"

@@ -9,6 +9,7 @@ taskflow/hooks/
 ├── README.md
 ├── hooks.json          # Claude Code wiring
 ├── hooks-codex.json    # Codex CLI wiring
+├── hooks-codebuddy.json # CodeBuddy wiring
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── session-record      # records the host session id in the selected task
 ├── install-merge-driver # configures the repo-local Todo merge driver
@@ -42,8 +43,10 @@ taskflow/hooks/
   does not have. Hooks are written to the POSIX subset deliberately — no
   `declare -A`, no `mapfile`, no GNU-only `sed -i`.
 - **One JSON per host** (`hooks.json` for Claude Code, `hooks-codex.json` for
-  Codex CLI); Codex's `commandWindows` lets the codex file point at the same
-  launcher on Windows.
+  Codex CLI, `hooks-codebuddy.json` for CodeBuddy); Codex's `commandWindows` lets
+  the codex file point at the same launcher on Windows. CodeBuddy substitutes
+  `${CODEBUDDY_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` alike, so its file calls
+  `bash` on `session-start` directly and skips the launcher.
 
 ## Install
 
@@ -57,14 +60,23 @@ claude plugin install taskflow@taskflow
 # Codex CLI
 codex plugin marketplace add hkwuks/TaskFlow      # or a local path
 codex plugin add taskflow@taskflow
+
+# CodeBuddy Code CLI (not the CodeBuddy IDE client)
+codebuddy plugin marketplace add hkwuks/TaskFlow  # or a local path
+codebuddy plugin install taskflow@taskflow
 ```
 
 The plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
-and the repo-root marketplace) wire the SessionStart hook automatically:
+`.codebuddy-plugin/plugin.json`, and the two marketplace catalogs) wire the
+SessionStart hook automatically:
 - Claude Code auto-loads `hooks/hooks.json` (standard hooks file at the plugin
   root) and runs `run-hook.cmd session-start`.
 - Codex loads the manifest's `hooks` → `hooks/hooks-codex.json`, which points
   at `session-start` via `${PLUGIN_ROOT}`.
+- CodeBuddy loads the manifest's `hooks` → `hooks/hooks-codebuddy.json`, which
+  runs `bash "${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start"`. CodeBuddy's own
+  bundled plugins use the `CODEBUDDY_` spelling, and it substitutes the
+  `CLAUDE_` spelling too, so either resolves.
 
 For a non-plugin (manual) install — e.g. running hooks from a checked-out copy
 outside a plugin — the old wiring still works:
@@ -90,6 +102,12 @@ outside a plugin — the old wiring still works:
 
 Codex CLI manual install — copy `hooks-codex.json` to `<repo>/.codex/hooks.json`
 (or its `[hooks]` into `.codex/config.toml`) and set the absolute script path.
+
+CodeBuddy manual install — put the same shape in `.codebuddy/settings.json`
+(project) or `~/.codebuddy/settings.json` (user) and replace the plugin-root
+variable with an absolute path. CodeBuddy runs SessionStart with `source` fixed
+to `startup`; the shared matcher lists `startup` among its alternatives, so it
+matches whatever the host sends.
 
 ## Scope / safety
 

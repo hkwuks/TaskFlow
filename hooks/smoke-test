@@ -93,6 +93,39 @@ grep -q '"hookSpecificOutput"' "$tmp/nointerp.json" ||
   { echo "FAIL session-start produced no context without an interpreter"; exit 1; }
 echo ok
 
+echo "== the no-interpreter PATH does not leak past its own section =="
+# The section above builds `$toolbin` from the *host* PATH, and `$toolbin` stays
+# set for the rest of the run. Any later section that runs a hook and forgets to
+# pass PATH is therefore handed the host's interpreter, and the hook behaves as if
+# the no-interpreter guarantee were never made. That is exactly what let a
+# newly-added release-check section behave differently under the suite than it did
+# when run directly. Shadowing the tools the hooks resolve by name — not just the
+# interpreters — keeps a section that deliberately reaches outside `$toolbin` from
+# silently inheriting it either.
+toolshadow="$tmp/toolshadow"
+mkdir -p "$toolshadow"
+for tool in awk sed grep cut tr od printf mktemp dirname basename cat date mv rm mkdir \
+            find head tail sort wc chmod cmp diff env ls pwd bash sh \
+            ln touch git; do
+  [ -e "$toolbin/$tool" ] && continue
+  resolved="$(type -P "$tool" 2>/dev/null)" || resolved="$(command -v "$tool" 2>/dev/null)" || continue
+  case "$resolved" in /*) ln -sf "$resolved" "$toolshadow/$tool" ;; esac
+done
+# A later section that runs a hook must never find the host's interpreter, and the
+# shadow goes first so it also covers a section that deliberately puts `$toolbin`
+# behind the host PATH. The interpreter the hooks resolve is the host one; nothing
+# in `$toolshadow` may be it.
+for tool in python python3 py; do
+  [ -L "$toolshadow/$tool" ] && { echo "FAIL $tool was linked into the shadow bin"; exit 1; }
+  [ -e "$toolshadow/$tool" ] && { echo "FAIL $tool exists in the shadow bin"; exit 1; }
+  resolved="$(PATH="$toolshadow:$toolbin" type -P "$tool" 2>/dev/null)" || resolved=""
+  if [ -n "$resolved" ]; then
+    echo "FAIL $tool still resolves to $resolved after the interpreter section"
+    exit 1
+  fi
+done
+echo ok
+
 echo "== session-record writes the host session into the selected task =="
 record_root="$tmp/session-record"
 mkdir -p "$record_root/TaskFlowDocs/2026-09-08-record"
@@ -794,9 +827,10 @@ echo "== release-check catches version drift and a bad marketplace pin =="
 # README samples, and the marketplace `ref`/`sha` pair to the release author. Each
 # case below is a drift that shipped silently before.
 rel="$tmp/release-check"
-mkdir -p "$rel/.claude-plugin" "$rel/.codex-plugin"
+mkdir -p "$rel/.claude-plugin" "$rel/.codex-plugin" "$rel/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rel/.codex-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rel/.codebuddy-plugin/plugin.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$rel/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$rel/README.md"
 cp "$rel/README.md" "$rel/README.zh-CN.md"
@@ -808,9 +842,15 @@ git -C "$rel" commit -qm init
 git -C "$rel" tag v9.9.9
 printf '{\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.9",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$(git -C "$rel" rev-parse HEAD)" \
   > "$rel/.claude-plugin/marketplace.json"
+cp "$rel/.claude-plugin/marketplace.json" "$rel/.codebuddy-plugin/marketplace.json"
 
 bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL consistent release rejected:"; cat "$rel/out"; exit 1; }
 grep -q 'STATUS: pass' "$rel/out" || { echo "FAIL consistent release did not pass"; cat "$rel/out"; exit 1; }
+# Both catalogs are checked, so a pin moved in one and not the other is caught.
+grep -q 'Marketplace pin (.claude-plugin/marketplace.json)' "$rel/out" \
+  || { echo "FAIL Claude Code catalog pin not checked"; cat "$rel/out"; exit 1; }
+grep -q 'Marketplace pin (.codebuddy-plugin/marketplace.json)' "$rel/out" \
+  || { echo "FAIL CodeBuddy catalog pin not checked"; cat "$rel/out"; exit 1; }
 
 # One README sample left on the previous version.
 sed 's/Version: 9.9.9/Version: 9.9.8/' "$rel/README.md" > "$rel/README.tmp"; mv "$rel/README.tmp" "$rel/README.md"
@@ -828,6 +868,14 @@ sed 's/^## \[9.9.8\]/## [9.9.9]/' "$rel/CHANGELOG.md" > "$rel/CHANGELOG.tmp"; mv
 sed 's/9\.9\.9+codex\.20260915/9.9.9+codex.20991231/' "$rel/.codex-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codex-plugin/plugin.json"
 bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL cachebuster suffix compared as a version"; cat "$rel/out"; exit 1; }
 
+# CodeBuddy cachebuster behaves the same way, and its release number is compared.
+sed 's/9\.9\.9+codebuddy\.20260917/9.9.9+codebuddy.20991231/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL CodeBuddy cachebuster suffix compared as a version"; cat "$rel/out"; exit 1; }
+sed 's/9\.9\.9+codebuddy\.20991231/9.9.8+codebuddy.20991231/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL stale CodeBuddy manifest accepted"; exit 1; fi
+grep -q '.codebuddy-plugin/plugin.json says 9.9.8' "$rel/out" || { echo "FAIL stale CodeBuddy manifest not named"; cat "$rel/out"; exit 1; }
+sed 's/9\.9\.8+codebuddy\.20991231/9.9.9+codebuddy.20260917/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+
 # The pin and the tag must name one commit; this is what Claude Code refuses at
 # install time as `sha_pin_mismatch`, and it is the one failure a release cannot
 # notice by comparing version numbers.
@@ -840,9 +888,65 @@ grep -q 'but sha says 0000000000000000000000000000000000000000' "$rel/out" || { 
 # The pin staying on the previous release while the next one is prepared is the
 # normal mid-release state, so it must not be reported as a mismatch.
 git -C "$rel" tag v9.9.8
-sed 's/"ref": "v9.9.9"/"ref": "v9.9.8"/; s/"sha": "0000000000000000000000000000000000000000"/"sha": "'"$(git -C "$rel" rev-parse HEAD)"'"/' \
-  "$rel/.claude-plugin/marketplace.json" > "$rel/m.tmp"; mv "$rel/m.tmp" "$rel/.claude-plugin/marketplace.json"
+for catalog in "$rel/.claude-plugin/marketplace.json" "$rel/.codebuddy-plugin/marketplace.json"; do
+  sed 's/"ref": "v9.9.9"/"ref": "v9.9.8"/; s/"sha": "0000000000000000000000000000000000000000"/"sha": "'"$(git -C "$rel" rev-parse HEAD)"'"/' \
+    "$catalog" > "$rel/m.tmp"; mv "$rel/m.tmp" "$catalog"
+done
 bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 || { echo "FAIL pin on the previous release rejected"; cat "$rel/out"; exit 1; }
+
+# One catalog corrected and the other left behind is a real per-host install
+# difference, so it must be caught rather than passed by the first match.
+sed 's/"sha": "[0-9a-f]*"/"sha": "0000000000000000000000000000000000000000"/' "$rel/.codebuddy-plugin/marketplace.json" > "$rel/m.tmp"
+mv "$rel/m.tmp" "$rel/.codebuddy-plugin/marketplace.json"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL catalog pin drift accepted"; exit 1; fi
+grep -q '.codebuddy-plugin/marketplace.json ref v9.9.8 is' "$rel/out" || { echo "FAIL catalog pin drift not named"; cat "$rel/out"; exit 1; }
+sed 's/"sha": "0000000000000000000000000000000000000000"/"sha": "'"$(git -C "$rel" rev-parse HEAD)"'"/' "$rel/.codebuddy-plugin/marketplace.json" > "$rel/m.tmp"
+mv "$rel/m.tmp" "$rel/.codebuddy-plugin/marketplace.json"
+
+# A manifest whose version is not X.Y.Z at all must be rejected rather than
+# compared: `devel` is never equal to the release literal, but a shape that slips
+# past the equality loop silently would leave the release unverified.
+sed 's/"version": "9\.9\.9+codebuddy\.20260917"/"version": "devel+codebuddy.20260917"/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"
+mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL non-X.Y.Z manifest accepted"; exit 1; fi
+grep -q '.codebuddy-plugin/plugin.json version is not X.Y.Z' "$rel/out" \
+  || { echo "FAIL non-X.Y.Z manifest not named"; cat "$rel/out"; exit 1; }
+sed 's/"version": "devel+codebuddy\.20260917"/"version": "9.9.9+codebuddy.20260917"/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"
+mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+
+# The pin is read from the `source` object, not from the first string in the file
+# that carries the field name. A decoy plugin entry whose own `ref`/`sha` precede
+# the real one is the shape a flat scan would silently mis-read; the decoy names a
+# tag that is present locally on purpose, so a wrong read does not merely look
+# like a missing tag and the case isolates where the value came from.
+decoy_sha="$(git -C "$rel" rev-parse HEAD)"
+cp "$rel/.claude-plugin/marketplace.json" "$rel/m.bak"
+sed 's/^  "plugins": \[$/  "plugins": [\n    {\n      "name": "decoy",\n      "source": {\n        "ref": "v9.9.8",\n        "sha": "'"$decoy_sha"'"\n      }\n    },/' \
+  "$rel/m.bak" > "$rel/.claude-plugin/marketplace.json"
+cp "$rel/.claude-plugin/marketplace.json" "$rel/.codebuddy-plugin/marketplace.json"
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 \
+  || { echo "FAIL pinned source object rejected when a decoy entry precedes it"; cat "$rel/out"; exit 1; }
+grep -q 'Marketplace pin (.claude-plugin/marketplace.json): v9.9.7 ->' "$rel/out" \
+  && { echo "FAIL decoy entry was read instead of the pinned source object"; cat "$rel/out"; exit 1; }
+grep -q 'Marketplace pin (.claude-plugin/marketplace.json): v9.9.8 ->' "$rel/out" \
+  || { echo "FAIL the pinned source object was not the value read"; cat "$rel/out"; exit 1; }
+
+# The pin is read from the `source` object, so a plugin entry after it that names a
+# different tag is not the pin either. The decoy is placed *after* the real entry,
+# which is where a whole-file scan that takes the last match would land.
+sed 's/^  \]$/    },\n    {\n      "name": "decoy-after",\n      "source": {\n        "ref": "v9.9.7",\n        "sha": "'"$decoy_sha"'"\n      }\n    }\n  ]/' \
+  "$rel/m.bak" > "$rel/.claude-plugin/marketplace.json"
+cp "$rel/.claude-plugin/marketplace.json" "$rel/.codebuddy-plugin/marketplace.json"
+bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1 \
+  || { echo "FAIL pinned source object rejected when a decoy entry follows it"; cat "$rel/out"; exit 1; }
+grep -q 'Marketplace pin (.claude-plugin/marketplace.json): v9.9.7 ->' "$rel/out" \
+  && { echo "FAIL a trailing entry displaced the pinned source object"; cat "$rel/out"; exit 1; }
+grep -q 'Marketplace pin (.claude-plugin/marketplace.json): v9.9.8 ->' "$rel/out" \
+  || { echo "FAIL the pinned source object was not the value read after a trailing decoy"; cat "$rel/out"; exit 1; }
+
+cp "$rel/m.bak" "$rel/.claude-plugin/marketplace.json"
+cp "$rel/m.bak" "$rel/.codebuddy-plugin/marketplace.json"
+rm -f "$rel/m.bak"
 
 # A tag that is not present locally is a blocked check, not a version mismatch:
 # releasing without fetched tags would otherwise compare against nothing.
