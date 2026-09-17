@@ -17,7 +17,7 @@
 </div>
 
 > [!IMPORTANT]
-> **TaskFlow 是流程约定，不是 Agent。** 它不选择工具、也不替 Agent 决策。它可与宿主/工具链 hook（Claude Code 与 Codex CLI）协作做有边界的记账和上下文摘要；hook 绝不写核心文档、绝不代为批准。它为人和 Agent 提供一个共同的、可检查的地方，记录任务是什么以及它如何变化。
+> **TaskFlow 是流程约定，不是 Agent。** 它不选择工具、也不替 Agent 决策。它可与宿主/工具链 hook（Claude Code、Codex CLI 与 CodeBuddy）协作做有边界的记账和上下文摘要；hook 绝不写核心文档、绝不代为批准。它为人和 Agent 提供一个共同的、可检查的地方，记录任务是什么以及它如何变化。
 
 ## 它解决什么问题
 
@@ -90,7 +90,7 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 
 在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code 与 Codex CLI）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
+TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI 与 CodeBuddy）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
 
 ## 防止设计丢失的一条规则
 
@@ -142,7 +142,7 @@ stateDiagram-v2
 
 ## 快速开始
 
-TaskFlow 以插件形式分发（Claude Code / Codex 同一套市场）：`hooks/`、技能与安装配置都在一个仓库里，无需手动复制文件或手改 `settings.json`。
+TaskFlow 以插件形式分发（Claude Code / Codex / CodeBuddy 同一套市场）：`hooks/`、技能与安装配置都在一个仓库里，无需手动复制文件或手改 `settings.json`。
 
 ### 用 Claude Code 安装
 
@@ -199,6 +199,37 @@ codex plugin add taskflow@taskflow
 codex plugin list
 ```
 
+### 用 CodeBuddy 安装
+
+添加同一套市场，然后安装插件。这些是 **CodeBuddy Code CLI** 命令——CodeBuddy IDE 客户端并不实现它们：
+
+```bash
+codebuddy plugin marketplace add hkwuks/TaskFlow
+codebuddy plugin install taskflow@taskflow
+```
+
+CodeBuddy 读取 `.codebuddy-plugin/marketplace.json` 这份目录，其中带有与其它宿主一致的固定版本条目。manifest 通过 CodeBuddy 自家插件使用的 `CODEBUDDY_PLUGIN_ROOT` 变量接入 SessionStart hook。
+
+确认已加载：
+
+```bash
+codebuddy plugin list
+#   > taskflow@taskflow
+#     Version: 1.0.5
+#     Scope: user
+#     Status: enabled
+```
+
+更新已有安装：
+
+```bash
+codebuddy plugin marketplace update taskflow
+codebuddy plugin install taskflow@taskflow
+codebuddy plugin list
+```
+
+CodeBuddy 通过 `/reload-plugins` 重新加载 hooks、技能和代理，无需重启。
+
 ### 想用本地副本？
 
 开发或检查源码时，可以把市场指向本地检出目录而不是 GitHub。这样会有意绕过远程稳定版固定点，插件和 hooks 改为使用你控制的本地文件：
@@ -211,6 +242,10 @@ claude plugin install taskflow@taskflow
 # Codex CLI
 codex plugin marketplace add <仓库根目录>
 codex plugin add taskflow@taskflow
+
+# CodeBuddy
+codebuddy plugin marketplace add <仓库根目录>
+codebuddy plugin install taskflow@taskflow
 ```
 
 安装后告诉你的 Agent：
@@ -238,7 +273,7 @@ TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，
 | **主要关注** | 任务状态与语义历史 | 规范驱动开发流程 | 可配置的规范/变更流程 | 角色化 Agent 方法论 | 负责人和任务协调 |
 | **核心单元** | 本地 TaskFlowDocs 目录 | Spec 与工作流产物 | Spec 与 change 产物 | Agent、角色与工作流 | Ticket、Card、Issue |
 | **设计恢复** | 明确的 `old/vN/` 归档 | 取决于仓库和采用的流程 | 取决于项目配置与 Git 实践 | 取决于所选流程和仓库历史 | 通常只有活动记录 |
-| **Agent 交互** | Skill 指令 + 有边界的宿主 hook 协作（Claude Code、Codex） | 工具/工作流约定 | 可配置工作流约定 | 角色与编排模式 | 通常在 Agent 上下文之外 |
+| **Agent 交互** | Skill 指令 + 有边界的宿主 hook 协作（Claude Code、Codex、CodeBuddy） | 工具/工作流约定 | 可配置工作流约定 | 角色与编排模式 | 通常在 Agent 上下文之外 |
 | **基础设施** | Markdown + 文件系统 + Git | 仓库文件与配套工具 | 仓库文件与配套工具 | 方法论资产与配套工具 | 通常是托管服务 |
 | **如何组合** | — | 用于生成规范，再将审阅后的事实放入任务目录 | 将审阅后的 Spec/change 放入任务目录 | 将角色产出作为参考/任务产物保存 | 将 Ticket 链接到任务目录 |
 

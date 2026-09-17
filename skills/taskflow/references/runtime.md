@@ -1,6 +1,6 @@
 # Host / harness hooks and single-command transitions
 
-Read this reference when configuring TaskFlow on a host that supports lifecycle hooks (Claude Code, Codex CLI), or when running a TaskFlow transition as one command.
+Read this reference when configuring TaskFlow on a host that supports lifecycle hooks (Claude Code, Codex CLI, CodeBuddy), or when running a TaskFlow transition as one command.
 
 ## What a host/harness hook is
 
@@ -16,26 +16,42 @@ TaskFlow ships reference hook configs for:
 | --- | --- | --- |
 | Claude Code | plugin root `hooks/hooks.json` (auto-loaded standard hooks file), or `.claude/settings.json` for a manual install | `hooks/hooks.json` |
 | Codex CLI | `.codex-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codex.json`), or `<repo>/.codex/hooks.json` for a manual install | `hooks/hooks-codex.json` |
+| CodeBuddy | `.codebuddy-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codebuddy.json`), or `.codebuddy/settings.json` for a manual install | `hooks/hooks-codebuddy.json` |
 
-Install both hosts by command from the repository marketplace — no file copying:
+Install every host by command from the repository marketplace — no file copying:
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
-`codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`
+`codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`;
+`codebuddy plugin marketplace add hkwuks/TaskFlow && codebuddy plugin install taskflow@taskflow`
 (a local directory path works in place of the GitHub owner/repo).
+
+All three hosts expose plugin management as shell subcommands of their own CLI. CodeBuddy
+Code is a separate binary from the CodeBuddy IDE client; the IDE client does not implement
+`plugin` commands, so the CLI is required to install or validate the plugin.
 
 An environment running any other agent host needs no hooks: it continues with the base flow. Adding a new host later is additive — write one JSON plus (if needed) a launcher, reusing the extensionless bash scripts.
 
 ## Event map
 
-| TaskFlow need | Claude Code | Codex CLI |
-| --- | --- | --- |
-| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` |
-| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` |
-| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` |
-| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` |
-| Pre-compaction summary | `PreCompact` | `PreCompact` |
-| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` |
+| TaskFlow need | Claude Code | Codex CLI | CodeBuddy |
+| --- | --- | --- | --- |
+| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` |
+| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly |
+| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` |
+| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` |
+| Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` |
+| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` |
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release.
+
+### CodeBuddy specifics
+
+CodeBuddy follows the Claude Code hook contract closely enough that `session-start` needs no host branch, but three details differ from the table above. Each was run against the host rather than assumed:
+
+- **Plugin root.** CodeBuddy substitutes both `${CODEBUDDY_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}`, and injects both into the hook environment with the same value. `hooks-codebuddy.json` uses the `CODEBUDDY_` spelling, which is what every bundled plugin in the official marketplace writes.
+- **SessionStart source.** CodeBuddy runs SessionStart with `source` fixed to `startup`. The shared `startup|resume|clear|compact` matcher lists `startup` among its alternatives, so it matches a host that only ever sends that one value.
+- **Context field.** CodeBuddy reads `hookSpecificOutput.additionalContext` and falls back to raw stdout. Both branches were exercised directly: with only `CODEBUDDY_PLUGIN_ROOT` set the script emits the bare `additionalContext` object, and with `CLAUDE_PLUGIN_ROOT` also set — which is what CodeBuddy injects — it emits the `hookSpecificOutput` envelope. The same output works unmodified.
+
+`.codebuddy-plugin/` names the host's own manifest and catalog explicitly, so the two entry points are visible in the tree rather than inferred from `.claude-plugin/`.
 
 ## Must / may-not
 
@@ -116,18 +132,21 @@ Todo IDs are derived from the goal (`TF-<yyyymmdd>-<6 hex>` from a `cksum` diges
 
 ```text
 repo-root/
-├── .claude-plugin/marketplace.json      # marketplace catalog (both hosts read it)
+├── .claude-plugin/marketplace.json      # marketplace catalog (all hosts read it)
+├── .codebuddy-plugin/marketplace.json   # CodeBuddy catalog (same pin as the above)
 └── taskflow/
     ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./skills/)
     ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./skills/)
+    ├── .codebuddy-plugin/plugin.json    # CodeBuddy manifest (skills: ./skills/taskflow)
     ├── skills/taskflow/
     │   ├── SKILL.md
     │   ├── agents/openai.yaml
     │   └── references/                  # runtime.md, artifacts.md, versioning-and-recovery.md
     └── hooks/
-        ├── README.md                    # install + run instructions for both hosts
+        ├── README.md                    # install + run instructions for every host
         ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
         ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
+        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── session-record               # records the host session id in the task index
@@ -146,3 +165,5 @@ repo-root/
 ```
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.
+
+`hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. The other hosts point at their file through a manifest `hooks` entry, so only Claude Code depends on the name.

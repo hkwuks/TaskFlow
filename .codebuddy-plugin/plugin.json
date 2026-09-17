@@ -1,0 +1,26 @@
+{
+  "name": "taskflow",
+  "version": "1.0.5+codebuddy.20260917",
+  "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex, CodeBuddy)",
+  "author": {
+    "name": "TaskFlow",
+    "url": "https://github.com/hkwuks"
+  },
+  "homepage": {
+    "url": "https://github.com/hkwuks/TaskFlow",
+    "type": "github"
+  },
+  "repository": "https://github.com/hkwuks/TaskFlow",
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "skills",
+    "prd",
+    "spec",
+    "plan",
+    "workflow",
+    "hooks",
+    "tasks"
+  ],
+  "skills": ["./skills/taskflow"],
+  "hooks": "./hooks/hooks-codebuddy.json"
+}

@@ -1,0 +1,27 @@
+{
+  "name": "taskflow",
+  "description": "TaskFlow workflow skill + host/harness hooks for Claude Code, Codex CLI, and CodeBuddy",
+  "owner": {
+    "name": "TaskFlow"
+  },
+  "plugins": [
+    {
+      "name": "taskflow",
+      "version": "1.0.5",
+      "description": "PRD/Spec/Plan task workflow skill with lifecycle hooks",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/hkwuks/TaskFlow.git",
+        "ref": "v1.0.5",
+        "sha": "3151d2707d7bae3602f1dfaf5d70d11370dd4f8f"
+      },
+      "author": {
+        "name": "TaskFlow",
+        "url": "https://github.com/hkwuks"
+      },
+      "homepage": "https://github.com/hkwuks/TaskFlow",
+      "repository": "https://github.com/hkwuks/TaskFlow",
+      "license": "AGPL-3.0-only"
+    }
+  ]
+}

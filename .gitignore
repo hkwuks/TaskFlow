@@ -1,5 +1,9 @@
 .sxng/
 tasks/
+
+# CodeBuddy CLI local artifacts (plugin install cache / staged copies)
+.plugins-cache.json
+plugins/
 # Personal rules are local-only and are never committed: everything beside
 # TaskFlowDocs/repository-docs/index.md is personal, so ignore its contents
 # and re-include the routing record itself.
