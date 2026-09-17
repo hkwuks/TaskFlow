@@ -49,24 +49,58 @@ Do not claim an unavailable check passed; record limitations in the release task
 
 Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, the release commit (and Release PR when used), and the TaskFlow task link. Do not include secrets or unverified claims.
 
-## Tag and GitHub Release
+## Tag, catalog pin, and GitHub Release
 
 After the release scope is merged to the intended base (or the optional Release PR is merged):
 
 1. Check out the exact merged base commit and confirm a clean working tree.
 2. Verify manifest versions and release notes again.
-3. Create an annotated tag such as `vX.Y.Z`.
-4. Push the tag only after explicit release-owner approval.
-5. Create the GitHub Release from that tag with the approved notes.
-6. Update both marketplace entries on `main` so each Git source uses the release tag as `ref` and the exact tagged commit as `sha`; then run `bash hooks/release-check .` and validate it with Claude Code, Codex, and CodeBuddy tooling before publishing the catalog change.
+3. Create an annotated tag such as `vX.Y.Z` on that commit.
+4. Update both marketplace entries so each Git source uses the release tag as `ref`
+   and the exact tagged commit as `sha`, then commit that edit locally. It carries
+   only those four literals — `ref` is the tag name and `sha` is
+   `git rev-parse <tag>^{commit}` — so there is nothing in it to review.
+5. Push the pin commit and the tag together, in one atomic push, after explicit
+   release-owner approval:
+
+   ```bash
+   git push --atomic origin main refs/tags/vX.Y.Z
+   ```
+
+   The pin commit must carry nothing else, and the push must carry no other refs.
+6. Run `bash hooks/release-check .` again on the pushed `main`, and create the
+   GitHub Release from the tag with the approved notes. Validate the catalog
+   entry with Claude Code, Codex, and CodeBuddy tooling.
 7. Record the tag, release URL, commit, marketplace pin, and checks in the release task.
 
-Steps 3–6 make a release two commits, by construction: the tag cannot be created
+Steps 3–4 make a release two commits, by construction: the tag cannot be created
 before the release commit exists on the base, and the pinned `sha` cannot be
 written before the tag exists. Claude Code verifies the pin at install time and
 refuses a mismatch as `sha_pin_mismatch`, and it clones by the pinned commit
 rather than by the tag, so the pin is what keeps an installation on the reviewed
 release if the tag is ever moved. The second commit is the pin, not a mistake.
+
+Two commits, but not two pushes. The tag has to exist before the pin is
+readable, and the pin has to be readable before the tag is useful; pushing them
+apart leaves an interval where the catalog names a tag that is either missing
+or stale, and a refresh landing in that interval installs the previous release.
+`--atomic` makes both refs visible at once, so the interval does not exist.
+
+This step is a direct push rather than a pull request on purpose. It moves two
+things at once: an immutable tag, and the catalog record naming it. The record
+is mechanically derived, so there is nothing to review, and its correctness is
+enforced rather than reviewed — `git merge-base --is-ancestor` for the tag, and
+`bash hooks/release-check .` for the `ref`/`sha` pair. A pull request here would
+only reintroduce the interval it is meant to close, for a four-line diff whose
+content the tag already determined. The release metadata commit is a different
+matter: it carries prose, so it takes the Release PR path above.
+
+If the remote rejects an atomic push, fall back to pushing the tag first and
+updating the catalog after, exactly as this document required before the
+atomic form existed, and record the resulting interval in the release task. Do
+not work around the rejection by putting other files into the atomic push: that
+would make one unreviewable push out of the release metadata and an irreversible
+tag.
 
 The marketplace catalog itself remains on `main` so refreshes can discover the latest stable entry. The plugin source must not point at moving `main`; local-directory marketplace registration remains the development path.
 
@@ -79,6 +113,11 @@ TaskFlow does not push tags or create GitHub Releases automatically.
 ## Rollback
 
 Stop distribution, record the affected tag/commit and impact, and prefer a corrective patch release. Deleting or moving a remote tag requires explicit owner authorization and a documented reason. Never rewrite shared branch history as a rollback.
+
+A wrong catalog record is corrected like any other catalog change — a new
+commit with the right `ref`/`sha`, verified by `bash hooks/release-check .` —
+and does not touch the tag. Only a wrong *tag* needs the authorization above,
+because the tag is the part installations are pinned to.
 
 ## Known limitations
 
