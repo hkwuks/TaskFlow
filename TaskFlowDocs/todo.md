@@ -590,3 +590,16 @@ Every direct request or imported requireme
 - Goal: Publish TaskFlow v1.0.6 with the CodeBuddy host, the Todo merge-drop audit, and the release version check
 - Task: `TaskFlowDocs/achieved/2026-09-17-release-v1-0-6/`
 - Next action: None — completed and archived.
+
+## Make the release atomic: push the marketplace pin and the release tag in one ato
+
+- ID: TF-20260917-a608b7
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-17
+- Updated: 2026-09-17
+- Goal: Make the release atomic: push the marketplace pin and the release tag in one atomic push so the catalog never names a tag that is missing or stale
+- Task: `TaskFlowDocs/2026-09-17-atomic-release-push/`
+- Next action: Complete PRD / Spec / Plan and request approval.
