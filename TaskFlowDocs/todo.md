@@ -251,6 +251,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Item template
 
 ```markdown
+
 ## T-YYYYMMDD-001 — Short title
 - Status: inbox | clarified | promoted | in_progress | done | cancelled
 - Priority: low | normal | high | urgent
@@ -629,3 +630,58 @@ Every direct request or imported requireme
 - Goal: The plugin's hook launcher installs without the executable bit, so every Unix SessionStart hook fails with Permission denied
 - Task: `TaskFlowDocs/2026-09-18-hook-launcher-exec-bit/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Fix the archive transaction's todo.md rewrite: it inserts a blank line after the
+
+- ID: TF-20260918-172455
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Fix the archive transaction's todo.md rewrite: it inserts a blank line after the item template's opening fence and leaves one at EOF
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Restore the zh-CN manifest count that the PR 38 merge silently reverted, and che
+
+- ID: TF-20260918-ad8348
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Restore the zh-CN manifest count that the PR 38 merge silently reverted, and check why a merge dropped an already-landed edit
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Cut the mechanical overhead out of archiving: the stage step and the branch choice
+
+- ID: TF-20260918-88e04c
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Cut the mechanical overhead out of archiving: the transaction leaves an unstaged delete+add pair the Agent can get wrong, and nothing says which branch the archive commit belongs on.
+- Task: Not promoted.
+- Next action: Decide the two rules, then implement: (a) `hooks/archive` prints the exact stage command it leaves for the Agent, or gains a flag that stages; (b) state where the archive commit goes — the current branch or the base branch.
+- Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
+- Updated: 2026-09-18
+
+## Restore the Claude Code SessionStart hook, which fails with Permission denied on
+
+- ID: TF-20260918-a01eec
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Restore the Claude Code SessionStart hook, which fails with Permission denied on every Git-clone install because hooks/run-hook.cmd is recorded 100644 while hooks.json invokes it as a bare path
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
