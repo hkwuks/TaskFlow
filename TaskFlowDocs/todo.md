@@ -642,7 +642,8 @@ Every direct request or imported requireme
 - Updated: 2026-09-18
 - Goal: Fix the archive transaction's todo.md rewrite: it inserts a blank line after the item template's opening fence and leaves one at EOF
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Promote with the archive family (88e04c, e7c041); one design call covers all three.
+- Notes: 2026-09-18 归档 2026-09-18-todo-field-writes 时**没有复现**：`task complete` 跑完后 `git diff --check` 干净，todo.md 的 diff 只有 Status/Task/Next action 三行变化，无多余空行。所以本条可能比原描述更窄——尚未确定触发条件（原报告来自 readme-refresh 那次归档）。下次碰到时先抓 `git diff` 再动手，别照描述改。同族边界见 e7c041 的 Notes。
 
 ## Restore the zh-CN manifest count that a conflict resolution reverted, and rule on conflict-side review
 
@@ -671,8 +672,10 @@ Every direct request or imported requireme
 - Updated: 2026-09-18
 - Goal: Cut the mechanical overhead out of archiving: the transaction leaves an unstaged delete+add pair the Agent can get wrong, and nothing says which branch the archive commit belongs on.
 - Task: Not promoted.
-- Next action: Decide the two rules, then implement: (a) `hooks/archive` prints the exact stage command it leaves for the Agent, or gains a flag that stages; (b) state where the archive commit goes — the current branch or the base branch.
+- Next action: Decide the two rules, then implement: (a) `hooks/archive` prints the exact stage command it leaves for the Agent, or gains a flag that stages; (b) state where the archive commit goes — the current branch or the base branch. Do not design this in isolation: see the family note below.
 - Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
+- **2026-09-18 归档 `2026-09-18-todo-field-writes` 时的实测（同一失败边界，第二次观测）**：(1) 显式按路径 `git add` 之后，索引里 active 路径为空（`git ls-files 'TaskFlowDocs/<task>/*'` 无输出），commit tree 里也只有 achieved 一份——**「两份目录并存」已被可靠规避，代价是每次都要记得列出五条删除**。(2) **分支问题这次真的发作了**：worktree 上跑 `complete` 成功并落了盘，但 base 检出落后 4 个提交，`git merge --ff-only origin/main` 用合并进来的 `plan.md` 覆盖了工作区里已改好的那份，Approval 块被打回 `pending`，第二次 `complete` 才报错。也就是说失败的根因不是归档本身，是**事务交叉在一个落后的检出上**。(3) `--root` 指向 base 检出确实让 `task complete` 在那里落盘，印证了「事务该落在哪个检出」这个空缺。
+  **同族**：`TF-20260918-e7c041`（`complete` 先改盘再校验，没有回滚）、`TF-20260918-172455`（archive 写 todo.md 的空行；本次未复现）。三条合起来才是一个完整的「归档事务」边界，分开做会重复设计。
 - Updated: 2026-09-18
 
 ## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: 
@@ -727,3 +730,17 @@ Every direct request or imported requireme
   **门禁必须在写入之前**：合法顺序是「人先批准 → hook 记录」，不是「hook 写入 → 门禁通过」，否则 `require_approval` 变成自我认证。自动化只应删掉**转录**（把已表态的事实落成固定格式），不能生成或推断批准本身。
   **与 `TF-20260918-88e04c`、`TF-20260918-e7c041` 同族**：本次归档时 `complete` 在 base 检出上失败，正是因为 main 落后导致合并把 `Approval` 块覆盖回 `pending`，手工补批准后重跑才过。真正的修法在 `complete` 的**事务原子性**上（`e7c041`），不在让批准好写。
 - Updated: 2026-09-18
+
+## Fix task get silently dropping indented Notes continuation lines: it prints only
+
+- ID: TF-20260918-9acf57
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Fix task get silently dropping indented Notes continuation lines: it prints only lines starting with '- ', so a second Notes bullet written with the repo's two-space indent is absent from the output with no warning.
+- Task: Not promoted.
+- Next action: Promote with the task get/next family once the archive work lands; low urgency, high blast radius if trusted blindly.
+- Notes: 本缺陷在归档 2026-09-18-todo-field-writes 时发现：`task get` 只打印 `^- ` 开头的行（`hooks/task` 的 `entry` 分支），而 Notes 的第二条及以后按仓库既有习惯写成**两空格缩进的 `- ` 行**，于是它们不出现在输出里，**且没有提示**。危害不是报错，是**静默**：调用方拿到一份看似完整、实则缺段的条目，据此决策。判据：本次取证用 `bash hooks/task get TF-20260918-454ac4` 只回出 Notes 的第一行，而文件里它下面还有三条缩进续行。修法二选一：(a) 把条目正文的缩进行也算正文一并打印；(b) 至少 stderr 提示该条目有 N 行未显示。v2 已合并，本缺陷未修。同族：`task next` 写 Notes 时用的是同一套字段边界（`isfield`），那边的续行判定虽已覆盖缩进，但输出侧没跟上。
