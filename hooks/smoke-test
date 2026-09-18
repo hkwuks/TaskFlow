@@ -989,6 +989,126 @@ git -C "$par" merge -q --no-edit right
 grep -q '^<<<<<<<' "$par/TaskFlowDocs/todo.md" && { echo "FAIL parallel intake conflicted"; exit 1; }
 echo ok
 
+echo "== task next writes the deterministic Todo fields and lands Notes before Updated =="
+# The point of the command is tokens: the fields it writes are templated from
+# state the Agent already has, and hand-writing them costs a read of the whole
+# Todo file. So the assertions below are about position and byte-fidelity, not
+# just about the new value being present -- a `next` that appends to the end of
+# the entry would put a Notes bullet below `- Updated:`, which is exactly the
+# shape a hand edit gets wrong.
+nf="$tmp/next-fields"
+mkdir -p "$nf/TaskFlowDocs"
+# Entry `aa` carries the post-promote shape: the Notes block sits above a trailing
+# field, so "append at the end of the entry" and "append at the end of the Notes
+# block" are distinguishable. Without a field after Notes the two are the same
+# write and the test would pass either way.
+printf '%s\n' \
+  '# Todo inbox' '' '## Items' '' '## Seed' '' \
+  '- ID: TF-20260101-aa' '- Status: inbox' '- Priority: normal' '- Owner: smoke' \
+  '- Source: fixture' '- Added: 2026-01-01' \
+  '- Goal: seed' '- Task: Not promoted.' '- Next action: old action.' \
+  '- Notes: first bullet.' '- second bullet.' '- Updated: 2026-01-01' \
+  '' '## Sparse' '' \
+  '- ID: TF-20260101-bb' '- Status: done' '- Priority: normal' '- Owner: smoke' \
+  '- Source: fixture' '- Added: 2026-01-01' '- Goal: sparse entry' \
+  '- Task: `TaskFlowDocs/achieved/2026-01-01-sparse/`' > "$nf/TaskFlowDocs/todo.md"
+
+bash "$HERE/task" next TF-20260101-aa "new action." "third bullet." --root "$nf" >/dev/null
+
+# The two rewritten fields, and nothing else, changed.
+grep -qx -- '- Next action: new action.' "$nf/TaskFlowDocs/todo.md" || { echo "FAIL Next action not written"; exit 1; }
+grep -qx -- "- Updated: $(date +%Y-%m-%d)" "$nf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL Updated not refreshed"; exit 1; }
+grep -qx -- '- Next action: old action.' "$nf/TaskFlowDocs/todo.md" \
+  && { echo "FAIL the old Next action survived"; exit 1; }
+[ "$(grep -c '^- Next action: ' "$nf/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL next added or removed a Next action line"; exit 1; }
+[ "$(grep -c '^- Updated: ' "$nf/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL next added or removed an Updated line"; exit 1; }
+
+# The Notes bullet joins the block it belongs to: after the bullets already
+# there, and still above `- Updated:`. Both halves matter -- the block can end
+# with a field line, so "insert after the last bullet" and "insert before the
+# first field line after Notes" have to agree.
+awk '/^- Notes: first bullet\.$/{ n = NR }
+     /^- third bullet\.$/{ t = NR }
+     /^- Updated: /{ u = NR }
+     END { exit !(n && t && u && n < t && t < u) }' "$nf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL Notes bullet did not land at the end of the Notes block, above Updated:"; sed -n '/TF-20260101-aa/,/^$/p' "$nf/TaskFlowDocs/todo.md"; exit 1; }
+# The entry keeps every field it had: this is an edit, not a rewrite.
+for f in ID Status Priority Owner Source Added Goal Task; do
+  grep -q "^- $f: " "$nf/TaskFlowDocs/todo.md" || { echo "FAIL next dropped the $f field"; exit 1; }
+done
+
+# A field that is absent is added rather than failing the write: `archive` takes
+# the same line over Todo shape, and a hand-written entry may not carry them.
+bash "$HERE/task" next TF-20260101-bb "reopened for v2." --root "$nf" >/dev/null
+grep -qx -- '- Next action: reopened for v2.' "$nf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL absent Next action was not added"; exit 1; }
+grep -qx -- "- Updated: $(date +%Y-%m-%d)" "$nf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL absent Updated was not added"; exit 1; }
+# Added next to the Status line the entry already had, not merely somewhere in
+# the file: a stray line elsewhere would satisfy a bare grep.
+awk '/^- ID: TF-20260101-bb$/{ f = 1 }
+     f && /^- Status: done$/{ s = NR }
+     f && /^- Next action: reopened for v2\.$/{ a = NR }
+     END { exit !(s && a && a == s + 1) }' "$nf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL Next action was not added directly after Status:"; sed -n '/TF-20260101-bb/,$p' "$nf/TaskFlowDocs/todo.md"; exit 1; }
+# The archived entry is addressed by ID alone -- its `Task:` link points into
+# `achieved/`, where a task-id lookup would not find it.
+grep -q 'achieved/2026-01-01-sparse' "$nf/TaskFlowDocs/todo.md" || { echo "FAIL fixture lost its achieved link"; exit 1; }
+
+# An unknown ID is refused, and the file is left exactly as it was.
+before="$(digest "$nf/TaskFlowDocs/todo.md")"
+if bash "$HERE/task" next TF-20260101-zz "x." --root "$nf" >/dev/null 2>&1; then
+  echo "FAIL unknown Todo ID accepted"; exit 1
+fi
+[ "$before" = "$(digest "$nf/TaskFlowDocs/todo.md")" ] || { echo "FAIL refused next still mutated Todo"; exit 1; }
+echo ok
+
+echo "== task get prints one entry and not the Todo file =="
+# The other half of the token saving: the caller asks for one entry instead of
+# reading all of `todo.md`. What has to hold is the *shape* of the output -- the
+# entry's field lines, verbatim, in file order -- because the callers that parse
+# these lines positionally (`awk '{print $NF}'`) depend on the field name staying
+# the first word.
+get_out="$tmp/next-get-out"
+bash "$HERE/task" get TF-20260101-aa --root "$nf" > "$get_out"
+# The entry's own fields, and nothing from a sibling entry or a heading.
+grep -qx -- '- ID: TF-20260101-aa' "$get_out" || { echo "FAIL get did not print the entry"; cat "$get_out"; exit 1; }
+grep -q 'TF-20260101-bb' "$get_out" && { echo "FAIL get printed a sibling entry"; cat "$get_out"; exit 1; }
+grep -q '^## ' "$get_out" && { echo "FAIL get printed a section heading"; cat "$get_out"; exit 1; }
+grep -q '^[[:space:]]*$' "$get_out" && { echo "FAIL get printed a blank line"; cat "$get_out"; exit 1; }
+grep -q '^# Todo inbox' "$get_out" && { echo "FAIL get printed the file header"; cat "$get_out"; exit 1; }
+# Verbatim and in file order: the same `- ` lines, in the order todo.md holds
+# them. Rebuilding the lines would still satisfy a bare presence check, so the
+# comparison is against the file's own slice.
+sed -n '/^- ID: TF-20260101-aa$/,/^- Updated: /p' "$nf/TaskFlowDocs/todo.md" > "$tmp/get-expected"
+diff -u "$tmp/get-expected" "$get_out" || { echo "FAIL get output is not the entry's field lines verbatim"; exit 1; }
+# Positional parsing keeps working: the value, not the whole line.
+[ "$(awk '/^- ID:/{ print $NF }' "$get_out")" = "TF-20260101-aa" ] \
+  || { echo "FAIL get output is not positionally parseable"; exit 1; }
+# Reading never writes.
+before_get="$(digest "$nf/TaskFlowDocs/todo.md")"
+bash "$HERE/task" get TF-20260101-bb --root "$nf" >/dev/null
+[ "$before_get" = "$(digest "$nf/TaskFlowDocs/todo.md")" ] || { echo "FAIL get mutated Todo"; exit 1; }
+if bash "$HERE/task" get TF-20260101-zz --root "$nf" >/dev/null 2>&1; then
+  echo "FAIL unknown Todo ID accepted by get"; exit 1
+fi
+# What `next` writes, `get` reads back: the two are halves of one round trip.
+# `sed` rather than `awk '{print $NF}'` because the value contains spaces -- the
+# positional guarantee above is about the ID, which is one word.
+bash "$HERE/task" next TF-20260101-aa "round trip." "round trip note." --root "$nf" >/dev/null
+readback="$(bash "$HERE/task" get TF-20260101-aa --root "$nf" | sed -n 's/^- Next action: //p')"
+[ "$readback" = "round trip." ] \
+  || { echo "FAIL get did not read back what next wrote: $readback"; exit 1; }
+# The v1 command's own fields survive v2's addition: `get` must not have been
+# implemented by rerouting the internal `TASKFLOW_CMD=get`, whose shape is
+# "title line, then the fields named in TASKFLOW_KEYS".
+[ "$(grep -c 'TASKFLOW_CMD=get' "$HERE/task")" -eq 3 ] \
+  || { echo "FAIL the internal get callers changed"; exit 1; }
+echo ok
+
 echo "== release-check catches version drift and a bad marketplace pin =="
 # Release literals live in five files and nothing else compares them: the checks
 # in RELEASE.md covered the two manifests and left the CHANGELOG section, both

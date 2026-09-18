@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # task — token-saving TaskFlow lifecycle edits.
-# Usage: task intake|promote|state|progress|complete ...
+# Usage: task intake|promote|state|next|get|progress|complete ...
 # POSIX shell + awk only: the plugin must run with no language runtime available.
 #
 # Every parameter is passed to awk through the environment rather than -v: awk
@@ -66,6 +66,10 @@ function trim(s) { return rtrim(ltrim(s)) }
 function is_blank(s) { return s ~ /^[[:space:]]*$/ }
 function at(s, p) { return index(s, p) == 1 }
 function die(msg) { print msg > "/dev/stderr"; exit 1 }
+# A field line is "- Name:" with a letter-initial, space-separated name. Notes
+# continuation bullets start with "- " too, so this is what tells the two apart
+# when the end of a Notes block has to be found.
+function isfield(s) { return s ~ /^- [A-Za-z][A-Za-z ]*:/ }
 
 # Section scan: a section is a line starting exactly with "## ".
 function scan(   i) {
@@ -108,6 +112,24 @@ function emit(   i) {
     else printf "%s\n", line[i]
   }
 }
+# Inserts at position p, shifting the tail up. `emit` prints while it walks, so
+# the element appended at p is printed in the same pass -- no second emit.
+function insert(p, s,   i) {
+  for (i = n; i >= p; i--) line[i + 1] = line[i]
+  n++
+  line[p] = s
+}
+# Last line of the Notes block starting at a. Continuation bullets are "- "
+# lines that are not field lines; anything else closes the block.
+function notes_end(a, b,   i, e) {
+  e = a
+  for (i = a + 1; i <= b; i++) {
+    if (is_blank(line[i])) continue
+    if (at(line[i], "- ") && !isfield(line[i])) { e = i; continue }
+    break
+  }
+  return e
+}
 # a and b are the target body range; they are parameters, not extras, or awk
 # would scope them as local copies and every setr would miss.
 function loadpairs(f, a, b,   pl, k, name, value) {
@@ -133,6 +155,8 @@ BEGIN {
   step = ENVIRON["TASKFLOW_STEP"]
   step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
   verification = ENVIRON["TASKFLOW_VERIFICATION"]
+  next_action = ENVIRON["TASKFLOW_NEXT_ACTION"]
+  notes = ENVIRON["TASKFLOW_NOTES"]
   ends_nl = ENVIRON["TASKFLOW_ENDS_NL"] + 0
   today = ENVIRON["TASKFLOW_TODAY"]
   n = 0
@@ -230,6 +254,54 @@ END {
     exit 0
   }
 
+  if (cmd == "next") {
+    j = findsec(id, "")
+    if (j == 0) die(ENVIRON["TASKFLOW_NOTFOUND"])
+    a = bstart(j); b = bend(j)
+    # Last non-blank line of the section: where a field that is absent gets
+    # appended. `archive` takes the same lenient line over Todo shape.
+    last = a - 1
+    for (i = a; i <= b; i++) if (!is_blank(line[i])) last = i
+
+    if (!setr(a, b, "Next action", next_action)) {
+      p = 0
+      for (i = a; i <= b; i++) if (at(line[i], "- Status:")) { p = i; break }
+      if (p == 0) p = last
+      insert(p + 1, "- Next action: " next_action); b++; last++
+    }
+
+    if (notes != "") {
+      p = 0
+      for (i = a; i <= b; i++) if (at(line[i], "- Notes:")) { p = i; break }
+      if (p == 0) {
+        insert(last + 1, "- Notes: " notes); b++; last++
+      } else {
+        # At the end of the block, NOT at the end of the entry: `- Updated:` and
+        # any field after it would otherwise end up above the new line.
+        insert(notes_end(p, b) + 1, "- " notes); b++; last++
+      }
+    }
+
+    if (!setr(a, b, "Updated", today)) {
+      insert(last + 1, "- Updated: " today); b++; last++
+    }
+
+    emit()
+    exit 0
+  }
+
+  # Not named "get": that command already means "title line + the fields named in
+  # TASKFLOW_KEYS", and three internal callers depend on that shape. This branch
+  # prints the entry field lines verbatim instead -- the CLI wrapper below is
+  # what carries the name `get`.
+  if (cmd == "entry") {
+    j = findsec(id, "")
+    if (j == 0) die(ENVIRON["TASKFLOW_NOTFOUND"])
+    a = bstart(j); b = bend(j)
+    for (i = a; i <= b; i++) if (at(line[i], "- ")) print line[i]
+    exit 0
+  }
+
   if (cmd == "docstatus") {
     for (i = 1; i <= n; i++) {
       if (at(line[i], "> Status: ")) { line[i] = "> Status: " value; emit(); exit 0 }
@@ -270,7 +342,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|progress|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|get|progress|complete ..."
 command="$1"; shift
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
@@ -553,6 +625,40 @@ case "$command" in
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$new_state"
     run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$new_state"
     echo "state OK: $task -> $new_state"
+    ;;
+
+  # Deliberately unguarded by require_approval: Todo is triage metadata, not an
+  # approved artifact. `intake` and `promote` write it the same way. The gate
+  # exists to protect implementation against work that is not approved yet.
+  next)
+    split_root "$@"
+    [ "${#rest[@]}" -ge 2 ] && [ "${#rest[@]}" -le 3 ] || fail 'usage: task next <todo-id> <next-action> [notes] [--root <path>]'
+    todo_id="${rest[0]}"; next_action="${rest[1]}"
+    # Positional optional, like `progress`'s verification: no flag to remember.
+    if [ "${#rest[@]}" -eq 3 ]; then notes="${rest[2]}"; else notes=""; fi
+    [ -n "$todo_id" ] || fail "todo-id must not be empty"
+    [ -n "$next_action" ] || fail "next-action must not be empty"
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; next action not written"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=next TASKFLOW_ID="$todo_id" \
+      TASKFLOW_NEXT_ACTION="$next_action" TASKFLOW_NOTES="$notes" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
+    echo "next OK: $todo_id"
+    ;;
+
+  # Reading one entry is the other half of the token saving: the caller gets the
+  # fields it needs instead of the whole Todo file. Prints verbatim `- ` lines,
+  # so a caller keeps using `awk '{print $NF}'` on them. Read-only, and no
+  # approval gate -- same reasoning as `next`.
+  get)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 1 ] || fail 'usage: task get <todo-id> [--root <path>]'
+    todo_id="${rest[0]}"
+    [ -n "$todo_id" ] || fail "todo-id must not be empty"
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; nothing to read"
+    run_task_awk "$todo" TASKFLOW_CMD=entry TASKFLOW_ID="$todo_id" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
     ;;
 
   progress)

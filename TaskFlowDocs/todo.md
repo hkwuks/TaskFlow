@@ -678,15 +678,17 @@ Every direct request or imported requireme
 ## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: 
 
 - ID: TF-20260918-e2317d
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
 - Updated: 2026-09-18
 - Goal: Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: the Next action, Updated, and status fields are fixed writes with no semantic judgment, and writing them by hand spends tokens.
-- Task: Not promoted.
-- Next action: Decide which writes move into the hook, then implement; `hooks/task state` is the nearest existing precedent.
+- Task: `TaskFlowDocs/2026-09-18-todo-field-writes/`
+- Next action: PR #41 open, 6/6 CI green; await review and merge.
 - Notes: 用户提出（2026-09-18，在 ad8348 的 PR 打开后）：上面那条 `Next action` 的改写就是例子——它没有任何语义判断，只是把「PR 已开、等合入」这个状态写成固定句式，却要 Agent 读整条条目、定位行、写回。类似动作还有 `Updated` 落日期、状态推进时同步 `Next action`、promote 时回填 `Task:` 路径。hook 做这件事的代价只是把内容固定化，省的是 token。需要先定的边界：哪些字段是**确定性**的（可由 hook 直接从命令参数推出）vs 哪些仍要 Agent 写（需要判断的 goal、notes）；以及 `hooks/task state` 推进状态时是否应当顺带更新 `Next action`，还是留一个独立的 `task action` 子命令。相关条目：`TF-20260918-88e04c`（归档流程开销）是同一条思路的另一半。
 - **2026-09-18 范围复盘**：原 Notes 里「应该做成流程规则，而非内容比对」的论证，只对**冲突该取哪一侧**成立——那是真判断。而这次实际手写的 `Next action: PR open …; await review and merge.` 不是判断，是从已知状态套模板，Hook 完全可以做。所以本条的边界是「确定性写入」（Next action / Updated / promote 时回填 `Task:`）交给 Hook，「需要判断的内容」（goal / notes / 规则措辞）仍由 Agent 写。待决：`Next action` 搭 `task state` 的车，还是单独开 `task action`。
+- 本条交付即为本条服务的第一个用例：这个 Next action 由新命令写入，不再手改。Step 1 在 `hooks/task` 加 `next` 子命令（复用 `findsec`/`setr`/`run_awk_to`），Step 2 在 `hooks/smoke-test` 补一节（含 Notes 落点与字段缺失补行两个边界，已做一次变异验证）。
+- v2 追加读侧：`hooks/task get <todo-id>` 只打印该条目字段行（复用既有 awk 内部分支，另开 entry 分支以免动到 TASKFLOW_CMD=get 的三个内部调用点）。
 
