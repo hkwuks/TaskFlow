@@ -692,3 +692,38 @@ Every direct request or imported requireme
 - 本条交付即为本条服务的第一个用例：这个 Next action 由新命令写入，不再手改。Step 1 在 `hooks/task` 加 `next` 子命令（复用 `findsec`/`setr`/`run_awk_to`），Step 2 在 `hooks/smoke-test` 补一节（含 Notes 落点与字段缺失补行两个边界，已做一次变异验证）。
 - v2 追加读侧：`hooks/task get <todo-id>` 只打印该条目字段行（复用既有 awk 内部分支，另开 entry 分支以免动到 TASKFLOW_CMD=get 的三个内部调用点）。
 
+## Make the task complete transaction fail-safe: it marks both core documents compl
+
+- ID: TF-20260918-e7c041
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Make the task complete transaction fail-safe: it marks both core documents completed before hooks/archive runs, so any archive failure leaves the task half-archived with no rollback.
+- Task: Not promoted.
+- Next action: Promote when the archive/stage family is taken up together — the fix touches the same code path and should land with one design call.
+- Notes: **2026-09-18 实测观测到（不是推测）**：在 `2026-09-18-todo-field-writes` 上跑 `hooks/task complete` 时，调用**失败**了，但失败发生在 mutation 之后——`hooks/task:589-590` 先把 prd.md 与 plan.md 置为 `completed`（两次 `docstatus`），再调用 `hooks/archive`；而后续报错时目录已被移动、Todo 已改。工作区于是停在「已归档 + 文档状态已改」的半完成态，没有回滚。
+  当天的实际触发：worktree 上跑 `complete` 成功落盘，但 base 检出落后 4 个提交；`git merge --ff-only origin/main` 把**合并进来的** `plan.md` 覆盖了工作区里已改好的那份，Approval 块回到 `pending`，于是第二次 `complete` 报 `current Task version is not approved`。也就是说事务的中间态被后续的合并撞了回去——纯属运气，不是设计。
+  与 `TF-20260918-172455`（archive 往 todo.md 插空行）、`TF-20260918-88e04c`（archive 的 stage 步骤与分支选择）同属一个事务；三者一起做才不用重复设计同一个失败边界。
+- Updated: 2026-09-18
+
+## Record approval in the plan from a hook instead of hand-editing four fixed-forma
+
+- ID: TF-20260918-454ac4
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Record approval in the plan from a hook instead of hand-editing four fixed-format fields, and fix hooks/version writing an Approval block that disagrees with hooks/task's template.
+- Task: Not promoted.
+- Next action: 先修 `hooks/version` 与 `hooks/task` 对 Approval 块形状的分歧（缺 `- Status:`、时间不带时区），再决定是否加 `hooks/task approve`。
+- Notes: **2026-09-18 用户提出**：手改 Approval 块能否自动化。判定——`## Approval` 的字段里只有 `Approved by` 是语义的（必须由人表态），其余都可推导：`Status` 是该子命令的动词，`Approved at` 是当天日期（hook 已有 `today`），`Approved version` 直接读 plan 自己的 `> Task version:` 行，`Approved scope` 由存在的核心文档推出。`skills/taskflow/SKILL.md` 已把模板钉成「`- Approved by:` 起的四行」，格式无需 Agent 判断。
+  **先修一个现成的自相矛盾**：`hooks/version` 的重置只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行——两个 hook 对同一块内容的形状意见不一致。**本任务就是实例**：v1→v2 后 `- Status:` 留在 `checking` 一路没人管，直到 `complete` 读它才发现对不上（`require_approval` 用的是 `grep -qx -- "- Status: approved"`）。
+  **时间格式也打架**：模板写 `YYYY-MM-DD HH:mm +08:00`，`version` 复位只写 `pending`。若自动化，`today` 目前只有 `+%Y-%m-%d`，要扩出分钟与时区。
+  **门禁必须在写入之前**：合法顺序是「人先批准 → hook 记录」，不是「hook 写入 → 门禁通过」，否则 `require_approval` 变成自我认证。自动化只应删掉**转录**（把已表态的事实落成固定格式），不能生成或推断批准本身。
+  **与 `TF-20260918-88e04c`、`TF-20260918-e7c041` 同族**：本次归档时 `complete` 在 base 检出上失败，正是因为 main 落后导致合并把 `Approval` 块覆盖回 `pending`，手工补批准后重跑才过。真正的修法在 `complete` 的**事务原子性**上（`e7c041`），不在让批准好写。
+- Updated: 2026-09-18
