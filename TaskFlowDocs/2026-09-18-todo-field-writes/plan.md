@@ -193,6 +193,12 @@ v2 实施于 2026-09-18 23:00–23:40 +08:00，同一 worktree / 分支，base �
 | 空白/冲突标记 | `git diff --check` | clean |
 | 范围 | `git status --short` | 仅 `hooks/task`、`hooks/smoke-test`、本任务目录、`TaskFlowDocs/todo.md` |
 
+### CI 抓到的一个 v1 遗留缺陷（已修）
+
+- **macOS 的 smoke 作业第一次跑红了**：`hooks/task: line 603: syntax error near unexpected token '<'`。原因是新增 `entry` 分支的**注释里有一个撇号**（`entry's field lines`），而 macOS 自带 bash 3.2 的解析器不接受「命令替换里的 heredoc 中出现撇号」——报错行号落在替换结束处（603），不是出错行。`smoke-test` 的第一节正是为这个模式设的（"every hook parses under the shell that is running"），所以它在 CI 上被准确捕获。
+- 修复：把该注释改成不含撇号的写法，并用 `docker run bash:3.2 bash -n hooks/task` 本地复现同类解析检查。修复提交 `5a46c07`，随后 6 项 CI 全绿。
+- **这是本地验证的盲区**：本地是 bash 5，`bash -n` 通过，只有 macOS 矩阵才暴露。也就是说 Step 6 的本地检查无法替代 CI 的 3.2 作业——这一点已确认为本仓库既有的设计意图（smoke 作业刻意不装语言运行时）。
+
 ### v2 实施中的实际偏差
 
 - **smoke-test 在我的工具环境下会挂住**：`bash hooks/smoke-test` 经管道的调用会停在 `hooks/session-start` 的 `event_json="$(cat)"`（`hooks/session-start:29`）等待 stdin，进程树停在 `anon_pipe_read`。**这不是本次改动引入的**——`session-start` 读 stdin 是其既有设计（SessionStart 事件从 stdin 传入）。规避方式：给 stdin 接 `/dev/null` 并把输出重定向到文件（`bash hooks/smoke-test </dev/null > out 2>&1`），CI 不受影响。我把两条挂住的进程终止后才继续，未改动任何 hook。
@@ -202,6 +208,7 @@ v2 实施于 2026-09-18 23:00–23:40 +08:00，同一 worktree / 分支，base �
 ## Change Log
 
 - 2026-09-18 由 `TF-20260918-e2317d` 提升；用户定稿范围（`Next action` + `Notes`）、寻址（Todo ID）与命名（`task next`）。
+- 2026-09-18 修复 CI 抓到的 bash 3.2 解析失败（`hooks/task` 注释中的撇号，提交 `5a46c07`）。属工作修订：改动只是注释措辞，未触及目标、需求、验收或契约，保持 v2。
 - 2026-09-18 v2：用户追加读侧（`task get`），并入本任务。Steps 4–6 追加；`old/v1/` 保留 v1 的写入侧实现与验证记录。
 - 2026-09-18 落地时把本条 Todo 条目自己的 `Next action` 改用新命令写入（`task next TF-20260918-e2317d …`）——本条交付的第一个用例就是它自己。
 
