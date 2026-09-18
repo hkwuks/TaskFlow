@@ -672,16 +672,3 @@ Every direct request or imported requireme
 - Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
 - Updated: 2026-09-18
 
-## Restore the Claude Code SessionStart hook, which fails with Permission denied on
-
-- ID: TF-20260918-a01eec
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-18
-- Updated: 2026-09-18
-- Goal: Restore the Claude Code SessionStart hook, which fails with Permission denied on every Git-clone install because hooks/run-hook.cmd is recorded 100644 while hooks.json invokes it as a bare path
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-
