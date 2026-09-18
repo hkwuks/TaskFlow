@@ -292,7 +292,7 @@ END {
 
   # Not named "get": that command already means "title line + the fields named in
   # TASKFLOW_KEYS", and three internal callers depend on that shape. This branch
-  # prints the entry's field lines verbatim instead -- the CLI wrapper below is
+  # prints the entry field lines verbatim instead -- the CLI wrapper below is
   # what carries the name `get`.
   if (cmd == "entry") {
     j = findsec(id, "")
