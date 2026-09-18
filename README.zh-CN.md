@@ -61,7 +61,7 @@ TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立�
 
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
-可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，并列出该 checkout 里未提交的任务产物——未提交的任务目录会跟着你进入下一个 `git checkout` 的分支，于是被下一个任务接手。任务产物这一段不影响退出码，也不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对两个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
+可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，并列出该 checkout 里未提交的任务产物——未提交的任务目录会跟着你进入下一个 `git checkout` 的分支，于是被下一个任务接手。任务产物这一段不影响退出码，也不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对三个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
 
 用户对已批准任务提出修正或新增要求时，TaskFlow 必须先分类再修改文档：只改措辞或实现路径的澄清属于工作修订，仅更新受影响记录并在 Plan 变更日志记一行；改动已批准的目标、需求、验收、范围或契约才创建新 Task version 并回到批准门禁。不得带着过期 Plan 继续实施。
 
