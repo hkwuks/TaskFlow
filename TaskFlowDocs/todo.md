@@ -675,3 +675,18 @@ Every direct request or imported requireme
 - Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
 - Updated: 2026-09-18
 
+## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: 
+
+- ID: TF-20260918-e2317d
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: the Next action, Updated, and status fields are fixed writes with no semantic judgment, and writing them by hand spends tokens.
+- Task: Not promoted.
+- Next action: Decide which writes move into the hook, then implement; `hooks/task state` is the nearest existing precedent.
+- Notes: 用户提出（2026-09-18，在 ad8348 的 PR 打开后）：上面那条 `Next action` 的改写就是例子——它没有任何语义判断，只是把「PR 已开、等合入」这个状态写成固定句式，却要 Agent 读整条条目、定位行、写回。类似动作还有 `Updated` 落日期、状态推进时同步 `Next action`、promote 时回填 `Task:` 路径。hook 做这件事的代价只是把内容固定化，省的是 token。需要先定的边界：哪些字段是**确定性**的（可由 hook 直接从命令参数推出）vs 哪些仍要 Agent 写（需要判断的 goal、notes）；以及 `hooks/task state` 推进状态时是否应当顺带更新 `Next action`，还是留一个独立的 `task action` 子命令。相关条目：`TF-20260918-88e04c`（归档流程开销）是同一条思路的另一半。
+- **2026-09-18 范围复盘**：原 Notes 里「应该做成流程规则，而非内容比对」的论证，只对**冲突该取哪一侧**成立——那是真判断。而这次实际手写的 `Next action: PR open …; await review and merge.` 不是判断，是从已知状态套模板，Hook 完全可以做。所以本条的边界是「确定性写入」（Next action / Updated / promote 时回填 `Task:`）交给 Hook，「需要判断的内容」（goal / notes / 规则措辞）仍由 Agent 写。待决：`Next action` 搭 `task state` 的车，还是单独开 `task action`。
+
