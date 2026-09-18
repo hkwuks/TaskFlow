@@ -1,7 +1,7 @@
 # Move the deterministic Todo field writes into hooks/task
 
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Goal
 

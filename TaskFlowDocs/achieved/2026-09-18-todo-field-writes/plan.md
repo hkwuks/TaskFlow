@@ -1,7 +1,7 @@
 # Plan — Move the deterministic Todo field writes into hooks/task
 
 > Task version: v2
-> Status: checking
+> Status: completed
 
 No spec required — 单一文件新增两个子命令，无跨层契约。
 
@@ -35,11 +35,12 @@ No spec required — 单一文件新增两个子命令，无跨层契约。
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-18 23:14 +08:00
+- Approved version: v2
+- Approved scope: PRD / Plan
+- Note: v1 经用户明确批准（2026-09-18 22:27）。v2 的范围由用户直接指示追加（"补上这个，一并提交"），完成后随 PR #41 合入 `main`（`b30ecb0`，2026-09-18 15:13Z）——合并即验收。此处记为 approved 是依据这两条事实，而非一次独立的"批准"表态。
 
 ## Steps
 
