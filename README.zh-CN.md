@@ -55,13 +55,13 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 涉及 fork、远端或 Pull Request 时，TaskFlow 会记录已配置的 remote、目标仓库、base 分支、本地分支关系、远端跟踪信息的新鲜度限制、适用的托管平台规则和提交 PR 前检查。remote 名称不能证明其角色；TaskFlow 不会静默添加或改写 remote、fetch、rebase、merge、push、创建 PR 或声称已同步。
 
-TaskFlow 从不在 base 工作区直接实施：每个任务在动手前先建独立短生命周期分支，并行任务各自使用独立工作区。分支规则写在 `CONTRIBUTING.md`，worktree 规则写在 Skill 中。
+TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立短生命周期分支与独立工作区，且在工作区的建立是在**第一份任务文档之前**，而不是第一次改动之前。分支规则写在 `CONTRIBUTING.md`，worktree 规则写在 Skill 中。
 
 由于所有任务都追加同一个 `TaskFlowDocs/todo.md`，TaskFlow 为它内置了 Git 合并驱动，由 `hooks/session-start` 按克隆安装。两个分支各自新增条目、或修改不同条目时无需人工介入；同一条目两侧改法不同仍会保留为真实冲突。Todo ID 由目标内容派生而非递增计数，因此同一基点切出的两个分支不会分到同一个 ID。在托管平台网页端合并 PR 时由服务端执行，不会使用该驱动，这条路径仍退化为普通内容冲突。
 
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
-可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对三个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
+可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，并列出该 checkout 里未提交的任务产物——未提交的任务目录会跟着你进入下一个 `git checkout` 的分支，于是被下一个任务接手。任务产物这一段不影响退出码，也不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对两个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
 
 用户对已批准任务提出修正或新增要求时，TaskFlow 必须先分类再修改文档：只改措辞或实现路径的澄清属于工作修订，仅更新受影响记录并在 Plan 变更日志记一行；改动已批准的目标、需求、验收、范围或契约才创建新 Task version 并回到批准门禁。不得带着过期 Plan 继续实施。
 

@@ -554,6 +554,90 @@ if bash "$HERE/task" complete 2026-09-09-gate-smoke --user-accepted --root "$gat
 fi
 echo ok
 
+echo "== a task is isolated before its first document is written =="
+# A task's first documents are written in Phase 1, so a promotion from the base
+# working tree would put them on whatever branch happens to be checked out — and
+# the next `git checkout` then refuses to move. The gate answers that at the only
+# moment it can be answered cheaply. A plain `git init` fixture is the base tree;
+# a `git worktree add` of it is the task tree; a directory outside Git is the
+# case that must keep working, because `--root` is allowed to point anywhere.
+iso="$tmp/isolation"
+mkdir -p "$iso/TaskFlowDocs"
+(
+  cd "$iso" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  printf '# Todo inbox\n\n## Items\n\n## Seed\n\n- ID: TF-20260101-aa\n- Status: clarified\n- Priority: normal\n- Owner: smoke\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: seed\n- Task: Not promoted.\n- Next action: none\n' > TaskFlowDocs/todo.md
+  printf 'fixture\n' > README.md
+  git add -A && git commit -qm base
+) || { echo "FAIL isolation fixture repository"; exit 1; }
+iso_todo_digest=$(digest "$iso/TaskFlowDocs/todo.md")
+# The command output cannot be captured inside the fixture repository: an
+# untracked file there would make the "nothing was written" assertion fail for
+# the wrong reason.
+iso_out="$tmp/isolation-out"
+
+set +e
+bash "$HERE/task" promote TF-20260101-aa promoted-in-base small --root "$iso" > "$iso_out" 2>&1
+iso_status=$?
+set -e
+[ "$iso_status" -eq 3 ] || { echo "FAIL promote in the base working tree exit code: $iso_status"; cat "$iso_out"; exit 1; }
+grep -q 'STATUS: blocked' "$iso_out" || { echo "FAIL base-tree promote not blocked"; cat "$iso_out"; exit 1; }
+grep -q 'not a task worktree' "$iso_out" || { echo "FAIL base-tree promote did not name the reason"; cat "$iso_out"; exit 1; }
+# Everything the script can know is filled in, so the reader only picks <type>.
+grep -q 'git worktree add \.worktrees/promoted-in-base -b <type>/promoted-in-base ' "$iso_out" \
+  || { echo "FAIL base-tree promote did not print a runnable command with <task-id> and <base> filled in"; cat "$iso_out"; exit 1; }
+grep -q '<type>' "$iso_out" || { echo "FAIL base-tree promote silently chose a branch prefix"; cat "$iso_out"; exit 1; }
+grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree promote did not list the legal prefixes"; cat "$iso_out"; exit 1; }
+# Refused means nothing was written, not just nothing was committed.
+[ ! -e "$iso/TaskFlowDocs/promoted-in-base" ] || { echo "FAIL blocked promote still created the task directory"; exit 1; }
+[ "$iso_todo_digest" = "$(digest "$iso/TaskFlowDocs/todo.md")" ] || { echo "FAIL blocked promote still mutated Todo"; exit 1; }
+[ -z "$(git -C "$iso" status --porcelain)" ] || { echo "FAIL blocked promote dirtied the working tree"; exit 1; }
+
+# The same promotion from that repository's own linked worktree goes through.
+(
+  cd "$iso" || exit 1
+  git worktree add -q .worktrees/task-tree -b chore/task-tree
+) || { echo "FAIL isolation fixture worktree"; exit 1; }
+bash "$HERE/task" promote TF-20260101-aa promoted-in-worktree small --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
+  || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
+[ -f "$iso/.worktrees/task-tree/TaskFlowDocs/promoted-in-worktree/plan.md" ] \
+  || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
+grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion printed the base-tree refusal"; cat "$iso_out"; exit 1; }
+
+# Outside Git the gate does not apply: `--root` is allowed to be any directory,
+# and refusing there would break callers who never had this problem.
+iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-isolation-bare.XXXXXX")"
+mkdir -p "$iso_bare/TaskFlowDocs"
+cp "$iso/TaskFlowDocs/todo.md" "$iso_bare/TaskFlowDocs/todo.md"
+bash "$HERE/task" promote TF-20260101-aa promoted-outside-git small --root "$iso_bare" > "$iso_out" 2>&1 \
+  || { echo "FAIL promote outside a repository was refused:"; cat "$iso_out"; exit 1; }
+[ -f "$iso_bare/TaskFlowDocs/promoted-outside-git/plan.md" ] \
+  || { echo "FAIL promote outside a repository did not write the task"; exit 1; }
+rm -rf "$iso_bare"
+
+# `intake` is the other writer, and the one that actually dirties `todo.md`.
+# It reports instead of refusing: triage should stay cheap.
+bash "$HERE/task" intake "Isolation smoke goal." --root "$iso" > "$iso_out" 2>&1 \
+  || { echo "FAIL intake in the base working tree was refused"; cat "$iso_out"; exit 1; }
+grep -q 'intake OK:' "$iso_out" || { echo "FAIL base-tree intake did not report success"; cat "$iso_out"; exit 1; }
+grep -q 'modified in the base working tree' "$iso_out" \
+  || { echo "FAIL base-tree intake did not warn that Todo is now uncommitted"; cat "$iso_out"; exit 1; }
+bash "$HERE/task" intake "Isolation smoke goal two." --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
+  || { echo "FAIL intake in a task worktree was refused"; cat "$iso_out"; exit 1; }
+grep -q 'modified in the base working tree' "$iso_out" \
+  && { echo "FAIL task worktree intake warned about the base working tree"; cat "$iso_out"; exit 1; }
+iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-intake-bare.XXXXXX")"
+mkdir -p "$iso_bare/TaskFlowDocs"
+printf '# Todo inbox\n' > "$iso_bare/TaskFlowDocs/todo.md"
+bash "$HERE/task" intake "Isolation smoke goal three." --root "$iso_bare" > "$iso_out" 2>&1 \
+  || { echo "FAIL intake outside a repository was refused"; cat "$iso_out"; exit 1; }
+grep -q 'modified in the base working tree' "$iso_out" \
+  && { echo "FAIL intake outside a repository warned about a base working tree"; cat "$iso_out"; exit 1; }
+rm -rf "$iso_bare"
+echo ok
+
 echo "== TaskFlow packaged Skill contract =="
 repo=$(cd "$HERE/.." && pwd)
 skill="$repo/skills/taskflow"
@@ -612,6 +696,27 @@ grep -q 'must be a choice, not an oversight' "$skill/SKILL.md" || { echo "FAIL u
 grep -q 'says what class to look for' "$skill/references/artifacts.md" || { echo "FAIL accounting rule pointer missing"; exit 1; }
 echo ok
 
+echo "== the capability record is required, not optional =="
+# A section marked optional is the section that comes back empty, and an empty
+# section cannot be told apart from an overlooked one. Pin the heading, the
+# unaided fill line, and that no template still advertises it as optional.
+grep -q '^## Skills / Tools Used$' "$skill/references/artifacts.md" || { echo "FAIL artifacts.md Plan outline heading is not the required one"; exit 1; }
+grep -q '^## Skills / Tools Used$' "$HERE/task" || { echo "FAIL promote scaffold heading is not the required one"; exit 1; }
+if grep -q 'Skills / Tools Used (Optional)' "$skill/references/artifacts.md" "$HERE/task"; then
+  echo "FAIL a template still marks the capability record optional"; exit 1
+fi
+grep -q 'Unaided — no capability applied to this phase; considered:' "$skill/references/artifacts.md" \
+  || { echo "FAIL the unaided fill pattern is not documented"; exit 1; }
+# The exact wording lives in one place; SKILL.md names the shape and points at it,
+# the way the release-document rule points at RELEASE.md instead of restating it.
+grep -q '`Unaided — …` line' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not name the unaided shape"; exit 1; }
+[ "$(grep -c 'Unaided — no capability applied to this phase' "$skill/SKILL.md")" -eq 0 ] \
+  || { echo "FAIL SKILL.md duplicates the fill pattern instead of pointing at artifacts.md"; exit 1; }
+grep -q 'is required, not optional' "$skill/references/artifacts.md" \
+  || { echo "FAIL artifacts.md does not state the section is required"; exit 1; }
+echo ok
+
 echo "== repository-check is read-only and reports actionable status =="
 check_root="$tmp/repository-check"
 mkdir -p "$check_root/.git" "$check_root/TaskFlowDocs/repository-docs"
@@ -625,6 +730,69 @@ echo "$check_out" | grep -q 'STATUS: needs-user-input' || { echo "FAIL repositor
 [ "$check_status" -eq 2 ] || { echo "FAIL repository-check exit code"; exit 1; }
 echo "$check_out" | grep -q 'Document CONTRIBUTING.md: missing' || { echo "FAIL repository-check governance finding"; exit 1; }
 echo "$check_out" | grep -q 'Base: ambiguous' || { echo "FAIL repository-check base finding"; exit 1; }
+echo ok
+
+echo "== repository-check names uncommitted task artifacts without changing its verdict =="
+# The gate stops a promotion from starting in the wrong tree; this report covers
+# what the gate cannot see — artifacts already written, then left uncommitted.
+# Everything else in the fixture is complete and tracked, including an upstream,
+# so the exit code is `pass` and any change in it is the report's doing.
+art_root="$tmp/repository-check-artifacts"
+mkdir -p "$art_root/TaskFlowDocs/repository-docs"
+git -C "$art_root" init -q
+git -C "$art_root" config user.email smoke@example.invalid
+git -C "$art_root" config user.name smoke
+printf '# Catalog\n' > "$art_root/TaskFlowDocs/repository-docs/index.md"
+printf 'CONTRIBUTING\n' > "$art_root/CONTRIBUTING.md"
+printf 'CODE_STYLE\n' > "$art_root/CODE_STYLE.md"
+git -C "$art_root" add -A && git -C "$art_root" commit -qm base
+git -C "$art_root" remote add origin "$art_root"
+git -C "$art_root" update-ref refs/remotes/origin/main HEAD
+git -C "$art_root" branch -q -u origin/main
+set +e
+art_out=$(bash "$HERE/repository-check" "$art_root" 2>&1)
+art_clean_status=$?
+set -e
+[ "$art_clean_status" -eq 0 ] || { echo "FAIL repository-check clean fixture is not pass: $art_clean_status"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q 'Task artifacts: none uncommitted' \
+  || { echo "FAIL clean fixture reported task artifacts"; cat "$art_out"; exit 1; }
+
+mkdir -p "$art_root/TaskFlowDocs/2026-09-01-misplaced"
+printf '# PRD\n' > "$art_root/TaskFlowDocs/2026-09-01-misplaced/prd.md"
+set +e
+art_out=$(bash "$HERE/repository-check" "$art_root" 2>&1)
+art_status=$?
+set -e
+[ "$art_status" -eq "$art_clean_status" ] \
+  || { echo "FAIL the task-artifact report changed the exit code: $art_status"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q 'STATUS: pass' || { echo "FAIL the task-artifact report changed the status"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q -- '- TaskFlowDocs/2026-09-01-misplaced/ (untracked)' \
+  || { echo "FAIL misplaced task artifact not named"; cat "$art_out"; exit 1; }
+# A directory with no commit cannot be attributed to a branch, and the output must
+# say what it can and cannot claim instead of letting the reader assume.
+echo "$art_out" | grep -q 'follows you to whatever branch you check out' \
+  || { echo "FAIL misplaced report omits the attribution boundary"; cat "$art_out"; exit 1; }
+
+# Staged-but-uncommitted is still uncommitted, and is reported as its own case.
+git -C "$art_root" add TaskFlowDocs/2026-09-01-misplaced
+set +e
+art_out=$(bash "$HERE/repository-check" "$art_root" 2>&1)
+art_status=$?
+set -e
+[ "$art_status" -eq "$art_clean_status" ] || { echo "FAIL staged artifact changed the exit code"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q -- '- TaskFlowDocs/2026-09-01-misplaced/ (staged, not committed)' \
+  || { echo "FAIL staged task artifact not reported as staged"; cat "$art_out"; exit 1; }
+
+# Committing it is what puts it in this branch's history, so it stops being
+# reported — the report tracks the checkout state, not the directory name.
+git -C "$art_root" commit -qm task
+set +e
+art_out=$(bash "$HERE/repository-check" "$art_root" 2>&1)
+set -e
+echo "$art_out" | grep -q 'Task artifacts: none uncommitted' \
+  || { echo "FAIL committed task artifact still reported"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q '2026-09-01-misplaced' \
+  && { echo "FAIL committed task artifact named in the report"; cat "$art_out"; exit 1; }
 echo ok
 
 echo "== todo merge driver keeps both branches' entries =="

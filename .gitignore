@@ -1,6 +1,11 @@
 .sxng/
 tasks/
 
+# Each task gets its own `git worktree add .worktrees/<slug>`; the trees are
+# working state, never committed. A given clone may also carry this line in
+# `.git/info/exclude`, which does not travel with the repository — this one does.
+.worktrees/
+
 # CodeBuddy CLI local artifacts (plugin install cache / staged copies)
 .plugins-cache.json
 plugins/

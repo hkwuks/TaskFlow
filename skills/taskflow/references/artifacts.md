@@ -77,8 +77,9 @@ TaskFlowDocs/
 ## Spec Pointers
 ## Reference Pointers
 ## Related Tasks
-## Skills / Tools Used (Optional)
+## Skills / Tools Used
 - `<name>` — purpose: `<why it was invoked>`; outcome: `succeeded | failed | unavailable`; incorporated: `<reviewed conclusion or None>`
+- `Unaided — no capability applied to this phase; considered: <concept classes inspected>`
 ## Preconditions
 - [ ] Applicable repository documents and personal rules inspected; precedence/conflicts recorded.
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
@@ -108,6 +109,8 @@ TaskFlowDocs/
 `plan.md`'s `## Change Log` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval; never treat a wording or approach clarification as a Task-version event.
 
 List a capability only after an actual invocation attempt. Discovery or selection is not use. A failed or unavailable optional invocation may be recorded when relevant, but it has no incorporated conclusion and does not block the base flow unless it is required for correctness. The phase-to-concept table in `SKILL.md` says what class to look for; this rule says what may be recorded afterwards.
+
+`## Skills / Tools Used` is required, not optional. Write exactly one of two shapes: one line per capability actually invoked, or a single `Unaided — no capability applied to this phase; considered: <concept classes inspected>` line. The unaided line names the classes that were inspected, so a considered decision stays distinguishable from an overlooked section. The requirement is not retroactive — a Plan written before it keeps the section it has.
 
 ## Release task documents
 
