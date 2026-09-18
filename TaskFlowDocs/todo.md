@@ -644,18 +644,21 @@ Every direct request or imported requireme
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
-## Restore the zh-CN manifest count that the PR 38 merge silently reverted, and che
+## Restore the zh-CN manifest count that a conflict resolution reverted, and rule on conflict-side review
 
 - ID: TF-20260918-ad8348
 - Status: inbox
-- Priority: normal
+- Priority: high
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-18
 - Updated: 2026-09-18
-- Goal: Restore the zh-CN manifest count that the PR 38 merge silently reverted, and check why a merge dropped an already-landed edit
+- Goal: Restore the zh-CN manifest count that a conflict resolution reverted, and decide whether a resolved conflict needs a recorded side-by-side review before it is pushed.
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Fix `README.zh-CN.md` line 64 back to three manifests, then draft the conflict-resolution review rule.
+- Notes: **2026-09-18 复核（推翻了先前「静默 auto-merge」的说法）**：`46131a1`（"Merge branch 'main' into chore/e-task-isolation-and-capability-record"）那次**确实是真冲突**，不是自动合并——重放三方合并（base `985b269`、ours `adfc5c1`、theirs `c083240`）得到 `git merge-file` exit 1，且 `46131a1` 里存在过冲突块。冲突行两侧都改过同一句：PR #37 把「两个插件 manifest」改成「三个」，PR #38 在同一句里加了「并列出该 checkout 里未提交的任务产物」。**解决时整块取了分支侧**，于是合入结果同时保留了 PR #38 的新句子和 PR #37 已被覆盖的旧计数。时间窗只有 2 分钟：`adfc5c1` 定稿于 20:08:19，PR #37 合并于 20:11:40，`46131a1` 于 20:13:42。窗口和"两侧都读得通"（同是合法中文、同讲一个检查）是它能逃过目视复核的原因。
+- **`hooks/todo-check` 覆盖不到这一类**：它是纯 hook、无 LLM，对每个 merge commit 比较两个 parent 各自持有的 `- ID:` 集合与结果的集合（`sed` 提取 + `sort -u` + `comm -13`），只查 `TaskFlowDocs/todo.md` 一个文件的条目级丢失，不做三方比较，因此看不见"解决冲突时取错侧"。它由 `.github/workflows/hooks.yml` 的 `todo-merge-audit` 作业调用（非自动 hook），跑 `git rev-list --merges` 范围内的每个 merge。所以本条不能靠泛化 `todo-check` 解决——「取错侧」这个动作必然伴随一次冲突解决，应该做成"冲突解决后需记录取舍"的流程规则，而非内容比对。
+- Updated: 2026-09-18
 
 ## Cut the mechanical overhead out of archiving: the stage step and the branch choice
 
