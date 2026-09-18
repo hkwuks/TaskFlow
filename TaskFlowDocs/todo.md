@@ -616,3 +616,16 @@ Every direct request or imported requireme
 - Goal: Refresh both READMEs so they document the shipped surfaces: the hooks/tools/evals trees, the verification and CI checks, and the release process link
 - Task: `TaskFlowDocs/achieved/2026-09-18-readme-refresh/`
 - Next action: None — completed and archived.
+
+## The plugin's hook launcher installs without the executable bit, so every Unix Se
+
+- ID: TF-20260918-b0f73a
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: The plugin's hook launcher installs without the executable bit, so every Unix SessionStart hook fails with Permission denied
+- Task: `TaskFlowDocs/2026-09-18-hook-launcher-exec-bit/`
+- Next action: Complete PRD / Spec / Plan and request approval.
