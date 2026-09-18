@@ -10,7 +10,7 @@
 [![存储：本地 Markdown](https://img.shields.io/badge/存储-本地%20Markdown-1d4ed8?style=for-the-badge)](skills/taskflow/references/artifacts.md)
 [![许可证：AGPL-3.0](https://img.shields.io/badge/许可证-AGPL--3.0-e11d48?style=for-the-badge)](LICENSE)
 
-[English](README.md) · **中文说明**
+[English](README.md) · **中文说明** · [验证与 CI](#验证与-ci)
 
 <img src="assets/taskflow-workflow.svg" alt="TaskFlow 工作流：规划、待批准、实施、检查、完成；重大变化会归档旧版本并重新批准。" width="100%" />
 
@@ -100,9 +100,17 @@ TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI 与 CodeBuddy�
 重大决策变化：归档 vN → 创建 vN+1 → 回到 ready → 重新批准
 ```
 
+| 属于工作修订 | 会创建 Task version |
+| --- | --- |
+| 措辞、批准设计内的实现路径澄清、错别字、进度、测试结果 | 目标、需求、验收、范围、架构/接口/数据契约、兼容性、风险、标准 |
+| 更新当前文件 + Plan 变更日志记一行 | 先把旧版本存进 `old/vN/`，再更新当前文件 |
+| Git 显示这次编辑 | Git 与 TaskFlow 共同解释这次决策 |
+
+### 一个具体的恢复示例
+
 ```diff
   TaskFlowDocs/2026-09-05-billing-export/
-  ├── prd.md                       # 当前 v2
+  ├── prd.md                       # 当前 v2：新增 CSV 导出
   ├── spec.md                      # 当前 v2 设计
   ├── plan.md                      # v2 批准与验证
 + └── old/v1/
@@ -260,9 +268,26 @@ codebuddy plugin install taskflow@taskflow
 > 边界清晰的简单单文件修改可以直接完成并做最小验证，不必为了流程创建空文档。
 
 > [!NOTE]
-> Hooks 是可选的。插件安装的 SessionStart hook 只打印一份简短的状态摘要（未完成的收件箱条目 + 活跃任务），让 Agent 不必重读整棵树；它不写任何文件，也从不批准。没有 hooks 的宿主按同样的流程运行。
+> Hooks 是可选的。插件安装的 SessionStart hook 注入一份简短的状态摘要（未完成的收件箱条目 + 活跃任务）和当前阶段适用的仓库文档路由，让 Agent 不必重读整棵树。它从不创建、改写或删除 `prd.md`/`spec.md`/`plan.md`/`reference/index.md`，也从不批准；它唯一会写的文件是所选任务的 `sessions.md` 会话索引和 `TaskFlowDocs/repository-docs/index.md` 里确定性的路由元数据。没有 hooks 的宿主按同样的流程运行。
 
 对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|state|progress|complete`；这些写命令不会绑定到事件 Hook。
+
+## 验证与 CI
+
+每条检查都是仓库根目录下的普通脚本——不需要服务、不需要测试框架，除工具自身外不需要语言运行时：
+
+| 命令 | 检查什么 |
+| --- | --- |
+| `bash hooks/smoke-test` | 构造临时 `TaskFlowDocs` 夹具，通过 hook 跑完整生命周期。`hooks/smoke-test-windows.ps1` 是 Windows 上的等价实现（PowerShell 5.1 + `run-hook.cmd`）。 |
+| `bash hooks/repository-check .` | 只读的仓库就绪度检查：缺失的基础治理文档、不明确的分支/远端信息，标记为 `needs-user-input`。 |
+| `bash hooks/release-check .` | 一次发布要改动的所有版本字面量是否一致，以及每个 marketplace pin 是否解析到它 `sha` 声明的那个提交。不一致退出 `2`，manifest 缺失退出 `3`。 |
+| `python3 evals/runner.py` | 针对不可变示例任务树的离线路由评测。runner 属于仓库工具链，是这里唯一需要 Python 的东西。 |
+
+`.github/workflows/hooks.yml` 在每次推送 `main` 和每个 Pull Request 上跑四个作业：`smoke`（Ubuntu / macOS / Windows 矩阵）、`release`、`todo-merge-audit`（推送范围内没有 merge 丢掉 Todo 条目）、`evals`。smoke 作业刻意不安装任何语言运行时——hook 本身不依赖运行时，所以一旦某个 hook 长出解释器依赖，会在这里失败，而不是等到用户会话里才暴露。
+
+`CONTRIBUTING.md` 列出提交 Pull Request 前必须跑的检查，包括 `hooks/smoke-test`、Skill 校验器和 `git diff --check`。`RELEASE.md` 是发布清单：一次发布要挪动的版本字面量、发布标签与其 catalog pin 必须遵守的两提交顺序，以及回退规则。
+
+hook 本身的说明在 [`hooks/README.md`](hooks/README.md)——每个 hook 允许写什么、为什么是 extensionless bash 且不依赖语言运行时，以及各宿主的接线方式。
 
 ## 与相邻工具的比较
 
@@ -279,34 +304,55 @@ TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，
 
 ### 如何选择
 
-- **上下文丢失、设计被覆盖、跨会话交接困难** → TaskFlow；
-- **需要完整或可配置的 SDD 流程** → Spec Kit / OpenSpec；
-- **需要角色化的多 Agent 交付方法** → BMAD-METHOD；
-- **需要负责人、排期、优先级和报表** → Issue Tracker；
-- **都需要** → 外部工具负责协调，TaskFlow 负责保存决策历史。
+<table>
+<tr><td><strong>选择 TaskFlow</strong></td><td>你经常丢失任务上下文、覆盖已有设计，或者跨会话、跨 Agent 难以恢复工作。</td></tr>
+<tr><td><strong>选择 Spec Kit / OpenSpec</strong></td><td>你主要需要一套完整或可配置的规范驱动开发流程。</td></tr>
+<tr><td><strong>选择 BMAD-METHOD</strong></td><td>你需要角色化的多 Agent 交付方法论。</td></tr>
+<tr><td><strong>选择 Issue Tracker</strong></td><td>你需要优先级、负责人、期限和报表。</td></tr>
+<tr><td><strong>组合使用</strong></td><td>用外部工具协调工作，用 TaskFlow 保存那些让工作可恢复的决策。</td></tr>
+</table>
 
 > [!NOTE]
 > 这是定位比较，不是基准测试或功能数量排名。采纳前请核对各项目当前文档与兼容性。
 
-## 设计原则
+## 护栏，而非官僚流程
 
-- **一个任务，一个事实来源。**
-- **版本化决策，而不是每一次敲键。**
-- **先归档，再替换。**
-- **批准必须显式记录。**
-- **用保持清晰所需的最轻量文档。**
-- **工具可选，状态可检查。**
-- **验证和恢复属于任务记录。**
+| 原则 | 落地方式 |
+| --- | --- |
+| **一个任务，一个事实来源** | 活跃任务的事实只放在一个任务目录里。 |
+| **最轻量的可用产物** | 小而自包含的任务省略 `spec.md`。 |
+| **先归档，再替换** | 重大更新前先保存旧的逻辑版本。 |
+| **批准必须显式** | `ready` 绝不会悄悄变成 `in_progress`。 |
+| **验证是一个事实** | 在 `plan.md` 里记录检查了什么、结果如何。 |
+| **工具保持可选** | 其他 Skill 可以贡献内容；经审阅的任务产物仍是权威。 |
 
 ## 仓库结构
 
 ```text
-skills/taskflow/
+skills/taskflow/                     # 工作流本体
 ├── SKILL.md                         # 工作流入口
 ├── agents/openai.yaml               # Agent 元数据与默认提示词
 └── references/
     ├── artifacts.md                 # 文档模板与输出路由
+    ├── runtime.md                   # hook 规则与宿主事件映射
     └── versioning-and-recovery.md   # 版本切换与安全恢复规则
+
+hooks/                               # 可选的宿主/工具链 hook —— 见 hooks/README.md
+├── session-start                    # SessionStart 入口
+├── session-record                   # 把宿主会话 id 写进 sessions.md
+├── summarize-state                  # 派生状态摘要（共享逻辑）
+├── repository-docs-context          # 同步 index 元数据并派生路由
+├── install-merge-driver             # 安装仓库本地的 Todo 合并驱动
+├── merge-todo                       # 驱动本体：按条目合并 todo.md
+├── task / archive / version / reopen # 显式生命周期命令
+├── release-check / todo-check       # 发布版本字面量；被丢掉的 Todo 条目
+├── hooks{,-codex,-codebuddy}.json   # 每个宿主一份接线文件
+└── run-hook.cmd                     # 跨平台启动器
+
+evals/                               # 离线路由评测（runner.py + cases/、fixtures/）
+tools/fixture-compare                # 逐字节比对两次 smoke-test 的夹具
+.claude-plugin/ .codex-plugin/ .codebuddy-plugin/   # 各宿主清单与目录
+.github/workflows/hooks.yml          # CI：smoke 矩阵、release、todo 审计、evals
 ```
 
 ## 许可证

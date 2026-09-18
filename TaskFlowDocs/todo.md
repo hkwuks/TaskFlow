@@ -449,13 +449,13 @@ Every direct request or imported requireme
 
 ## Run TaskFlow hooks without a Python interpreter
 
-- ID: TF-20260915-01
+- ID: TF-20260915-82ec4c
 - Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-15
-- Updated: 2026-09-15
+- Updated: 2026-09-17
 - Goal: Run TaskFlow hooks without a Python interpreter
 - Task: `TaskFlowDocs/achieved/2026-09-15-no-python-hooks/`
 - Next action: None — completed and archived.
@@ -541,15 +541,15 @@ Every direct request or imported requireme
 ## Repair the duplicate Todo ID that the old counter-derived scheme shipped: two li
 
 - ID: TF-20260916-01bd1a
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-16
-- Updated: 2026-09-16
+- Updated: 2026-09-17
 - Goal: Repair the duplicate Todo ID that the old counter-derived scheme shipped: two live entries both carry TF-20260915-01, so an ID lookup can resolve to the wrong task.
-- Task: `TaskFlowDocs/2026-09-16-duplicate-todo-id/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-16-duplicate-todo-id/`
+- Next action: None — completed and archived.
 
 ## Isolate a task before its documents are written, and make the choice auditable
 
@@ -602,4 +602,17 @@ Every direct request or imported requireme
 - Updated: 2026-09-17
 - Goal: Make the release atomic: push the marketplace pin and the release tag in one atomic push so the catalog never names a tag that is missing or stale
 - Task: `TaskFlowDocs/2026-09-17-atomic-release-push/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
+## Refresh both READMEs so they document the shipped surfaces: the hooks/tools/eval
+
+- ID: TF-20260918-13ff42
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Refresh both READMEs so they document the shipped surfaces: the hooks/tools/evals trees, the verification and CI checks, and the release process link
+- Task: `TaskFlowDocs/2026-09-18-readme-refresh/`
 - Next action: Complete PRD / Spec / Plan and request approval.

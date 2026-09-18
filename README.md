@@ -10,7 +10,7 @@
 [![Storage: Local Markdown](https://img.shields.io/badge/storage-local%20Markdown-1d4ed8?style=for-the-badge)](skills/taskflow/references/artifacts.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-e11d48?style=for-the-badge)](LICENSE)
 
-[Get started](#get-started) · [Why TaskFlow](#the-problem) · [Compare tools](#where-taskflow-fits) · [中文](README.zh-CN.md)
+[Get started](#get-started) · [Why TaskFlow](#the-problem) · [Compare tools](#where-taskflow-fits) · [Verification](#verification-and-ci) · [中文](README.zh-CN.md)
 
 <img src="assets/taskflow-workflow.svg" alt="TaskFlow workflow: planning, ready, in progress, checking, completed; material changes archive the old version and return to approval." width="100%" />
 
@@ -305,9 +305,26 @@ Then: add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`
 > A small, obvious one-file change can still be a direct change with minimal verification. TaskFlow does not create documents merely to satisfy a process.
 
 > [!NOTE]
-> Hooks are optional. The plugin installs a SessionStart hook that prints a short derived state summary (inbox items + active tasks) so the Agent does not re-read the whole tree; it writes nothing and never approves. Hosts without hooks run the exact same flow.
+> Hooks are optional. The plugin installs a SessionStart hook that injects a short derived state summary (inbox items + active tasks) and the repository-document routes for the current phase, so the Agent does not re-read the whole tree. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves; the only files it writes are the selected task's `sessions.md` session index and the deterministic routing metadata in `TaskFlowDocs/repository-docs/index.md`. Hosts without hooks run the exact same flow.
 
 For mechanical lifecycle edits, the Agent can explicitly run `hooks/run-hook.cmd task intake|promote|state|progress|complete`; these write commands are not event-bound hooks.
+
+## Verification and CI
+
+Every check is a plain script at the repository root — no service, no test framework, no language runtime except where the tooling needs one:
+
+| Command | What it checks |
+| --- | --- |
+| `bash hooks/smoke-test` | Builds temporary `TaskFlowDocs` fixtures and drives the full lifecycle through the hooks. `hooks/smoke-test-windows.ps1` is the Windows equivalent over PowerShell 5.1 and `run-hook.cmd`. |
+| `bash hooks/repository-check .` | Read-only repository readiness: missing baseline governance and ambiguous branch/remote information, reported as `needs-user-input`. |
+| `bash hooks/release-check .` | Every version literal a release has to move agrees, and each marketplace pin resolves to the commit its `sha` names. Exits `2` on a mismatch, `3` on a missing manifest. |
+| `python3 evals/runner.py` | Offline routing evals against immutable sample task trees. The runner is repository tooling, so it is the one thing here that does need Python. |
+
+`.github/workflows/hooks.yml` runs four jobs on every push to `main` and every pull request: `smoke` on an Ubuntu / macOS / Windows matrix, `release`, `todo-merge-audit` (no merge in the pushed range dropped a Todo entry), and `evals`. The smoke job deliberately installs no language runtime — the hooks carry none, so a hook that ever grew an interpreter dependency fails there rather than in a user's session.
+
+`CONTRIBUTING.md` lists the checks required before a pull request, including `hooks/smoke-test`, the Skill validator, and `git diff --check`. `RELEASE.md` is the release checklist: the version literals a release must move, the two-commit ordering a release tag and its catalog pin have to follow, and the rollback rules.
+
+The hooks themselves are documented in [`hooks/README.md`](hooks/README.md) — what each one may write, why they are extensionless bash with no language runtime, and the per-host wiring.
 
 ## Where TaskFlow fits
 
@@ -349,12 +366,30 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 ## Project map
 
 ```text
-skills/taskflow/
+skills/taskflow/                     # the workflow itself
 ├── SKILL.md                         # workflow entry point
 ├── agents/openai.yaml               # display metadata and default prompt
 └── references/
     ├── artifacts.md                 # templates and output routing
+    ├── runtime.md                   # hook rules and host event maps
     └── versioning-and-recovery.md   # semantic versions and safe restoration
+
+hooks/                               # optional host/harness hooks — see hooks/README.md
+├── session-start                    # SessionStart entry point
+├── session-record                   # records the host session id in sessions.md
+├── summarize-state                  # derives the state summary (shared logic)
+├── repository-docs-context          # syncs index metadata and derives routes
+├── install-merge-driver             # configures the repo-local Todo merge driver
+├── merge-todo                       # the driver: merges todo.md by entry
+├── task / archive / version / reopen # explicit lifecycle commands
+├── release-check / todo-check       # release literals; dropped Todo entries
+├── hooks{,-codex,-codebuddy}.json   # one wiring file per host
+└── run-hook.cmd                     # cross-platform launcher
+
+evals/                               # offline routing evals (runner.py + cases/, fixtures/)
+tools/fixture-compare                # byte-compares two smoke-test fixture runs
+.claude-plugin/ .codex-plugin/ .codebuddy-plugin/   # host manifests and catalogs
+.github/workflows/hooks.yml          # CI: smoke matrix, release, todo audit, evals
 ```
 
 ## License
