@@ -48,15 +48,15 @@ No spec required — 一次版本字面量发布，无跨层契约。
 - Dependencies: 无。
 - Files: 三个 `. *-plugin/plugin.json`、`CHANGELOG.md`、两份 `README.md`。
 - Implementation checklist:
-  - [ ] 按 `RELEASE.md` 的 `## Release scope` 移字面量；cachebuster 形状 `<release>+<host>.<yyyymmdd>` 不变。
-  - [ ] `CHANGELOG.md` 写 `## [1.0.7]`，四节照 `[1.0.6]`；**Fixed 必须把执行位那条写成升级理由**（R5）。
-  - [ ] README 的四处示例用字面量替换，不用正则批量改。
-  - [ ] 提交直接落 `main`（不切分支），提交信息对齐 `f8e13a0`；显式按路径 add，不用 `git add -A`（drvfs 会带上 filemode）。
-  - [ ] 推送 `main`。
+  - [x] 按 `RELEASE.md` 的 `## Release scope` 移字面量；cachebuster 形状 `<release>+<host>.<yyyymmdd>` 不变（日期 `20260919`）。
+  - [x] `CHANGELOG.md` 写 `## [1.0.7]`，四节照 `[1.0.6]`；**Fixed 把执行位那条写成升级理由**（R5）——首条并加粗「This is the reason to update from 1.0.6.」。
+  - [x] README 的四处示例用字面量替换，不用正则批量改。
+  - [x] 提交直接落 `main`（不切分支），提交信息对齐 `f8e13a0`；显式按路径 add，不用 `git add -A`。
+  - [x] 推送 `main`。
 - Acceptance: `bash hooks/release-check .` → `pass`；`origin/main` 的该提交同时含三个 `1.0.7` manifest 与新的 CHANGELOG 段。
 - Verification: 见 `## Verification / Review`。
 - Rollback: `git revert` 该提交（未打标签前无外部可见影响）。
-- Status: pending
+- Status: done
 
 ### Step 2 — 跑 Validation checklist
 
@@ -64,13 +64,13 @@ No spec required — 一次版本字面量发布，无跨层契约。
 - Dependencies: Step 1。
 - Files: 无。
 - Implementation checklist:
-  - [ ] 按 `RELEASE.md` 的 `## Validation checklist` 逐条跑，结果记入 `## Verification / Review`。
-  - [ ] 记录 `git rev-parse origin/main` 作为候选标签提交。
-  - [ ] 未跑到的项标注未跑，不声称通过。
+  - [x] 按 `RELEASE.md` 的 `## Validation checklist` 逐条跑，结果记入 `## Verification / Review`。
+  - [x] 记录 `git rev-parse origin/main` 作为候选标签提交：`c3c536d63bc1a81e8b46e55dce6be8fb99123df0`。
+  - [x] 未跑到的项标注未跑，不声称通过（本次无未跑项）。
 - Acceptance: 每条都有输出记录。
 - Verification: 本节即为验证。
 - Rollback: 不适用。
-- Status: pending
+- Status: done
 
 ### Step 3 — Tag, catalog pin, Release（需授权）
 
@@ -78,7 +78,7 @@ No spec required — 一次版本字面量发布，无跨层契约。
 - Dependencies: Step 2，**以及用户的明确授权**。
 - Files: `.claude-plugin/marketplace.json`、`.codebuddy-plugin/marketplace.json`（该次提交只含四个字面量）。
 - Implementation checklist:
-  - [ ] 先把候选提交 SHA、pin 将改的四个字面量、以及两条不可逆命令报给用户，**停在授权前**。
+  - [x] 先把候选提交 SHA、pin 将改的四个字面量、以及两条不可逆命令报给用户，**停在授权前**。
   - [ ] 授权后：注解标签 → pin 提交 → `git push --atomic origin main refs/tags/v1.0.7`；被拒则按 `RELEASE.md` 的退路执行并记录窗口。
   - [ ] 推送后重跑 `bash hooks/release-check .`；建 GitHub Release，正文取自 `[1.0.7]` 段。
   - [ ] 记录标签对象 SHA、Release URL、两个 pin 到本 Plan。
@@ -95,7 +95,30 @@ No spec required — 一次版本字面量发布，无跨层契约。
 
 ## Verification / Review
 
-（实施后填写实际命令与输出。）
+Step 1–2 实施于 2026-09-19 00:13–00:30 +08:00。发布提交 `c3c536d`（直接落 `main`，无分支、无 Release PR）。
+
+按 `RELEASE.md` 的 `## Validation checklist` 逐条跑：
+
+| 检查 | 命令 | 实际输出 |
+| --- | --- | --- |
+| 仓库就绪 | `bash hooks/repository-check .` | `STATUS: pass`（base `origin/main`、工作区干净、无未提交任务产物） |
+| 版本一致性 | `bash hooks/release-check .` | `STATUS: pass`（三 manifest + CHANGELOG + 两份 README 示例均为 `1.0.7`；pin 仍指 `v1.0.6`，为准备期的正常中间态） |
+| smoke | `bash hooks/smoke-test` | `ALL SMOKE PASSED`，exit 0 |
+| evals | `python3 evals/runner.py` | `PASS (6 evals)` |
+| Skill 校验 | `quick_validate.py skills/taskflow` | `Skill is valid!` |
+| 空白/冲突标记 | `git diff --check` | clean |
+
+发布提交复核（不是快进之外的合并，直接提交）：
+
+- 候选标签提交 = `c3c536d63bc1a81e8b46e55dce6be8fb99123df0`
+- `git merge-base --is-ancestor v1.0.6 origin/main` → 成功
+- 该提交上 `.claude-plugin/plugin.json` = `1.0.7`，`CHANGELOG.md` 首段 = `## [1.0.7] — 2026-09-19`
+
+**未跑**：无。六条全部跑到并记录了输出。
+
+### 实施结果与 Plan 的偏差
+
+- 无实质偏差。字面量移动、CHANGELOG 段落、提交范围与 Plan 一致；`release-check` 在写完 CHANGELOG 前按预期报 `needs-user-input`（它把新版本与旧 CHANGELOG 段判为不一致），补上段落后转为 `pass`。
 
 ## Change Log
 
