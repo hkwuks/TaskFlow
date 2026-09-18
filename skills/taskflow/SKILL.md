@@ -236,6 +236,8 @@ Before the first edit, confirm the task's working tree is still the one you are 
 
 Every task appends to the one `TaskFlowDocs/todo.md`, so merging parallel branches touches that file even when the branches share nothing else. TaskFlow installs a per-entry Git merge driver for it (see [runtime.md](references/runtime.md)); merge the branches locally so it runs, and expect an ordinary content conflict when a pull request is merged in a hosting web UI.
 
+When a merge or rebase you run hits a conflict, stop and put both sides in front of the user, who decides what to keep; do not silently choose one. Record that decision in the task `plan.md` before continuing. An automatic merge needs no action. A conflict on a pull request merged in a hosting web UI is outside this rule — that path is resolved on the platform, not by the Agent.
+
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
 If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
@@ -249,12 +251,13 @@ If another tool or Skill creates files or conclusions, review and route only inc
 Enter `checking` only after implementation is complete. Verify in this order:
 
 1. changed-file scope and Git/file archive state;
-2. every PRD acceptance criterion;
-3. Spec contracts when `spec.md` exists, or the `No spec required` rationale;
-4. Plan steps, deviations, rollback points, change-log entries, and follow-ups;
-5. relevant evidence in `reference/`;
-6. project lint, type checks, unit/integration/end-to-end tests as applicable;
-7. debug code, temporary bypasses, uncovered branches, and unrelated changes.
+2. any conflict raised by a merge or rebase in this task: resolved as the user decided and recorded in `plan.md`;
+3. every PRD acceptance criterion;
+4. Spec contracts when `spec.md` exists, or the `No spec required` rationale;
+5. Plan steps, deviations, rollback points, change-log entries, and follow-ups;
+6. relevant evidence in `reference/`;
+7. project lint, type checks, unit/integration/end-to-end tests as applicable;
+8. debug code, temporary bypasses, uncovered branches, and unrelated changes.
 
 Record each command and result in `plan.md`. Distinguish pre-existing failures, newly introduced failures, and environment failures. A test pass does not replace product acceptance.
 
