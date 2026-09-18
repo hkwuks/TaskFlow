@@ -1,6 +1,6 @@
 # Refresh both READMEs so they document the shipped surfaces
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

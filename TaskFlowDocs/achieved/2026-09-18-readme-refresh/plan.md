@@ -1,6 +1,6 @@
 # Plan — Refresh both READMEs so they document the shipped surfaces
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 单层文档改动，无跨文件契约（除两份 README 的章节需互相对齐）。
 
