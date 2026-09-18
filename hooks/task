@@ -40,6 +40,24 @@ ends_with_newline() {
   [ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" = "0a" ]
 }
 
+# Is $root a task worktree rather than the base one? `git worktree add` makes the
+# linked tree's git dir a pointer directory containing `commondir`, so that file
+# is Git's own answer to the question — no branch-name parsing, no guessing which
+# task a tree belongs to.
+#
+# Not a repository at all is not an answer: `--root` may point outside Git (the
+# smoke fixtures do), and refusing there would break callers who never had the
+# base-tree problem. That case reports "not applicable" and the caller allows it.
+# Returns 0 = task worktree, 1 = not a repository, 2 = base working tree.
+worktree_kind() {  # worktree_kind <root>
+  local root="$1" git_dir
+  git -C "$root" rev-parse --show-toplevel >/dev/null 2>&1 || return 1
+  git_dir="$(git -C "$root" rev-parse --git-dir 2>/dev/null)" || return 1
+  case "$git_dir" in /*) ;; *) git_dir="$root/$git_dir" ;; esac
+  [ -f "$git_dir/commondir" ] || return 2
+  return 0
+}
+
 # The awk program is shared by every command; TASKFLOW_CMD selects the branch.
 TASK_AWK="$(cat <<'AWK'
 function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
@@ -325,6 +343,16 @@ case "$command" in
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
       TASKFLOW_ID="$todo_id"
     echo "intake OK: $todo_id"
+    # Nothing here is refused: triage is meant to be cheap, and an inbox item may
+    # never be planned. But `todo.md` is shared, and leaving it modified in the
+    # base checkout is what makes the next `git checkout` refuse to move — the
+    # very failure this signal exists for. So it is said, not prevented.
+    kind=0
+    worktree_kind "$root" || kind=$?
+    if [ "$kind" -eq 2 ]; then
+      echo "note: TaskFlowDocs/todo.md is now modified in the base working tree."
+      echo "      Commit or stash it before switching branches, or work from a task worktree."
+    fi
     ;;
 
   promote)
@@ -332,6 +360,32 @@ case "$command" in
     [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]'
     todo_id="${rest[0]}"; task="${rest[1]}"; size="${rest[2]}"
     case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]' ;; esac
+    # Phase 1 writes the task's first documents, so this is where a task that was
+    # never isolated would land them in the base tree, on whatever branch happens
+    # to be checked out. Refuse before anything is written and hand over the
+    # command instead. `<type>` is the one thing the script cannot know — the
+    # repository's branch prefixes are prose in CONTRIBUTING.md, and guessing a
+    # prefix from a task name would be a heuristic — so it stays a placeholder
+    # and the reader picks it.
+    kind=0
+    worktree_kind "$root" || kind=$?
+    if [ "$kind" -eq 2 ]; then
+      base_branch="$(git -C "$root" branch --show-current 2>/dev/null || true)"
+      [ -n "$base_branch" ] || base_branch="<base>"
+      printf '%s\n' \
+        "Blocked: this is the base working tree, not a task worktree." \
+        "A task's first documents are written in Phase 1, so they would land here on" \
+        "whatever branch is checked out. Create the task worktree and rerun promote" \
+        "from inside it:" \
+        "" \
+        "  git worktree add .worktrees/$task -b <type>/$task $base_branch" \
+        "  cd .worktrees/$task" \
+        "" \
+        "<base> is filled in above; <type> is one of feature | fix | docs | chore," \
+        "chosen from what the task changes." \
+        "STATUS: blocked"
+      exit 3
+    fi
     # Not task_paths: that helper exits when the task is missing, and this command
     # requires it to be absent. `A && B` also aborts under `set -e` when A fails,
     # so the guard is written as an explicit test.
@@ -396,7 +450,7 @@ case "$command" in
 
 ## Related Tasks
 
-## Skills / Tools Used (Optional)
+## Skills / Tools Used
 
 ## Preconditions
 

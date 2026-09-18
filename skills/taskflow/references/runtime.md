@@ -91,10 +91,12 @@ Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and
 
 Run explicitly by the Agent as one operation. Only SessionStart summary injection is automatically wired; write commands never bind to `UserPromptSubmit`, `PostToolUse`, or `Stop`.
 
+`intake` and `promote` both care whether the working tree they write into is the base one: a task's first documents are written in Phase 1, so writing them in the base tree puts them on whatever branch happens to be checked out. `promote` refuses there; `intake` only notes it, because triage should stay cheap. Both read the same signal — a linked worktree's git directory contains `commondir`, which is Git's own answer and needs no branch-name parsing — and neither applies where `--root` is not a repository at all.
+
 | Command | Action | Verify after |
 | --- | --- | --- |
-| `hooks/task intake <goal> [source] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. |
-| `hooks/task promote <todo-id> <task-id> <small\|large> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. |
+| `hooks/task intake <goal> [source] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. In the base working tree it additionally notes that `todo.md` is now uncommitted there (exit code unchanged). |
+| `hooks/task promote <todo-id> <task-id> <small\|large> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. Refuses with `STATUS: blocked` (exit `3`) outside a task worktree — the first task documents are written in Phase 1, so they would otherwise land in the base tree on whatever branch is checked out. The message prints the `git worktree add` command with everything but `<type>` filled in. |
 | `hooks/task state <task-id> <state> [--root <path>]` | Update PRD/Plan state and Todo triage state. | `in_progress` requires approval for the current Task version. |
 | `hooks/task progress <task-id> <step> <status> [verification] [--root <path>]` | Update one Plan Step and optionally append a verification line. | `done` rejects unchecked checklist items. |
 | `hooks/task complete <task-id> --user-accepted [--root <path>]` | Validate completion gates, set core statuses, and invoke archive. | Requires explicit acceptance and leaves no active task on success. |

@@ -554,15 +554,15 @@ Every direct request or imported requireme
 ## Isolate a task before its documents are written, and make the choice auditable
 
 - ID: TF-20260916-ab381b
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user review
 - Added: 2026-09-16
-- Updated: 2026-09-16
+- Updated: 2026-09-17
 - Goal: Isolate a task before its documents are written, and make the choice auditable: task documents are created in Phase 1 while the branch/worktree rule only applied from Phase 5, so documents landed in a shared checkout (usually another task's branch) and could not be checked out away; separately, the Plan's capability-selection section was marked optional, so "chose not to invoke" and "forgot the step" were indistinguishable.
-- Task: `TaskFlowDocs/2026-09-16-capability-selection-enforcement/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-16-capability-selection-enforcement/`
+- Next action: None — completed and archived.
 
 ## Detect a task directory that no Todo entry references
 

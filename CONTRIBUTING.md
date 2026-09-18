@@ -13,18 +13,22 @@ Non-trivial changes require a Todo item, `prd.md`, `spec.md` when large, and `pl
 
 ## Working branches
 
-Never implement in the base working tree. One task, one short-lived branch, created before the first edit:
+Never implement in the base working tree. One task, one short-lived branch, created before the first edit — and before the first task document, which is written in the planning phase:
 
 ```bash
-git switch -c fix/<description> <base-branch>
+git worktree add .worktrees/<slug> -b <type>/<slug> <base>
+cd .worktrees/<slug>
 ```
 
 - Name the branch for its TaskFlow task, using the prefixes below.
+- One task, one working tree — not only when several tasks run at once. What needs isolating is not just the code: a task's PRD, Plan, and its `todo.md` entry are written before implementation starts, and a task that writes them in the base checkout leaves them on whatever branch happened to be checked out.
+- `.worktrees/` is ignored, so the working trees themselves never show up as changes.
 - Keep a task's documents and its code on the same branch so the Plan, the diff, and the verification stay together.
+- `hooks/task promote` refuses to run outside a task working tree, and `hooks/task intake` warns when it has written `todo.md` in a shared one.
 - Confirm where you are before editing. `git branch --show-current` shows the branch; `bash hooks/repository-check .` reports the local branch and warns with `Base: ambiguous` when no upstream is set.
 - Run `bash hooks/smoke-test` on the branch whose files changed, not on another checkout.
 
-Agents working several tasks at once isolate each one in its own working tree; `skills/taskflow/SKILL.md` states that rule.
+`skills/taskflow/SKILL.md` states the same rule where the phases are defined.
 
 ## Branches and commits
 

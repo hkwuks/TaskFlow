@@ -60,6 +60,36 @@ else
   echo "Working tree: has changes (review before rebasing or submitting)"
 fi
 
+# Task artifacts written here but not in this branch's history are the state a
+# checkout cannot carry correctly: an uncommitted directory follows you to
+# whatever branch is checked out next, so the next task inherits this one's
+# documents. A directory cannot be attributed to a branch without a commit, so
+# none is claimed. Read-only: never sets `needs`.
+artifacts=""
+if [ -d TaskFlowDocs ]; then
+  for dir in TaskFlowDocs/*/; do
+    [ -f "$dir/prd.md" ] || [ -f "$dir/plan.md" ] || continue
+    name="${dir%/}"
+    git cat-file -e "HEAD:$name" 2>/dev/null && continue
+    if git ls-files --error-unmatch "$name" >/dev/null 2>&1; then
+      artifacts="$artifacts- $dir (staged, not committed)
+"
+    else
+      artifacts="$artifacts- $dir (untracked)
+"
+    fi
+  done
+fi
+if [ -z "$artifacts" ]; then
+  echo "Task artifacts: none uncommitted"
+else
+  printf 'Task artifacts:\n%s' "$artifacts"
+  echo "  An uncommitted task directory follows you to whatever branch you check out"
+  echo "  next — so the next task inherits this one's documents — or blocks that"
+  echo "  checkout when the target branch tracks the same path. Committing it to this"
+  echo "  branch or moving the work to its own working tree is what removes the report."
+fi
+
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"
   exit 2
