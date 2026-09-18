@@ -1327,4 +1327,38 @@ set -e
 [ "$tc_status" -eq 2 ] || { echo "FAIL single-commit fallback exit code: $tc_status"; cat "$tc/out"; exit 1; }
 echo ok
 
+echo "== the hook launcher executes the way the harness executes it =="
+# Claude Code runs the plugin `command` verbatim through the platform shell, so
+# the first token has to be an executable file. Both halves matter and neither is
+# implied by the other: the mode in the Git tree decides what a clone installs
+# (a 100644 entry installs 644 and dies with "Permission denied", exit 126), and
+# a filesystem that reports every file executable -- a drvfs mount, some network
+# shares -- hides that from any check that only stats the file. The index is
+# therefore read directly when this checkout has one.
+# Every other section here calls `bash "$HERE/<hook>"` explicitly, which is why a
+# launcher that nothing can execute still left a green suite: the harness's own
+# invocation was the one form never exercised.
+if git -C "$HERE" ls-files --error-unmatch run-hook.cmd >/dev/null 2>&1; then
+  launcher_mode="$(git -C "$HERE" ls-files -s run-hook.cmd | awk '{print $1}')"
+  [ "$launcher_mode" = "100755" ] || {
+    echo "FAIL run-hook.cmd is recorded as $launcher_mode, not 100755: it installs non-executable and every Unix hook fails with 'Permission denied'"
+    exit 1
+  }
+fi
+# The real thing, run as the harness runs it: the path alone, no `bash` prefix.
+# Name resolution differs too -- the tree needs `bash` on `$PATH` for the
+# scripts it launches, and the harness inherits no such guarantee from us.
+exec_out="$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." TASKFLOW_REPO_ROOT="$tmp" \
+  PATH="$PATH:/usr/bin:/bin" sh -c "\"$HERE/run-hook.cmd\" session-start" 2>&1)" || {
+  echo "FAIL run-hook.cmd could not be executed directly:"
+  printf '%s\n' "$exec_out"
+  exit 1
+}
+echo "$exec_out" | grep -q '"hookSpecificOutput"' || {
+  echo "FAIL direct execution produced no hook output:"
+  printf '%s\n' "$exec_out"
+  exit 1
+}
+echo ok
+
 echo "ALL SMOKE PASSED"
