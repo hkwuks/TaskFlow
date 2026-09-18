@@ -603,3 +603,16 @@ Every direct request or imported requireme
 - Goal: Make the release atomic: push the marketplace pin and the release tag in one atomic push so the catalog never names a tag that is missing or stale
 - Task: `TaskFlowDocs/2026-09-17-atomic-release-push/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Refresh both READMEs so they document the shipped surfaces: the hooks/tools/eval
+
+- ID: TF-20260918-13ff42
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-18
+- Updated: 2026-09-18
+- Goal: Refresh both READMEs so they document the shipped surfaces: the hooks/tools/evals trees, the verification and CI checks, and the release process link
+- Task: `TaskFlowDocs/2026-09-18-readme-refresh/`
+- Next action: Complete PRD / Spec / Plan and request approval.
