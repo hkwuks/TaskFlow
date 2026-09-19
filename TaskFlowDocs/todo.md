@@ -595,15 +595,15 @@ Every direct request or imported requireme
 ## Make the release atomic: push the marketplace pin and the release tag in one ato
 
 - ID: TF-20260917-a608b7
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-17
 - Updated: 2026-09-17
 - Goal: Make the release atomic: push the marketplace pin and the release tag in one atomic push so the catalog never names a tag that is missing or stale
-- Task: `TaskFlowDocs/2026-09-17-atomic-release-push/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-17-atomic-release-push/`
+- Next action: None — completed and archived.
 
 ## Refresh both READMEs so they document the shipped surfaces: the hooks/tools/eval
 
@@ -621,15 +621,15 @@ Every direct request or imported requireme
 ## The plugin's hook launcher installs without the executable bit, so every Unix Se
 
 - ID: TF-20260918-b0f73a
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-18
 - Updated: 2026-09-18
 - Goal: The plugin's hook launcher installs without the executable bit, so every Unix SessionStart hook fails with Permission denied
-- Task: `TaskFlowDocs/2026-09-18-hook-launcher-exec-bit/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-18-hook-launcher-exec-bit/`
+- Next action: None — completed and archived.
 
 ## Fix the archive transaction's todo.md rewrite: it inserts a blank line after the
 
@@ -648,15 +648,15 @@ Every direct request or imported requireme
 ## Restore the zh-CN manifest count that a conflict resolution reverted, and rule on conflict-side review
 
 - ID: TF-20260918-ad8348
-- Status: in_progress
+- Status: done
 - Priority: high
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-18
 - Updated: 2026-09-18
 - Goal: Restore the zh-CN manifest count that a conflict resolution reverted, and decide whether a resolved conflict needs a recorded side-by-side review before it is pushed.
-- Task: `TaskFlowDocs/2026-09-18-conflict-side-review/`
-- Next action: PR open on `fix/conflict-side-review`; await review and merge.
+- Task: `TaskFlowDocs/achieved/2026-09-18-conflict-side-review/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-18 复核（推翻了先前「静默 auto-merge」的说法）**：`46131a1`（"Merge branch 'main' into chore/e-task-isolation-and-capability-record"）那次**确实是真冲突**，不是自动合并——重放三方合并（base `985b269`、ours `adfc5c1`、theirs `c083240`）得到 `git merge-file` exit 1，且 `46131a1` 里存在过冲突块。冲突行两侧都改过同一句：PR #37 把「两个插件 manifest」改成「三个」，PR #38 在同一句里加了「并列出该 checkout 里未提交的任务产物」。**解决时整块取了分支侧**，于是合入结果同时保留了 PR #38 的新句子和 PR #37 已被覆盖的旧计数。时间窗只有 2 分钟：`adfc5c1` 定稿于 20:08:19，PR #37 合并于 20:11:40，`46131a1` 于 20:13:42。窗口和"两侧都读得通"（同是合法中文、同讲一个检查）是它能逃过目视复核的原因。
 - **`hooks/todo-check` 覆盖不到这一类**：它是纯 hook、无 LLM，对每个 merge commit 比较两个 parent 各自持有的 `- ID:` 集合与结果的集合（`sed` 提取 + `sort -u` + `comm -13`），只查 `TaskFlowDocs/todo.md` 一个文件的条目级丢失，不做三方比较，因此看不见"解决冲突时取错侧"。它由 `.github/workflows/hooks.yml` 的 `todo-merge-audit` 作业调用（非自动 hook），跑 `git rev-list --merges` 范围内的每个 merge。所以本条不能靠泛化 `todo-check` 解决——「取错侧」这个动作必然伴随一次冲突解决，应该做成"冲突解决后需记录取舍"的流程规则，而非内容比对。
 - Updated: 2026-09-18
@@ -757,6 +757,11 @@ Every direct request or imported requireme
 - Goal: Publish TaskFlow v1.0.7: the conflict-review rule, the executable launcher, task next/get, and the README surfaces that shipped after v1.0.6.
 - Task: `TaskFlowDocs/2026-09-18-release-v1-0-7/`
 - Next action: Step 1 done; run the Validation checklist.
+- Notes: **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
+
+  **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
+
+  **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。
 
 ## Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an e
 
@@ -834,32 +839,28 @@ Every direct request or imported requireme
 ## Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin
 
 - ID: TF-20260919-55110d
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-19
 - Updated: 2026-09-19
 - Goal: Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin bundle that self-wires the existing skill and hooks with no manual config
-- Task: `TaskFlowDocs/2026-09-19-dsh-host/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-
-## Removed
-
-- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
+- Task: `TaskFlowDocs/achieved/2026-09-19-dsh-host/`
+- Next action: None — completed and archived.
 
 ## Take a release out of the TaskFlow task workflow: RELEASE.md runs directly on th
 
 - ID: TF-20260919-40eca2
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-19
 - Updated: 2026-09-19
 - Goal: Take a release out of the TaskFlow task workflow: RELEASE.md runs directly on the base checkout with no Todo item, task directory, branch, or PRD/Plan, and its record is the CHANGELOG section and the GitHub Release body.
-- Task: `TaskFlowDocs/2026-09-19-release-flow-exception/`
-- Next action: Implementation and verification done; awaiting commit and review on chore/release-flow-exception.
+- Task: `TaskFlowDocs/achieved/2026-09-19-release-flow-exception/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-19 用户确认**：发布彻底不走 TaskFlow（不创建任务目录与 Todo 条目），记录形态取「只在 CHANGELOG 段落 + GitHub Release 正文」，写入方式取「纯文档规则、Agent 手写」，分支取「豁免——发布不从 base 检出切分支」，批准门禁改为「用户授权先行、写入 RELEASE.md 与发布正文」。本条即该决定的规则改动，已落在 RELEASE.md、CONTRIBUTING.md、SKILL.md、references/artifacts.md 与两份 README（分支问题由用户当场追问确认：『发布要切分支吗？不需要吧』，结论是不切）。
 
 ## Map the personal rule to a single personal.md: one file, each rule in its own se
@@ -875,3 +876,24 @@ Every direct request or imported requireme
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
+## Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines, 45%
+
+- ID: TF-20260919-6b4e21
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines / 50 KB, of which the 47 `done` entries are 45% (22.6 KB) and the 18 live entries (`inbox` 12, `promoted` 2, `in_progress` 4) are under a third — the file is a growing archive that every task still has to read.
+- Task: Not promoted.
+- Next action: User studies the fix and decides; do not start.
+- Notes: **2026-09-19 用户提出，明确排除在本次修复范围外**（「先立一个 todo，我后面研究修复」）。
+  **实测分布**（HEAD `c1147ab`，877 行 / 50,427 字节，按条目正文统计）：`done` 47 条 / 22,661 字节（45%）；`inbox` 12 条 / 14,194 字节；`in_progress` 4 条 / 3,422 字节；`promoted` 2 条 / 991 字节；模板与无法解析的 4 段 / 384 字节。**待每天打交道的 live 条目只有 18 条、不到三分之一。**
+  **两个已观测到的结构损伤**（不只是「长」）：(1) `## Item template` 模板块停在第 251 行，**在条目中间**，其下还有条目，随后第 267 行是一句被截断的半句 `Every direct request or imported requireme`；(2) 条目顺序是三个时代的堆叠，不是严格新在前——`TF-20260919-*` 的若干条排在 `TF-20260918-*` 之下。
+  **已排除的选项**：本文件的定义是 intake 清单（`SKILL.md:30`、`references/artifacts.md:9` 都写 triage metadata only），历史事实在 `TaskFlowDocs/achieved/`，且 `SKILL.md:44` 禁止第二份事实源——所以往 todo.md 里做归档是反方向的。按日期分片/换后端会把整套 hook（`hooks/archive`、`hooks/summarize-state`、`hooks/todo-check`、`hooks/merge-todo`、`hooks/task`）都改一遍。
+  **读取代价已被 v1.0.7 砍掉一半**：`hooks/task get <todo-id>` 只回一条条目，`task next` / `task intake` 只写一条，所以「查/改」不再需要读全文；剩下的整读场景只有「新增条目」。（本条由 `hooks/task next` 写入，未手改。）
+
+## Removed
+
+- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)

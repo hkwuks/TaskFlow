@@ -1,6 +1,6 @@
 # Hook launcher exec bit
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

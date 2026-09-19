@@ -1,6 +1,6 @@
 # Plan — Hook launcher exec bit
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — a file-mode change plus one assertion section.
 
