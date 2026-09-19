@@ -2,6 +2,10 @@
 
 This is the repository's single lightweight intake list. It stores triage metadata only. After promotion, the linked TaskFlow directory is the sole source of requirements, design, plan, and verification facts.
 
+## Removed
+
+- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
+
 ## Status flow
 
 `inbox → clarified → promoted → in_progress → done/cancelled`
@@ -831,3 +835,16 @@ Every direct request or imported requireme
 - Task: `TaskFlowDocs/2026-09-19-release-flow-exception/`
 - Next action: Implementation and verification done; awaiting commit and review on chore/release-flow-exception.
 - Notes: **2026-09-19 用户确认**：发布彻底不走 TaskFlow（不创建任务目录与 Todo 条目），记录形态取「只在 CHANGELOG 段落 + GitHub Release 正文」，写入方式取「纯文档规则、Agent 手写」，分支取「豁免——发布不从 base 检出切分支」，批准门禁改为「用户授权先行、写入 RELEASE.md 与发布正文」。本条即该决定的规则改动，已落在 RELEASE.md、CONTRIBUTING.md、SKILL.md、references/artifacts.md 与两份 README（分支问题由用户当场追问确认：『发布要切分支吗？不需要吧』，结论是不切）。
+
+## Map the personal rule to a single personal.md: one file, each rule in its own se
+
+- ID: TF-20260919-495145
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user decision
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Map the personal rule to a single personal.md: one file, each rule in its own section with its own scope etc. The repository-docs index names personal.md and explains its origin (local-only, never committed) and purpose (personal rules that cannot override repository documents).
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.

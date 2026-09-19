@@ -1014,7 +1014,10 @@ printf '%s\n' \
   '' '## Sparse' '' \
   '- ID: TF-20260101-bb' '- Status: done' '- Priority: normal' '- Owner: smoke' \
   '- Source: fixture' '- Added: 2026-01-01' '- Goal: sparse entry' \
-  '- Task: `TaskFlowDocs/achieved/2026-01-01-sparse/`' > "$nf/TaskFlowDocs/todo.md"
+  '- Task: `TaskFlowDocs/achieved/2026-01-01-sparse/`' '' '## Spare' '' \
+  '- ID: TF-20260101-cc' '- Status: inbox' '- Priority: normal' '- Owner: smoke' \
+  '- Source: fixture' '- Added: 2026-01-01' '- Goal: spare entry' \
+  '- Task: Not promoted.' > "$nf/TaskFlowDocs/todo.md"
 
 bash "$HERE/task" next TF-20260101-aa "new action." "third bullet." --root "$nf" >/dev/null
 
@@ -1110,6 +1113,60 @@ readback="$(bash "$HERE/task" get TF-20260101-aa --root "$nf" | sed -n 's/^- Nex
 # "title line, then the fields named in TASKFLOW_KEYS".
 [ "$(grep -c 'TASKFLOW_CMD=get' "$HERE/task")" -eq 3 ] \
   || { echo "FAIL the internal get callers changed"; exit 1; }
+echo ok
+
+echo "== task remove records the deletion that todo-check must not call a drop =="
+# An authorized deletion and a merge that silently lost an entry are the same
+# observable event, so the deletion has to be stated before it happens. What has
+# to hold: the record is written where todo-check reads it, the entry is gone
+# from the entry list, and a promoted entry cannot be deleted out from under its
+# task directory.
+rm_out="$tmp/remove-out"
+bash "$HERE/task" remove TF-20260101-cc "superseded by TF-20260101-aa" --root "$nf" > "$rm_out"
+grep -q 'remove OK: TF-20260101-cc' "$rm_out" || { echo "FAIL remove did not report success"; cat "$rm_out"; exit 1; }
+awk '/^## Removed$/ { f = 1; next } f && /^## / { f = 0 } f' "$nf/TaskFlowDocs/todo.md" > "$tmp/removed-section"
+grep -q -- "- ID: TF-20260101-cc (removed $(date +%Y-%m-%d): superseded by TF-20260101-aa)" "$tmp/removed-section" \
+  || { echo "FAIL the deletion was not recorded in ## Removed"; cat "$tmp/removed-section"; exit 1; }
+# The entry itself is gone, list and all -- not just its ID line blanked out.
+# The record names the ID, so the count is what distinguishes "deleted" from
+# "deleted and also recorded".
+[ "$(grep -c 'TF-20260101-cc' "$nf/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL the removed entry has more than its record left in the file"; exit 1; }
+grep -q '^## Spare' "$nf/TaskFlowDocs/todo.md" \
+  && { echo "FAIL the removed entry's heading survived"; exit 1; }
+# The deletion did not take its neighbours or the file's other sections with it.
+grep -qx -- '- ID: TF-20260101-aa' "$nf/TaskFlowDocs/todo.md" || { echo "FAIL remove took a sibling entry"; exit 1; }
+grep -q '^# Todo inbox' "$nf/TaskFlowDocs/todo.md" || { echo "FAIL remove ate the file header"; exit 1; }
+grep -q '^## Items' "$nf/TaskFlowDocs/todo.md" || { echo "FAIL remove ate the items heading"; exit 1; }
+# A second deletion appends to the same section rather than opening a second one,
+# which is what keeps the record readable and the check's parse unambiguous.
+printf '%s\n' '' '## Loose' '' \
+  '- ID: TF-20260101-dd' '- Status: cancelled' '- Priority: normal' '- Owner: smoke' \
+  '- Source: fixture' '- Added: 2026-01-01' '- Goal: loose entry' \
+  '- Task: Not promoted.' >> "$nf/TaskFlowDocs/todo.md"
+bash "$HERE/task" remove TF-20260101-dd "second deletion" --root "$nf" >/dev/null
+[ "$(grep -c '^## Removed$' "$nf/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL a second removal opened a second ## Removed section"; exit 1; }
+[ "$(awk '/^## Removed$/ { f = 1; next } f && /^## / { f = 0 } f && /^- ID:/' "$nf/TaskFlowDocs/todo.md" | wc -l | tr -d ' ')" -eq 2 ] \
+  || { echo "FAIL the second deletion was not recorded"; exit 1; }
+# A promoted entry is refused: deleting it would leave its task directory with
+# no Todo record, which is the orphan this workflow keeps out.
+promoted="$tmp/remove-promoted"
+mkdir -p "$promoted/TaskFlowDocs/2026-01-01-promoted"
+printf '# Plan\n> Task version: v1\n> Status: ready\n' > "$promoted/TaskFlowDocs/2026-01-01-promoted/plan.md"
+printf '# Todo inbox\n\n## Items\n\n## Promoted\n\n- ID: TF-20260101-pp\n- Status: promoted\n- Task: `TaskFlowDocs/2026-01-01-promoted/`\n' > "$promoted/TaskFlowDocs/todo.md"
+if bash "$HERE/task" remove TF-20260101-pp "not allowed" --root "$promoted" > "$tmp/remove-promoted-out" 2>&1; then
+  echo "FAIL remove deleted the entry of a promoted task"; cat "$tmp/remove-promoted-out"; exit 1
+fi
+grep -qx -- '- ID: TF-20260101-pp' "$promoted/TaskFlowDocs/todo.md" \
+  || { echo "FAIL the refused remove still deleted the entry"; exit 1; }
+# An unknown ID and an empty reason are refused before anything is written.
+if bash "$HERE/task" remove TF-20990101-zz "unknown" --root "$nf" >/dev/null 2>&1; then
+  echo "FAIL remove accepted an unknown Todo ID"; exit 1
+fi
+if bash "$HERE/task" remove TF-20260101-aa "" --root "$nf" >/dev/null 2>&1; then
+  echo "FAIL remove accepted an empty reason"; exit 1
+fi
 echo ok
 
 echo "== release-check catches version drift and a bad marketplace pin =="

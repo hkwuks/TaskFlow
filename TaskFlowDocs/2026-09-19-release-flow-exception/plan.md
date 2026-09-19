@@ -83,6 +83,21 @@ No spec required — 规则文本的改写与一处断言替换，无跨层契�
 - Rollback: 条目状态按原值改回。
 - Status: done
 
+### Step 4 — 让授权删除不再被 todo-merge-audit 判为丢失
+
+- Goal: 本任务删除 Todo 条目后，CI 的 `todo-merge-audit` 把「按授权删除」与「merge 静默丢条目」判成同一件事并报 `needs-user-input`。让删除自证，同时不削弱对真实丢失的检查。
+- Dependencies: Step 1（删除动作来自 Step 1 的范围）。
+- Files: `hooks/task`、`hooks/todo-check`、`hooks/smoke-test`。
+- Implementation checklist:
+  - [x] `hooks/task remove <todo-id> <reason>`：写入 `## Removed` 记录后再删条目；已 promote 的条目拒绝删除（否则任务目录变孤儿），未知 ID 与空理由也拒绝。
+  - [x] `hooks/todo-check` 增加 `removed_at`：`## Removed` 段里锚定行首的 ID 从「丢失」集合中扣除；无记录时行为完全不变。
+  - [x] `hooks/smoke-test` 新增一节，覆盖记录落点、条目消失（计数与标题两条）、兄弟条目与文件头存活、第二次删除不新开段、promoted 拒绝、未知 ID/空理由拒绝。
+  - [x] 回归验证：一个真实 drop 的 merge fixture 仍旧 `FAIL`（`TF-X present in … but missing from …`），而记录过的删除放行。
+- Acceptance: `bash hooks/smoke-test` → `ALL SMOKE PASSED`；真实 drop fixture 仍报 `needs-user-input`；本分支的 `todo-check` 区间审计为 `pass`。
+- Verification: 见 `## Verification / Review`。
+- Rollback: `git checkout -- hooks/task hooks/todo-check hooks/smoke-test`。
+- Status: done
+
 ## Checkpoints
 
 - Step 1 后：`grep -rn 'release task'` 无命中。
@@ -103,6 +118,16 @@ Step 1–2 实施于 2026-09-19；Step 3 于 10:23 批准后完成。全部命�
 | Skill 校验 | `python3 <skill-creator>/scripts/quick_validate.py skills/taskflow` | `Skill is valid!` |
 | 空白 | `git diff --check` | clean |
 
+Step 4 的验证（同一 worktree，2026-09-19 追加）：
+
+| 检查 | 命令 | 实际输出 |
+| --- | --- | --- |
+| `task remove` 行为 | 临时 fixture 连删两条 + 边界 | 记录落 `## Removed`、条目与其标题消失、兄弟条目与文件头存活、二次删除不新开段；promoted 条目、未知 ID、空理由均被拒并保持文件不变 |
+| `todo-check` 回归 | 一个真实 drop 的 merge fixture | 仍报 `TF-X present in … but missing from …` / `needs-user-input`（exit 2），未被新逻辑放过 |
+| `todo-check` 放行 | 同一 merge fixture 加 `## Removed` 记录 | `Records 1 authorized deletion(s)` → `STATUS: pass` |
+| 本分支区间审计 | `bash hooks/todo-check . "7dcff62..HEAD"` | `Merge commits in range: 0` → `pass`（本分支无 merge） |
+| smoke | `bash hooks/smoke-test` | `ALL SMOKE PASSED`（新增一节；首次运行时 fixture 缺 `cc` 条目与断言过宽，均已修正） |
+
 **未跑**：无。
 
 ## Change Log
@@ -110,6 +135,7 @@ Step 1–2 实施于 2026-09-19；Step 3 于 10:23 批准后完成。全部命�
 - 2026-09-19 v1 — 规则改写与断言替换；affects `SKILL.md`、`references/artifacts.md`、`RELEASE.md`、`CONTRIBUTING.md`、两份 `README`、`hooks/smoke-test`。
 - 2026-09-19 v1 — 用户当场确认「发布不切分支」，`CONTRIBUTING.md` 的例外句据此补上理由。
 - 2026-09-19 v1 — 用户批准 Plan（`+0800`，Approval 块已记录）；`task state` 推进为 `in_progress`；来源条目回写完成。
+- 2026-09-19 v1 — Step 4：CI 的 `todo-merge-audit` 在 PR #42 报 `TF-20260918-985164 present in … but missing from …`。这是 Step 2 的删除触发的**误报**，不是缺陷——检查无法区分「授权删除」与「merge 丢失」。按用户决定给删除留痕：`hooks/task remove` 先写 `## Removed` 再删，`hooks/todo-check` 认这段记录。修改了 `hooks/task`、`hooks/todo-check`、`hooks/smoke-test`。
 
 ## Follow-ups
 
