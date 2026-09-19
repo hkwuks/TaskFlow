@@ -8,11 +8,12 @@ The approval gate comes with the procedure instead of with a Plan's `## Approval
 
 ## Release scope
 
-TaskFlow ships as a repository plugin for Codex, Claude Code, and CodeBuddy. Keep these artifacts aligned:
+TaskFlow ships as a repository plugin for Claude Code, Codex CLI, CodeBuddy, and dsh. Keep these artifacts aligned:
 
 - `.codex-plugin/plugin.json` — Codex manifest and development cachebuster;
 - `.claude-plugin/plugin.json` — Claude Code manifest version;
 - `.codebuddy-plugin/plugin.json` — CodeBuddy manifest and development cachebuster;
+- `package.json` — the dsh bundle manifest (its `dsh.bundle.patch` is what makes the repository root installable as a dsh plugin);
 - `.claude-plugin/marketplace.json` and `.codebuddy-plugin/marketplace.json` — catalog entries pinned to the stable release tag and full commit SHA;
 - `skills/taskflow/` and `hooks/` — plugin contents;
 - README, governance documents, and release notes.
@@ -41,11 +42,15 @@ python3 <skill-creator>/scripts/quick_validate.py skills/taskflow   # <skill-cre
 git diff --check
 ```
 
-`hooks/release-check` compares the version literals a release has to move — both
-plugin manifests, the newest `CHANGELOG.md` section, and the `claude plugin list`
-sample in each README — and confirms each marketplace `ref` resolves to the
-commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is
-missing.
+`hooks/release-check` compares the version literals a release has to move — the
+three host manifests, the dsh bundle manifest, the newest `CHANGELOG.md` section,
+and the `claude plugin list` sample in each README — and confirms each marketplace
+`ref` resolves to the commit its `sha` names. It exits `2` on a mismatch and `3`
+when a manifest is missing.
+
+The dsh bundle manifest carries no cachebuster. dsh installs the package through
+pnpm rather than through a host-side plugin cache, so there is no stale-copy
+failure for a suffix to defeat; bump its `version` with the others.
 
 Do not claim an unavailable check passed; record limitations in the release notes.
 

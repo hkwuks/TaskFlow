@@ -1,0 +1,16 @@
+{
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary (DeepSeek Harness form).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' session-start"
+          }
+        ]
+      }
+    ]
+  }
+}

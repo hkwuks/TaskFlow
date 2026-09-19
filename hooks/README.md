@@ -10,6 +10,7 @@ taskflow/hooks/
 ├── hooks.json          # Claude Code wiring
 ├── hooks-codex.json    # Codex CLI wiring
 ├── hooks-codebuddy.json # CodeBuddy wiring
+├── hooks-dsh.json      # dsh wiring
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── session-record      # records the host session id in the selected task
 ├── install-merge-driver # configures the repo-local Todo merge driver
@@ -43,10 +44,13 @@ taskflow/hooks/
   does not have. Hooks are written to the POSIX subset deliberately — no
   `declare -A`, no `mapfile`, no GNU-only `sed -i`.
 - **One JSON per host** (`hooks.json` for Claude Code, `hooks-codex.json` for
-  Codex CLI, `hooks-codebuddy.json` for CodeBuddy); Codex's `commandWindows` lets
-  the codex file point at the same launcher on Windows. CodeBuddy substitutes
-  `${CODEBUDDY_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` alike, so its file calls
-  `bash` on `session-start` directly and skips the launcher.
+  Codex CLI, `hooks-codebuddy.json` for CodeBuddy, `hooks-dsh.json` for dsh);
+  Codex's `commandWindows` lets the codex file point at the same launcher on
+  Windows. CodeBuddy substitutes `${CODEBUDDY_PLUGIN_ROOT}` and
+  `${CLAUDE_PLUGIN_ROOT}` alike, so its file calls `bash` on `session-start`
+  directly and skips the launcher. dsh runs the hook through its own Claude Code
+  bridge and does *not* put `${CLAUDE_PLUGIN_ROOT}` in the environment, so its
+  file sets the variable on the command line — see the dsh note under Install.
 
 ## Install
 
@@ -64,6 +68,9 @@ codex plugin add taskflow@taskflow
 # CodeBuddy Code CLI (not the CodeBuddy IDE client)
 codebuddy plugin marketplace add hkwuks/TaskFlow  # or a local path
 codebuddy plugin install taskflow@taskflow
+
+# dsh (no marketplace; the repository root is the plugin package)
+dsh plugin --profile web add dsh-taskflow         # or a local path
 ```
 
 The plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,
@@ -77,6 +84,12 @@ SessionStart hook automatically:
   runs `bash "${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start"`. CodeBuddy's own
   bundled plugins use the `CODEBUDDY_` spelling, and it substitutes the
   `CLAUDE_` spelling too, so either resolves.
+- dsh has no manifest and no marketplace entry. The package's `dsh/index.js`
+  mounts `hooks/hooks-dsh.json` on dsh's Claude Code hook bridge at load time,
+  and the command sets `CLAUDE_PLUGIN_ROOT` itself: the bridge substitutes that
+  variable inside the command string but never exports it, and `session-start`
+  chooses its output shape from the environment. Without the prefix the hook
+  emits a top-level `additionalContext`, which the bridge's codec discards.
 
 For a non-plugin (manual) install — e.g. running hooks from a checked-out copy
 outside a plugin — the old wiring still works:
@@ -108,6 +121,9 @@ CodeBuddy manual install — put the same shape in `.codebuddy/settings.json`
 variable with an absolute path. CodeBuddy runs SessionStart with `source` fixed
 to `startup`; the shared matcher lists `startup` among its alternatives, so it
 matches whatever the host sends.
+
+dsh manual install — there is none to speak of: mounting the hook means mounting
+a plugin. Add the repository as a bundle and let `dsh/index.js` do it.
 
 ## Scope / safety
 

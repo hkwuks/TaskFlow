@@ -1,0 +1,11 @@
+# Self-activation layer for `dsh plugin --profile <name> add dsh-taskflow`: the
+# CLI reads `dsh.bundle.patch` from package.json and mounts TaskFlow's skill and
+# its SessionStart hook with no hand-written profile YAML.
+#
+# One insert, and no config. A patch's `baseUrl` is the *profile* directory, so
+# nothing written here could name the files that ship beside it; `dsh/index.js`
+# derives them from its own location and owns every path-dependent setting.
+
+- insert:
+    - id: taskflow
+      name: dsh-taskflow

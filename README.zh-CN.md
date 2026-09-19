@@ -17,7 +17,7 @@
 </div>
 
 > [!IMPORTANT]
-> **TaskFlow 是流程约定，不是 Agent。** 它不选择工具、也不替 Agent 决策。它可与宿主/工具链 hook（Claude Code、Codex CLI 与 CodeBuddy）协作做有边界的记账和上下文摘要；hook 绝不写核心文档、绝不代为批准。它为人和 Agent 提供一个共同的、可检查的地方，记录任务是什么以及它如何变化。
+> **TaskFlow 是流程约定，不是 Agent。** 它不选择工具、也不替 Agent 决策。它可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy 与 dsh）协作做有边界的记账和上下文摘要；hook 绝不写核心文档、绝不代为批准。它为人和 Agent 提供一个共同的、可检查的地方，记录任务是什么以及它如何变化。
 
 ## 它解决什么问题
 
@@ -61,7 +61,7 @@ TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立�
 
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
-可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，并列出该 checkout 里未提交的任务产物——未提交的任务目录会跟着你进入下一个 `git checkout` 的分支，于是被下一个任务接手。任务产物这一段不影响退出码，也不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对三个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
+可以运行 `bash hooks/repository-check [repo-root]` 获取可选的只读检查摘要。它会把缺失的基础治理文档和不明确的分支/远端信息标记为 `needs-user-input`，并列出该 checkout 里未提交的任务产物——未提交的任务目录会跟着你进入下一个 `git checkout` 的分支，于是被下一个任务接手。任务产物这一段不影响退出码，也不会挂到自动 hook 上。`bash hooks/release-check [repo-root]` 是同一类面向发布的报告：比对四个插件 manifest、`CHANGELOG.md` 最新的版本段落、两份 README 的 `claude plugin list` 示例中的版本号，并确认 marketplace 的 `ref` 与它声明的 `sha` 指向同一个提交。版本不一致时退出 `2`，manifest 缺失时退出 `3`；CI 在每次改动上都会运行它。
 
 用户对已批准任务提出修正或新增要求时，TaskFlow 必须先分类再修改文档：只改措辞或实现路径的澄清属于工作修订，仅更新受影响记录并在 Plan 变更日志记一行；改动已批准的目标、需求、验收、范围或契约才创建新 Task version 并回到批准门禁。不得带着过期 Plan 继续实施。
 
@@ -90,7 +90,7 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 
 在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI 与 CodeBuddy）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
+TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy 与 dsh）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
 
 ## 防止设计丢失的一条规则
 
@@ -150,7 +150,7 @@ stateDiagram-v2
 
 ## 快速开始
 
-TaskFlow 以插件形式分发（Claude Code / Codex / CodeBuddy 同一套市场）：`hooks/`、技能与安装配置都在一个仓库里，无需手动复制文件或手改 `settings.json`。
+TaskFlow 以插件形式分发（Claude Code / Codex / CodeBuddy 同一套市场，dsh 为独立插件包）：`hooks/`、技能与安装配置都在一个仓库里，无需手动复制文件或手改 `settings.json`。
 
 ### 用 Claude Code 安装
 
@@ -238,6 +238,37 @@ codebuddy plugin list
 
 CodeBuddy 通过 `/reload-plugins` 重新加载 hooks、技能和代理，无需重启。
 
+### 用 dsh 安装
+
+TaskFlow 的仓库根目录本身就是一个 dsh 插件包，安装它的 profile 会把它作为一层
+bundle 加载：
+
+```bash
+dsh plugin --profile web add dsh-taskflow
+```
+
+从本地检出目录安装则直接指向该目录：
+
+```bash
+dsh plugin --profile web add <仓库根目录>
+```
+
+该包声明了 `dsh.bundle.patch`，所以 `dsh` 会自行把它追加到 profile 的
+`dsh.profile.bundles`——不需要手写任何 profile YAML。启动该 profile 即可挂载
+TaskFlow 的技能与 SessionStart hook。
+
+dsh 通过 `hooks/hooks-dsh.json` 和 dsh 自带的 Claude Code hook 桥接，运行与其它宿主
+同一个 `hooks/session-start` 脚本。桥接的两个特性决定了这份配置的形态，两者都能在该
+文件中看到：hook 走 dsh 的拦截点而不是插件 manifest，命令串带有 `CLAUDE_PLUGIN_ROOT`
+前缀则是因为桥接只在该字符串内替换这个变量、并不导出它，而 `session-start` 依据环境
+变量选择输出格式。
+
+dsh 的 SessionStart 来源是 `startup`、`resume`、`clear`、`compact`，没有 `fork`，
+因此 dsh 的 matcher 不含它。
+
+dsh 没有插件市场，且 `dsh plugin add` 经由 pnpm 解析，所以升级用
+`dsh plugin --profile web update`。
+
 ### 想用本地副本？
 
 开发或检查源码时，可以把市场指向本地检出目录而不是 GitHub。这样会有意绕过远程稳定版固定点，插件和 hooks 改为使用你控制的本地文件：
@@ -254,6 +285,9 @@ codex plugin add taskflow@taskflow
 # CodeBuddy
 codebuddy plugin marketplace add <仓库根目录>
 codebuddy plugin install taskflow@taskflow
+
+# dsh（无市场：目录本身即插件包）
+dsh plugin --profile web add <仓库根目录>
 ```
 
 安装后告诉你的 Agent：
@@ -298,7 +332,7 @@ TaskFlow 不试图替代 SDD、角色化多 Agent 方法或项目管理工具，
 | **主要关注** | 任务状态与语义历史 | 规范驱动开发流程 | 可配置的规范/变更流程 | 角色化 Agent 方法论 | 负责人和任务协调 |
 | **核心单元** | 本地 TaskFlowDocs 目录 | Spec 与工作流产物 | Spec 与 change 产物 | Agent、角色与工作流 | Ticket、Card、Issue |
 | **设计恢复** | 明确的 `old/vN/` 归档 | 取决于仓库和采用的流程 | 取决于项目配置与 Git 实践 | 取决于所选流程和仓库历史 | 通常只有活动记录 |
-| **Agent 交互** | Skill 指令 + 有边界的宿主 hook 协作（Claude Code、Codex、CodeBuddy） | 工具/工作流约定 | 可配置工作流约定 | 角色与编排模式 | 通常在 Agent 上下文之外 |
+| **Agent 交互** | Skill 指令 + 有边界的宿主 hook 协作（Claude Code、Codex、CodeBuddy、dsh） | 工具/工作流约定 | 可配置工作流约定 | 角色与编排模式 | 通常在 Agent 上下文之外 |
 | **基础设施** | Markdown + 文件系统 + Git | 仓库文件与配套工具 | 仓库文件与配套工具 | 方法论资产与配套工具 | 通常是托管服务 |
 | **如何组合** | — | 用于生成规范，再将审阅后的事实放入任务目录 | 将审阅后的 Spec/change 放入任务目录 | 将角色产出作为参考/任务产物保存 | 将 Ticket 链接到任务目录 |
 
