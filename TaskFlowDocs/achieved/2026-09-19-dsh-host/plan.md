@@ -1,6 +1,6 @@
 # Plan — Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 

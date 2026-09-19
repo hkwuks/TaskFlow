@@ -1,6 +1,6 @@
 # Atomic release push
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

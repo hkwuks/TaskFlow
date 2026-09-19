@@ -1,6 +1,6 @@
 # Plan — Atomic release push
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 单文件文档改动，无跨层契约。
 

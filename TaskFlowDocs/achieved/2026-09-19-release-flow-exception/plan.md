@@ -1,7 +1,7 @@
 # Plan — 发布不再走 TaskFlow 任务工作流
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — 规则文本的改写与一处断言替换，无跨层契约。
 

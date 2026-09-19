@@ -1,6 +1,6 @@
 # Plan — Conflict side review and the zh-CN manifest count
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 一行事实修正加一条流程规则，无跨层契约。
 
