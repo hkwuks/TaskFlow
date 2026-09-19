@@ -2,6 +2,10 @@
 
 This is the manual, auditable release checklist for TaskFlow. Do not create a tag, GitHub Release, or package publication until the release owner approves the release commit.
 
+**This procedure is executed directly, on the base checkout.** A release does not create a TaskFlow task or a `todo.md` item, does not take a branch or a working tree, and does not write a PRD, Spec, or Plan — the repository's task workflow plans work that does not exist yet, and a release ships what is already merged. A release that also changes the plugin is development work; do that part under TaskFlow first, then release what merged. The record of a release is its `CHANGELOG.md` section and its GitHub Release body, both written below.
+
+The approval gate comes with the procedure instead of with a Plan's `## Approval` block: the release owner approves the release commit before step 5 pushes, and that approval is what the release notes and the catalog pin stand on. Never push a tag or open a GitHub Release that the owner has not approved.
+
 ## Release scope
 
 TaskFlow ships as a repository plugin for Codex, Claude Code, and CodeBuddy. Keep these artifacts aligned:
@@ -15,7 +19,7 @@ TaskFlow ships as a repository plugin for Codex, Claude Code, and CodeBuddy. Kee
 
 ## Before release
 
-Create a release TaskFlow task and confirm:
+Open the release from the base checkout and confirm:
 
 - target repository and base branch;
 - clean working tree and approved release scope;
@@ -43,11 +47,13 @@ sample in each README — and confirms each marketplace `ref` resolves to the
 commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is
 missing.
 
-Do not claim an unavailable check passed; record limitations in the release task.
+Do not claim an unavailable check passed; record limitations in the release notes.
 
 ## Release notes
 
-Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, the release commit (and Release PR when used), and the TaskFlow task link. Do not include secrets or unverified claims.
+The release notes are the record: the `CHANGELOG.md` section and the GitHub Release body carry it, and no other document is written for the release.
+
+Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, and the release commit (and Release PR when used). Do not include secrets or unverified claims.
 
 ## Tag, catalog pin, and GitHub Release
 
@@ -71,7 +77,7 @@ After the release scope is merged to the intended base (or the optional Release 
 6. Run `bash hooks/release-check .` again on the pushed `main`, and create the
    GitHub Release from the tag with the approved notes. Validate the catalog
    entry with Claude Code, Codex, and CodeBuddy tooling.
-7. Record the tag, release URL, commit, marketplace pin, and checks in the release task.
+7. Record the result in the release notes: the tag, the release URL, the commit, and the two marketplace pins.
 
 Steps 3–4 make a release two commits, by construction: the tag cannot be created
 before the release commit exists on the base, and the pinned `sha` cannot be
@@ -97,7 +103,7 @@ matter: it carries prose, so it takes the Release PR path above.
 
 If the remote rejects an atomic push, fall back to pushing the tag first and
 updating the catalog after, exactly as this document required before the
-atomic form existed, and record the resulting interval in the release task. Do
+atomic form existed, and record the resulting interval in the release notes. Do
 not work around the rejection by putting other files into the atomic push: that
 would make one unreviewable push out of the release metadata and an irreversible
 tag.
