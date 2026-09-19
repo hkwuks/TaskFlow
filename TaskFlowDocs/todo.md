@@ -804,3 +804,27 @@ Every direct request or imported requireme
 - Task: Not promoted.
 - Next action: Fix hooks/version so it writes the five-field Approval block; the gate reads a Status line version never writes.
 - Notes: **2026-09-19 发布 v1.0.7 时确认**：`hooks/version` 的复位只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 生成的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行。`require_approval` 判定的却是 `grep -qx -- "- Status: approved"`——它在检查一个 `version` 从不写入的字段，之所以通常还能工作，只因 `hooks/task` 生成模板时写了一次。`TF-20260918-454ac4`（Approval 自动化）已记同一处矛盾，本条是它的前提条件：两个 hook 对同一块内容的形状不先对齐，自动写出来的块会继承同样的分歧。
+
+## Measure whether delegating exploration to subagents actually reduces main-thread
+
+- ID: TF-20260919-90797c
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Measure whether delegating exploration to subagents actually reduces main-thread context, before adopting it as guidance.
+- Task: Not promoted.
+- Next action: Design the measurement, then run it on one real exploration.
+- Notes: **2026-09-19 用户提出**：subagent 委派能不能省 token，要**实测**才知道，别先写进指引。
+
+  **为什么值得测而不是直接采纳**：我给的论证是「读 `todo.md` 22k、整读 `SKILL.md`、反复读 `plan.md` 都在主线里做，丢给 subagent 就只回结论」。这条论证**在我这个会话里是空的**——我一次 subagent 都没用，所以那是推断不是观测。
+
+  **反方向的可能（必须先承认）**：subagent 有 setup 成本（重建 prompt、加载工具、自己走一遍检索），一次小读取委派出去可能**比直接读更贵**；它的结论还要回主线，如果结论本身很长，省的就不多。所以「委派总是更省」很可能是错的，**该测的是阈值**：多大的读取/搜索开始值得委派。
+
+  **测法（草案）**：同一件事（例如「找出 v1.0.6 到 main 之间哪些改动属于用户可见」）分别用「主线直接做」与「委派 subagent」各跑一次，记两边的：(a) 主线上下文增量，(b) 总 token（含 subagent 自身），(c) 结论质量是否够用。判据要**同时**看 (a) 与 (b)——只看主线增量会把成本藏进 subagent 里。
+
+  **可用的观测手段**：`/context` 看占用；会话 jsonl 在 `~/.claude/projects/<path>/` 下可解析每轮的输入 token；`ctx stats` 若可用。选一个能复现的，别靠感觉。
+
+  **落地条件**：只有实测显示某类探索稳定更省，才写进 `SKILL.md` 的 Phase 2/6（探索与复核）或 `CLAUDE.md` 的工作方式；否则结论就是「不采纳」，那也是有效结论。相关：本条与 `TF-20260919-76e7fb` 无关，属会话成本治理。
