@@ -828,3 +828,16 @@ Every direct request or imported requireme
   **可用的观测手段**：`/context` 看占用；会话 jsonl 在 `~/.claude/projects/<path>/` 下可解析每轮的输入 token；`ctx stats` 若可用。选一个能复现的，别靠感觉。
 
   **落地条件**：只有实测显示某类探索稳定更省，才写进 `SKILL.md` 的 Phase 2/6（探索与复核）或 `CLAUDE.md` 的工作方式；否则结论就是「不采纳」，那也是有效结论。相关：本条与 `TF-20260919-76e7fb` 无关，属会话成本治理。
+
+## Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin
+
+- ID: TF-20260919-55110d
+- Status: promoted
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin bundle that self-wires the existing skill and hooks with no manual config
+- Task: `TaskFlowDocs/2026-09-19-dsh-host/`
+- Next action: Complete PRD / Spec / Plan and request approval.

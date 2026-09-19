@@ -18,6 +18,7 @@ cd "$root"
 claude_manifest=".claude-plugin/plugin.json"
 codex_manifest=".codex-plugin/plugin.json"
 codebuddy_manifest=".codebuddy-plugin/plugin.json"
+dsh_manifest="package.json"
 marketplace=".claude-plugin/marketplace.json"
 codebuddy_marketplace=".codebuddy-plugin/marketplace.json"
 
@@ -27,7 +28,7 @@ codebuddy_marketplace=".codebuddy-plugin/marketplace.json"
 # file blocks the check instead — an absent manifest is a repository defect, not
 # a version mismatch to report.
 blocked=0
-for file in "$claude_manifest" "$codex_manifest" "$codebuddy_manifest" "$marketplace" "$codebuddy_marketplace" CHANGELOG.md README.md README.zh-CN.md; do
+for file in "$claude_manifest" "$codex_manifest" "$codebuddy_manifest" "$dsh_manifest" "$marketplace" "$codebuddy_marketplace" CHANGELOG.md README.md README.zh-CN.md; do
   if [ ! -f "$file" ]; then
     echo "- $file: missing"
     blocked=1
@@ -59,11 +60,14 @@ jpin() {
 claude_v="$(jversion "$claude_manifest")"
 # The Codex and CodeBuddy cachebusters suffix the version
 # (`1.0.5+codex.20260915`, `1.0.5+codebuddy.20260917`); only the release number
-# has to agree with the tag.
+# has to agree with the tag. The dsh bundle manifest carries no suffix.
 codex_v="$(jversion "$codex_manifest")"
 codex_release="${codex_v%%+*}"
 codebuddy_v="$(jversion "$codebuddy_manifest")"
 codebuddy_release="${codebuddy_v%%+*}"
+# The dsh bundle carries no cachebuster: dsh installs it through pnpm, which has
+# its own integrity record, rather than through a host-side plugin cache.
+dsh_v="$(jversion "$dsh_manifest")"
 # The newest *version* section, not simply the newest section: an `## [Unreleased]`
 # heading is the normal state between releases and is not a version literal.
 changelog_v="$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)"
@@ -74,6 +78,7 @@ echo "Version literals:"
 printf -- '- %s: %s\n' "$claude_manifest" "$claude_v"
 printf -- '- %s: %s\n' "$codex_manifest" "$codex_v"
 printf -- '- %s: %s\n' "$codebuddy_manifest" "$codebuddy_v"
+printf -- '- %s: %s\n' "$dsh_manifest" "$dsh_v"
 printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
 printf -- '- README.md (plugin list sample): %s\n' "$readme_v"
 printf -- '- README.zh-CN.md (plugin list sample): %s\n' "$readme_zh_v"
@@ -82,7 +87,7 @@ printf -- '- README.zh-CN.md (plugin list sample): %s\n' "$readme_zh_v"
 # and is checked separately. An unparseable literal would otherwise slip past the
 # equality loop as long as it matched something else, so the shape is validated
 # for all three rather than only the one that happens to have no suffix.
-for pair in "$claude_manifest:$claude_v" "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release"; do
+for pair in "$claude_manifest:$claude_v" "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release" "$dsh_manifest:$dsh_v"; do
   label="${pair%%:*}"; value="${pair#*:}"
   if ! printf '%s\n' "$value" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "- $label version is not X.Y.Z: ${value:-nothing}"
@@ -90,7 +95,8 @@ for pair in "$claude_manifest:$claude_v" "$codex_manifest:$codex_release" "$code
   fi
 done
 for pair in "CHANGELOG.md:$changelog_v" "README.md:$readme_v" "README.zh-CN.md:$readme_zh_v" \
-            "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release"; do
+            "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release" \
+            "$dsh_manifest:$dsh_v"; do
   label="${pair%%:*}"; value="${pair#*:}"
   if [ "$value" != "$claude_v" ]; then
     echo "- $label says ${value:-nothing}, $claude_manifest says $claude_v"

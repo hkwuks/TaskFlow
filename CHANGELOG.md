@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **DeepSeek Harness (dsh) support.** The repository root is now a dsh plugin package (`package.json` with `dsh.bundle.patch`), so `dsh plugin --profile <name> add dsh-taskflow` installs the skill and the SessionStart hook with no hand-written profile YAML. `dsh/index.js` mounts `@deepseek-ai/dsh-skill-filesystem` over the repository's own `skills/` and `@deepseek-ai/dsh-hooks-claude-code` over `hooks/hooks-dsh.json`, both of dsh's own packages rather than copies of them. The new wiring file sets `CLAUDE_PLUGIN_ROOT` on the command line because dsh's bridge substitutes that variable inside the command string but does not export it, and `hooks/session-start` chooses its output shape from the environment — without the prefix the hook's context is discarded silently. `hooks/release-check` now compares the dsh bundle manifest's version with the other three, and `hooks/smoke-test` runs the dsh wiring command the way dsh runs it.
+
 ## [1.0.7] — 2026-09-19
 
 ### Added

@@ -17,7 +17,7 @@
 </div>
 
 > [!IMPORTANT]
-> **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code, Codex CLI, and CodeBuddy) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
+> **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, and dsh) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
 
 <br />
 
@@ -94,7 +94,7 @@ Because every task appends to the one `TaskFlowDocs/todo.md`, TaskFlow ships a G
 
 Before creating or updating a pull request, TaskFlow reads the applicable `.github/pull_request_template.md`, satisfies every required item, records the field mapping and verification in `plan.md`, and blocks PR mutation when a required item is missing or ambiguous.
 
-Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`, and names any task artifact left uncommitted in the checkout — an uncommitted task directory follows you to whatever branch you check out next, so the next task inherits it. The task-artifact report never changes the exit code; it is not attached to automatic hooks. `bash hooks/release-check [repo-root]` is the same kind of report for a release: it compares the version literals in all three plugin manifests, the newest `CHANGELOG.md` section, and each README's `claude plugin list` sample, and confirms each marketplace `ref` resolves to the commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is missing; CI runs it on every change.
+Run `bash hooks/repository-check [repo-root]` for an opt-in, read-only readiness summary. It reports missing baseline governance and ambiguous branch/remote information as `needs-user-input`, and names any task artifact left uncommitted in the checkout — an uncommitted task directory follows you to whatever branch you check out next, so the next task inherits it. The task-artifact report never changes the exit code; it is not attached to automatic hooks. `bash hooks/release-check [repo-root]` is the same kind of report for a release: it compares the version literals in all four plugin manifests, the newest `CHANGELOG.md` section, and each README's `claude plugin list` sample, and confirms each marketplace `ref` resolves to the commit its `sha` names. It exits `2` on a mismatch and `3` when a manifest is missing; CI runs it on every change.
 
 Any user correction or addition to an approved task is classified before documents change: wording or approach clarifications are work revisions that update only affected records and the Plan change log; changes to an approved goal, requirement, acceptance criterion, scope, or contract create a Task version and return to approval. TaskFlow never continues implementation using an outdated plan.
 
@@ -123,7 +123,7 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 
 Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes.
 
-TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, and CodeBuddy) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; it never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
+TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, and dsh) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; it never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 
 ## The one rule that prevents lost designs
 
@@ -184,7 +184,7 @@ stateDiagram-v2
 
 ## Get started
 
-TaskFlow ships as a Claude Code / Codex / CodeBuddy plugin: the `hooks/`, skill, and install wiring are all in one marketplace. No copying files or editing `settings.json` by hand.
+TaskFlow ships as a Claude Code / Codex / CodeBuddy / dsh plugin: the `hooks/`, skill, and install wiring are all in one marketplace. No copying files or editing `settings.json` by hand.
 
 ### Install with Claude Code
 
@@ -273,6 +273,39 @@ codebuddy plugin list
 
 CodeBuddy reloads hooks, skills, and agents on `/reload-plugins` without a restart.
 
+### Install with dsh
+
+TaskFlow's repository root is a dsh plugin package, so the profile it is installed
+into picks it up as a bundle layer:
+
+```bash
+dsh plugin --profile web add dsh-taskflow
+```
+
+Installed from a checkout instead of the registry, point at the directory:
+
+```bash
+dsh plugin --profile web add <repo-root>
+```
+
+The package declares `dsh.bundle.patch`, so `dsh` appends it to the profile's
+`dsh.profile.bundles` itself — there is no profile YAML to write. Booting that
+profile then mounts TaskFlow's skill and its SessionStart hook.
+
+dsh wires the same `hooks/session-start` script the other hosts run, through
+`hooks/hooks-dsh.json` and dsh's own Claude Code hook bridge. Two things about the
+bridge shape the wiring, and both are visible in that file: taskflow's hook is
+reached through dsh's interception seams rather than a plugin manifest, and the
+command carries a `CLAUDE_PLUGIN_ROOT` prefix because the bridge substitutes that
+variable inside the command string but does not export it — `session-start` picks
+its output shape from the environment.
+
+dsh's SessionStart sources are `startup`, `resume`, `clear`, and `compact`; there
+is no `fork`, so the dsh matcher omits it.
+
+dsh has no plugin marketplace, and `dsh plugin add` resolves through pnpm, so a
+release is picked up with `dsh plugin --profile web update`.
+
 ### Prefer a local copy?
 
 For development or source inspection, point the marketplace at your checked-out
@@ -291,6 +324,9 @@ codex plugin add taskflow@taskflow
 # CodeBuddy
 codebuddy plugin marketplace add <repo-root>
 codebuddy plugin install taskflow@taskflow
+
+# dsh (no marketplace: the directory is the package)
+dsh plugin --profile web add <repo-root>
 ```
 
 Once installed, tell your Agent:
@@ -335,7 +371,7 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 | **Primary concern** | Task state and semantic history | Spec-driven workflow | Configurable spec/change workflow | Role-based Agent methodology | Ownership and coordination |
 | **Core unit** | Local TaskFlowDocs directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
 | **Design recovery** | Explicit `old/vN/` archive | Adoption/repository dependent | Project/Git practice dependent | Workflow/repository dependent | Usually activity history only |
-| **Agent interaction** | Skill instructions + bounded host-hook coordination (Claude Code, Codex, CodeBuddy) | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
+| **Agent interaction** | Skill instructions + bounded host-hook coordination (Claude Code, Codex, CodeBuddy, dsh) | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
 | **Infrastructure** | Markdown + filesystem + Git | Adopted repository tooling | Adopted repository tooling | Method assets + adopted tooling | Usually a hosted service |
 | **Use it with TaskFlow?** | — | Generate specs, then route reviewed task facts into TaskFlow | Route reviewed specs/changes into TaskFlow | Keep role outputs as reviewed task references | Link a ticket to its task directory |
 
@@ -383,12 +419,13 @@ hooks/                               # optional host/harness hooks — see hooks
 ├── merge-todo                       # the driver: merges todo.md by entry
 ├── task / archive / version / reopen # explicit lifecycle commands
 ├── release-check / todo-check       # release literals; dropped Todo entries
-├── hooks{,-codex,-codebuddy}.json   # one wiring file per host
+├── hooks{,-codex,-codebuddy,-dsh}.json   # one wiring file per host
 └── run-hook.cmd                     # cross-platform launcher
 
 evals/                               # offline routing evals (runner.py + cases/, fixtures/)
 tools/fixture-compare                # byte-compares two smoke-test fixture runs
 .claude-plugin/ .codex-plugin/ .codebuddy-plugin/   # host manifests and catalogs
+dsh/ + package.json                  # dsh bundle plugin: mounts the skill and the hooks
 .github/workflows/hooks.yml          # CI: smoke matrix, release, todo audit, evals
 ```
 

@@ -1119,6 +1119,8 @@ mkdir -p "$rel/.claude-plugin" "$rel/.codex-plugin" "$rel/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rel/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rel/.codebuddy-plugin/plugin.json"
+# The dsh bundle manifest carries no cachebuster: dsh installs it through pnpm.
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/package.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$rel/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$rel/README.md"
 cp "$rel/README.md" "$rel/README.zh-CN.md"
@@ -1163,6 +1165,12 @@ sed 's/9\.9\.9+codebuddy\.20991231/9.9.8+codebuddy.20991231/' "$rel/.codebuddy-p
 if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL stale CodeBuddy manifest accepted"; exit 1; fi
 grep -q '.codebuddy-plugin/plugin.json says 9.9.8' "$rel/out" || { echo "FAIL stale CodeBuddy manifest not named"; cat "$rel/out"; exit 1; }
 sed 's/9\.9\.8+codebuddy\.20991231/9.9.9+codebuddy.20260917/' "$rel/.codebuddy-plugin/plugin.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/.codebuddy-plugin/plugin.json"
+
+# The dsh bundle manifest is compared the same way, without a suffix to strip.
+sed 's/"version": "9\.9\.9"/"version": "9.9.8"/' "$rel/package.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/package.json"
+if bash "$HERE/release-check" "$rel" >"$rel/out" 2>&1; then echo "FAIL stale dsh manifest accepted"; exit 1; fi
+grep -q 'package.json says 9.9.8' "$rel/out" || { echo "FAIL stale dsh manifest not named"; cat "$rel/out"; exit 1; }
+sed 's/"version": "9\.9\.8"/"version": "9.9.9"/' "$rel/package.json" > "$rel/c.tmp"; mv "$rel/c.tmp" "$rel/package.json"
 
 # The pin and the tag must name one commit; this is what Claude Code refuses at
 # install time as `sha_pin_mismatch`, and it is the one failure a release cannot
@@ -1445,6 +1453,36 @@ bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
 tc_status=$?
 set -e
 [ "$tc_status" -eq 2 ] || { echo "FAIL single-commit fallback exit code: $tc_status"; cat "$tc/out"; exit 1; }
+echo ok
+
+echo "== the dsh wiring runs session-start the way dsh runs it =="
+# dsh's Claude Code bridge substitutes ${CLAUDE_PLUGIN_ROOT} in the command string
+# and runs it through a `bash -c` seam, exporting only CLAUDE_PROJECT_DIR. The
+# command therefore sets CLAUDE_PLUGIN_ROOT itself, and this section proves why it
+# has to: without the prefix the hook takes its fallback branch, emits a top-level
+# additionalContext, and dsh's codec -- which reads only the nested
+# hookSpecificOutput.additionalContext -- discards the context silently. That
+# failure is invisible to every other check here, because the hook still exits 0
+# and still prints JSON.
+dsh_cmd="$(sed -n 's/.*"command":[[:space:]]*"\(.*\)".*/\1/p' "$HERE/hooks-dsh.json" | head -1)"
+[ -n "$dsh_cmd" ] || { echo "FAIL hooks-dsh.json declares no command"; exit 1; }
+case "$dsh_cmd" in
+  CLAUDE_PLUGIN_ROOT=*) ;;
+  *) echo "FAIL hooks-dsh.json command does not set CLAUDE_PLUGIN_ROOT: dsh's codec would discard the hook's output"; exit 1 ;;
+esac
+dsh_resolved="$(printf '%s' "$dsh_cmd" | sed "s|\${CLAUDE_PLUGIN_ROOT}|$HERE/..|g")"
+dsh_out="$(printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"smoke"}\n' "$tmp" \
+  | (cd "$tmp" && CLAUDE_PROJECT_DIR="$tmp" bash -c "$dsh_resolved" 2>&1))" || {
+  echo "FAIL the dsh wiring command did not run:"; printf '%s\n' "$dsh_out"; exit 1
+}
+printf '%s' "$dsh_out" | grep -q '"hookSpecificOutput"' || {
+  echo "FAIL the dsh wiring produced a top-level context dsh would discard:"
+  printf '%s\n' "$dsh_out"; exit 1
+}
+printf '%s' "$dsh_out" | grep -q '"hookEventName": *"SessionStart"' || {
+  echo "FAIL the dsh wiring output carries no matching hookEventName:"
+  printf '%s\n' "$dsh_out"; exit 1
+}
 echo ok
 
 echo "== the hook launcher executes the way the harness executes it =="

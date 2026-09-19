@@ -17,14 +17,16 @@ TaskFlow ships reference hook configs for:
 | Claude Code | plugin root `hooks/hooks.json` (auto-loaded standard hooks file), or `.claude/settings.json` for a manual install | `hooks/hooks.json` |
 | Codex CLI | `.codex-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codex.json`), or `<repo>/.codex/hooks.json` for a manual install | `hooks/hooks-codex.json` |
 | CodeBuddy | `.codebuddy-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codebuddy.json`), or `.codebuddy/settings.json` for a manual install | `hooks/hooks-codebuddy.json` |
+| dsh | the plugin package's `dsh/index.js` mounts `hooks-dsh.json` through dsh's Claude Code hook bridge; the bundle patch is what pulls the package in | `hooks/hooks-dsh.json` |
 
 Install every host by command from the repository marketplace — no file copying:
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
 `codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`;
 `codebuddy plugin marketplace add hkwuks/TaskFlow && codebuddy plugin install taskflow@taskflow`
-(a local directory path works in place of the GitHub owner/repo).
+(a local directory path works in place of the GitHub owner/repo). dsh has no marketplace:
+its command is `dsh plugin --profile <name> add <package-or-directory>`.
 
-All three hosts expose plugin management as shell subcommands of their own CLI. CodeBuddy
+The three marketplace hosts expose plugin management as shell subcommands of their own CLI. CodeBuddy
 Code is a separate binary from the CodeBuddy IDE client; the IDE client does not implement
 `plugin` commands, so the CLI is required to install or validate the plugin.
 
@@ -32,16 +34,38 @@ An environment running any other agent host needs no hooks: it continues with th
 
 ## Event map
 
-| TaskFlow need | Claude Code | Codex CLI | CodeBuddy |
-| --- | --- | --- | --- |
-| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` |
-| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly |
-| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` |
-| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` |
-| Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` |
-| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` |
+| TaskFlow need | Claude Code | Codex CLI | CodeBuddy | dsh |
+| --- | --- | --- | --- | --- |
+| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` | `agent/session-start` → `hookSpecificOutput.additionalContext` |
+| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly | `run-hook.cmd`, reached through dsh's `bash -c` seam |
+| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` | `tools/post-execute` |
+| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` |
+| Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) |
+| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` |
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release.
+
+### dsh specifics
+
+dsh runs the hook through its own first-party Claude Code bridge
+(`@deepseek-ai/dsh-hooks-claude-code`), which translates each Claude Code event
+onto a dsh interception seam. Three details differ, and each was measured against
+an installed dsh rather than assumed:
+
+- **Plugin root is not exported.** The bridge substitutes `${CLAUDE_PLUGIN_ROOT}`
+  inside the `command` string at config-parse time and exports only
+  `CLAUDE_PROJECT_DIR`. `hooks-dsh.json` therefore sets `CLAUDE_PLUGIN_ROOT` on
+  the command line (`CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash ...`), because
+  dsh's shell seam runs `bash -c` and honours a `VAR=value` prefix. Without it
+  `session-start` takes its fallback branch, emits a top-level
+  `additionalContext`, and the bridge's codec discards it silently.
+- **SessionStart sources.** dsh emits `startup`, `resume`, `clear`, or `compact`.
+  There is no `fork`, so the dsh matcher omits it; the other four match the shared
+  script unchanged.
+- **No plugin manifest.** dsh has no per-host manifest file. The repository root
+  is the plugin package, and `dsh/index.js` mounts `hooks-dsh.json` on the bridge
+  at load time. The file name is therefore a TaskFlow choice, not a host
+  convention, and nothing outside `dsh/index.js` reads it.
 
 ### CodeBuddy specifics
 
@@ -140,6 +164,10 @@ repo-root/
     ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./skills/)
     ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./skills/)
     ├── .codebuddy-plugin/plugin.json    # CodeBuddy manifest (skills: ./skills/taskflow)
+    ├── package.json                     # dsh plugin package (dsh.bundle.patch)
+    ├── dsh/
+    │   ├── index.js                     # mounts the skill provider and the hook bridge
+    │   └── cordis.patch.yml             # bundle layer: one insert of the plugin row
     ├── skills/taskflow/
     │   ├── SKILL.md
     │   ├── agents/openai.yaml
@@ -149,6 +177,7 @@ repo-root/
         ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
         ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
         ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart)
+        ├── hooks-dsh.json               # dsh wiring (SessionStart)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── session-record               # records the host session id in the task index
@@ -168,4 +197,4 @@ repo-root/
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.
 
-`hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. The other hosts point at their file through a manifest `hooks` entry, so only Claude Code depends on the name.
+`hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. Every other host points at its file some other way — a manifest `hooks` entry for Codex and CodeBuddy, `dsh/index.js` for dsh — so only Claude Code depends on the name.
