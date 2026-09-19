@@ -757,3 +757,50 @@ Every direct request or imported requireme
 - Goal: Publish TaskFlow v1.0.7: the conflict-review rule, the executable launcher, task next/get, and the README surfaces that shipped after v1.0.6.
 - Task: `TaskFlowDocs/2026-09-18-release-v1-0-7/`
 - Next action: Step 1 done; run the Validation checklist.
+
+## Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an e
+
+- ID: TF-20260919-76e7fb
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an existing RELEASE.md procedure, and its documents cannot be inherited because the task type does not exist.
+- Task: Not promoted.
+- Next action: Decide the user's chosen shape: a release stops going through TaskFlow's PRD/Plan entirely.
+- Notes: **2026-09-19 用户实测后提出**：发布 v1.0.7 太慢，且**又走了 PRD 与分支的旧流程**（当天先改了一轮才纠正分支，Plan 从 157 行压到 116 行仍偏重）。用户已选定方向：**发布完全不走 TaskFlow 的 PRD/Plan**，只留精简记录。
+  **两处根因（我先查的，不是猜的）**：
+  (1) **任务类型不存在**。`hooks/task promote <todo-id> <task-id> <small|large>` 只有两个尺寸选项，没有 `release` 类型。于是每个发布任务都被生成成通用的七节 PRD 骨架（Goal / Background / Requirements / Acceptance / In Scope / Out of Scope / Risks / Open Questions），而 `skills/taskflow/references/artifacts.md:115-121` 的「Release task documents」规则要求**记录决策与结果、不重述程序**——生成的骨架与规则直接冲突，每次都靠人手削。v1.0.4 77 行、v1.0.5 101、v1.0.6 141、v1.0.7 116，一轮比一轮重。
+  (2) **规则是渐进披露的，但发布头几步没人会去读它**。`SKILL.md` 的 `## Supporting references` 明写 `artifacts.md` 是「Read these only when needed」，而发布任务的定义（`RELEASE.md:18`：创建一个发布任务）出现在 SKILL.md 的 Phase 1 之前，那时还没有任何东西提示去读 `artifacts.md`。规则存在 ≠ 规则生效——本条就是活例：`RELEASE.md` 与 `artifacts.md` 里都写着正确答案，我读了却没对上自己的动作。
+  **分支那半的根因**：`CONTRIBUTING.md:16` 的硬要求是「每个任务一个短生命周期分支」，它没有给发布留例外；而 `RELEASE.md` 的默认路径是**直接从 main 打标签**。两条规则互相矛盾时，默认读到的是 `CONTRIBUTING.md`（它是 code 阶段的硬规则），于是自加了 `chore/release-v1-0-7`。
+  **修法**（待开工时定）：给发布一个不再走 PRD/Plan 的路径——可能是 `promote <size>` 增加 `release` 形态只生成一行记录，或 `RELEASE.md` 直接规定「发布不创建 TaskFlow 任务，只在 `achieved/` 留一条结果记录」；同时明确 `CONTRIBUTING.md` 的分支要求是否豁免发布。相关：`TF-20260919-2877ca`（让程序自述）、`TF-20260919-b7821b`（修 `version` 的 Approval 形状）。
+
+## Make the release procedure self-describing so a release task does not need a PRD
+
+- ID: TF-20260919-2877ca
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Make the release procedure self-describing so a release task does not need a PRD-and-Plan re-planning cycle.
+- Task: Not promoted.
+- Next action: Decide the self-describing shape; depends on the release-task-type decision in TF-20260919-76e7fb.
+- Notes: **2026-09-19 提出**：发布流程目前靠「先读 RELEASE.md 再看 SKILL.md 再想起来 artifacts.md 有发布规则」这条链条，任何一环没接上就退回通用流程。可操作的方向是让 **RELEASE.md 自己成为入口**——在它开头写一行「本程序由 TaskFlow 的发布流程执行；不创建 PRD/Spec/Plan，只留结果记录」，把规则推到 Agent 一定会读到的地方（执行发布时读的正是 RELEASE.md）。另一种是让 `hooks/task` 在识别到发布类目标时直接把 RELEASE.md 的路径写进任务记录。与 `TF-20260919-76e7fb` 同源：那条决定发布要不要走 TaskFlow，本条决定如果不走，规则放在哪才不会被跳过。
+
+## Make hooks/version write the same five-field Approval block hooks/task generates
+
+- ID: TF-20260919-b7821b
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: audit follow-up
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Make hooks/version write the same five-field Approval block hooks/task generates, so the plan gate and the version reset agree.
+- Task: Not promoted.
+- Next action: Fix hooks/version so it writes the five-field Approval block; the gate reads a Status line version never writes.
+- Notes: **2026-09-19 发布 v1.0.7 时确认**：`hooks/version` 的复位只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 生成的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行。`require_approval` 判定的却是 `grep -qx -- "- Status: approved"`——它在检查一个 `version` 从不写入的字段，之所以通常还能工作，只因 `hooks/task` 生成模板时写了一次。`TF-20260918-454ac4`（Approval 自动化）已记同一处矛盾，本条是它的前提条件：两个 hook 对同一块内容的形状不先对齐，自动写出来的块会继承同样的分歧。
