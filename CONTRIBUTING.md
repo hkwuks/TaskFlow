@@ -11,9 +11,11 @@
 
 Non-trivial changes require a Todo item, `prd.md`, `spec.md` when large, and `plan.md`. Do not implement until the Plan records user approval. Record verification and follow-ups in the Plan. Archive completed tasks under `TaskFlowDocs/achieved/` only after acceptance.
 
+**A release is the exception.** It runs `RELEASE.md` directly, on the base checkout: no Todo item, no task directory, no PRD or Plan. `RELEASE.md` carries the approval gate a Plan's `## Approval` block otherwise provides.
+
 ## Working branches
 
-Never implement in the base working tree. One task, one short-lived branch, created before the first edit — and before the first task document, which is written in the planning phase:
+Never implement in the base working tree. One task, one short-lived branch, created before the first edit — and before the first task document, which is written in the planning phase. A release is the one exception: it takes no branch, because it tags the base commit it already verified:
 
 ```bash
 git worktree add .worktrees/<slug> -b <type>/<slug> <base>

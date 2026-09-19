@@ -668,14 +668,17 @@ for token in '^## Approval$' '^- Status:' '> Task version:' '### Step '; do
 done
 echo ok
 
-echo "== release task documents point at the procedure instead of restating it =="
-# A release copies its checklist into the Plan whenever the rule is unstated, and
-# the copy is what drifts from RELEASE.md. Pin the rule, then pin that the
-# approval and archive requirements survive it.
-grep -q '^## Release task documents$' "$skill/references/artifacts.md" || { echo "FAIL release document rule missing"; exit 1; }
-grep -q 'RELEASE.md` is the plan' "$skill/references/artifacts.md" || { echo "FAIL release rule does not name the procedure"; exit 1; }
-grep -q 'referring to that document by section instead of repeating its commands' "$skill/references/artifacts.md" || { echo "FAIL release rule does not forbid restating the checklist"; exit 1; }
-grep -q 'Keep `## Approval` and archiving unchanged' "$skill/references/artifacts.md" || { echo "FAIL release rule dropped the approval requirement"; exit 1; }
+echo "== a release runs RELEASE.md instead of the task workflow =="
+# A release that also takes the task path re-plans an existing procedure and
+# copies RELEASE.md's checklist into a second document that then drifts from it.
+# Pin that a release is out of the task workflow, and that the approval gate the
+# task path would have recorded still exists inside the procedure.
+grep -q '^## Release task documents$' "$skill/references/artifacts.md" || { echo "FAIL release rule missing"; exit 1; }
+grep -q 'A release does not use task documents at all' "$skill/references/artifacts.md" || { echo "FAIL release rule does not exclude the task path"; exit 1; }
+grep -q 'A release is the exception' "$skill/SKILL.md" || { echo "FAIL applicability gate does not exempt a release"; exit 1; }
+grep -q 'the release owner approves the release commit before' "$skill/references/artifacts.md" || { echo "FAIL release rule dropped the approval gate"; exit 1; }
+grep -q '^\*\*A release is the exception\.\*\*' "$repo/CONTRIBUTING.md" || { echo "FAIL contributing does not exempt a release"; exit 1; }
+grep -q 'does not create a TaskFlow task or a `todo.md` item' "$repo/RELEASE.md" || { echo "FAIL RELEASE.md does not exclude the task path"; exit 1; }
 echo ok
 
 echo "== phases map to concept classes without naming a capability =="

@@ -114,11 +114,9 @@ List a capability only after an actual invocation attempt. Discovery or selectio
 
 ## Release task documents
 
-A release runs an existing procedure rather than designing one, so its documents record decisions and results and do not restate the procedure. `RELEASE.md` is the plan; a release task that copies its checklist into `## Steps` creates a second copy that drifts.
+A release does not use task documents at all. It runs `RELEASE.md` directly, on the base checkout, with no Todo item, no task directory, no branch, and no PRD, Spec, or Plan — so there is nothing here to restate a procedure or to drift from one. The record of a release is its `CHANGELOG.md` section and its GitHub Release body; `RELEASE.md` names what they carry, and this reference does not repeat it.
 
-- `prd.md` carries the goal, the version number and why it was chosen, the changes being released with a pointer to their task directories, and the acceptance criteria. It does not re-describe the workflow or restate the changelog.
-- `plan.md` has one Step per phase of `RELEASE.md` — metadata, then tag and GitHub Release — referring to that document by section instead of repeating its commands. Record what actually ran, its result, and the recorded tag, release URL, commit, and marketplace pin.
-- Keep `## Approval` and archiving unchanged: pushing a tag and publishing a release are the irreversible outward actions, and the approval block is what makes "who approved which version, when" answerable afterwards.
+The approval a Plan's `## Approval` block normally records comes with the procedure instead: the release owner approves the release commit before `RELEASE.md`'s step 5 pushes. A release that also changes the plugin is ordinary development work and takes the full path above; only shipping what is already merged is the exception.
 
 ## Output routing
 
