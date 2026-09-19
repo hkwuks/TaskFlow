@@ -2,10 +2,6 @@
 
 This is the repository's single lightweight intake list. It stores triage metadata only. After promotion, the linked TaskFlow directory is the sole source of requirements, design, plan, and verification facts.
 
-## Removed
-
-- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
-
 ## Status flow
 
 `inbox → clarified → promoted → in_progress → done/cancelled`
@@ -13,6 +9,10 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+
+## Removed
+
+- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
 
 ## Record the host SessionStart session_id in the active task's sessions.md
 
