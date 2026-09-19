@@ -1,10 +1,31 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.8] — 2026-09-19
 
 ### Added
 
 - **DeepSeek Harness (dsh) support.** The repository root is now a dsh plugin package (`package.json` with `dsh.bundle.patch`), so `dsh plugin --profile <name> add dsh-taskflow` installs the skill and the SessionStart hook with no hand-written profile YAML. `dsh/index.js` mounts `@deepseek-ai/dsh-skill-filesystem` over the repository's own `skills/` and `@deepseek-ai/dsh-hooks-claude-code` over `hooks/hooks-dsh.json`, both of dsh's own packages rather than copies of them. The new wiring file sets `CLAUDE_PLUGIN_ROOT` on the command line because dsh's bridge substitutes that variable inside the command string but does not export it, and `hooks/session-start` chooses its output shape from the environment — without the prefix the hook's context is discarded silently. `hooks/release-check` now compares the dsh bundle manifest's version with the other three, and `hooks/smoke-test` runs the dsh wiring command the way dsh runs it.
+- `hooks/task remove <todo-id> <reason>` — records the ID in a `## Removed` section and deletes the entry in the same write, so the intent is stated before the entry disappears. An entry whose `Task:` is not `Not promoted.` is refused, because deleting it would leave its task directory with no Todo record; unknown IDs and empty reasons are refused before anything is written.
+
+### Fixed
+
+- **`todo-merge-audit` failed on an authorized deletion.** `hooks/todo-check` reports any `- ID:` a merge commit's parent held and the result does not, which is exactly the failure it exists to catch — so it could not tell an authorized removal from a merge that lost an entry, and the release-workflow change tripped it on a deletion the owner had approved. `hooks/todo-check` now subtracts the IDs a commit records in `## Removed`, and behaves exactly as before when no record is present.
+- `hooks/task remove` wrote its `## Removed` section between the header and the status flow, where it displaced the preamble a reader starts from. It now lands below the preamble. Found by running the command against the live `todo.md` rather than a fixture: the fixture had no preamble to expose it.
+
+### Compatibility
+
+- **A release no longer goes through TaskFlow.** `RELEASE.md` is the whole procedure and runs directly on the base checkout: no Todo item, no task directory, no branch, and no PRD, Spec, or Plan — the task workflow plans work that does not exist yet, and a release ships what is already merged. Its record is this `CHANGELOG.md` section and the GitHub Release body, and the approval gate moves with the procedure: the release owner approves the release commit before `RELEASE.md`'s step 5 pushes. A release that also changes the plugin is ordinary development work and still takes the full path. Nothing about installation changes.
+- **dsh is the fourth host, and it installs outside the marketplaces.** `dsh plugin --profile <name> add dsh-taskflow` reads `dsh.bundle.patch` from the package manifest; there is no dsh catalog, so the two marketplace pins do not describe it. `hooks/release-check` compares its version with the other three manifests, and it carries no cachebuster because dsh installs through pnpm rather than a host-side plugin cache.
+- **No change to the hook set or the other three hosts.** `hooks/session-start` is byte-identical, and `hooks/hooks.json`, `hooks-codex.json`, and `hooks-codebuddy.json` are untouched. The dsh wiring adapts to the shared script rather than the reverse.
+- **A release is two commits by construction.** The marketplace pin names a commit that cannot exist before the tag does, so the pin lands as a second commit after the tag. Claude Code verifies the pin at install time and refuses a mismatch as `sha_pin_mismatch`; it clones by the pinned commit rather than by the tag, which is what keeps an installation on the reviewed release if the tag is ever moved.
+
+### Verification
+
+- `bash hooks/smoke-test` — passed on Ubuntu, macOS, and Windows GitHub Actions runners.
+- `bash hooks/release-check .` — passed, over four manifests.
+- `python3 evals/runner.py` — passed.
+- TaskFlow Skill validator — passed.
+- The dsh host was verified against an installed dsh 0.1.5-rc.2 at three layers: `dsh --profile <name> --dump-config` composited the TaskFlow row at exit 0; booting that profile listed exactly one skill, `taskflow`, from the provider the plugin registers; and dsh's own `matchesMatcher` and `parseHookOutput` accepted the shipped hook's matcher and read its real stdout back as SessionStart context, with negative controls. A live model turn and Windows were not exercised for this host.
 
 ## [1.0.7] — 2026-09-19
 
