@@ -1,6 +1,6 @@
 ---
 name: taskflow
-description: "Manage repository development requests through TaskFlow: features, fixes, refactors, tests, configuration/build/CI changes, release preparation, and explicit $taskflow planning or research. Do not use for read-only explanation, translation, status, research, review, or diagnosis unless the user explicitly invokes $taskflow."
+description: "Manage repository development requests through TaskFlow: features, fixes, refactors, tests, configuration/build/CI changes, and explicit $taskflow planning or research. Not for releases, which run RELEASE.md directly, and not for read-only explanation, translation, status, research, review, or diagnosis unless the user explicitly invokes $taskflow."
 ---
 
 # TaskFlow
@@ -9,7 +9,9 @@ Use this skill as the single entry point for the project's task framework. It de
 
 ## Applicability gate
 
-Apply TaskFlow automatically only when the request asks to modify a repository or deliver a development artifact, including a feature, bug fix, refactor, test, configuration/build/CI change, or release preparation. Do not create or update Todo/task documents for read-only explanation, translation, status queries, research, review, or diagnosis. If such work later leads to an implementation request, begin TaskFlow with that new request. An explicit user request to use `$taskflow` opts any planning or research work into this workflow.
+Apply TaskFlow automatically only when the request asks to modify a repository or deliver a development artifact, including a feature, bug fix, refactor, test, or configuration/build/CI change. Do not create or update Todo/task documents for read-only explanation, translation, status queries, research, review, or diagnosis. If such work later leads to an implementation request, begin TaskFlow with that new request. An explicit user request to use `$taskflow` opts any planning or research work into this workflow.
+
+**A release is the exception: it does not pass through TaskFlow.** `RELEASE.md` is the procedure, and it runs from the base checkout with no TaskFlow task, no Todo item, no branch, and no PRD, Spec, or Plan. Its record is the `CHANGELOG.md` section and the GitHub Release body. An explicit `$taskflow` request, or a release that changes the plugin itself rather than shipping what is already merged, is ordinary development work and is handled as one.
 
 Decide this applicability before Todo intake. If TaskFlow does not apply, answer or investigate directly and stop reading this workflow.
 

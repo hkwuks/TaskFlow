@@ -67,7 +67,7 @@ TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立�
 
 ## Todo 收件箱
 
-TaskFlow 只自动用于仓库开发需求：功能、Bug 修复、重构、测试、配置/构建/CI 变更和发布准备。只读解释、翻译、状态查询、研究、审查和诊断不会创建 Todo 或任务文档；若之后要求实施，再从该实施请求开始进入流程。用户显式调用 `$taskflow` 时，规划或研究也会进入流程。对于适用请求，`TaskFlowDocs/todo.md` 是强制首条记录；条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进，提升后创建 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。
+TaskFlow 只自动用于仓库开发需求：功能、Bug 修复、重构、测试、配置/构建/CI 变更。**发布是例外**——它直接在 base 检出上执行 `RELEASE.md`，不创建 Todo 条目、任务目录、分支，也不写 PRD/Plan；它的记录是 `CHANGELOG.md` 段落与 GitHub Release 正文。只读解释、翻译、状态查询、研究、审查和诊断不会创建 Todo 或任务文档；若之后要求实施，再从该实施请求开始进入流程。用户显式调用 `$taskflow` 时，规划或研究也会进入流程。对于适用请求，`TaskFlowDocs/todo.md` 是强制首条记录；条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进，提升后创建 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。
 
 验证通过后，TaskFlow 将整个任务目录移入 `TaskFlowDocs/achieved/<task-id>/`，同步 Todo 的任务路径和 `done` 状态，并确认活动路径已不存在。已归档任务只读；其 `old/vN/` 历史仅在当前文档或版本摘要需要时才读取。之后若新工作属于该已完成交付物，先将目录取回活动根目录，记录 Todo 来源与重新打开原因，创建新的 Task version，并在修改实现前重新经过批准门禁。
 
@@ -319,7 +319,7 @@ dsh plugin --profile web add <仓库根目录>
 
 `.github/workflows/hooks.yml` 在每次推送 `main` 和每个 Pull Request 上跑四个作业：`smoke`（Ubuntu / macOS / Windows 矩阵）、`release`、`todo-merge-audit`（推送范围内没有 merge 丢掉 Todo 条目）、`evals`。smoke 作业刻意不安装任何语言运行时——hook 本身不依赖运行时，所以一旦某个 hook 长出解释器依赖，会在这里失败，而不是等到用户会话里才暴露。
 
-`CONTRIBUTING.md` 列出提交 Pull Request 前必须跑的检查，包括 `hooks/smoke-test`、Skill 校验器和 `git diff --check`。`RELEASE.md` 是发布清单：一次发布要挪动的版本字面量、发布标签与其 catalog pin 必须遵守的两提交顺序，以及回退规则。
+`CONTRIBUTING.md` 列出提交 Pull Request 前必须跑的检查，包括 `hooks/smoke-test`、Skill 校验器和 `git diff --check`。`RELEASE.md` 是发布清单：一次发布要挪动的版本字面量、发布标签与其 catalog pin 必须遵守的两提交顺序，以及回退规则。它在 base 检出上执行，而不是作为一个 TaskFlow 任务。
 
 hook 本身的说明在 [`hooks/README.md`](hooks/README.md)——每个 hook 允许写什么、为什么是 extensionless bash 且不依赖语言运行时，以及各宿主的接线方式。
 

@@ -769,8 +769,9 @@ Every direct request or imported requireme
 - Updated: 2026-09-19
 - Goal: Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an existing RELEASE.md procedure, and its documents cannot be inherited because the task type does not exist.
 - Task: Not promoted.
-- Next action: Decide the user's chosen shape: a release stops going through TaskFlow's PRD/Plan entirely.
+- Next action: Delivered by 2026-09-19-release-flow-exception; awaiting that task's merge.
 - Notes: **2026-09-19 用户实测后提出**：发布 v1.0.7 太慢，且**又走了 PRD 与分支的旧流程**（当天先改了一轮才纠正分支，Plan 从 157 行压到 116 行仍偏重）。用户已选定方向：**发布完全不走 TaskFlow 的 PRD/Plan**，只留精简记录。
+- **2026-09-19 交付**：本条的修法已落地，取的是「发布完全不走 TaskFlow」这一形态（用户当时选定的方向），不是给 `promote` 加 `release` 类型。落点：`SKILL.md` 的适用性门禁与 frontmatter description 去掉发布、写明例外；`RELEASE.md` 开头声明它在 base 检出直接执行、不建任务、不写 PRD/Spec/Plan，批准门禁随程序走；`CONTRIBUTING.md` 的 `## TaskFlow workflow` 与 `## Working branches` 各留例外（含「发布不切分支」的理由）；`references/artifacts.md` 的发布节改为「发布不使用任务文档」；两份 README 同步。断言的落地见 `TF-20260919-2877ca`。
   **两处根因（我先查的，不是猜的）**：
   (1) **任务类型不存在**。`hooks/task promote <todo-id> <task-id> <small|large>` 只有两个尺寸选项，没有 `release` 类型。于是每个发布任务都被生成成通用的七节 PRD 骨架（Goal / Background / Requirements / Acceptance / In Scope / Out of Scope / Risks / Open Questions），而 `skills/taskflow/references/artifacts.md:115-121` 的「Release task documents」规则要求**记录决策与结果、不重述程序**——生成的骨架与规则直接冲突，每次都靠人手削。v1.0.4 77 行、v1.0.5 101、v1.0.6 141、v1.0.7 116，一轮比一轮重。
   (2) **规则是渐进披露的，但发布头几步没人会去读它**。`SKILL.md` 的 `## Supporting references` 明写 `artifacts.md` 是「Read these only when needed」，而发布任务的定义（`RELEASE.md:18`：创建一个发布任务）出现在 SKILL.md 的 Phase 1 之前，那时还没有任何东西提示去读 `artifacts.md`。规则存在 ≠ 规则生效——本条就是活例：`RELEASE.md` 与 `artifacts.md` 里都写着正确答案，我读了却没对上自己的动作。
@@ -788,8 +789,9 @@ Every direct request or imported requireme
 - Updated: 2026-09-19
 - Goal: Make the release procedure self-describing so a release task does not need a PRD-and-Plan re-planning cycle.
 - Task: Not promoted.
-- Next action: Decide the self-describing shape; depends on the release-task-type decision in TF-20260919-76e7fb.
+- Next action: Delivered by 2026-09-19-release-flow-exception; awaiting that task's merge.
 - Notes: **2026-09-19 提出**：发布流程目前靠「先读 RELEASE.md 再看 SKILL.md 再想起来 artifacts.md 有发布规则」这条链条，任何一环没接上就退回通用流程。可操作的方向是让 **RELEASE.md 自己成为入口**——在它开头写一行「本程序由 TaskFlow 的发布流程执行；不创建 PRD/Spec/Plan，只留结果记录」，把规则推到 Agent 一定会读到的地方（执行发布时读的正是 RELEASE.md）。另一种是让 `hooks/task` 在识别到发布类目标时直接把 RELEASE.md 的路径写进任务记录。与 `TF-20260919-76e7fb` 同源：那条决定发布要不要走 TaskFlow，本条决定如果不走，规则放在哪才不会被跳过。
+- **2026-09-19 交付**：本条问的是「规则放哪才不会被跳过」，答案是 **`RELEASE.md` 自己**——发布执行时读的正是它，所以规则写在开头第 5 行，而不是留在只被渐进披露的 `references/artifacts.md` 里。相应地，`RELEASE.md` 的三处「record … in the release task」改为写进 CHANGELOG 段与 Release 正文。另用 `hooks/smoke-test` 的一条断言锁住这段文本，改坏即失败——这是「规则存在」与「规则生效」的分界。
 
 ## Make hooks/version write the same five-field Approval block hooks/task generates
 
@@ -841,3 +843,35 @@ Every direct request or imported requireme
 - Goal: Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin bundle that self-wires the existing skill and hooks with no manual config
 - Task: `TaskFlowDocs/2026-09-19-dsh-host/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## Removed
+
+- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
+
+## Take a release out of the TaskFlow task workflow: RELEASE.md runs directly on th
+
+- ID: TF-20260919-40eca2
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Take a release out of the TaskFlow task workflow: RELEASE.md runs directly on the base checkout with no Todo item, task directory, branch, or PRD/Plan, and its record is the CHANGELOG section and the GitHub Release body.
+- Task: `TaskFlowDocs/2026-09-19-release-flow-exception/`
+- Next action: Implementation and verification done; awaiting commit and review on chore/release-flow-exception.
+- Notes: **2026-09-19 用户确认**：发布彻底不走 TaskFlow（不创建任务目录与 Todo 条目），记录形态取「只在 CHANGELOG 段落 + GitHub Release 正文」，写入方式取「纯文档规则、Agent 手写」，分支取「豁免——发布不从 base 检出切分支」，批准门禁改为「用户授权先行、写入 RELEASE.md 与发布正文」。本条即该决定的规则改动，已落在 RELEASE.md、CONTRIBUTING.md、SKILL.md、references/artifacts.md 与两份 README（分支问题由用户当场追问确认：『发布要切分支吗？不需要吧』，结论是不切）。
+
+## Map the personal rule to a single personal.md: one file, each rule in its own se
+
+- ID: TF-20260919-495145
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user decision
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Map the personal rule to a single personal.md: one file, each rule in its own section with its own scope etc. The repository-docs index names personal.md and explains its origin (local-only, never committed) and purpose (personal rules that cannot override repository documents).
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
