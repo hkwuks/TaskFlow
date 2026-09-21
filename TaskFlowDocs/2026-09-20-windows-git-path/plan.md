@@ -1,7 +1,7 @@
 # Plan — Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 No spec required — 一处 helper 的路径取值修正，加一处无消费者的索引列删除；无跨层契约、无数据迁移。
 

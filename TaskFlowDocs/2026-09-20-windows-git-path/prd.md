@@ -1,7 +1,7 @@
 # Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 
