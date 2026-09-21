@@ -337,6 +337,64 @@ if TASKFLOW_REPO_ROOT="$unsafe" bash "$HERE/repository-docs-context" >/dev/null 
 fi
 grep -q 'invalid row' "$tmp/malformed.err" || { echo "FAIL malformed row error missing"; exit 1; }
 [ "$before" = "$(digest "$unsafe/TaskFlowDocs/repository-docs/index.md")" ] || { echo "FAIL malformed index was overwritten"; exit 1; }
+
+# The reader has to survive every index shape TaskFlow has written, because a
+# session that cannot read the index loses its routing context. Each shape below
+# is one that exists in the wild: the four-column form without a status (another
+# repository), the seven-column form with a check date (TaskFlow 1.0.8 and
+# earlier, and this repository until 2026-09-21), and the current five. A one-word
+# path with no dot (`LICENSE`) is why the path cell cannot be shape-checked as a
+# status once the header has named the columns.
+rowcase() {  # rowcase <label> <accept|reject>  (index content on stdin)
+  local label="$1" want="$2"
+  local dir="$tmp/index-shapes/$(printf '%s' "$label" | tr -c 'a-zA-Z0-9' '-')"
+  mkdir -p "$dir/TaskFlowDocs/repository-docs"
+  cat > "$dir/TaskFlowDocs/repository-docs/index.md"
+  if TASKFLOW_REPO_ROOT="$dir" bash "$HERE/repository-docs-context" >/dev/null 2>"$dir/err"; then
+    [ "$want" = accept ] || { echo "FAIL index shape '$label' rejected:"; cat "$dir/err"; exit 1; }
+  else
+    [ "$want" = reject ] || { echo "FAIL index shape '$label' was not accepted:"; cat "$dir/err"; exit 1; }
+  fi
+}
+
+rowcase "four-column, no status column" accept <<'EOF'
+| Class | Source | Exists | Last checked |
+| --- | --- | --- | --- |
+| repository-guidance | `README.md` | yes | 2026-09-10 |
+EOF
+rowcase "four-column, unquoted path" accept <<'EOF'
+| Class | Source | Exists | Last checked |
+| --- | --- | --- | --- |
+| repository-guidance | README.md | yes | 2026-09-10 |
+EOF
+rowcase "seven-column with check date" accept <<'EOF'
+| Class | Source path | Phases | Exists | Last checked | Status |
+| --- | --- | --- | --- | --- | --- |
+| repository-rule | `CHANGELOG.md` | release | yes | 2026-09-19 | ready |
+EOF
+rowcase "current five-column, one-word path" accept <<'EOF'
+| Class | Source path | Phases | Exists | Status |
+| --- | --- | --- | --- | --- |
+| repository-rule | `LICENSE` | all | yes | ready |
+EOF
+rowcase "capitalized status" accept <<'EOF'
+| Class | Source path | Phases | Exists | Status |
+| --- | --- | --- | --- | --- |
+| repository-rule | `CONTRIBUTING.md` | design | yes | Ready |
+EOF
+rowcase "status with a space" accept <<'EOF'
+| Class | Source path | Phases | Exists | Status |
+| --- | --- | --- | --- | --- |
+| repository-rule | `CONTRIBUTING.md` | design | yes | needs review |
+EOF
+# A row whose cells shifted is still refused: a date in the status cell means the
+# row lost it, and carrying that over is how a malformed index gets laundered.
+rowcase "status cell holds a date" reject <<'EOF'
+| Class | Source path | Phases | Exists | Status |
+| --- | --- | --- | --- | --- |
+| repository-rule | `CONTRIBUTING.md` | design | yes | 2026-09-19 |
+EOF
+
 mkdir "$unsafe/TaskFlowDocs/repository-docs/index.md.lock"
 busy="$tmp/busy"
 mkdir -p "$busy/TaskFlowDocs/repository-docs"

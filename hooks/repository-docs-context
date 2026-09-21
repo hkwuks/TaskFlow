@@ -113,27 +113,91 @@ validate_relative_path() {
 # A carried-over row keeps its recorded class, phases, and status; a personal
 # rule is derived from the live scan above, so a removed one must not survive as
 # a stale row.
-# Columns: 2 class, 3 path, 4 phases, 5 exists, 6 status. The renderer stamps no
-# per-row check date: it rewrites every row on every run, so a date could only
-# ever read "a session started today" while dirtying a tracked file once a day.
-# An index written before that column was dropped still parses — its rows are one
-# cell longer and the last cell is still the status.
+#
+# This reader is deliberately tolerant, because the file it reads is a record
+# that every TaskFlow version has written and that a repository may hold from an
+# older release. Its purpose is to recover routing context, so a shape it cannot
+# recognize costs a session its routing — an unrecognized row is therefore only
+# rejected when it cannot be read as a row at all.
+#
+# Columns are located by the header names, not by position, so every shape
+# in the wild parses:
+#   * `| Class | Source | Exists | Last checked |` — four columns, no status and
+#     no phases (an earlier shape, still in another repository);
+#   * `| Class | Source path | Phases | Exists | Last checked | Status |` — seven
+#     (this repository until 2026-09-21, TaskFlow 1.0.8 and earlier) or eight;
+#   * `| Class | Source path | Phases | Exists | Status |` — six (current).
+# A path cell may or may not be backticked, and a status may be a lowercase
+# token, a hyphenated token, or a short space-separated label.
+#
+# Two things stay enforced. A row is rejected when the header names a Status
+# column and that cell holds a date, because a row that lost its status cell
+# carries a date there and laundering that date into the rendered index is the
+# failure this check exists to prevent — a date starts with a digit and never
+# reads as a status. A row is also rejected when the header is absent and the row
+# cannot be read positionally, which is what keeps a file of malformed rows from
+# being accepted as an empty index.
 if [ -f "$index" ]; then
   awk -v out="$work/oldrows" '
     BEGIN { FS = "" }
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    # A status is words, not a date or a bare number: the first character has to
+    # be a letter, which is what keeps `2026-09-21` from passing as one.
+    function isstatus(s) { return s ~ /^[A-Za-z][A-Za-z0-9-]*( [A-Za-z][A-Za-z0-9-]*)*$/ }
+    function isdate(s) { return s ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ }
+    function istablehead(s) { return s ~ /^\| *---/ }
     /^\|/ {
-      if ($0 ~ /^\| ---/ || $0 ~ /^\| Class \|/) next
+      if (istablehead($0)) next
       n = split($0, f, "|")
-      if (n < 6 || n > 8) { bad++; next }
-      for (i = 2; i <= n - 1; i++) { gsub(/^[ \t]+|[ \t]+$/, "", f[i]) }
-      path = f[3]
-      if (path !~ /^`[^`]+`$/) { bad++; next }
-      status = f[n - 1]
-      # A status is a lowercase token. Requiring one keeps a row that lost its
-      # status cell from being carried over with a date in that place.
-      if (status !~ /^[a-z][a-z-]*$/) { bad++; next }
-      gsub(/`/, "", path)
-      print f[2] "\t" path "\t" f[4] "\t" status >> out
+      for (i = 2; i <= n - 1; i++) f[i] = trim(f[i])
+      # The first pipe row names the columns when it names both Class and Source.
+      # A row that names neither is not a header — it is data, or it is malformed
+      # — so the header question is settled once and the row falls through to the
+      # positional parse rather than being consumed as a header it is not.
+      if (!headseen) {
+        headseen = 1
+        ci = pi = hi = ei = si = 0
+        for (i = 2; i <= n - 1; i++) {
+          if (f[i] == "Class") ci = i
+          else if (f[i] == "Source" || f[i] == "Source path") pi = i
+          else if (f[i] == "Phases") hi = i
+          else if (f[i] == "Exists") ei = i
+          else if (f[i] == "Status") si = i
+        }
+        if (ci && pi) { havehead = 1; headn = n; next }
+      }
+      if (havehead) {
+        if (n != headn) { bad++; next }
+        kind = f[ci]; path = f[pi]
+        phases = hi ? f[hi] : "all"
+        exists = ei ? f[ei] : ""
+        if (si) {
+          status = f[si]
+          if (!isstatus(status)) { bad++; next }
+        } else {
+          status = (exists == "no") ? "optional" : "ready"
+        }
+      } else {
+        # No header to read the shape from, so fall back to the positional form
+        # this reader has always accepted.
+        if (n < 6 || n > 9) { bad++; next }
+        kind = f[2]; path = f[3]; phases = f[4]
+        status = f[n - 1]
+        if (!isstatus(status)) { bad++; next }
+      }
+      if (path ~ /^`[^`]+`$/) { gsub(/`/, "", path) }
+      if (path == "") { bad++; next }
+      # When the header named the columns, the path cell is known rather than
+      # guessed, so only a date there is suspect — it means the cells of the row
+      # have shifted. The shape heuristic must not run in that case: a one-word path
+      # like `LICENSE` is indistinguishable from a status by shape, and rejecting
+      # it would drop a real repository document. With no header the cell is a
+      # guess, so a date or a status shape there is more likely a shifted cell
+      # than a path, and the row is rejected rather than carried over with a
+      # wrong path.
+      badpath = isdate(path) || (!havehead && isstatus(path))
+      if (badpath) { bad++; next }
+      print kind "\t" path "\t" phases "\t" status >> out
     }
     END { if (bad) print bad > "/dev/stderr" }
   ' "$index" 2> "$work/badcount" || fail "repository-document index contains an invalid row"
