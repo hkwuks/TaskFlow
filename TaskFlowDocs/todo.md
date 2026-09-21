@@ -10,20 +10,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
-## Record the host SessionStart session_id in the active task's sessions.md
+## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
-- ID: TF-20260914-02
-- Status: done
-- Priority: normal
-- Owner: Codex
+- ID: TF-20260920-9f3c07
+- Status: promoted
+- Priority: high
+- Owner: unassigned
 - Source: user request
-- Added: 2026-09-14
-- Updated: 2026-09-14
-- Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
-- Task: `TaskFlowDocs/achieved/2026-09-14-session-id-record/`
-- Next action: None — completed and archived.
+- Added: 2026-09-20
+- Updated: 2026-09-21
+- Goal: Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
+- Task: `TaskFlowDocs/2026-09-20-windows-git-path/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
-## State in the Skill that personal supplements are local-only
 
 - ID: TF-20260914-03
 - Status: done
@@ -875,6 +874,21 @@ Every direct request or imported requireme
 - Goal: Map the personal rule to a single personal.md: one file, each rule in its own section with its own scope etc. The repository-docs index names personal.md and explains its origin (local-only, never committed) and purpose (personal rules that cannot override repository documents).
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+
+## Record the host SessionStart session_id in the active task's sessions.md
+
+- ID: TF-20260914-02
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-14
+- Updated: 2026-09-14
+- Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
+- Task: `TaskFlowDocs/achieved/2026-09-14-session-id-record/`
+- Next action: None — completed and archived.
+
+## State in the Skill that personal supplements are local-only
 
 ## Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines, 45%
 

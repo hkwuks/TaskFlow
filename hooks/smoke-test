@@ -269,24 +269,54 @@ printf '# Unclassified\n' > "$tmp/TEAM_GOVERNANCE.md"
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/routes.txt"
 index="$docs/repository-docs/index.md"
 grep -q '| repository-rule | `CONTRIBUTING.md` | design,code,commit,pr,release | yes |' "$index" || { echo "FAIL contributing route"; exit 1; }
-grep -q '| candidate | `TEAM_GOVERNANCE.md` | review | yes | .* | needs-review |' "$index" || { echo "FAIL candidate review status"; exit 1; }
+grep -q '| candidate | `TEAM_GOVERNANCE.md` | review | yes | needs-review |' "$index" || { echo "FAIL candidate review status"; exit 1; }
 grep -q 'Read authoritative sources: CONTRIBUTING.md' "$tmp/routes.txt" || { echo "FAIL phase route"; exit 1; }
 TASKFLOW_PHASE=design TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/design-routes.txt"
 grep -q 'Read authoritative sources: .*CONTRIBUTING.md' "$tmp/design-routes.txt" || { echo "FAIL design-phase contribution route"; exit 1; }
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
-grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | .* | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
+grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
 ! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
 # A personal rule sits directly in repository-docs/ and must be routed on its own
 # line so its local-only, subordinate status is visible.
 before=$(digest "$index")
 printf '# My rule\n' > "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/personal-routes.txt"
-grep -q '| personal-rule | `TaskFlowDocs/repository-docs/my-card.md` | all | yes | .* | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/my-card.md` | all | yes | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+# An index written before the check-date column was dropped still reads back: its
+# rows carry one extra cell and the status is still last. The path is one no
+# current run would derive on its own, so the row only survives if the carry-over
+# read it out of the old five-cell shape.
+legacy="$tmp/legacy-index"
+mkdir -p "$legacy/TaskFlowDocs/repository-docs" "$legacy/docs"
+printf '# Extra rule\n' > "$legacy/docs/EXTRA_RULE.md"
+cat > "$legacy/TaskFlowDocs/repository-docs/index.md" <<'EOF'
+# Repository documents
+
+| Class | Source path | Phases | Exists | Last checked | Status |
+| --- | --- | --- | --- | --- | --- |
+| repository-rule | `docs/EXTRA_RULE.md` | code,review | yes | 2026-09-19 | ready |
+EOF
+TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$legacy" bash "$HERE/repository-docs-context" > "$tmp/legacy-routes.txt"
+grep -q '| repository-rule | `docs/EXTRA_RULE.md` | code,review | yes | ready |' "$legacy/TaskFlowDocs/repository-docs/index.md" \
+  || { echo "FAIL a pre-drop index row was not carried over"; cat "$legacy/TaskFlowDocs/repository-docs/index.md"; exit 1; }
+grep -q 'Read authoritative sources: docs/EXTRA_RULE.md' "$tmp/legacy-routes.txt" || { echo "FAIL carried-over row did not route"; exit 1; }
 grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/my-card.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
 ! grep -q 'Read authoritative sources:.*my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
 rm -f "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
 [ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+# The catalog is derived from the filesystem, so its bytes must not depend on when
+# it is rendered. It used to carry a check date the renderer stamped with `date`,
+# which made every row say "a session started today" — no information the reader
+# did not already have — while dirtying a tracked file once per calendar day on
+# every machine that opened the repository.
+future="$tmp/future-date"
+mkdir -p "$future"
+printf '#!/usr/bin/env bash\necho 2099-01-01\n' > "$future/date"
+chmod +x "$future/date"
+now=$(digest "$index")
+PATH="$future:$PATH" TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
+[ "$now" = "$(digest "$index")" ] || { echo "FAIL index bytes depend on the current date"; exit 1; }
 echo ok
 
 echo "== repository document index rejects unsafe paths and busy writers =="
@@ -636,6 +666,35 @@ bash "$HERE/task" intake "Isolation smoke goal three." --root "$iso_bare" > "$is
 grep -q 'modified in the base working tree' "$iso_out" \
   && { echo "FAIL intake outside a repository warned about a base working tree"; cat "$iso_out"; exit 1; }
 rm -rf "$iso_bare"
+
+# Git for Windows answers both `--git-dir` and `--absolute-git-dir` with a drive
+# path (`D:/repo/.git/worktrees/x`), which is absolute there but starts with no
+# `/`, so a caller that reads it as "relative" and prefixes `$root` gets a path
+# that exists nowhere and calls every worktree a base tree. `D:/` is a relative
+# path on Linux — a directory literally named `D:` — which is what makes a
+# Windows-shaped answer injourable here.
+iso_win="$tmp/isolation/drive-relative"
+iso_gitbin="$tmp/isolation-gitbin"
+iso_real_git="$(type -P git)"
+mkdir -p "$iso_gitbin" "$iso_win/D:/repo/.git/worktrees/win" "$iso_win/TaskFlowDocs"
+printf 'D:/repo/.git\n' > "$iso_win/D:/repo/.git/worktrees/win/commondir"
+cp "$iso/TaskFlowDocs/todo.md" "$iso_win/TaskFlowDocs/todo.md"
+cat > "$iso_gitbin/git" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *--absolute-git-dir*) echo "D:/repo/.git/worktrees/win" ;;
+  *--git-dir*)          echo "D:/repo/.git/worktrees/win" ;;
+  *--show-toplevel*)    echo "D:/repo" ;;
+  *)                    exec "$iso_real_git" "\$@" ;;
+esac
+EOF
+chmod +x "$iso_gitbin/git"
+(
+  cd "$iso_win" || exit 1
+  PATH="$iso_gitbin:$PATH" bash "$HERE/task" intake "Isolation smoke goal four." --root "$iso_win" > "$iso_out" 2>&1
+) || { echo "FAIL intake under a drive-path git dir was refused"; cat "$iso_out"; exit 1; }
+grep -q 'modified in the base working tree' "$iso_out" \
+  && { echo "FAIL a drive-path absolute git dir was read as relative to the root"; cat "$iso_out"; exit 1; }
 echo ok
 
 echo "== TaskFlow packaged Skill contract =="

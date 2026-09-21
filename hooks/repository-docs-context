@@ -14,7 +14,6 @@ export LC_ALL
 
 docs="$repo_root/TaskFlowDocs/repository-docs"
 index="$docs/index.md"
-today="$(date +%Y-%m-%d)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
@@ -114,19 +113,27 @@ validate_relative_path() {
 # A carried-over row keeps its recorded class, phases, and status; a personal
 # rule is derived from the live scan above, so a removed one must not survive as
 # a stale row.
+# Columns: 2 class, 3 path, 4 phases, 5 exists, 6 status. The renderer stamps no
+# per-row check date: it rewrites every row on every run, so a date could only
+# ever read "a session started today" while dirtying a tracked file once a day.
+# An index written before that column was dropped still parses — its rows are one
+# cell longer and the last cell is still the status.
 if [ -f "$index" ]; then
   awk -v out="$work/oldrows" '
     BEGIN { FS = "" }
     /^\|/ {
       if ($0 ~ /^\| ---/ || $0 ~ /^\| Class \|/) next
       n = split($0, f, "|")
-      if (n != 8) { bad++; next }
-      for (i = 2; i <= 7; i++) { gsub(/^[ \t]+|[ \t]+$/, "", f[i]) }
+      if (n < 6 || n > 8) { bad++; next }
+      for (i = 2; i <= n - 1; i++) { gsub(/^[ \t]+|[ \t]+$/, "", f[i]) }
       path = f[3]
       if (path !~ /^`[^`]+`$/) { bad++; next }
+      status = f[n - 1]
+      # A status is a lowercase token. Requiring one keeps a row that lost its
+      # status cell from being carried over with a date in that place.
+      if (status !~ /^[a-z][a-z-]*$/) { bad++; next }
       gsub(/`/, "", path)
-      # Columns: 2 class, 3 path, 4 phases, 5 exists, 6 last-checked, 7 status.
-      print f[2] "\t" path "\t" f[4] "\t" f[7] >> out
+      print f[2] "\t" path "\t" f[4] "\t" status >> out
     }
     END { if (bad) print bad > "/dev/stderr" }
   ' "$index" 2> "$work/badcount" || fail "repository-document index contains an invalid row"
@@ -171,18 +178,17 @@ while IFS="$(printf '\t')" read -r kind relative phases override; do
   else
     status="$override"
   fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$kind" "$relative" "$phases" "$exists" "$today" "$status" >> "$work/rows"
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$kind" "$relative" "$phases" "$exists" "$status" >> "$work/rows"
 done < "$work/entries"
 
 # --- render ----------------------------------------------------------------
 {
   printf '# Repository documents\n\n'
-  printf '> Last checked: %s\n\n' "$today"
   printf 'This index is the authoritative routing and check record for repository documents. The documents at their repository-relative source paths remain authoritative for policy content. Maintain this record first, route by phase from it, then read the routed sources. Do not copy source policy text here.\n\n'
-  printf '| Class | Source path | Phases | Exists | Last checked | Status |\n'
-  printf '| --- | --- | --- | --- | --- | --- |\n'
-  cut -f1-6 "$work/rows" | awk -F'\t' '{ printf "| %s | `%s` | %s | %s | %s | %s |\n", $1, $2, $3, $4, $5, $6 }'
+  printf '| Class | Source path | Phases | Exists | Status |\n'
+  printf '| --- | --- | --- | --- | --- |\n'
+  cut -f1-5 "$work/rows" | awk -F'\t' '{ printf "| %s | `%s` | %s | %s | %s |\n", $1, $2, $3, $4, $5 }'
   printf '\n## Personal rules\n\n'
   if cut -f1 "$work/rows" | grep -qx personal-rule; then
     printf 'Cataloged above when present; they are local-only and never committed.\n'
@@ -212,7 +218,7 @@ if [ "$phase" = unclassified ]; then
   echo "- Phase is unclear; classify the current work before following phase-specific routes."
 fi
 list=""
-while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+while IFS="$(printf '\t')" read -r kind relative phases exists status; do
   [ "$exists" = yes ] || continue
   [ "$status" = ready ] || continue
   phase_matches "$phases" || continue
@@ -221,14 +227,14 @@ done < "$work/rows"
 [ -z "$list" ] || echo "- Read authoritative sources: ${list#, }"
 
 list=""
-while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+while IFS="$(printf '\t')" read -r kind relative phases exists status; do
   [ "$kind" = personal-rule ] || continue
   list="$list, $relative"
 done < "$work/rows"
 [ -z "$list" ] || echo "- Local personal rules (local-only, never committed; they cannot override the sources above): ${list#, }"
 
 list=""
-while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+while IFS="$(printf '\t')" read -r kind relative phases exists status; do
   [ "$exists" = no ] || continue
   [ "$status" = missing ] || continue
   phase_matches "$phases" || continue
@@ -237,7 +243,7 @@ done < "$work/rows"
 [ -z "$list" ] || echo "- Missing catalog entries: ${list#, }"
 
 list=""
-while IFS="$(printf '\t')" read -r kind relative phases exists checked status; do
+while IFS="$(printf '\t')" read -r kind relative phases exists status; do
   [ "$status" = needs-review ] || continue
   list="$list, $relative"
 done < "$work/rows"
