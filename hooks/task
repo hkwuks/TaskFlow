@@ -52,8 +52,11 @@ ends_with_newline() {
 worktree_kind() {  # worktree_kind <root>
   local root="$1" git_dir
   git -C "$root" rev-parse --show-toplevel >/dev/null 2>&1 || return 1
-  git_dir="$(git -C "$root" rev-parse --git-dir 2>/dev/null)" || return 1
-  case "$git_dir" in /*) ;; *) git_dir="$root/$git_dir" ;; esac
+  # `--absolute-git-dir`, not `--git-dir`: Git for Windows hands back a drive path
+  # (`D:/repo/.git/worktrees/x`) that is absolute there but does not match the
+  # POSIX `/*` case below, so the join turned it into `$root/D:/...` and every
+  # worktree read as a base tree.
+  git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || return 1
   [ -f "$git_dir/commondir" ] || return 2
   return 0
 }
