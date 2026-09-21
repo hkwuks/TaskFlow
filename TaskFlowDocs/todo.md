@@ -9,19 +9,52 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## SessionStart fails the repository-docs index read across hosts and on index shape
+
+- ID: TF-20260921-4d8ae2
+- Status: inbox
+- Priority: high
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-21
+- Updated: 2026-09-21
+- Goal: Make the repository-docs index read tolerate what different hosts and older writers put in the file, instead of failing SessionStart with `repository-document index contains an invalid row`.
+- Task: Not promoted.
+- Next action: Fix landed on fix/repository-docs-reader; awaiting review.
+- Notes: **2026-09-21 用户报错**：`SessionStart:resume hook error — Failed with non-blocking status code: repository-document index contains an invalid row`。用户判断这是**兼容性问题**。
+- **2026-09-21 已实现（未合并）**：实际根因与本条原判断不同——不是「某个 host 写出了怪行」，是**读取器把列数硬编码成 6–8、并要求路径必须带反引号**。实测证据：把  的 index（4 列、无 Status、无反引号）喂给当前 hook，直接复现 。该文件由**同一个 hook 的旧版本**写出，所以任何早期版本写下的 index 都会让后续 SessionStart 失败。修法：改成**按表头列名定位列**（Class / Source / Phases / Exists / Status），4/5/6/7 列全部可读，路径反引号可选，状态允许大小写与空格；仅当表头点名了 Status 列而该格是日期（说明该行掉格）才拒绝，无表头时退化为位置解析并仍拒绝日期/状态形状的路径。== every hook parses under the shell that is running ==
+  **现场已核**：仓库当前 `TaskFlowDocs/repository-docs/index.md`（5 列，无日期）在本机 WSL 上跑不出这个错——我在同一检出上跑 `bash hooks/repository-docs-context` 是 rc=0、无 stderr。**所以触发条件不是当前这份文件**，而是某个 checkout / 某个 host 上形态不同的那份。
+  **报错点**：`hooks/repository-docs-context:139-140`——awk 把无法解析的行计入 `bad`，写到 `$work/badcount`，非空即 `fail "repository-document index contains an invalid row"`。（注意与另一条**不同**的错误：`hooks/repository-docs-context:204` 的并发分支报的是 `repository-docs index is busy: <lock>`，不是这一条。）
+  **§ 已用变异实测的拒绝条件**（逐条跑过，见下表）：解析现在要求 (a) 行以 `|` 开头且非分隔行/表头；(b) `split($0,f,"|")` 得到 **6–8** 个字段；(c) `f[3]` 必须**被反引号包裹** `/^`[^`]+`$/`；(d) 状态列（倒数第二格）必须匹配 `/^[a-z][a-z-]*$/`。
+
+  | 变异 | 结果 |
+  |---|---|
+  | 旧 6 列行（带 `Last checked` 日期格） | **ok**（`57d507a` 已刻意兼容） |
+  | 行尾多两个空格 | ok |
+  | **路径不带反引号** `\| repository-rule \| CONTRIBUTING.md \| … \|` | **FAIL** |
+  | **状态首字母大写** `Ready` | **FAIL** |
+  | **状态含空格** `needs review` | **FAIL** |
+  | CRLF（`\r\n`） | ok（`.gitattributes` 有 `* text=auto eol=lf`，实测通过） |
+  | gawk / mawk / nawk 三种 awk | 行解析结果一致，非 awk 方言问题 |
+
+  **待查的关键半段（未完成）**：`1c5e59c`（09-16）的 index 行与今天形状相同，且我实测的第 7 列计数、列数分支都过了，**尚未定位是哪个写入方**在哪个 host 上写出了触发的那一行。下一步必须先拿到**出错现场的 `index.md` 与 host**（另开一个会话复现，或从报错机器的检出取那份文件），再决定修法——否则就是照猜测改检查。
+  **修法方向（待现场确认后定，二选一）**：(a) 让解析器更宽（反引号可选、状态允许大小写与空格）；(b) 只把这一列读进来做 carry-over 时用宽松口径，渲染仍严格。**先别放宽**：放宽会同时削弱 `hooks/smoke-test:338` 那条「畸形行必须被拒」的断言（`\| malformed row \|`），要一起改并补断言。
+  **为什么它值得 high**：这条错误发生在 **SessionStart**，即每个会话开头——一旦命中，注入的仓库路由上下文就整段丢失，且是 **non-blocking**，用户只看到一行报错、不影响继续用，所以极易被忽略到下一次踩更重的坑。相关：`TF-20260921-337ab8`（本轮同批立的 `task intake` 条目）。
+- **2026-09-21 已实现（未合并）**：实际根因与本条原判断不同——不是「某个 host 写出了怪行」，是**读取器把列数硬编码成 6–8、并要求路径必须带反引号**。实测证据：把 `Node/Mimir` 的 index（4 列、无 Status、路径无反引号）喂给当前 hook，直接复现 `repository-document index contains an invalid row`；该文件由**同一个 hook 的旧版本**写出，所以任何早期版本写下的 index 都会让后续 SessionStart 失败。修法：改成**按表头列名定位列**（Class / Source / Phases / Exists / Status），4/5/6/7 列全部可读，路径反引号可选，状态允许大小写与空格；仅当表头点名了 Status 列而该格是日期（说明该行掉格）才拒绝，无表头时退化为位置解析并仍拒绝日期形状的路径。`hooks/smoke-test` 加了 7 条断言（4 种可读形态 + 反引号可选 + 状态宽容 + 移位行仍拒绝），并做过一次变异验证（把旧严格规则放回去，套件失败）。已核四个真实仓库（Mimir / cc-switch / Survival / TaskFlow）的 index 全部读通。
+
 
 ## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
 - ID: TF-20260920-9f3c07
-- Status: promoted
+- Status: done
 - Priority: high
 - Owner: unassigned
 - Source: user request
 - Added: 2026-09-20
 - Updated: 2026-09-21
 - Goal: Fix the Windows worktree misjudgement so a drive-letter git dir is not read as relative to the root.
-- Task: `TaskFlowDocs/2026-09-20-windows-git-path/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-20-windows-git-path/`
+- Next action: None — completed and archived.
 
 ## State in the Skill that personal supplements are local-only
 
