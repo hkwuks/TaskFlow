@@ -19,10 +19,11 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Source: user request
 - Added: 2026-09-20
 - Updated: 2026-09-21
-- Goal: Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
+- Goal: Fix the Windows worktree misjudgement so a drive-letter git dir is not read as relative to the root.
 - Task: `TaskFlowDocs/2026-09-20-windows-git-path/`
 - Next action: Complete PRD / Spec / Plan and request approval.
 
+## State in the Skill that personal supplements are local-only
 
 - ID: TF-20260914-03
 - Status: done
@@ -907,6 +908,47 @@ Every direct request or imported requireme
   **两个已观测到的结构损伤**（不只是「长」）：(1) `## Item template` 模板块停在第 251 行，**在条目中间**，其下还有条目，随后第 267 行是一句被截断的半句 `Every direct request or imported requireme`；(2) 条目顺序是三个时代的堆叠，不是严格新在前——`TF-20260919-*` 的若干条排在 `TF-20260918-*` 之下。
   **已排除的选项**：本文件的定义是 intake 清单（`SKILL.md:30`、`references/artifacts.md:9` 都写 triage metadata only），历史事实在 `TaskFlowDocs/achieved/`，且 `SKILL.md:44` 禁止第二份事实源——所以往 todo.md 里做归档是反方向的。按日期分片/换后端会把整套 hook（`hooks/archive`、`hooks/summarize-state`、`hooks/todo-check`、`hooks/merge-todo`、`hooks/task`）都改一遍。
   **读取代价已被 v1.0.7 砍掉一半**：`hooks/task get <todo-id>` 只回一条条目，`task next` / `task intake` 只写一条，所以「查/改」不再需要读全文；剩下的整读场景只有「新增条目」。（本条由 `hooks/task next` 写入，未手改。）
+
+## Cut the mechanical overhead out of a release without adding any authority to it
+
+- ID: TF-20260919-c41f8a
+- Status: inbox
+- Priority: high
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-19
+- Updated: 2026-09-19
+- Goal: Cut the mechanical overhead out of a release without adding any authority to it: write the six fixed version literals from one command, move the CHANGELOG section into the tagged commit so the tag is immutable, and make a stale release record fail CI instead of passing.
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: **2026-09-19 用户指定三条一起做，作为本条**（依据是 v1.0.8 的实测产物，不是设想）。
+  **三条内容**：
+  (1) **`hooks/release-version <x.y.z>`（只做格值写入）**——当前一次发布要手改 **7 个文件**（`620c6a7` 的 stat）：4 个 manifest 的 `version`、两份 README 的插件列表示例、`CHANGELOG.md` 新段落。**前六处是格值**（4 个 manifest + 2 处 README 示例输出，`README.md:207,261`、`README.zh-CN.md:173,226`），完全可以一条命令写掉；**第七处是散文，留给 Agent**。Codex/CodeBuddy 的 cachebuster 形如 `1.0.8+codex.20260919`，日期用 hook 已有的 `today`。**必须一次调用写完，不要做成 preflight + write 两次**——一次调用就先检查后写，失败不留半成品。
+  (2) **把 CHANGELOG 段落搬进 base tree 的 release commit，让 tag 不可变**。现状（`RELEASE.md:86-92` + 实测 `620c6a7`）：**release notes 活在 tag 指向的 commit 之后的第二个 commit 里**，所以 `git tag -a` 只能把正文写进 tag，**tag 本身缺发布正文**；后来补写正文是重写 tag 对象，而 tag 是 claude 的 `sha` pin 引用的东西，重写需要「显式 owner 授权 + 记录理由」（`RELEASE.md:126`，且改的是 `620c6a7`/`2a89e2` 那类 commit）。把 CHANGELOG 段落移进 release commit 之后：tag 指向的 commit 自带发布正文，下一个 tag 可以带正文且先于 pin 创建、此后不再改。`RELEASE.md` 的步骤顺序要同步（正文写入在打标签之前），并记录为什么。
+  (3) **让过期的发布记录在 CI 里失败**：给 `hooks/release-check` 加一条——**tag 指向的 commit 之后、被 pin 的 commit 之前**，只允许存在 marketplace 的 `ref`/`sha` 字面量差异；一旦出现别的差异（CHANGELOG 段落、README、manifest 版本、代码），就退出非零。v1.0.8 顺带发现：`README.md:261` 的 `claude plugin list` 示例还停在 1.0.8，而发布前的文档版本是 1.0.9——这条同时就是防这个的。
+  **三条的公共红线（不是可选项）**：新增的工具**不得做判断**。`RELEASE.md` 的批准门禁是「用户先批准，写入是转录」；格值写入与记录校验都是转录，所以可以做；**「允许发布」必须永远留在人手里**，任何一条都不得演变成自动发布或自动批准。另：`RELEASE.md:122` 明确「不做自动 tag / 自动 GitHub Release」，三条都不得触碰这条边界。
+  **边界已核**：Hook 的 JSON 目前只有 `SessionStart`（`hooks/hooks.json`），三条都不需要新增 hook 事件，也都不需要 `hooks/task` / `hooks/archive` 的现有事务。`hooks/release-check` 已被 `hooks/smoke-test:1172-1231` 覆盖（漂移、坏 pin、cachebuster、缺 manifest），新增的检查要按同法补断言。相关：`TF-20260919-76e7fb`（发布不走 TaskFlow，已交付）、`TF-20260919-b7821b`（`hooks/version` 的 Approval 形状）。
+
+## `task intake` inserts a new entry into the previous section instead of `## Items`
+
+- ID: TF-20260921-337ab8
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: user request
+- Added: 2026-09-21
+- Updated: 2026-09-21
+- Goal: Fix task intake inserting a new entry into the previous section instead of the Items section, and its insertion point landing inside the Removed section.
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: **2026-09-21 用户指定：单独开一条。**
+  **问题**：`hooks/task intake` 把新条目写进文件里的上一个 `## ` 节，而不是插到 `## Items` 下。新条目因此挂到别人的标题下——那次它挂在了「Stop `TaskFlowDocs/todo.md` from growing without bound…」节里，`promote` 又拿那行当标题生出 task 文档（本轮我用假标题「State in the Skill…」跑出了 plan/prd 的首行）。
+  **另一半**：`intake` 的插入点固定在文件末尾，所以它落在 `## Removed` 之后；如果 `## Removed` 不是最后一节，新条目会插进 `## Removed` 节内，`todo-check` 读 `## Removed` 时会把在途条目当成已删除记录（该节与 `TF-20260918-985164` 的删除语义直接冲突）。
+  **根因**：`hooks/task` 的 `intake` 分支（约 `:206-216`）是「rstrip 尾部空行 → 整文件原样输出 → 再追加 `## <title>` 块」，没有定位 `## Items` 边界，也没有插入点概念。
+  **违反的既有约定**：`TaskFlowDocs/todo.md` 自己的 `## Items` 节里写着 `<!-- Add new items at the top using the template below. -->`——实现与文档约定相反。
+  **判定依据**：`hooks/task get <todo-id>` 与 `hooks/task next <todo-id> … [notes]` 能只读/只改一条条目（`next` 的第三个位置参数就是 Notes），所以本次是「用 hook 写 Notes」而非手改——这正是 `task next` 存在的理由。
+  **验收**：新条目落在 `## Items` 节内、位于任何其他 `## ` 节之前；`## Removed` 之后插入新条目不再可能污染删除记录；`todo-check` 的 removed 判定不受影响；smoke 增加一条断言（新条目不得出现在 `## Removed` 与文件末尾之间）。相关：本轮 PR #45 里我被这个 bug 误导，绕过后才 promote 成功。
+  **同因的另一现象**：`## ` 标题与 Goal 对不齐是既有习惯，不是个别错误——本文件的 `## ` 节数比 `- ID:` 行数多 23，多出来的全是模板块（`## T-YYYYMMDD-001` 等），另有约 30 条已交付条目的标题是手写摘要、与 Goal 前缀不一致。`hooks/task get` 按 ID、`findsec` 按 `TaskFlowDocs/<task>/` 解析条目，都不看标题，所以目前只是可读性问题；唯一出错的是 `promote`——它用标题去派生任务目录名。口径待定：标题由 Goal 派生（与 intake 一致、可校验），还是保留人写标题但 `promote` 一并更新它。
 
 ## Removed
 
