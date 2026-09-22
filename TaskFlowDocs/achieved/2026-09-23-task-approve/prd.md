@@ -1,7 +1,7 @@
 # Record Approval from a hook instead of hand-editing the five fixed fields
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

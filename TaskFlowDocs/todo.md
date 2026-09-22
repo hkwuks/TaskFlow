@@ -702,15 +702,15 @@ Every direct request or imported requireme
 ## Record approval in the plan from a hook instead of hand-editing four fixed-forma
 
 - ID: TF-20260918-454ac4
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
 - Updated: 2026-09-23
 - Goal: Record approval in the plan from a hook instead of hand-editing four fixed-format fields, and fix hooks/version writing an Approval block that disagrees with hooks/task's template.
-- Task: `TaskFlowDocs/2026-09-23-task-approve/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-23-task-approve/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-18 用户提出**：手改 Approval 块能否自动化。判定——`## Approval` 的字段里只有 `Approved by` 是语义的（必须由人表态），其余都可推导：`Status` 是该子命令的动词，`Approved at` 是当天日期（hook 已有 `today`），`Approved version` 直接读 plan 自己的 `> Task version:` 行，`Approved scope` 由存在的核心文档推出。`skills/taskflow/SKILL.md` 已把模板钉成「`- Approved by:` 起的四行」，格式无需 Agent 判断。
   **先修一个现成的自相矛盾**：`hooks/version` 的重置只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行——两个 hook 对同一块内容的形状意见不一致。**本任务就是实例**：v1→v2 后 `- Status:` 留在 `checking` 一路没人管，直到 `complete` 读它才发现对不上（`require_approval` 用的是 `grep -qx -- "- Status: approved"`）。
   **时间格式也打架**：模板写 `YYYY-MM-DD HH:mm +08:00`，`version` 复位只写 `pending`。若自动化，`today` 目前只有 `+%Y-%m-%d`，要扩出分钟与时区。
