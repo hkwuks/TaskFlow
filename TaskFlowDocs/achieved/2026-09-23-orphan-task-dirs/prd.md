@@ -1,7 +1,7 @@
 # Detect a task directory that no Todo entry references
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
