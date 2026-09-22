@@ -1017,6 +1017,95 @@ grep -q '^<<<<<<<' "$merged" && { echo "FAIL one-sided edit conflicted"; exit 1;
 [ "$(grep -c '^- ID: ' "$merged")" -eq 4 ] || { echo "FAIL one-sided merge lost an entry"; exit 1; }
 echo ok
 
+echo "== todo merge driver treats ## Removed as a deletion, not a second entry =="
+# The failure this locks: one branch runs task remove (live section gone,
+# tombstone under ## Removed); the other leaves the live entry alone. The old
+# driver keyed the whole Removed blob by the first tombstone's full ID suffix,
+# never matched the live copy, and kept it as "only they have it".
+rm_drv="$tmp/merge-removed"
+mkdir -p "$rm_drv"
+git -C "$rm_drv" init -q
+git -C "$rm_drv" symbolic-ref HEAD refs/heads/main
+git -C "$rm_drv" config user.email smoke@example.invalid
+git -C "$rm_drv" config user.name smoke
+TASKFLOW_REPO_ROOT="$rm_drv" bash "$HERE/install-merge-driver"
+mkdir -p "$rm_drv/TaskFlowDocs"
+todo_write "$rm_drv/TaskFlowDocs/todo.md" "$(entry Base TF-20260101-01 done)"
+git -C "$rm_drv" add -A
+git -C "$rm_drv" commit -qm base
+
+# Ours: delete the live entry and record it (what task remove writes).
+git -C "$rm_drv" checkout -qb del
+{
+  printf '# Todo inbox\n\n## Items\n\n'
+  printf '%s\n\n' "$(entry Base TF-20260101-01 done)"
+  printf '## Removed\n\n- ID: TF-20260101-02 (removed 2026-01-01: gone)\n'
+} > "$rm_drv/TaskFlowDocs/todo.md"
+git -C "$rm_drv" commit -qam 'ours: remove TF-02'
+
+# Theirs: add the live entry only (never sees the remove).
+git -C "$rm_drv" checkout -q main
+git -C "$rm_drv" checkout -qb keep
+todo_write "$rm_drv/TaskFlowDocs/todo.md" \
+  "$(entry 'Still live' TF-20260101-02 inbox)" \
+  "$(entry Base TF-20260101-01 done)"
+git -C "$rm_drv" commit -qam 'theirs: still has live TF-02'
+
+git -C "$rm_drv" checkout -q del
+git -C "$rm_drv" merge -q --no-edit keep
+merged="$rm_drv/TaskFlowDocs/todo.md"
+grep -q 'TF-20260101-02 (removed 2026-01-01: gone)' "$merged" \
+  || { echo "FAIL delete/keep merge dropped the tombstone"; cat "$merged"; exit 1; }
+grep -q '^## Still live$' "$merged" \
+  && { echo "FAIL delete/keep merge resurrected the live entry"; cat "$merged"; exit 1; }
+[ "$(grep -c '^- ID: TF-20260101-02' "$merged")" -eq 1 ] \
+  || { echo "FAIL TF-02 is not exactly one record after merge"; grep -n 'TF-20260101-02' "$merged"; exit 1; }
+grep -q '^<<<<<<<' "$merged" && { echo "FAIL deletion merge conflicted"; exit 1; }
+
+# Symmetric: theirs deleted TF-03, ours kept the live entry alone.
+git -C "$rm_drv" checkout -q -B del3 main
+{
+  printf '# Todo inbox\n\n## Items\n\n'
+  printf '%s\n\n' "$(entry Base TF-20260101-01 done)"
+  printf '## Removed\n\n- ID: TF-20260101-03 (removed 2026-01-01: other)\n'
+} > "$rm_drv/TaskFlowDocs/todo.md"
+git -C "$rm_drv" commit -qam 'del3: remove TF-03'
+git -C "$rm_drv" checkout -q -B keep3 main
+todo_write "$rm_drv/TaskFlowDocs/todo.md" \
+  "$(entry 'Other live' TF-20260101-03 inbox)" \
+  "$(entry Base TF-20260101-01 done)"
+git -C "$rm_drv" commit -qam 'keep3: live TF-03'
+git -C "$rm_drv" checkout -q del3
+git -C "$rm_drv" merge -q --no-edit keep3
+merged="$rm_drv/TaskFlowDocs/todo.md"
+grep -q 'TF-20260101-03 (removed 2026-01-01: other)' "$merged" \
+  || { echo "FAIL reverse delete/keep dropped the tombstone"; cat "$merged"; exit 1; }
+grep -q '^## Other live$' "$merged" \
+  && { echo "FAIL reverse delete/keep resurrected the live entry"; cat "$merged"; exit 1; }
+grep -q '^<<<<<<<' "$merged" && { echo "FAIL reverse deletion merge conflicted"; exit 1; }
+
+# Both sides add different tombstones: union, not conflict.
+git -C "$rm_drv" checkout -q -B both-a main
+{
+  printf '# Todo inbox\n\n## Items\n\n%s\n\n' "$(entry Base TF-20260101-01 done)"
+  printf '## Removed\n\n- ID: TF-20260101-0a (removed 2026-01-01: a)\n'
+} > "$rm_drv/TaskFlowDocs/todo.md"
+git -C "$rm_drv" commit -qam 'both-a'
+git -C "$rm_drv" checkout -q -B both-b main
+{
+  printf '# Todo inbox\n\n## Items\n\n%s\n\n' "$(entry Base TF-20260101-01 done)"
+  printf '## Removed\n\n- ID: TF-20260101-0b (removed 2026-01-01: b)\n'
+} > "$rm_drv/TaskFlowDocs/todo.md"
+git -C "$rm_drv" commit -qam 'both-b'
+git -C "$rm_drv" checkout -q both-a
+git -C "$rm_drv" merge -q --no-edit both-b
+merged="$rm_drv/TaskFlowDocs/todo.md"
+grep -q 'TF-20260101-0a (removed' "$merged" || { echo "FAIL union lost tombstone a"; cat "$merged"; exit 1; }
+grep -q 'TF-20260101-0b (removed' "$merged" || { echo "FAIL union lost tombstone b"; cat "$merged"; exit 1; }
+[ "$(grep -c '^## Removed$' "$merged")" -eq 1 ] || { echo "FAIL union opened a second ## Removed"; exit 1; }
+grep -q '^<<<<<<<' "$merged" && { echo "FAIL tombstone union conflicted"; exit 1; }
+echo ok
+
 echo "== merge driver installation is local, idempotent, and silent =="
 install_root="$tmp/install"
 mkdir -p "$install_root"
@@ -1921,6 +2010,31 @@ bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
 tc_status=$?
 set -e
 [ "$tc_status" -eq 2 ] || { echo "FAIL single-commit fallback exit code: $tc_status"; cat "$tc/out"; exit 1; }
+
+# A stale tombstone may be deleted while the live ID stays (data cleanup after a
+# resurrection). ids_at must key both sides by the first token, or the parent's
+# "- ID: TF-x (removed …)" line looks like an entry whose name is the whole
+# parenthetical and the merge is reported as a drop — which is what failed CI
+# on PR #50 when the false v1.0.7 tombstone for 985164 was removed.
+tc_write "$tc_todo" \
+  "$(tc_entry Keep TF-20260101-91 inbox)" \
+  "$(tc_entry Base1 TF-20260101-01 done)"
+{
+  printf '## Removed\n\n- ID: TF-20260101-91 (removed 2026-01-01: stale twin)\n'
+} >> "$tc_todo"
+git -C "$tc" add -A
+git -C "$tc" commit -qm 'parent: live TF-91 plus a stale tombstone'
+tc_twin_parent="$(git -C "$tc" rev-parse HEAD)"
+tc_write "$tc_todo" \
+  "$(tc_entry Keep TF-20260101-91 inbox)" \
+  "$(tc_entry Base1 TF-20260101-01 done)"
+git -C "$tc" commit -qam 'child: drop only the stale tombstone, keep live TF-91'
+set +e
+bash "$HERE/todo-check" "$tc" "$tc_twin_parent" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL dropping a stale tombstone while keeping the live ID was reported as a drop ($tc_status):"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL tombstone-drop cleanup did not pass"; cat "$tc/out"; exit 1; }
 echo ok
 
 echo "== the dsh wiring runs session-start the way dsh runs it =="

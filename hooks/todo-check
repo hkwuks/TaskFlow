@@ -42,9 +42,14 @@ todo="TaskFlowDocs/todo.md"
 
 # The `- ID:` values at a commit, sorted for `comm`. A commit without the Todo
 # file yields nothing rather than an empty line, so an empty set compares as one.
+# The value is the first whitespace token only: a tombstone line is
+# `- ID: TF-x (removed …)`, and taking the whole suffix made that a different
+# identity from the live entry. A merge that keeps the live ID while dropping a
+# stale tombstone then looked like a lost entry whose "name" was the full
+# parenthetical string — which `removed_at` never matches (it already tokens).
 ids_at() {  # ids_at <commit>
   git -C "$root" show "$1:$todo" 2>/dev/null \
-    | sed -n 's/^- ID:[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*$/\1/p' | sort -u
+    | sed -n 's/^- ID:[[:space:]]*\([^[:space:]]\{1,\}\).*/\1/p' | sort -u
 }
 
 # The IDs a commit records as authorized deletions. `hooks/task remove` writes
