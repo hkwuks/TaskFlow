@@ -233,6 +233,8 @@ Record approval as:
 - Approved scope: PRD / Spec / Plan
 ```
 
+After the user has approved, write those five fields with `task approve <task-id> [approver]` (default approver `user`). The hook only transcribes the decision you already have; it does not approve on its own. Hand-edit the block only when the hook is unavailable.
+
 ### 5. Build — implement by Plan
 
 Before the first edit, confirm the task's working tree is still the one you are in — isolation was established in Phase 1, before the first document, and this phase only carries it forward. If it was skipped, do it now before editing: `git worktree add .worktrees/<slug> -b <type>/<slug> <base>`, then move the work there. Read the applicable repository guidance first — `CONTRIBUTING.md` names the branch prefixes and the base-branch rule; follow it when the repository states one, and otherwise branch as `<type>/<description>` off the intended base. Record the branch and worktree in `plan.md` when they are not obvious from the task directory.
