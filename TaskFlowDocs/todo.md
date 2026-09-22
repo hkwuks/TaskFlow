@@ -945,16 +945,17 @@ Every direct request or imported requireme
 ## Cut the mechanical overhead out of a release without adding any authority to it
 
 - ID: TF-20260919-c41f8a
-- Status: inbox
+- Status: done
 - Priority: high
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-19
-- Updated: 2026-09-19
+- Updated: 2026-09-21
 - Goal: Cut the mechanical overhead out of a release without adding any authority to it: write the six fixed version literals from one command, move the CHANGELOG section into the tagged commit so the tag is immutable, and make a stale release record fail CI instead of passing.
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-21-release-overhead/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-19 用户指定三条一起做，作为本条**（依据是 v1.0.8 的实测产物，不是设想）。
+- **2026-09-21 已 promote，三条经实测修正为**：(1) 机械字面量不是 6 处而是 **8 处 / 6 个文件**（4 个 manifest + 两份 README 各两处 `Version:` 示例），`hooks/release-version` 一次写掉；(2) **tag 缺正文不是真的**——实测 v1.0.7 (`c3c536d`) 与 v1.0.8 (`620c6a7`) 的 CHANGELOG 段落**都在被 tag 的 commit 里**，tag 注释是 tag 对象上的第二份正文，不替代第一份；真正缺的只是 `RELEASE.md` 没写下「段落先于 tag」这条顺序规则，改为补规则（R4）；(3) 新增两条已实测的检查——`release-check` 对每份 README **只用 head -1 比第一处**，把 `README.md:261` 改成 1.0.7 仍报 pass；以及 tag→pin 窗口内除 marketplace 两文件与 `TaskFlowDocs/` 外任何改动均应判红。用户已裁定：第 (2) 条只补规则、窗口豁免 `TaskFlowDocs/`。
   **三条内容**：
   (1) **`hooks/release-version <x.y.z>`（只做格值写入）**——当前一次发布要手改 **7 个文件**（`620c6a7` 的 stat）：4 个 manifest 的 `version`、两份 README 的插件列表示例、`CHANGELOG.md` 新段落。**前六处是格值**（4 个 manifest + 2 处 README 示例输出，`README.md:207,261`、`README.zh-CN.md:173,226`），完全可以一条命令写掉；**第七处是散文，留给 Agent**。Codex/CodeBuddy 的 cachebuster 形如 `1.0.8+codex.20260919`，日期用 hook 已有的 `today`。**必须一次调用写完，不要做成 preflight + write 两次**——一次调用就先检查后写，失败不留半成品。
   (2) **把 CHANGELOG 段落搬进 base tree 的 release commit，让 tag 不可变**。现状（`RELEASE.md:86-92` + 实测 `620c6a7`）：**release notes 活在 tag 指向的 commit 之后的第二个 commit 里**，所以 `git tag -a` 只能把正文写进 tag，**tag 本身缺发布正文**；后来补写正文是重写 tag 对象，而 tag 是 claude 的 `sha` pin 引用的东西，重写需要「显式 owner 授权 + 记录理由」（`RELEASE.md:126`，且改的是 `620c6a7`/`2a89e2` 那类 commit）。把 CHANGELOG 段落移进 release commit 之后：tag 指向的 commit 自带发布正文，下一个 tag 可以带正文且先于 pin 创建、此后不再改。`RELEASE.md` 的步骤顺序要同步（正文写入在打标签之前），并记录为什么。
