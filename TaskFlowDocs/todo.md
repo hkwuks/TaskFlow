@@ -9,39 +9,24 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## Fix hooks/merge-todo so a Removed record matches its live entry by ID token
 
-## SessionStart fails the repository-docs index read across hosts and on index shape
-
-- ID: TF-20260921-4d8ae2
-- Status: inbox
-- Priority: high
+- ID: TF-20260918-985164
+- Status: promoted
+- Priority: normal
 - Owner: Codex
 - Source: user request
-- Added: 2026-09-21
-- Updated: 2026-09-21
-- Goal: Make the repository-docs index read tolerate what different hosts and older writers put in the file, instead of failing SessionStart with `repository-document index contains an invalid row`.
-- Task: Not promoted.
-- Next action: Fix landed on fix/repository-docs-reader; awaiting review.
-- Notes: **2026-09-21 用户报错**：`SessionStart:resume hook error — Failed with non-blocking status code: repository-document index contains an invalid row`。用户判断这是**兼容性问题**。
-- **2026-09-21 已实现（未合并）**：实际根因与本条原判断不同——不是「某个 host 写出了怪行」，是**读取器把列数硬编码成 6–8、并要求路径必须带反引号**。实测证据：把  的 index（4 列、无 Status、无反引号）喂给当前 hook，直接复现 。该文件由**同一个 hook 的旧版本**写出，所以任何早期版本写下的 index 都会让后续 SessionStart 失败。修法：改成**按表头列名定位列**（Class / Source / Phases / Exists / Status），4/5/6/7 列全部可读，路径反引号可选，状态允许大小写与空格；仅当表头点名了 Status 列而该格是日期（说明该行掉格）才拒绝，无表头时退化为位置解析并仍拒绝日期/状态形状的路径。== every hook parses under the shell that is running ==
-  **现场已核**：仓库当前 `TaskFlowDocs/repository-docs/index.md`（5 列，无日期）在本机 WSL 上跑不出这个错——我在同一检出上跑 `bash hooks/repository-docs-context` 是 rc=0、无 stderr。**所以触发条件不是当前这份文件**，而是某个 checkout / 某个 host 上形态不同的那份。
-  **报错点**：`hooks/repository-docs-context:139-140`——awk 把无法解析的行计入 `bad`，写到 `$work/badcount`，非空即 `fail "repository-document index contains an invalid row"`。（注意与另一条**不同**的错误：`hooks/repository-docs-context:204` 的并发分支报的是 `repository-docs index is busy: <lock>`，不是这一条。）
-  **§ 已用变异实测的拒绝条件**（逐条跑过，见下表）：解析现在要求 (a) 行以 `|` 开头且非分隔行/表头；(b) `split($0,f,"|")` 得到 **6–8** 个字段；(c) `f[3]` 必须**被反引号包裹** `/^`[^`]+`$/`；(d) 状态列（倒数第二格）必须匹配 `/^[a-z][a-z-]*$/`。
+- Added: 2026-09-18
+- Updated: 2026-09-22
+- Goal: Fix hooks/merge-todo so a ## Removed record matches its live entry by ID token and deletion wins, then clear the duplicate IDs that resurrection left in todo.md.
+- Task: `TaskFlowDocs/2026-09-22-merge-todo-removed/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+- Notes: **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
 
-  | 变异 | 结果 |
-  |---|---|
-  | 旧 6 列行（带 `Last checked` 日期格） | **ok**（`57d507a` 已刻意兼容） |
-  | 行尾多两个空格 | ok |
-  | **路径不带反引号** `\| repository-rule \| CONTRIBUTING.md \| … \|` | **FAIL** |
-  | **状态首字母大写** `Ready` | **FAIL** |
-  | **状态含空格** `needs review` | **FAIL** |
-  | CRLF（`\r\n`） | ok（`.gitattributes` 有 `* text=auto eol=lf`，实测通过） |
-  | gawk / mawk / nawk 三种 awk | 行解析结果一致，非 awk 方言问题 |
+  **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
 
-  **待查的关键半段（未完成）**：`1c5e59c`（09-16）的 index 行与今天形状相同，且我实测的第 7 列计数、列数分支都过了，**尚未定位是哪个写入方**在哪个 host 上写出了触发的那一行。下一步必须先拿到**出错现场的 `index.md` 与 host**（另开一个会话复现，或从报错机器的检出取那份文件），再决定修法——否则就是照猜测改检查。
-  **修法方向（待现场确认后定，二选一）**：(a) 让解析器更宽（反引号可选、状态允许大小写与空格）；(b) 只把这一列读进来做 carry-over 时用宽松口径，渲染仍严格。**先别放宽**：放宽会同时削弱 `hooks/smoke-test:338` 那条「畸形行必须被拒」的断言（`\| malformed row \|`），要一起改并补断言。
-  **为什么它值得 high**：这条错误发生在 **SessionStart**，即每个会话开头——一旦命中，注入的仓库路由上下文就整段丢失，且是 **non-blocking**，用户只看到一行报错、不影响继续用，所以极易被忽略到下一次踩更重的坑。相关：`TF-20260921-337ab8`（本轮同批立的 `task intake` 条目）。
-- **2026-09-21 已实现（未合并）**：实际根因与本条原判断不同——不是「某个 host 写出了怪行」，是**读取器把列数硬编码成 6–8、并要求路径必须带反引号**。实测证据：把 `Node/Mimir` 的 index（4 列、无 Status、路径无反引号）喂给当前 hook，直接复现 `repository-document index contains an invalid row`；该文件由**同一个 hook 的旧版本**写出，所以任何早期版本写下的 index 都会让后续 SessionStart 失败。修法：改成**按表头列名定位列**（Class / Source / Phases / Exists / Status），4/5/6/7 列全部可读，路径反引号可选，状态允许大小写与空格；仅当表头点名了 Status 列而该格是日期（说明该行掉格）才拒绝，无表头时退化为位置解析并仍拒绝日期形状的路径。`hooks/smoke-test` 加了 7 条断言（4 种可读形态 + 反引号可选 + 状态宽容 + 移位行仍拒绝），并做过一次变异验证（把旧严格规则放回去，套件失败）。已核四个真实仓库（Mimir / cc-switch / Survival / TaskFlow）的 index 全部读通。
+  **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。
+
 
 ## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
@@ -778,59 +763,6 @@ Every direct request or imported requireme
 - Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 本缺陷在归档 2026-09-18-todo-field-writes 时发现：`task get` 只打印 `^- ` 开头的行（`hooks/task` 的 `entry` 分支），而 Notes 的第二条及以后按仓库既有习惯写成**两空格缩进的 `- ` 行**，于是它们不出现在输出里，**且没有提示**。危害不是报错，是**静默**：调用方拿到一份看似完整、实则缺段的条目，据此决策。判据：本次取证用 `bash hooks/task get TF-20260918-454ac4` 只回出 Notes 的第一行，而文件里它下面还有三条缩进续行。修法二选一：(a) 把条目正文的缩进行也算正文一并打印；(b) 至少 stderr 提示该条目有 N 行未显示。v2 已合并，本缺陷未修。同族：`task next` 写 Notes 时用的是同一套字段边界（`isfield`），那边的续行判定虽已覆盖缩进，但输出侧没跟上。
 
-## Publish TaskFlow v1.0.7: the conflict-review rule, the executable launcher, task
-
-- ID: TF-20260918-985164
-- Status: in_progress
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-19
-- Goal: Publish TaskFlow v1.0.7: the conflict-review rule, the executable launcher, task next/get, and the README surfaces that shipped after v1.0.6.
-- Task: `TaskFlowDocs/2026-09-18-release-v1-0-7/`
-- Next action: Step 1 done; run the Validation checklist.
-- Notes: **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
-
-  **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
-
-  **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。
-
-## Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an e
-
-- ID: TF-20260919-76e7fb
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-19
-- Updated: 2026-09-19
-- Goal: Make a release stop going through the TaskFlow PRD/branch flow: it re-plans an existing RELEASE.md procedure, and its documents cannot be inherited because the task type does not exist.
-- Task: Not promoted.
-- Next action: Delivered by 2026-09-19-release-flow-exception; awaiting that task's merge.
-- Notes: **2026-09-19 用户实测后提出**：发布 v1.0.7 太慢，且**又走了 PRD 与分支的旧流程**（当天先改了一轮才纠正分支，Plan 从 157 行压到 116 行仍偏重）。用户已选定方向：**发布完全不走 TaskFlow 的 PRD/Plan**，只留精简记录。
-- **2026-09-19 交付**：本条的修法已落地，取的是「发布完全不走 TaskFlow」这一形态（用户当时选定的方向），不是给 `promote` 加 `release` 类型。落点：`SKILL.md` 的适用性门禁与 frontmatter description 去掉发布、写明例外；`RELEASE.md` 开头声明它在 base 检出直接执行、不建任务、不写 PRD/Spec/Plan，批准门禁随程序走；`CONTRIBUTING.md` 的 `## TaskFlow workflow` 与 `## Working branches` 各留例外（含「发布不切分支」的理由）；`references/artifacts.md` 的发布节改为「发布不使用任务文档」；两份 README 同步。断言的落地见 `TF-20260919-2877ca`。
-  **两处根因（我先查的，不是猜的）**：
-  (1) **任务类型不存在**。`hooks/task promote <todo-id> <task-id> <small|large>` 只有两个尺寸选项，没有 `release` 类型。于是每个发布任务都被生成成通用的七节 PRD 骨架（Goal / Background / Requirements / Acceptance / In Scope / Out of Scope / Risks / Open Questions），而 `skills/taskflow/references/artifacts.md:115-121` 的「Release task documents」规则要求**记录决策与结果、不重述程序**——生成的骨架与规则直接冲突，每次都靠人手削。v1.0.4 77 行、v1.0.5 101、v1.0.6 141、v1.0.7 116，一轮比一轮重。
-  (2) **规则是渐进披露的，但发布头几步没人会去读它**。`SKILL.md` 的 `## Supporting references` 明写 `artifacts.md` 是「Read these only when needed」，而发布任务的定义（`RELEASE.md:18`：创建一个发布任务）出现在 SKILL.md 的 Phase 1 之前，那时还没有任何东西提示去读 `artifacts.md`。规则存在 ≠ 规则生效——本条就是活例：`RELEASE.md` 与 `artifacts.md` 里都写着正确答案，我读了却没对上自己的动作。
-  **分支那半的根因**：`CONTRIBUTING.md:16` 的硬要求是「每个任务一个短生命周期分支」，它没有给发布留例外；而 `RELEASE.md` 的默认路径是**直接从 main 打标签**。两条规则互相矛盾时，默认读到的是 `CONTRIBUTING.md`（它是 code 阶段的硬规则），于是自加了 `chore/release-v1-0-7`。
-  **修法**（待开工时定）：给发布一个不再走 PRD/Plan 的路径——可能是 `promote <size>` 增加 `release` 形态只生成一行记录，或 `RELEASE.md` 直接规定「发布不创建 TaskFlow 任务，只在 `achieved/` 留一条结果记录」；同时明确 `CONTRIBUTING.md` 的分支要求是否豁免发布。相关：`TF-20260919-2877ca`（让程序自述）、`TF-20260919-b7821b`（修 `version` 的 Approval 形状）。
-
-## Make the release procedure self-describing so a release task does not need a PRD
-
-- ID: TF-20260919-2877ca
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-19
-- Updated: 2026-09-19
-- Goal: Make the release procedure self-describing so a release task does not need a PRD-and-Plan re-planning cycle.
-- Task: Not promoted.
-- Next action: Delivered by 2026-09-19-release-flow-exception; awaiting that task's merge.
-- Notes: **2026-09-19 提出**：发布流程目前靠「先读 RELEASE.md 再看 SKILL.md 再想起来 artifacts.md 有发布规则」这条链条，任何一环没接上就退回通用流程。可操作的方向是让 **RELEASE.md 自己成为入口**——在它开头写一行「本程序由 TaskFlow 的发布流程执行；不创建 PRD/Spec/Plan，只留结果记录」，把规则推到 Agent 一定会读到的地方（执行发布时读的正是 RELEASE.md）。另一种是让 `hooks/task` 在识别到发布类目标时直接把 RELEASE.md 的路径写进任务记录。与 `TF-20260919-76e7fb` 同源：那条决定发布要不要走 TaskFlow，本条决定如果不走，规则放在哪才不会被跳过。
-- **2026-09-19 交付**：本条问的是「规则放哪才不会被跳过」，答案是 **`RELEASE.md` 自己**——发布执行时读的正是它，所以规则写在开头第 5 行，而不是留在只被渐进披露的 `references/artifacts.md` 里。相应地，`RELEASE.md` 的三处「record … in the release task」改为写进 CHANGELOG 段与 Release 正文。另用 `hooks/smoke-test` 的一条断言锁住这段文本，改坏即失败——这是「规则存在」与「规则生效」的分界。
-
 ## Make hooks/version write the same five-field Approval block hooks/task generates
 
 - ID: TF-20260919-b7821b
@@ -986,7 +918,6 @@ Every direct request or imported requireme
 
 ## Removed
 
-- ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
 - ID: TF-20260921-4d8ae2 (removed 2026-09-22: stale: fix merged on main in PR 46 (02c1441); entry still said awaiting review)
 - ID: TF-20260919-76e7fb (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
 - ID: TF-20260919-2877ca (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))

@@ -12,20 +12,26 @@
 #
 # Rules:
 #   * The preamble before the first `## ` heading comes from ours.
-#   * An entry is identified by its `- ID:` value, or by its heading when it has
-#     no ID yet. Entries are matched by that key, not by position.
-#   * An entry present on only one side is taken from that side.
+#   * An entry is identified by its `- ID:` value's first whitespace token, or
+#     by its heading when it has no ID yet. Entries are matched by that key,
+#     not by position. `## Removed` is always keyed `head:Removed` so the
+#     tombstone block matches across sides regardless of which record is first.
+#   * An entry present on only one side is taken from that side — unless the
+#     other side's `## Removed` names that ID, in which case the deletion wins
+#     and the lone live copy is not emitted (a tombstone is not a second entry).
 #   * An entry both sides have, byte-identical, is taken once.
 #   * An entry only one side changed relative to the ancestor is taken from that
 #     side — this is the ordinary case, two branches each touching their own entry.
+#   * Two different `## Removed` bodies are unioned by tombstone ID, not
+#     conflicted: parallel removes are ordinary.
 #   * An entry both sides changed differently is a real conflict: rewrite %A with
 #     Git conflict markers and exit 1, so `git merge` reports it.
 #   * Order is ours, then the entries only theirs, appended, so a merge cannot
 #     reorder entries the user already sees.
 #
-# The ancestor is consulted only to tell "we changed it" from "they did". A Todo
-# entry is never deleted and its heading is never rewritten, so there is no
-# delete/modify or rename/modify case for a full three-way merge to arbitrate.
+# The ancestor is consulted only to tell "we changed it" from "they did". A live
+# Todo entry disappears only by moving into `## Removed` (hooks/task remove);
+# that move must survive a merge rather than resurrect on the other side.
 set -euo pipefail
 LC_ALL=C
 export LC_ALL
@@ -36,7 +42,7 @@ base="$1"; ours="$2"; theirs="$3"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Split a todo file into its preamble and one record per `## ` entry. Entries are
+# Split a todo file into a preamble and one record per `## ` entry. Entries are
 # written to `entry.N`; `key.N` holds the heading, which is the fallback identity.
 split_todo() {  # split_todo <file> <outdir>
   mkdir -p "$2"
@@ -75,7 +81,19 @@ split_todo() {  # split_todo <file> <outdir>
 # the same heading text for different items, but the ID is what Todo commands
 # resolve against. It is emitted alongside the heading so an entry whose ID one
 # side has not written yet still matches its counterpart.
+#
+# The ID key is the first whitespace token only. A tombstone line is
+# `- ID: TF-x (removed …)`; taking the whole suffix made that a different key
+# from the live entry's `id:TF-x`, so a deletion never matched and the other
+# side's live copy was kept as "only they have it".
+#
+# `## Removed` is one section holding every tombstone, so it never keys off the
+# first record's ID — always `head:Removed`.
 key_of() {  # key_of <entryfile> <headingkey>
+  if [ "$2" = "Removed" ]; then
+    printf '%s\n' "head:Removed"
+    return 0
+  fi
   # One key per entry, no more: `exit` still runs END in awk, so the fallback has
   # to be suppressed by a flag rather than by exiting early. An extra line here
   # would shift every later key against its entry.
@@ -83,7 +101,8 @@ key_of() {  # key_of <entryfile> <headingkey>
     /^- ID:/ {
       v = substr($0, 7)
       sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
-      if (v != "" && !found) { print "id:" v; found = 1 }
+      split(v, a, /[ \t]+/)
+      if (a[1] != "" && !found) { print "id:" a[1]; found = 1 }
     }
     END { if (!found) print "head:" fallback }
   ' "$1"
@@ -97,12 +116,71 @@ emit() {  # emit <entryfile>
   printf '\n\n' >> "$work/result"
 }
 
+# Tombstone IDs recorded in a side's `## Removed` section, one token per line.
+collect_removed() {  # collect_removed <outdir> <count> <outfile>
+  local i=1
+  : > "$3"
+  while [ "$i" -le "$2" ]; do
+    if [ "$(cat "$1/key.$i")" = "Removed" ]; then
+      awk '/^- ID:/ {
+        v = substr($0, 7)
+        sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
+        split(v, a, /[ \t]+/)
+        if (a[1] != "") print a[1]
+      }' "$1/entry.$i" >> "$3"
+    fi
+    i=$((i + 1))
+  done
+}
+
+# id:TF-x -> TF-x; heading keys yield nothing.
+id_of_key() {  # id_of_key <key>
+  case "$1" in
+    id:*) printf '%s\n' "${1#id:}" ;;
+  esac
+}
+
+# True when the other side's Removed set already names this ID.
+other_removed() {  # other_removed <id> <removed-file>
+  [ -n "$1" ] && [ -s "$2" ] && grep -qxF -- "$1" "$2"
+}
+
+# Union tombstone lines: ours first, then theirs-only IDs, still under one
+# `## Removed` heading (the entry file already starts with that heading).
+union_removed() {  # union_removed <our-entry> <their-entry> <outfile>
+  local ours_t="$work/union.ours_tombs" theirs_t="$work/union.theirs_tombs"
+  local line id
+  awk '/^- ID:/ { print }' "$1" > "$ours_t"
+  awk '/^- ID:/ { print }' "$2" > "$theirs_t"
+  {
+    cat "$1"
+    # Blank line after our body only if we already had tombstones; emit() adds
+    # the section separator, so keep the block tight: header + our lines + new.
+    # Re-read structure: entry file is `## Removed` + blank? + lines. We append
+    # missing tombstones after our last line.
+    while IFS= read -r line; do
+      id="$(printf '%s\n' "$line" | awk '{
+        v = substr($0, 7)
+        sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
+        split(v, a, /[ \t]+/)
+        print a[1]
+      }')"
+      [ -n "$id" ] || continue
+      grep -qxF -- "$id" "$ours_t" && continue
+      printf '%s\n' "$line"
+    done < "$theirs_t"
+  } > "$3"
+}
+
 split_todo "$ours"   "$work/ours"
 split_todo "$theirs" "$work/theirs"
 split_todo "$base"   "$work/base"
 no="$(cat "$work/ours/count")"
 nt="$(cat "$work/theirs/count")"
 nb="$(cat "$work/base/count")"
+
+collect_removed "$work/ours"   "$no"   "$work/removed.ours"
+collect_removed "$work/theirs" "$nt"   "$work/removed.theirs"
 
 # Index a side's entry files by key and heading, so a lookup is a grep over a list
 # rather than a scan of the entries themselves (an entry's body can contain a line
@@ -165,16 +243,31 @@ while [ "$i" -le "$no" ]; do
   entry="$work/ours/entry.$i"
   j="$(match_of "$key" "$head")"
   if [ -z "$j" ]; then
-    # Only we have it: either we added it, or they removed it. Keep it — a
-    # resurrected entry is visible and fixable, a silently dropped one is neither.
-    emit "$entry"
+    # Only we have it: we added it, or they removed it. Deletion wins — a live
+    # copy whose ID sits in their ## Removed must not come back.
+    id="$(id_of_key "$key")"
+    if other_removed "$id" "$work/removed.theirs"; then
+      :
+    else
+      emit "$entry"
+    fi
   else
     other="$work/theirs/entry.$j"
     if cmp -s "$entry" "$other"; then
       emit "$entry"
     else
       b="$(base_of "$key" "$head")"
-      if [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
+      if [ "$key" = "head:Removed" ] || [ "$head" = "head:Removed" ]; then
+        if [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
+          emit "$other"        # only they changed Removed
+        elif [ -n "$b" ] && cmp -s "$other" "$work/base/entry.$b"; then
+          emit "$entry"        # only we changed Removed
+        else
+          # Both added or edited tombstones: union by ID, not a conflict.
+          union_removed "$entry" "$other" "$work/union.removed"
+          emit "$work/union.removed"
+        fi
+      elif [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
         emit "$other"        # only they changed it
       elif [ -n "$b" ] && cmp -s "$other" "$work/base/entry.$b"; then
         emit "$entry"        # only we changed it
@@ -203,7 +296,12 @@ while [ "$i" -le "$nt" ]; do
   key="$(sed -n "${i}p" "$work/keys.theirs")"
   head="$(sed -n "${i}p" "$work/heads.theirs")"
   if ! has "$key" "$work/keys.ours" && ! has "$head" "$work/heads.ours"; then
-    emit "$work/theirs/entry.$i"
+    id="$(id_of_key "$key")"
+    if other_removed "$id" "$work/removed.ours"; then
+      : # we already recorded this ID as deleted; do not resurrect their live copy
+    else
+      emit "$work/theirs/entry.$i"
+    fi
   fi
   i=$((i + 1))
 done
