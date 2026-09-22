@@ -18,6 +18,20 @@ TaskFlow ships as a repository plugin for Claude Code, Codex CLI, CodeBuddy, and
 - `skills/taskflow/` and `hooks/` — plugin contents;
 - README, governance documents, and release notes.
 
+Six of those files carry a version literal, eight in all: the four manifests, and
+the two `plugin list` samples in each README. Seven of the eight are transcription
+of one approved version string, so `hooks/release-version` writes them in a single
+call:
+
+```bash
+bash hooks/release-version X.Y.Z
+```
+
+It checks before it writes, so a refusal leaves every file untouched, and it
+refuses until the `CHANGELOG.md` section exists — see the ordering rule under
+Release notes. It never creates a tag, pushes, or publishes anything; the two
+manual steps below stay manual.
+
 ## Before release
 
 Open the release from the base checkout and confirm:
@@ -44,9 +58,13 @@ git diff --check
 
 `hooks/release-check` compares the version literals a release has to move — the
 three host manifests, the dsh bundle manifest, the newest `CHANGELOG.md` section,
-and the `claude plugin list` sample in each README — and confirms each marketplace
-`ref` resolves to the commit its `sha` names. It exits `2` on a mismatch and `3`
-when a manifest is missing.
+and **every** `plugin list` sample in each README, not just the first one — and
+confirms each marketplace `ref` resolves to the commit its `sha` names. It also
+fails when the range from the tagged commit to the commit that recorded the pin
+contains a change outside the two marketplace catalogs (paths under
+`TaskFlowDocs/` are exempt), because such a change would ship under the pin
+without being in the release commit the tag names. It exits `2` on a mismatch and
+`3` when a manifest is missing.
 
 The dsh bundle manifest carries no cachebuster. dsh installs the package through
 pnpm rather than through a host-side plugin cache, so there is no stale-copy
@@ -60,12 +78,21 @@ The release notes are the record: the `CHANGELOG.md` section and the GitHub Rele
 
 Include the version and date, user-visible changes, migration or installation impact, known limitations, verification results, and the release commit (and Release PR when used). Do not include secrets or unverified claims.
 
+**The `CHANGELOG.md` section is written before the tag.** The tag is the immutable
+artifact — it is what the marketplace `sha` pins, and moving it needs explicit
+owner authorization — so the commit it names has to be the complete release on its
+own. Writing the section afterwards would put the release record in a commit the
+tag does not name, leaving the tagged tree describing a release whose notes it
+does not carry. `hooks/release-version` enforces the order by refusing to run
+until the section exists.
+
 ## Tag, catalog pin, and GitHub Release
 
 After the release scope is merged to the intended base (or the optional Release PR is merged):
 
 1. Check out the exact merged base commit and confirm a clean working tree.
-2. Verify manifest versions and release notes again.
+2. Verify manifest versions and release notes again — the `CHANGELOG.md` section
+   must already be in this commit, because the tag names it.
 3. Create an annotated tag such as `vX.Y.Z` on that commit.
 4. Update both marketplace entries so each Git source uses the release tag as `ref`
    and the exact tagged commit as `sha`, then commit that edit locally. It carries

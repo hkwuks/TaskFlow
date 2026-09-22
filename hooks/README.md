@@ -21,6 +21,7 @@ taskflow/hooks/
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
+├── release-version     # write the eight mechanical release version literals
 ├── release-check       # version literals + marketplace pin agree
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)

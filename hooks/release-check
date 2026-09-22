@@ -71,8 +71,14 @@ dsh_v="$(jversion "$dsh_manifest")"
 # The newest *version* section, not simply the newest section: an `## [Unreleased]`
 # heading is the normal state between releases and is not a version literal.
 changelog_v="$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' CHANGELOG.md | head -1)"
-readme_v="$(sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' README.md | head -1)"
-readme_zh_v="$(sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' README.zh-CN.md | head -1)"
+# Every `Version:` sample line, not the first one. Each README carries two — the
+# `claude plugin list` sample and the `codebuddy plugin list` sample — and a
+# release moves both, so reading only the first left half of each file's literals
+# uncompared. A file with no sample line at all yields nothing and is reported
+# below as a mismatch rather than skipped.
+readme_versions() { sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$1"; }
+readme_v="$(readme_versions README.md)"
+readme_zh_v="$(readme_versions README.zh-CN.md)"
 
 echo "Version literals:"
 printf -- '- %s: %s\n' "$claude_manifest" "$claude_v"
@@ -80,8 +86,26 @@ printf -- '- %s: %s\n' "$codex_manifest" "$codex_v"
 printf -- '- %s: %s\n' "$codebuddy_manifest" "$codebuddy_v"
 printf -- '- %s: %s\n' "$dsh_manifest" "$dsh_v"
 printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
-printf -- '- README.md (plugin list sample): %s\n' "$readme_v"
-printf -- '- README.zh-CN.md (plugin list sample): %s\n' "$readme_zh_v"
+# One line per literal, so a second sample disagreeing with the first is visible
+# in the output rather than averaged away.
+for readme in README.md README.zh-CN.md; do
+  if [ "$readme" = "README.md" ]; then values="$readme_v"; else values="$readme_zh_v"; fi
+  if [ -z "$values" ]; then
+    printf -- '- %s (plugin list sample): none\n' "$readme"
+  else
+    n=0
+    while IFS= read -r value; do
+      n=$((n + 1))
+      if [ "$n" -eq 1 ]; then
+        printf -- '- %s (plugin list sample): %s\n' "$readme" "$value"
+      else
+        printf -- '- %s (plugin list sample %d): %s\n' "$readme" "$n" "$value"
+      fi
+    done <<EOF
+$values
+EOF
+  fi
+done
 
 # Every manifest states a release number; the suffix after `+` is a cachebuster
 # and is checked separately. An unparseable literal would otherwise slip past the
@@ -94,15 +118,40 @@ for pair in "$claude_manifest:$claude_v" "$codex_manifest:$codex_release" "$code
     needs=1
   fi
 done
-for pair in "CHANGELOG.md:$changelog_v" "README.md:$readme_v" "README.zh-CN.md:$readme_zh_v" \
-            "$codex_manifest:$codex_release" "$codebuddy_manifest:$codebuddy_release" \
-            "$dsh_manifest:$dsh_v"; do
+for pair in "CHANGELOG.md:$changelog_v" "$codex_manifest:$codex_release" \
+            "$codebuddy_manifest:$codebuddy_release" "$dsh_manifest:$dsh_v"; do
   label="${pair%%:*}"; value="${pair#*:}"
   if [ "$value" != "$claude_v" ]; then
     echo "- $label says ${value:-nothing}, $claude_manifest says $claude_v"
     needs=1
   fi
 done
+# Every README sample line, each named by position when it is not the first, so a
+# stale second sample reads as the specific literal it is rather than as the file.
+check_readme_values() {  # check_readme_values <file> <values>
+  local readme="$1" values="$2" n=0 value
+  if [ -z "$values" ]; then
+    echo "- $readme has no 'Version:' plugin-list sample"
+    needs=1
+    return 0
+  fi
+  while IFS= read -r value; do
+    n=$((n + 1))
+    if [ "$value" != "$claude_v" ]; then
+      # The first sample keeps the wording the smoke suite asserts on.
+      if [ "$n" -eq 1 ]; then
+        echo "- $readme says ${value:-nothing}, $claude_manifest says $claude_v"
+      else
+        echo "- $readme sample $n says ${value:-nothing}, $claude_manifest says $claude_v"
+      fi
+      needs=1
+    fi
+  done <<EOF
+$values
+EOF
+}
+check_readme_values README.md "$readme_v"
+check_readme_values README.zh-CN.md "$readme_zh_v"
 
 # The pin is checked against the tag it names, not against the version literals:
 # the marketplace intentionally still points at the previous release while the
@@ -115,6 +164,7 @@ done
 # would install a different commit depending on which catalog a host reads. Each
 # catalog's pin is read from its own `source` object so the comparison is
 # between the two recorded pins, not between a pin and an unrelated field.
+window_tag=""; window_sha=""
 for catalog in "$marketplace" "$codebuddy_marketplace"; do
   pin_ref="$(jpin "$catalog" ref)"
   pin_sha="$(jpin "$catalog" sha)"
@@ -131,8 +181,42 @@ for catalog in "$marketplace" "$codebuddy_marketplace"; do
     needs=1
   else
     echo "Marketplace pin ($catalog): $pin_ref -> $pin_sha"
+    [ -n "$window_sha" ] || { window_tag="$pin_ref"; window_sha="$pin_sha"; }
   fi
 done
+
+# The window between the tagged commit and the commit that recorded the pin.
+# `RELEASE.md` makes a release two commits by construction — the tag cannot exist
+# before the release commit, and the pin cannot be written before the tag — so
+# exactly two files have any business changing in that range: the two marketplace
+# catalogs, whose `ref`/`sha` are the pin itself. Anything else there is a change
+# that shipped under the pin without being in the release commit the tag names.
+#
+# The range ends at the commit that last wrote a catalog, not at HEAD: later work
+# on `main` is not part of the release and comparing against HEAD would report
+# every commit since the release as a stray.
+#
+# `TaskFlowDocs/` is exempt: task documents are not distributed with the release,
+# so one landing in the window cannot make a pin ship unpublished code. Every
+# other path is named, because "one of the release commits had an extra file" is
+# not something a status line should hide.
+if [ -n "$window_sha" ]; then
+  recorded="$(git log -1 --format=%H -- "$marketplace" "$codebuddy_marketplace" 2>/dev/null || true)"
+  if [ -n "$recorded" ] && [ "$recorded" != "$window_sha" ]; then
+    stray=""
+    for path in $(git diff --name-only "$window_sha" "$recorded" 2>/dev/null || true); do
+      case "$path" in
+        "$marketplace"|"$codebuddy_marketplace"|TaskFlowDocs/*) ;;
+        *) stray="$stray $path" ;;
+      esac
+    done
+    if [ -n "$stray" ]; then
+      echo "- the pin commit range carries changes outside the pin:$stray"
+      echo "  ($window_tag is $window_sha; the catalogs were last written in $recorded)"
+      needs=1
+    fi
+  fi
+fi
 
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"

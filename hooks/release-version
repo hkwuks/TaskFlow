@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# release-version — write every mechanical version literal a release has to move.
+# Usage: release-version <x.y.z> [root]
+#
+# A release moves the same version through six files, and seven of the eight
+# literals are transcription: the four host bundle manifests, and the two
+# `plugin list` sample outputs in each README. Only the `CHANGELOG.md` section is
+# prose, so only that is left to the author — and this command refuses to run
+# until that section exists, which is what binds the prose to the same commit as
+# the literals.
+#
+# It transcribes; it does not decide. It never tags, pushes, or publishes, and it
+# writes nothing a release owner's approval covers — see RELEASE.md, which keeps
+# both the tag and the GitHub Release a manual, approved step.
+#
+# Every check runs before the first byte is written: a refusal leaves all six
+# files exactly as they were.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+usage='usage: release-version <x.y.z> [root]'
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || { echo "$usage" >&2; exit 2; }
+
+new="$1"
+root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+if [ -z "$root" ] || [ ! -d "$root" ]; then
+  echo "release-version: cannot identify a repository root" >&2
+  exit 3
+fi
+cd "$root"
+
+if ! printf '%s\n' "$new" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo "release-version: version must be X.Y.Z, not '${new:-nothing}'" >&2
+  exit 2
+fi
+
+claude_manifest=".claude-plugin/plugin.json"
+codex_manifest=".codex-plugin/plugin.json"
+codebuddy_manifest=".codebuddy-plugin/plugin.json"
+dsh_manifest="package.json"
+readmes="README.md README.zh-CN.md"
+
+# The value of the manifest's `version` key. Read by field name rather than by
+# parsing JSON: CODE_STYLE fixes these manifests' shape, and a parser would be a
+# dependency bought for a format that does not move. `release-check` reads the
+# same key the same way.
+jversion() { sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1; }
+
+# shellcheck disable=SC2086  # $readmes is a deliberate word list
+for file in "$claude_manifest" "$codex_manifest" "$codebuddy_manifest" "$dsh_manifest" $readmes CHANGELOG.md; do
+  [ -f "$file" ] || { echo "release-version: missing $file" >&2; exit 3; }
+done
+
+current="$(jversion "$claude_manifest")"
+current="${current%%+*}"
+[ -n "$current" ] || { echo "release-version: no version in $claude_manifest" >&2; exit 3; }
+
+# Strictly greater, segment by segment. A release that does not move forward is
+# either a mistake or a re-run, and both should be seen rather than written.
+if ! awk -F. -v a="$new" -v b="$current" '
+  BEGIN {
+    n = split(a, x, "."); m = split(b, y, ".")
+    for (i = 1; i <= 3; i++) {
+      xi = (i <= n) ? x[i] + 0 : 0
+      yi = (i <= m) ? y[i] + 0 : 0
+      if (xi > yi) exit 0
+      if (xi < yi) exit 1
+    }
+    exit 1
+  }
+'; then
+  echo "release-version: $new does not follow $current" >&2
+  exit 2
+fi
+
+# R3: the release notes are the author's, and the tagged commit is the immutable
+# artifact. Requiring the section to exist first is what keeps the two in one
+# commit — the literal writer cannot run ahead of the prose it describes.
+if ! grep -q "^## \[$new\]" CHANGELOG.md; then
+  echo "release-version: CHANGELOG.md has no '## [$new]' section" >&2
+  echo "                Write the release notes first; they belong to the tagged commit." >&2
+  exit 2
+fi
+
+stamp="$(date +%Y%m%d)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+: > "$work/stage"
+literals=0
+
+# The value the target file must end up carrying, read back with the same reader
+# `release-check` uses. A staged rewrite is verified against this rather than
+# against a grep for the new literal: the literal can appear as a key, and an
+# earlier version of this hook did exactly that — replaced `"version"` instead of
+# its value — while any "did the literal land" check still passed.
+manifest_version() { sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1; }
+readme_versions() { sed -n 's/^#.*Version:[[:space:]]*\([^[:space:]]*\).*/\1/p' "$1"; }
+
+# stage <path> <sedscript> <expected-value>
+# Runs the script into a temp file beside the target and proves the result before
+# recording it. Nothing is moved until every file has staged and verified.
+stage() {
+  local path="$1" script="$2" expected="$3" dir tmp got all
+  dir="$(dirname "$path")"
+  tmp="$(mktemp "$dir/.release-version.XXXXXX")"
+  if ! sed -f "$script" "$path" > "$tmp"; then
+    rm -f "$tmp"
+    echo "release-version: rewrite of $path failed" >&2
+    exit 3
+  fi
+  case "$path" in
+    README.md|README.zh-CN.md)
+      # Every `Version:` sample line, not only the first: a release moves both.
+      all="$(readme_versions "$tmp")"
+      got="$(printf '%s\n' "$all" | grep -c -x -F "$expected" || true)"
+      want="$(printf '%s\n' "$all" | grep -c . || true)"
+      ;;
+    *)
+      want=1
+      got=0
+      [ "$(manifest_version "$tmp")" = "$expected" ] && got=1
+      ;;
+  esac
+  if [ "$want" -lt 1 ] || [ "$got" -ne "$want" ]; then
+    rm -f "$tmp"
+    echo "release-version: $path would not read back as $expected ($got of $want)" >&2
+    exit 3
+  fi
+  if cmp -s "$path" "$tmp"; then
+    rm -f "$tmp"
+    echo "release-version: $path already says $expected" >&2
+    exit 2
+  fi
+  printf '%s\t%s\t%s\n' "$path" "$tmp" "$want" >> "$work/stage"
+  literals=$((literals + want))
+}
+
+# The manifest key is rewritten in place: the leading whitespace, the key
+# spelling, and the trailing comma survive, and the anchor means a nested
+# `"version"` elsewhere in the file is not caught by accident. The value is what
+# `\(:[[:space:]]*\)"[^"]*"` selects, and the group is put back.
+stage_manifest() {  # stage_manifest <path> <literal>
+  local path="$1" literal="$2" count script
+  count="$(grep -c -E '^[[:space:]]*"version"[[:space:]]*:' "$path" || true)"
+  if [ "$count" -ne 1 ]; then
+    echo "release-version: $path has $count 'version' keys; expected exactly 1" >&2
+    exit 3
+  fi
+  script="$work/manifest.sed"
+  printf '/^[[:space:]]*"version"[[:space:]]*:/s/\\(:[[:space:]]*\\)"[^"]*"/\\1"%s"/\n' "$literal" > "$script"
+  stage "$path" "$script" "$literal"
+}
+
+stage_manifest "$claude_manifest" "$new"
+# The Codex and CodeBuddy cachebusters suffix the version, so their literal is
+# the release number plus today. `release-check` compares the part before `+`.
+stage_manifest "$codex_manifest" "$new+codex.$stamp"
+stage_manifest "$codebuddy_manifest" "$new+codebuddy.$stamp"
+# The dsh bundle carries no cachebuster: it installs through pnpm, which has its
+# own integrity record, so there is no stale host-side copy for a suffix to
+# defeat.
+stage_manifest "$dsh_manifest" "$new"
+
+# The README samples are `plugin list` output, so the literal sits after a
+# `Version: ` label. Only lines whose value is already X.Y.Z are touched: the
+# label's own text is what release-check anchors on, so it is put back
+# explicitly rather than re-spelled here.
+script="$work/readme.sed"
+printf '/^#.*Version: [0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*/s/\\(Version: \\)[0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*/\\1%s/\n' "$new" > "$script"
+# shellcheck disable=SC2086  # $readmes is a deliberate word list
+for readme in $readmes; do
+  stage "$readme" "$script" "$new"
+done
+
+# Every stage succeeded; from here the moves are the only work left, and each is
+# a rename within one filesystem.
+files=0
+while IFS="$(printf '\t')" read -r path tmp count; do
+  mv "$tmp" "$path"
+  files=$((files + 1))
+done < "$work/stage"
+
+echo "release-version OK: $current -> $new ($literals literals in $files files)"
