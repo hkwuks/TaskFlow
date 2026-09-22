@@ -412,13 +412,15 @@ END {
 
   # Not named "get": that command already means "title line + the fields named in
   # TASKFLOW_KEYS", and three internal callers depend on that shape. This branch
-  # prints the entry field lines verbatim instead -- the CLI wrapper below is
-  # what carries the name `get`.
+  # prints the entry body verbatim instead -- the CLI wrapper below is what
+  # carries the name `get`. Every non-blank line, not only column-0 `- ` fields:
+  # Notes continuations are often indented (with or without a dash) and a prefix
+  # filter dropped them with no warning, so a caller saw a truncated entry.
   if (cmd == "entry") {
     j = findsec(id, "")
     if (j == 0) die(ENVIRON["TASKFLOW_NOTFOUND"])
     a = bstart(j); b = bend(j)
-    for (i = a; i <= b; i++) if (at(line[i], "- ")) print line[i]
+    for (i = a; i <= b; i++) if (!is_blank(line[i])) print line[i]
     exit 0
   }
 

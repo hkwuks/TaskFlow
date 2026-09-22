@@ -1305,6 +1305,36 @@ readback="$(bash "$HERE/task" get TF-20260101-aa --root "$nf" | sed -n 's/^- Nex
 # "title line, then the fields named in TASKFLOW_KEYS".
 [ "$(grep -c 'TASKFLOW_CMD=get' "$HERE/task")" -eq 3 ] \
   || { echo "FAIL the internal get callers changed"; exit 1; }
+
+# Notes continuations are part of the entry body. They are often indented, and
+# a column-0 `- ` filter dropped them with no warning — the caller saw a
+# complete-looking entry that was missing its later bullets.
+notes_root="$tmp/get-notes"
+mkdir -p "$notes_root/TaskFlowDocs"
+printf '%s\n' \
+  '# Todo inbox' '' '## Items' '' '## Notes probe' '' \
+  '- ID: TF-20260101-ee' '- Status: inbox' '- Priority: normal' '- Owner: smoke' \
+  '- Source: fixture' '- Added: 2026-01-01' '- Updated: 2026-01-01' \
+  '- Goal: notes probe' '- Task: Not promoted.' '- Next action: none' \
+  '- Notes: first line' \
+  '  - second line indented' \
+  '  no dash third line' \
+  > "$notes_root/TaskFlowDocs/todo.md"
+bash "$HERE/task" get TF-20260101-ee --root "$notes_root" > "$tmp/get-notes-out"
+grep -qxF -- '  - second line indented' "$tmp/get-notes-out" \
+  || { echo "FAIL get dropped the indented Notes bullet"; cat "$tmp/get-notes-out"; exit 1; }
+grep -qxF -- '  no dash third line' "$tmp/get-notes-out" \
+  || { echo "FAIL get dropped the indented Notes continuation"; cat "$tmp/get-notes-out"; exit 1; }
+grep -q '^[[:space:]]*$' "$tmp/get-notes-out" \
+  && { echo "FAIL get printed a blank line in the Notes fixture"; exit 1; }
+grep -q '^## ' "$tmp/get-notes-out" \
+  && { echo "FAIL get printed a heading in the Notes fixture"; exit 1; }
+# Still every non-blank body line, verbatim and in order — not "fields plus
+# whatever the filter liked".
+sed -n '/^- ID: TF-20260101-ee$/,/^  no dash third line$/p' \
+  "$notes_root/TaskFlowDocs/todo.md" > "$tmp/get-notes-expected"
+diff -u "$tmp/get-notes-expected" "$tmp/get-notes-out" \
+  || { echo "FAIL get Notes output is not the entry body verbatim"; exit 1; }
 echo ok
 
 echo "== task remove records the deletion that todo-check must not call a drop =="
