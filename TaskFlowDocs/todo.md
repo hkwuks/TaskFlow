@@ -966,15 +966,15 @@ Every direct request or imported requireme
 ## `task intake` inserts a new entry into the previous section instead of `## Items`
 
 - ID: TF-20260921-337ab8
-- Status: inbox
+- Status: promoted
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-21
-- Updated: 2026-09-21
+- Updated: 2026-09-22
 - Goal: Fix task intake inserting a new entry into the previous section instead of the Items section, and its insertion point landing inside the Removed section.
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-09-22-todo-intake-insert/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-09-21 用户指定：单独开一条。**
   **问题**：`hooks/task intake` 把新条目写进文件里的上一个 `## ` 节，而不是插到 `## Items` 下。新条目因此挂到别人的标题下——那次它挂在了「Stop `TaskFlowDocs/todo.md` from growing without bound…」节里，`promote` 又拿那行当标题生出 task 文档（本轮我用假标题「State in the Skill…」跑出了 plan/prd 的首行）。
   **另一半**：`intake` 的插入点固定在文件末尾，所以它落在 `## Removed` 之后；如果 `## Removed` 不是最后一节，新条目会插进 `## Removed` 节内，`todo-check` 读 `## Removed` 时会把在途条目当成已删除记录（该节与 `TF-20260918-985164` 的删除语义直接冲突）。

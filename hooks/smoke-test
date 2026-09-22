@@ -1109,6 +1109,81 @@ git -C "$par" merge -q --no-edit right
 grep -q '^<<<<<<<' "$par/TaskFlowDocs/todo.md" && { echo "FAIL parallel intake conflicted"; exit 1; }
 echo ok
 
+echo "== intake inserts at the top of ## Items, never after ## Removed =="
+# The old intake always appended at EOF. With `## Removed` last, the new live
+# entry landed in the deleted region — outside `## Items` and inside the range
+# `todo-check` reads for authorized deletions.
+ins_root="$tmp/intake-insert"
+mkdir -p "$ins_root/TaskFlowDocs"
+cat > "$ins_root/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Status flow
+
+`inbox → clarified → promoted → in_progress → done/cancelled`
+
+## Items
+
+<!-- Add new items at the top using the template below. -->
+## Seed entry
+
+- ID: TF-20260101-aa
+- Status: clarified
+- Priority: normal
+- Owner: smoke
+- Source: fixture
+- Added: 2026-01-01
+- Updated: 2026-01-01
+- Goal: seed
+- Task: Not promoted.
+- Next action: none
+
+## Removed
+
+- ID: TF-20260101-bb (removed 2026-01-01: fixture)
+EOF
+ins_out="$tmp/intake-insert-out"
+ins_id="$(bash "$HERE/task" intake "New entry must sit under Items." "fixture" --root "$ins_root" > "$ins_out" && awk '{ print $NF }' "$ins_out")"
+ins_todo="$ins_root/TaskFlowDocs/todo.md"
+ins_items="$(grep -n '^## Items$' "$ins_todo" | cut -d: -f1)"
+ins_new="$(grep -n '^## New entry must sit under Items$' "$ins_todo" | cut -d: -f1)"
+ins_seed="$(grep -n '^## Seed entry$' "$ins_todo" | cut -d: -f1)"
+ins_rem="$(grep -n '^## Removed$' "$ins_todo" | cut -d: -f1)"
+[ -n "$ins_items" ] && [ -n "$ins_new" ] && [ -n "$ins_seed" ] && [ -n "$ins_rem" ] \
+  || { echo "FAIL insert fixture missing a section heading"; cat "$ins_todo"; exit 1; }
+[ "$ins_items" -lt "$ins_new" ] && [ "$ins_new" -lt "$ins_seed" ] && [ "$ins_seed" -lt "$ins_rem" ] \
+  || { echo "FAIL new entry not between Items and Removed (items=$ins_items new=$ins_new seed=$ins_seed rem=$ins_rem)"; grep -n '^## ' "$ins_todo"; exit 1; }
+sed -n '/^## Removed$/,/^## /p' "$ins_todo" | grep -q "^- ID: $ins_id$" \
+  && { echo "FAIL new ID appears inside ## Removed: $ins_id"; exit 1; }
+# Goal-derived heading is what `promote` will use as the task directory name.
+grep -qx -- '## New entry must sit under Items' "$ins_todo" \
+  || { echo "FAIL new heading is not the Goal-derived title"; exit 1; }
+
+# R2: no `## Items`, but `## Removed` exists — insert before Removed, not after.
+ins2="$tmp/intake-no-items"
+mkdir -p "$ins2/TaskFlowDocs"
+cat > "$ins2/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Removed
+
+- ID: TF-20260101-bb (removed 2026-01-01: fixture)
+EOF
+bash "$HERE/task" intake "Before removed when Items is absent." "fixture" --root "$ins2" >/dev/null
+ins2_new="$(grep -n '^## Before removed when Items is absent$' "$ins2/TaskFlowDocs/todo.md" | cut -d: -f1)"
+ins2_rem="$(grep -n '^## Removed$' "$ins2/TaskFlowDocs/todo.md" | cut -d: -f1)"
+[ -n "$ins2_new" ] && [ -n "$ins2_rem" ] && [ "$ins2_new" -lt "$ins2_rem" ] \
+  || { echo "FAIL entry did not land before ## Removed when Items is absent"; cat "$ins2/TaskFlowDocs/todo.md"; exit 1; }
+
+# R3: bare `# Todo` keeps append-at-EOF so existing minimal fixtures stay valid.
+ins3="$tmp/intake-bare"
+mkdir -p "$ins3/TaskFlowDocs"
+printf '# Todo\n' > "$ins3/TaskFlowDocs/todo.md"
+bash "$HERE/task" intake "Bare file still accepts intake." "fixture" --root "$ins3" >/dev/null
+grep -qx -- '## Bare file still accepts intake' "$ins3/TaskFlowDocs/todo.md" \
+  || { echo "FAIL bare fixture did not get a heading"; cat "$ins3/TaskFlowDocs/todo.md"; exit 1; }
+echo ok
+
 echo "== task next writes the deterministic Todo fields and lands Notes before Updated =="
 # The point of the command is tokens: the fields it writes are templated from
 # state the Agent already has, and hand-writing them costs a read of the whole
