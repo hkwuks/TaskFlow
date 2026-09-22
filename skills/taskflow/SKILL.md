@@ -226,6 +226,7 @@ Record approval as:
 
 ```markdown
 ## Approval
+- Status: approved
 - Approved by: <user / role>
 - Approved at: YYYY-MM-DD HH:mm +08:00
 - Approved version: v1

@@ -33,10 +33,11 @@ for f in prd.md spec.md plan.md; do
   [ -f "$fpath" ] || continue
   grep -q "^> Task version: $oldv$" "$fpath" || { echo "mixed or missing Task version in $f"; exit 1; }
 done
+# Only the section is required. Individual Approval fields are written below
+# even when absent — a plan that followed the old four-field skill snippet has
+# no `- Status:` line, and refusing here is what kept the gate and version
+# reset from agreeing on shape.
 grep -q '^## Approval$' "$plan" || { echo "missing Approval section"; exit 1; }
-for field in Status 'Approved by' 'Approved at' 'Approved version' 'Approved scope'; do
-  grep -A8 '^## Approval$' "$plan" | grep -q "^- $field:" || { echo "missing Approval field: $field"; exit 1; }
-done
 
 # The archive must hold the superseded *version*, not the working tree after the
 # new version's edits landed. When v2 was written before the bump was taken, the
@@ -93,15 +94,39 @@ for fpath in "$docs/$task/prd.md" "$plan"; do
   sed 's/^> Status: .*/> Status: ready/' "$fpath" > "$fpath.tmp"
   mv "$fpath.tmp" "$fpath"
 done
+# Reset ## Approval to the same five-field block hooks/task promote writes.
+# Field lines are dropped and re-emitted once, in template order, so a missing
+# Status (or any other) is inserted rather than refused. Non-field lines in
+# the section are left alone.
 awk '
-  /^## Approval$/ { approval=1; print; next }
-  approval && /^## / { approval=0 }
-  approval && /^- Status:/ { print "- Status: requested"; next }
-  approval && /^- Approved by:/ { print "- Approved by: pending"; next }
-  approval && /^- Approved at:/ { print "- Approved at: pending"; next }
-  approval && /^- Approved version:/ { print "- Approved version: pending"; next }
-  approval && /^- Approved scope:/ { print "- Approved scope: pending"; next }
+  BEGIN {
+    t[1] = "- Status: requested"
+    t[2] = "- Approved by: pending"
+    t[3] = "- Approved at: pending"
+    t[4] = "- Approved version: pending"
+    t[5] = "- Approved scope: pending"
+  }
+  function flush_five(   i) {
+    for (i = 1; i <= 5; i++) print t[i]
+    emitted = 1
+  }
+  /^## Approval$/ { approval = 1; emitted = 0; print; next }
+  approval && /^## / {
+    if (!emitted) flush_five()
+    approval = 0
+    print
+    next
+  }
+  approval && /^- Status:/ ||
+  approval && /^- Approved by:/ ||
+  approval && /^- Approved at:/ ||
+  approval && /^- Approved version:/ ||
+  approval && /^- Approved scope:/ {
+    if (!emitted) flush_five()
+    next
+  }
   { print }
+  END { if (approval && !emitted) flush_five() }
 ' "$plan" > "$plan.tmp"
 mv "$plan.tmp" "$plan"
 
@@ -111,6 +136,25 @@ for f in prd.md spec.md plan.md; do
   grep -q "^> Task version: $newv$" "$fpath" || { echo "root version check failed: $f"; exit 1; }
 done
 grep -q '^> Status: ready$' "$docs/$task/prd.md" && grep -q '^> Status: ready$' "$plan" || { echo "ready-state check failed"; exit 1; }
-grep -A8 '^## Approval$' "$plan" | grep -q '^- Status: requested$' || { echo "approval reset failed"; exit 1; }
+# Exact five-line block, in order — not a single-field grep under -A8.
+approval_fields="$(awk '
+  /^## Approval$/ { p = 1; next }
+  p && /^## / { exit }
+  p && /^- Status:/ { print; next }
+  p && /^- Approved by:/ { print; next }
+  p && /^- Approved at:/ { print; next }
+  p && /^- Approved version:/ { print; next }
+  p && /^- Approved scope:/ { print; next }
+' "$plan")"
+expected_approval='- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending'
+[ "$approval_fields" = "$expected_approval" ] || {
+  echo "approval reset failed"
+  printf '%s\n' "$approval_fields"
+  exit 1
+}
 
 echo "version OK: copied $oldv (changed docs only) -> root $newv ready; record approval before implementation"

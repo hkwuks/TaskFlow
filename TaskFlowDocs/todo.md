@@ -735,15 +735,15 @@ Every direct request or imported requireme
 ## Make hooks/version write the same five-field Approval block hooks/task generates
 
 - ID: TF-20260919-b7821b
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-19
-- Updated: 2026-09-19
+- Updated: 2026-09-23
 - Goal: Make hooks/version write the same five-field Approval block hooks/task generates, so the plan gate and the version reset agree.
-- Task: Not promoted.
-- Next action: Fix hooks/version so it writes the five-field Approval block; the gate reads a Status line version never writes.
+- Task: `TaskFlowDocs/2026-09-23-version-approval-shape/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-09-19 发布 v1.0.7 时确认**：`hooks/version` 的复位只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 生成的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行。`require_approval` 判定的却是 `grep -qx -- "- Status: approved"`——它在检查一个 `version` 从不写入的字段，之所以通常还能工作，只因 `hooks/task` 生成模板时写了一次。`TF-20260918-454ac4`（Approval 自动化）已记同一处矛盾，本条是它的前提条件：两个 hook 对同一块内容的形状不先对齐，自动写出来的块会继承同样的分歧。
 
 ## Measure whether delegating exploration to subagents actually reduces main-thread
