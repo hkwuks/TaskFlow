@@ -616,7 +616,68 @@ bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL plan not bumped"; exit 1; }
 grep -q '> Task version: v2' "$docs/2026-09-08-smoke/prd.md" || { echo "FAIL retained prd not bumped"; exit 1; }
 grep -q '> Status: ready' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL plan not ready"; exit 1; }
-grep -A8 '^## Approval$' "$docs/2026-09-08-smoke/plan.md" | grep -q -- '- Approved version: pending' || { echo "FAIL approval not reset"; exit 1; }
+# Full five-field block in promote order — not a single-field probe.
+approval_fields="$(awk '
+  /^## Approval$/ { p = 1; next }
+  p && /^## / { exit }
+  p && /^- Status:/ { print; next }
+  p && /^- Approved by:/ { print; next }
+  p && /^- Approved at:/ { print; next }
+  p && /^- Approved version:/ { print; next }
+  p && /^- Approved scope:/ { print; next }
+' "$docs/2026-09-08-smoke/plan.md")"
+expected_approval='- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending'
+[ "$approval_fields" = "$expected_approval" ] || {
+  echo "FAIL approval not reset to the five-field block:"
+  printf '%s\n' "$approval_fields"
+  exit 1
+}
+echo ok
+
+echo "== version writes five-field Approval when Status is missing =="
+# Skill used to document a four-field record (no Status). version must still
+# emit the promote template rather than refuse on the absent line.
+v4root="$tmp/version-approval-shape"
+mkdir -p "$v4root/TaskFlowDocs/2026-09-08-v4shape"
+cat > "$v4root/TaskFlowDocs/2026-09-08-v4shape/prd.md" <<'EOF'
+# PRD — Shape
+> Task version: v1
+> Status: ready
+EOF
+cat > "$v4root/TaskFlowDocs/2026-09-08-v4shape/plan.md" <<'EOF'
+# Plan — Shape
+> Task version: v1
+> Status: in_progress
+
+## Approval
+- Approved by: user
+- Approved at: 2026-09-08 12:00 +0000
+- Approved version: v1
+- Approved scope: PRD / Plan
+
+## Steps
+- x
+EOF
+bash "$HERE/version" 2026-09-08-v4shape v2 "$v4root" prd.md >/dev/null \
+  || { echo "FAIL version refused a plan missing Status"; exit 1; }
+approval_fields="$(awk '
+  /^## Approval$/ { p = 1; next }
+  p && /^## / { exit }
+  p && /^- Status:/ { print; next }
+  p && /^- Approved by:/ { print; next }
+  p && /^- Approved at:/ { print; next }
+  p && /^- Approved version:/ { print; next }
+  p && /^- Approved scope:/ { print; next }
+' "$v4root/TaskFlowDocs/2026-09-08-v4shape/plan.md")"
+[ "$approval_fields" = "$expected_approval" ] || {
+  echo "FAIL missing-Status plan not rewritten to the five-field block:"
+  printf '%s\n' "$approval_fields"
+  exit 1
+}
 echo ok
 
 echo "== version rejects invalid input before mutation =="

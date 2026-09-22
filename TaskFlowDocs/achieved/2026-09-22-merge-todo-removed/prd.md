@@ -1,7 +1,7 @@
 # Fix `hooks/merge-todo` so a `## Removed` record matches its live entry by ID token and deletion wins
 
 > Task version: v1
-> Status: ready
+> Status: completed
 
 ## Goal
 

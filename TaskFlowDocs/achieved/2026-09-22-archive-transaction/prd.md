@@ -1,7 +1,7 @@
 # Make the task complete / archive transaction fail-safe, print the stage commands, and keep todo.md rewrites byte-tight
 
 > Task version: v1
-> Status: ready
+> Status: completed
 
 ## Goal
 
