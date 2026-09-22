@@ -4,7 +4,10 @@
 # Moves TaskFlowDocs/<task-id> -> TaskFlowDocs/achieved/<task-id>, updates the
 # linked Todo item's Task: path and Status to done, then verifies:
 #   active path absent | achieved path exists | achieved root PRD+Plan completed
-# Approval is never touched. On any failure the Todo stays not-done; exit 1.
+# Approval is never touched. On any failure the directory move and the Todo
+# rewrite are undone when they had already started; exit 1.
+# Git is never invoked: on success the script prints the exact stage lines and
+# states that the archive commit belongs on the current branch.
 set -euo pipefail
 task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 docs="$root/TaskFlowDocs"
@@ -21,14 +24,35 @@ if ! grep -q "\`TaskFlowDocs/$task/\`" "$todo"; then
   echo "Todo entry for $task missing; archive not started"; exit 1
 fi
 
+# Undo whatever step 2–3 already did, so a failure never leaves active and
+# achieved both present or a half-rewritten Todo beside a moved directory.
+rollback() {  # rollback <moved> <todo-bak>
+  local moved="$1" bak="$2"
+  if [ "$moved" = "1" ] && [ -d "$docs/achieved/$task" ] && [ ! -d "$docs/$task" ]; then
+    mv "$docs/achieved/$task" "$docs/$task" || true
+  fi
+  if [ -n "$bak" ] && [ -f "$bak" ]; then
+    mv "$bak" "$todo" || true
+  fi
+}
+
 # 2. move whole dir
 [ -d "$docs/achieved" ] || mkdir -p "$docs/achieved"
-mv "$docs/$task" "$docs/achieved/$task"
+moved=0
+todo_bak="$(mktemp "$docs/.taskflow-archive.XXXXXX")"
+cp "$todo" "$todo_bak"
+if ! mv "$docs/$task" "$docs/achieved/$task"; then
+  rm -f "$todo_bak"
+  echo "archive FAILED: could not move $docs/$task"
+  exit 1
+fi
+moved=1
 
 # 3. update the linked Todo item: Task: path -> achieved, Status -> done
 #    `promote` writes a next action that is only true before completion, so
 #    leaving it would make every archived entry claim outstanding work.
-awk -v task="$task" -v next_action='None — completed and archived.' '
+#    Only those three fields change; every other line is emitted verbatim.
+if ! awk -v task="$task" -v next_action='None — completed and archived.' '
   { n++; line[n] = $0 }
   END {
     needle = "`TaskFlowDocs/" task "/`"
@@ -66,7 +90,12 @@ awk -v task="$task" -v next_action='None — completed and archived.' '
       print line[i]
     }
   }
-' "$todo" > "$todo.tmp"
+' "$todo" > "$todo.tmp"; then
+  rm -f "$todo.tmp"
+  rollback "$moved" "$todo_bak"
+  echo "archive FAILED: Todo rewrite"
+  exit 1
+fi
 mv "$todo.tmp" "$todo"
 
 # 4. verify
@@ -77,4 +106,16 @@ grep -q '> Status: completed' "$docs/achieved/$task/prd.md" || { echo "FAIL: ach
 grep -q '> Status: completed' "$docs/achieved/$task/plan.md" || { echo "FAIL: achieved plan not completed"; fail=1; }
 grep -q "achieved/$task/\`" "$todo" || { echo "FAIL: Todo Task: path not updated"; fail=1; }
 grep -q "^- Next action: None — completed and archived\.$" "$todo" || { echo "FAIL: Todo next action not cleared"; fail=1; }
-if [ "$fail" = "0" ]; then echo "archive OK: $task -> achieved, Todo done"; else echo "archive FAILED"; exit 1; fi
+if [ "$fail" != "0" ]; then
+  rollback "$moved" "$todo_bak"
+  echo "archive FAILED"
+  exit 1
+fi
+rm -f "$todo_bak"
+echo "archive OK: $task -> achieved, Todo done"
+# The hook does not touch Git (design boundary). Print the exact stage so the
+# Agent cannot miss the deletion half of the mv, and pin the branch rule: the
+# archive commit belongs on the current worktree branch, not on main.
+printf '%s\n' \
+  "Stage (commit on the current branch; do not switch to main for this commit):" \
+  "  git add -A -- 'TaskFlowDocs/$task' 'TaskFlowDocs/achieved/$task' 'TaskFlowDocs/todo.md'"

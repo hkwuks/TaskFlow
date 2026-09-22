@@ -828,14 +828,31 @@ case "$command" in
     [ -e "$docs/achieved/$task" ] && fail "achieved/$task already exists"
     todo="$docs/todo.md"
     [ -f "$todo" ] || fail "todo.md missing; completion not started"
+    # Every archive precondition that does not depend on the docs already being
+    # `completed` runs before the first write. archive re-checks them; failing
+    # here means no docstatus mutation to roll back.
+    [ -f "$prd" ] || fail "prd.md missing; completion not started"
+    [ -f "$plan" ] || fail "plan.md missing; completion not started"
     run_task_awk "$todo" TASKFLOW_CMD=get TASKFLOW_TASK="$task" TASKFLOW_KEYS="ID" \
       TASKFLOW_NOTFOUND="Todo entry not found: $task"
+    # Marking completed is irreversible unless archive succeeds — so remember
+    # the prior statuses and put them back when archive fails. Without this a
+    # failed archive left prd/plan saying completed beside an active directory.
+    plan_prev="$(sed -n 's/^> Status: //p' "$plan" | head -1)"
+    prd_prev="$(sed -n 's/^> Status: //p' "$prd" | head -1)"
+    [ -n "$plan_prev" ] || fail "plan.md has no > Status: line"
+    [ -n "$prd_prev" ] || fail "prd.md has no > Status: line"
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     archive_out=""
     if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" 2>&1)"; then
+      # Best-effort rollback: each docstatus independently; report archive last.
+      run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$plan_prev" || true
+      run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$prd_prev" || true
       fail "${archive_out:-archive failed}"
     fi
+    # Stage/branch instructions from archive go to the Agent, not swallowed.
+    [ -z "$archive_out" ] || printf '%s\n' "$archive_out"
     echo "complete OK: $task"
     ;;
 

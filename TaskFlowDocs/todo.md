@@ -657,10 +657,10 @@ Every direct request or imported requireme
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-18
-- Updated: 2026-09-18
+- Updated: 2026-09-22
 - Goal: Fix the archive transaction's todo.md rewrite: it inserts a blank line after the item template's opening fence and leaves one at EOF
 - Task: Not promoted.
-- Next action: Promote with the archive family (88e04c, e7c041); one design call covers all three.
+- Next action: Covered by TaskFlowDocs/2026-09-22-archive-transaction/ (umbrella: e7c041).
 - Notes: 2026-09-18 归档 2026-09-18-todo-field-writes 时**没有复现**：`task complete` 跑完后 `git diff --check` 干净，todo.md 的 diff 只有 Status/Task/Next action 三行变化，无多余空行。所以本条可能比原描述更窄——尚未确定触发条件（原报告来自 readme-refresh 那次归档）。下次碰到时先抓 `git diff` 再动手，别照描述改。同族边界见 e7c041 的 Notes。
 
 ## Restore the zh-CN manifest count that a conflict resolution reverted, and rule on conflict-side review
@@ -687,10 +687,10 @@ Every direct request or imported requireme
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
-- Updated: 2026-09-18
+- Updated: 2026-09-22
 - Goal: Cut the mechanical overhead out of archiving: the transaction leaves an unstaged delete+add pair the Agent can get wrong, and nothing says which branch the archive commit belongs on.
 - Task: Not promoted.
-- Next action: Decide the two rules, then implement: (a) `hooks/archive` prints the exact stage command it leaves for the Agent, or gains a flag that stages; (b) state where the archive commit goes — the current branch or the base branch. Do not design this in isolation: see the family note below.
+- Next action: Covered by TaskFlowDocs/2026-09-22-archive-transaction/ (umbrella: e7c041).
 - Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
 - **2026-09-18 归档 `2026-09-18-todo-field-writes` 时的实测（同一失败边界，第二次观测）**：(1) 显式按路径 `git add` 之后，索引里 active 路径为空（`git ls-files 'TaskFlowDocs/<task>/*'` 无输出），commit tree 里也只有 achieved 一份——**「两份目录并存」已被可靠规避，代价是每次都要记得列出五条删除**。(2) **分支问题这次真的发作了**：worktree 上跑 `complete` 成功并落了盘，但 base 检出落后 4 个提交，`git merge --ff-only origin/main` 用合并进来的 `plan.md` 覆盖了工作区里已改好的那份，Approval 块被打回 `pending`，第二次 `complete` 才报错。也就是说失败的根因不是归档本身，是**事务交叉在一个落后的检出上**。(3) `--root` 指向 base 检出确实让 `task complete` 在那里落盘，印证了「事务该落在哪个检出」这个空缺。
   **同族**：`TF-20260918-e7c041`（`complete` 先改盘再校验，没有回滚）、`TF-20260918-172455`（archive 写 todo.md 的空行；本次未复现）。三条合起来才是一个完整的「归档事务」边界，分开做会重复设计。
@@ -716,15 +716,15 @@ Every direct request or imported requireme
 ## Make the task complete transaction fail-safe: it marks both core documents compl
 
 - ID: TF-20260918-e7c041
-- Status: inbox
+- Status: promoted
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
-- Updated: 2026-09-18
+- Updated: 2026-09-22
 - Goal: Make the task complete transaction fail-safe: it marks both core documents completed before hooks/archive runs, so any archive failure leaves the task half-archived with no rollback.
-- Task: Not promoted.
-- Next action: Promote when the archive/stage family is taken up together — the fix touches the same code path and should land with one design call.
+- Task: `TaskFlowDocs/2026-09-22-archive-transaction/`
+- Next action: Ready for review; commit and open PR when authorized.
 - Notes: **2026-09-18 实测观测到（不是推测）**：在 `2026-09-18-todo-field-writes` 上跑 `hooks/task complete` 时，调用**失败**了，但失败发生在 mutation 之后——`hooks/task:589-590` 先把 prd.md 与 plan.md 置为 `completed`（两次 `docstatus`），再调用 `hooks/archive`；而后续报错时目录已被移动、Todo 已改。工作区于是停在「已归档 + 文档状态已改」的半完成态，没有回滚。
   当天的实际触发：worktree 上跑 `complete` 成功落盘，但 base 检出落后 4 个提交；`git merge --ff-only origin/main` 把**合并进来的** `plan.md` 覆盖了工作区里已改好的那份，Approval 块回到 `pending`，于是第二次 `complete` 报 `current Task version is not approved`。也就是说事务的中间态被后续的合并撞了回去——纯属运气，不是设计。
   与 `TF-20260918-172455`（archive 往 todo.md 插空行）、`TF-20260918-88e04c`（archive 的 stage 步骤与分支选择）同属一个事务；三者一起做才不用重复设计同一个失败边界。
