@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.0.9] — 2026-09-23
+
+### Added
+
+- `hooks/task approve <task-id> [approver]` — records an approval the user has already given into the Plan's five-field `## Approval` block (Status, approver defaulting to `user`, `date '+%Y-%m-%d %H:%M %z'`, plan Task version, and `PRD / Spec / Plan` scope from the core documents that exist). It only transcribes; it never invents consent, is not gated by `require_approval`, and leaves `> Status:`, Todo, and Git alone. The Skill now points at this command after the user approves; hand-editing the five lines is the fallback when the hook is unavailable.
+- `hooks/repository-check` reports **orphan task directories**: every `TaskFlowDocs/<id>/` and `TaskFlowDocs/achieved/<id>/` that has `prd.md` or `plan.md` but no backticked `- Task:` line in `todo.md`. Orphans set `needs` (exit 2). The report is read-only — it never deletes or rewrites. Uncommitted-artifact lines stay needs-neutral.
+- `hooks/release-version X.Y.Z` — writes the four host manifests and every README `plugin list` sample in one call after the `CHANGELOG.md` section exists; it never tags or pushes. Release overhead work landed in PR #47.
+
+### Fixed
+
+- **`task complete` / `hooks/archive` is fail-safe.** `complete` runs every preflight (including archive's own preconditions) before any `docstatus` write, and rolls both documents back to their prior `> Status:` if archive fails — no more half-archived tasks with `completed` docs beside an active directory. On success `archive` prints the exact `git add` lines for the moved paths and states that the commit belongs on the **current** branch (the task worktree branch), still without invoking Git. The Todo rewrite remains limited to Status / Task / Next action (PR #51).
+- **`hooks/merge-todo` treats `## Removed` as a deletion.** A tombstone now matches its live entry by the first whitespace token of `- ID:`, deletion wins over a lone live copy, and dual-changed Removed sections union by ID instead of conflicting. `hooks/todo-check`'s `ids_at` uses the same token so an authorized removal is not a false drop (PR #50).
+- `hooks/task intake` inserts at the top of `## Items` (skipping blanks and the template comment), else before `## Removed`, else EOF — not always at end of file, which could land a new entry inside `## Removed` (PR #48).
+- `hooks/task get` prints every non-blank line of an entry body, so indented Notes continuations are no longer silently dropped (PR #49).
+- `hooks/version` reset always emits the same five-line Approval block `hooks/task` promote writes, in order, and **inserts** a missing `- Status:` instead of refusing. The Skill's human record snippet now includes `- Status: approved` (PR #52).
+- **Windows worktree detection.** `hooks/task` reads Git's absolute git dir (`--absolute-git-dir`), so a drive-letter path (`D:/…`) is no longer treated as relative to the repository root and worktrees are no longer judged to be the base tree (PR #45).
+- `hooks/repository-docs` reads the catalog index by header name rather than by column count (PR #46).
+
+### Compatibility
+
+- **No runtime or installation change.** The hook set floor (POSIX shell + awk), the plugin wiring, and the host manifests' shape are unchanged from 1.0.8; updating needs no migration and no dependency installation.
+- **`task approve` is a new subcommand**, not a gate change. `require_approval` still greps `- Status: approved`, `- Approved version:`, and a non-`pending` approver; existing Plans keep working.
+- **Orphan reporting can turn a previously `pass` `repository-check` into exit 2** when a directory has no Todo reference. That is intentional (a lost record is actionable). This repository's tree carries one known historical orphan under `achieved/` until a human records the missing Todo entry — see Known limitations.
+- **A release is two commits by construction.** The marketplace pin names a commit that cannot exist before the tag does; Claude Code verifies the pin as `sha_pin_mismatch` on mismatch and clones by the pinned commit, not the tag.
+
+### Known limitations
+
+- `bash hooks/repository-check .` on this repository may exit `2` solely because of `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`, which never had a Todo entry in history. Fixing that is a data decision (extra Todo line or deliberate acceptance), not a code defect of this release.
+- Reverse direction (a Todo `Task:` pointing at a missing directory) is not asserted in this release; it was measured empty when the orphan check was designed and is deferred.
+
+### Verification
+
+- `bash hooks/smoke-test` — `ALL SMOKE PASSED` on the release working tree (2026-09-23).
+- `bash hooks/release-check .` — `STATUS: pass` before the tag/pin step (version literals aligned; marketplace still names `v1.0.8` until the atomic pin push). Re-run after the pin is required by `RELEASE.md` step 6.
+- `bash hooks/repository-check .` — `STATUS: needs-user-input` (exit 2) solely because of the known orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/` (see Known limitations). Not claimed as a pass.
+- `python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow` — Skill is valid.
+- `git diff --check` — clean.
+
 ## [1.0.8] — 2026-09-19
 
 ### Added

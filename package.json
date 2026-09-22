@@ -1,6 +1,6 @@
 {
   "name": "dsh-taskflow",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex, CodeBuddy, dsh)",
   "author": "TaskFlow",
   "homepage": "https://github.com/hkwuks/TaskFlow",
