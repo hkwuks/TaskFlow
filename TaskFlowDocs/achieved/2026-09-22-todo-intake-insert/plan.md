@@ -1,7 +1,7 @@
 # Plan — `task intake` inserts a new entry into the previous section instead of `## Items`
 
 > Task version: v1
-> Status: ready
+> Status: completed
 
 No spec required — small, self-contained task.
 

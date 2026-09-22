@@ -9,6 +9,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+
 ## SessionStart fails the repository-docs index read across hosts and on index shape
 
 - ID: TF-20260921-4d8ae2
@@ -41,7 +42,6 @@ This is the repository's single lightweight intake list. It stores triage metada
   **修法方向（待现场确认后定，二选一）**：(a) 让解析器更宽（反引号可选、状态允许大小写与空格）；(b) 只把这一列读进来做 carry-over 时用宽松口径，渲染仍严格。**先别放宽**：放宽会同时削弱 `hooks/smoke-test:338` 那条「畸形行必须被拒」的断言（`\| malformed row \|`），要一起改并补断言。
   **为什么它值得 high**：这条错误发生在 **SessionStart**，即每个会话开头——一旦命中，注入的仓库路由上下文就整段丢失，且是 **non-blocking**，用户只看到一行报错、不影响继续用，所以极易被忽略到下一次踩更重的坑。相关：`TF-20260921-337ab8`（本轮同批立的 `task intake` 条目）。
 - **2026-09-21 已实现（未合并）**：实际根因与本条原判断不同——不是「某个 host 写出了怪行」，是**读取器把列数硬编码成 6–8、并要求路径必须带反引号**。实测证据：把 `Node/Mimir` 的 index（4 列、无 Status、路径无反引号）喂给当前 hook，直接复现 `repository-document index contains an invalid row`；该文件由**同一个 hook 的旧版本**写出，所以任何早期版本写下的 index 都会让后续 SessionStart 失败。修法：改成**按表头列名定位列**（Class / Source / Phases / Exists / Status），4/5/6/7 列全部可读，路径反引号可选，状态允许大小写与空格；仅当表头点名了 Status 列而该格是日期（说明该行掉格）才拒绝，无表头时退化为位置解析并仍拒绝日期形状的路径。`hooks/smoke-test` 加了 7 条断言（4 种可读形态 + 反引号可选 + 状态宽容 + 移位行仍拒绝），并做过一次变异验证（把旧严格规则放回去，套件失败）。已核四个真实仓库（Mimir / cc-switch / Survival / TaskFlow）的 index 全部读通。
-
 
 ## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
@@ -966,15 +966,15 @@ Every direct request or imported requireme
 ## `task intake` inserts a new entry into the previous section instead of `## Items`
 
 - ID: TF-20260921-337ab8
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-21
 - Updated: 2026-09-22
 - Goal: Fix task intake inserting a new entry into the previous section instead of the Items section, and its insertion point landing inside the Removed section.
-- Task: `TaskFlowDocs/2026-09-22-todo-intake-insert/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-22-todo-intake-insert/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-21 用户指定：单独开一条。**
   **问题**：`hooks/task intake` 把新条目写进文件里的上一个 `## ` 节，而不是插到 `## Items` 下。新条目因此挂到别人的标题下——那次它挂在了「Stop `TaskFlowDocs/todo.md` from growing without bound…」节里，`promote` 又拿那行当标题生出 task 文档（本轮我用假标题「State in the Skill…」跑出了 plan/prd 的首行）。
   **另一半**：`intake` 的插入点固定在文件末尾，所以它落在 `## Removed` 之后；如果 `## Removed` 不是最后一节，新条目会插进 `## Removed` 节内，`todo-check` 读 `## Removed` 时会把在途条目当成已删除记录（该节与 `TF-20260918-985164` 的删除语义直接冲突）。
@@ -987,3 +987,7 @@ Every direct request or imported requireme
 ## Removed
 
 - ID: TF-20260918-985164 (removed 2026-09-19: release v1.0.7 shipped; its task document was deleted with the release-workflow change in PR #42, and the entry was promoted to that directory)
+- ID: TF-20260921-4d8ae2 (removed 2026-09-22: stale: fix merged on main in PR 46 (02c1441); entry still said awaiting review)
+- ID: TF-20260919-76e7fb (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
+- ID: TF-20260919-2877ca (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
+
