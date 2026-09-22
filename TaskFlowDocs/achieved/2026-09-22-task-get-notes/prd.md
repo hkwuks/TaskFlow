@@ -1,7 +1,7 @@
 # Fix `task get` silently dropping indented Notes continuation lines
 
 > Task version: v1
-> Status: ready
+> Status: completed
 
 ## Goal
 

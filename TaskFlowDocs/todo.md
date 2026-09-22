@@ -12,15 +12,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Fix hooks/merge-todo so a Removed record matches its live entry by ID token
 
 - ID: TF-20260918-985164
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
 - Updated: 2026-09-22
 - Goal: Fix hooks/merge-todo so a ## Removed record matches its live entry by ID token and deletion wins, then clear the duplicate IDs that resurrection left in todo.md.
-- Task: `TaskFlowDocs/2026-09-22-merge-todo-removed/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-22-merge-todo-removed/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
 
   **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
@@ -649,20 +649,6 @@ Every direct request or imported requireme
 - Task: `TaskFlowDocs/achieved/2026-09-18-hook-launcher-exec-bit/`
 - Next action: None — completed and archived.
 
-## Fix the archive transaction's todo.md rewrite: it inserts a blank line after the
-
-- ID: TF-20260918-172455
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-18
-- Updated: 2026-09-22
-- Goal: Fix the archive transaction's todo.md rewrite: it inserts a blank line after the item template's opening fence and leaves one at EOF
-- Task: Not promoted.
-- Next action: Covered by TaskFlowDocs/2026-09-22-archive-transaction/ (umbrella: e7c041).
-- Notes: 2026-09-18 归档 2026-09-18-todo-field-writes 时**没有复现**：`task complete` 跑完后 `git diff --check` 干净，todo.md 的 diff 只有 Status/Task/Next action 三行变化，无多余空行。所以本条可能比原描述更窄——尚未确定触发条件（原报告来自 readme-refresh 那次归档）。下次碰到时先抓 `git diff` 再动手，别照描述改。同族边界见 e7c041 的 Notes。
-
 ## Restore the zh-CN manifest count that a conflict resolution reverted, and rule on conflict-side review
 
 - ID: TF-20260918-ad8348
@@ -677,23 +663,6 @@ Every direct request or imported requireme
 - Next action: None — completed and archived.
 - Notes: **2026-09-18 复核（推翻了先前「静默 auto-merge」的说法）**：`46131a1`（"Merge branch 'main' into chore/e-task-isolation-and-capability-record"）那次**确实是真冲突**，不是自动合并——重放三方合并（base `985b269`、ours `adfc5c1`、theirs `c083240`）得到 `git merge-file` exit 1，且 `46131a1` 里存在过冲突块。冲突行两侧都改过同一句：PR #37 把「两个插件 manifest」改成「三个」，PR #38 在同一句里加了「并列出该 checkout 里未提交的任务产物」。**解决时整块取了分支侧**，于是合入结果同时保留了 PR #38 的新句子和 PR #37 已被覆盖的旧计数。时间窗只有 2 分钟：`adfc5c1` 定稿于 20:08:19，PR #37 合并于 20:11:40，`46131a1` 于 20:13:42。窗口和"两侧都读得通"（同是合法中文、同讲一个检查）是它能逃过目视复核的原因。
 - **`hooks/todo-check` 覆盖不到这一类**：它是纯 hook、无 LLM，对每个 merge commit 比较两个 parent 各自持有的 `- ID:` 集合与结果的集合（`sed` 提取 + `sort -u` + `comm -13`），只查 `TaskFlowDocs/todo.md` 一个文件的条目级丢失，不做三方比较，因此看不见"解决冲突时取错侧"。它由 `.github/workflows/hooks.yml` 的 `todo-merge-audit` 作业调用（非自动 hook），跑 `git rev-list --merges` 范围内的每个 merge。所以本条不能靠泛化 `todo-check` 解决——「取错侧」这个动作必然伴随一次冲突解决，应该做成"冲突解决后需记录取舍"的流程规则，而非内容比对。
-- Updated: 2026-09-18
-
-## Cut the mechanical overhead out of archiving: the stage step and the branch choice
-
-- ID: TF-20260918-88e04c
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-22
-- Goal: Cut the mechanical overhead out of archiving: the transaction leaves an unstaged delete+add pair the Agent can get wrong, and nothing says which branch the archive commit belongs on.
-- Task: Not promoted.
-- Next action: Covered by TaskFlowDocs/2026-09-22-archive-transaction/ (umbrella: e7c041).
-- Notes: 实测结论——慢的不是 `hooks/archive`（0.022s），是流程。三点：(1) `hooks/archive:26` 用 `mv` 不是 `git mv`，且 hook 从不 stage，所以 `task complete` 之后工作区是「删除 + 未跟踪新增」的混合态，Agent 自己在 `git add` 时必须同时 add 删除，漏掉就会出现 active 与 achieved 两份目录并存的错误提交（2026-09-18 的 `04e830e` 就是这样，已重做为 `ebd6b4f`）。(2) 归档提交该落在哪个分支没有规则；当天在已合并的 `docs/readme-refresh` 上跑事务，为了同步本地 base 做了 stash→switch→ff→pop 四步搬运，而直接在当前分支提交本不需要。(3) 范围过宽的 `git add`（`git add -A`）会把 drvfs 造成的 filemode 假象一起暂存。hook 不碰 Git 是明确的设计边界，所以 (a) 的「打印命令」与「直接 stage」是两个不同代价的选项，需先定。
-- **2026-09-18 归档 `2026-09-18-todo-field-writes` 时的实测（同一失败边界，第二次观测）**：(1) 显式按路径 `git add` 之后，索引里 active 路径为空（`git ls-files 'TaskFlowDocs/<task>/*'` 无输出），commit tree 里也只有 achieved 一份——**「两份目录并存」已被可靠规避，代价是每次都要记得列出五条删除**。(2) **分支问题这次真的发作了**：worktree 上跑 `complete` 成功并落了盘，但 base 检出落后 4 个提交，`git merge --ff-only origin/main` 用合并进来的 `plan.md` 覆盖了工作区里已改好的那份，Approval 块被打回 `pending`，第二次 `complete` 才报错。也就是说失败的根因不是归档本身，是**事务交叉在一个落后的检出上**。(3) `--root` 指向 base 检出确实让 `task complete` 在那里落盘，印证了「事务该落在哪个检出」这个空缺。
-  **同族**：`TF-20260918-e7c041`（`complete` 先改盘再校验，没有回滚）、`TF-20260918-172455`（archive 写 todo.md 的空行；本次未复现）。三条合起来才是一个完整的「归档事务」边界，分开做会重复设计。
 - Updated: 2026-09-18
 
 ## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: 
@@ -716,15 +685,15 @@ Every direct request or imported requireme
 ## Make the task complete transaction fail-safe: it marks both core documents compl
 
 - ID: TF-20260918-e7c041
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-18
 - Updated: 2026-09-22
 - Goal: Make the task complete transaction fail-safe: it marks both core documents completed before hooks/archive runs, so any archive failure leaves the task half-archived with no rollback.
-- Task: `TaskFlowDocs/2026-09-22-archive-transaction/`
-- Next action: Ready for review; commit and open PR when authorized.
+- Task: `TaskFlowDocs/achieved/2026-09-22-archive-transaction/`
+- Next action: None — completed and archived.
 - Notes: **2026-09-18 实测观测到（不是推测）**：在 `2026-09-18-todo-field-writes` 上跑 `hooks/task complete` 时，调用**失败**了，但失败发生在 mutation 之后——`hooks/task:589-590` 先把 prd.md 与 plan.md 置为 `completed`（两次 `docstatus`），再调用 `hooks/archive`；而后续报错时目录已被移动、Todo 已改。工作区于是停在「已归档 + 文档状态已改」的半完成态，没有回滚。
   当天的实际触发：worktree 上跑 `complete` 成功落盘，但 base 检出落后 4 个提交；`git merge --ff-only origin/main` 把**合并进来的** `plan.md` 覆盖了工作区里已改好的那份，Approval 块回到 `pending`，于是第二次 `complete` 报 `current Task version is not approved`。也就是说事务的中间态被后续的合并撞了回去——纯属运气，不是设计。
   与 `TF-20260918-172455`（archive 往 todo.md 插空行）、`TF-20260918-88e04c`（archive 的 stage 步骤与分支选择）同属一个事务；三者一起做才不用重复设计同一个失败边界。
@@ -752,15 +721,15 @@ Every direct request or imported requireme
 ## Fix task get silently dropping indented Notes continuation lines: it prints only
 
 - ID: TF-20260918-9acf57
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: audit follow-up
 - Added: 2026-09-18
 - Updated: 2026-09-22
 - Goal: Fix task get silently dropping indented Notes continuation lines: it prints only lines starting with '- ', so a second Notes bullet written with the repo's two-space indent is absent from the output with no warning.
-- Task: `TaskFlowDocs/2026-09-22-task-get-notes/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-09-22-task-get-notes/`
+- Next action: None — completed and archived.
 - Notes: 本缺陷在归档 2026-09-18-todo-field-writes 时发现：`task get` 只打印 `^- ` 开头的行（`hooks/task` 的 `entry` 分支），而 Notes 的第二条及以后按仓库既有习惯写成**两空格缩进的 `- ` 行**，于是它们不出现在输出里，**且没有提示**。危害不是报错，是**静默**：调用方拿到一份看似完整、实则缺段的条目，据此决策。判据：本次取证用 `bash hooks/task get TF-20260918-454ac4` 只回出 Notes 的第一行，而文件里它下面还有三条缩进续行。修法二选一：(a) 把条目正文的缩进行也算正文一并打印；(b) 至少 stderr 提示该条目有 N 行未显示。v2 已合并，本缺陷未修。同族：`task next` 写 Notes 时用的是同一套字段边界（`isfield`），那边的续行判定虽已覆盖缩进，但输出侧没跟上。
 
 ## Make hooks/version write the same five-field Approval block hooks/task generates
@@ -921,4 +890,6 @@ Every direct request or imported requireme
 - ID: TF-20260921-4d8ae2 (removed 2026-09-22: stale: fix merged on main in PR 46 (02c1441); entry still said awaiting review)
 - ID: TF-20260919-76e7fb (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
 - ID: TF-20260919-2877ca (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
+- ID: TF-20260918-88e04c (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R3 stage print + branch rule).)
+- ID: TF-20260918-172455 (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R4 three-field rewrite lock).)
 
