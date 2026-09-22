@@ -1,7 +1,7 @@
 # Make hooks/version write the same five-field Approval block hooks/task generates
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
