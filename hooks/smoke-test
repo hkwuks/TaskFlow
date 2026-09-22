@@ -470,7 +470,9 @@ if bash "$HERE/archive" 2026-09-08-preflight "$preflight" >/dev/null 2>&1; then 
 echo ok
 
 echo "== archive happy path =="
-bash "$HERE/archive" 2026-09-08-smoke "$tmp" >/dev/null
+# Capture stdout: it must carry the stage/branch instructions.
+arch_out="$tmp/archive-out"
+bash "$HERE/archive" 2026-09-08-smoke "$tmp" > "$arch_out"
 [ ! -d "$docs/2026-09-08-smoke" ] || { echo "FAIL active remains"; exit 1; }
 [ -d "$docs/achieved/2026-09-08-smoke" ] || { echo "FAIL not archived"; exit 1; }
 grep -q -- "- Status: done" "$docs/todo.md" || { echo "FAIL todo not done"; exit 1; }
@@ -481,6 +483,119 @@ grep -A1 -- "- Status: done" "$docs/todo.md" | grep -q -- "- Next action: None �
 # Exactly one, not one more: an archive that adds the line without replacing an
 # existing one leaves the entry with two next actions and only the first is read.
 [ "$(grep -c '^- Next action:' "$docs/todo.md")" -eq 1 ] || { echo "FAIL archive left more than one next action:"; grep -n '^- Next action:' "$docs/todo.md"; exit 1; }
+# R3: exact stage line + current-branch rule (hook never runs Git itself).
+grep -q "git add -A -- 'TaskFlowDocs/2026-09-08-smoke'" "$arch_out" \
+  || { echo "FAIL archive did not print the stage command"; cat "$arch_out"; exit 1; }
+grep -q 'TaskFlowDocs/achieved/2026-09-08-smoke' "$arch_out" \
+  || { echo "FAIL stage command missing the achieved path"; cat "$arch_out"; exit 1; }
+grep -qi 'current branch' "$arch_out" \
+  || { echo "FAIL archive did not state the current-branch rule"; cat "$arch_out"; exit 1; }
+grep -qi 'do not switch' "$arch_out" \
+  || { echo "FAIL archive did not forbid switching branches for the commit"; cat "$arch_out"; exit 1; }
+echo ok
+
+echo "== archive todo rewrite only touches Status/Task/Next action =="
+# R4 / 172455: lock the three-field rewrite. Diff against a copy taken just
+# before archive… already archived above; rebuild a twin fixture from the same
+# shape the happy path used, snapshot todo, archive, and require every changed
+# line to be one of the three fields (plus the inserted Next action).
+r4="$tmp/archive-r4"
+mkdir -p "$r4/TaskFlowDocs/2026-09-08-r4" "$r4/TaskFlowDocs/achieved"
+cp "$docs/2026-09-08-smoke/prd.md" "$r4/TaskFlowDocs/2026-09-08-r4/prd.md" 2>/dev/null || true
+# prd/plan already archived; reconstruct completed pair + todo with the link
+printf '# P\n> Task version: v1\n> Status: completed\n' > "$r4/TaskFlowDocs/2026-09-08-r4/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$r4/TaskFlowDocs/2026-09-08-r4/plan.md"
+cat > "$r4/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Items
+
+<!-- Add new items at the top using the template below. -->
+## Item template
+
+## R4 entry
+
+- ID: T-20260908-r4
+- Status: in_progress
+- Goal: r4
+- Task: `TaskFlowDocs/2026-09-08-r4/`
+- Updated: 2026-09-08
+EOF
+cp "$r4/TaskFlowDocs/todo.md" "$tmp/r4-todo-before"
+bash "$HERE/archive" 2026-09-08-r4 "$r4" >/dev/null
+# Unified diff: every +/- line must match Status, Task, or Next action (or ---/+++).
+# `diff` exits 1 when files differ — that is the expected case — so it must not
+# trip `set -e`/`pipefail` before awk can filter the lines.
+bad_diff="$(
+  { diff -u "$tmp/r4-todo-before" "$r4/TaskFlowDocs/todo.md" || true; } | awk '
+    /^(---|\+\+\+|@@)/ { next }
+    /^[+-]/ {
+      line = substr($0, 2)
+      if (line ~ /^- Status:/ || line ~ /^- Task:/ || line ~ /^- Next action:/) next
+      print
+    }'
+)"
+[ -z "$bad_diff" ] || { echo "FAIL archive changed a line outside Status/Task/Next action:"; printf '%s\n' "$bad_diff"; exit 1; }
+# No blank line invented at EOF: the file must not end with two newlines.
+last2="$(tail -c 2 "$r4/TaskFlowDocs/todo.md" | od -An -tx1 | tr -d ' \n')"
+case "$last2" in
+  *0a0a*) echo "FAIL archive left a blank line at EOF"; exit 1 ;;
+esac
+# No extra blank inserted right after the Item template heading (172455):
+# heading, at most one blank, then the next non-empty line.
+if ! awk '
+  /^## Item template$/ {
+    getline
+    if ($0 == "") {
+      getline
+      if ($0 == "") exit 1
+    }
+  }
+  END { exit 0 }
+' "$r4/TaskFlowDocs/todo.md"; then
+  echo "FAIL archive inserted a blank after the item template heading"
+  exit 1
+fi
+echo ok
+
+echo "== complete rolls back doc status when archive fails =="
+# Fixture-only stub: complete resolves archive via SCRIPT_DIR, so a copied
+# hooks/ tree with a failing archive exercises the rollback path with no
+# production test flag.
+roll="$tmp/rollback-hooks"
+mkdir -p "$roll"
+cp "$HERE/task" "$roll/task"
+printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
+chmod +x "$roll/archive" "$roll/task"
+rf="$tmp/rollback-root"
+mkdir -p "$rf"
+bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
+rid=$(awk '/^- ID: TF-/{print $3; exit}' "$rf/TaskFlowDocs/todo.md")
+bash "$roll/task" promote "$rid" 2026-09-22-rollback-smoke small --root "$rf" >/dev/null
+rtask="$rf/TaskFlowDocs/2026-09-22-rollback-smoke"
+# approve + check every box + finish step so complete's gates pass
+sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
+  "$rtask/plan.md" > "$rtask/plan.md.tmp"
+mv "$rtask/plan.md.tmp" "$rtask/plan.md"
+sed 's/- \[ \]/- [x]/g; s/^- Status: pending$/- Status: done/' "$rtask/plan.md" > "$rtask/plan.md.tmp"
+mv "$rtask/plan.md.tmp" "$rtask/plan.md"
+# state in_progress for a realistic prior status
+bash "$roll/task" state 2026-09-22-rollback-smoke in_progress --root "$rf" >/dev/null
+prev_plan="$(sed -n 's/^> Status: //p' "$rtask/plan.md" | head -1)"
+prev_prd="$(sed -n 's/^> Status: //p' "$rtask/prd.md" | head -1)"
+set +e
+roll_out="$(bash "$roll/task" complete 2026-09-22-rollback-smoke --user-accepted --root "$rf" 2>&1)"
+roll_rc=$?
+set -e
+[ "$roll_rc" -ne 0 ] || { echo "FAIL complete succeeded with a failing archive"; printf '%s\n' "$roll_out"; exit 1; }
+echo "$roll_out" | grep -q 'archive stub: forced failure' \
+  || { echo "FAIL complete did not surface the archive error"; printf '%s\n' "$roll_out"; exit 1; }
+[ -d "$rtask" ] || { echo "FAIL rollback left the active directory moved"; exit 1; }
+now_plan="$(sed -n 's/^> Status: //p' "$rtask/plan.md" | head -1)"
+now_prd="$(sed -n 's/^> Status: //p' "$rtask/prd.md" | head -1)"
+[ "$now_plan" = "$prev_plan" ] || { echo "FAIL plan status not restored: $now_plan != $prev_plan"; exit 1; }
+[ "$now_prd" = "$prev_prd" ] || { echo "FAIL prd status not restored: $now_prd != $prev_prd"; exit 1; }
+[ "$now_plan" != "completed" ] || { echo "FAIL plan still completed after failed archive"; exit 1; }
 echo ok
 
 echo "== reopen restores =="
