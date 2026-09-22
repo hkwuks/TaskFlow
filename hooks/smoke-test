@@ -2010,6 +2010,31 @@ bash "$HERE/todo-check" "$tc" "$tc_merge_rev" > "$tc/out" 2>&1
 tc_status=$?
 set -e
 [ "$tc_status" -eq 2 ] || { echo "FAIL single-commit fallback exit code: $tc_status"; cat "$tc/out"; exit 1; }
+
+# A stale tombstone may be deleted while the live ID stays (data cleanup after a
+# resurrection). ids_at must key both sides by the first token, or the parent's
+# "- ID: TF-x (removed …)" line looks like an entry whose name is the whole
+# parenthetical and the merge is reported as a drop — which is what failed CI
+# on PR #50 when the false v1.0.7 tombstone for 985164 was removed.
+tc_write "$tc_todo" \
+  "$(tc_entry Keep TF-20260101-91 inbox)" \
+  "$(tc_entry Base1 TF-20260101-01 done)"
+{
+  printf '## Removed\n\n- ID: TF-20260101-91 (removed 2026-01-01: stale twin)\n'
+} >> "$tc_todo"
+git -C "$tc" add -A
+git -C "$tc" commit -qm 'parent: live TF-91 plus a stale tombstone'
+tc_twin_parent="$(git -C "$tc" rev-parse HEAD)"
+tc_write "$tc_todo" \
+  "$(tc_entry Keep TF-20260101-91 inbox)" \
+  "$(tc_entry Base1 TF-20260101-01 done)"
+git -C "$tc" commit -qam 'child: drop only the stale tombstone, keep live TF-91'
+set +e
+bash "$HERE/todo-check" "$tc" "$tc_twin_parent" > "$tc/out" 2>&1
+tc_status=$?
+set -e
+[ "$tc_status" -eq 0 ] || { echo "FAIL dropping a stale tombstone while keeping the live ID was reported as a drop ($tc_status):"; cat "$tc/out"; exit 1; }
+grep -q 'STATUS: pass' "$tc/out" || { echo "FAIL tombstone-drop cleanup did not pass"; cat "$tc/out"; exit 1; }
 echo ok
 
 echo "== the dsh wiring runs session-start the way dsh runs it =="

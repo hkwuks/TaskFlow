@@ -103,6 +103,9 @@ No spec required — small, self-contained task.
 - v1 — approved and implemented; R5 data rule clarified: keep live `985164`
   (active task), drop its obsolete tombstone; three stale IDs keep tombstones
   only.
+- follow-up on PR #50 CI: `todo-check` `ids_at` now takes the first ID token
+  (same identity as `removed_at`), so dropping a stale tombstone while keeping
+  the live ID is not reported as a drop.
 
 ## Follow-ups
 
