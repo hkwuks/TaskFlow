@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # task — token-saving TaskFlow lifecycle edits.
-# Usage: task intake|promote|state|next|remove|get|progress|complete ...
+# Usage: task intake|promote|state|next|remove|get|progress|approve|complete ...
 # POSIX shell + awk only: the plugin must run with no language runtime available.
 #
 # Every parameter is passed to awk through the environment rather than -v: awk
@@ -464,7 +464,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|remove|get|progress|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|remove|get|progress|approve|complete ..."
 command="$1"; shift
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
@@ -813,6 +813,69 @@ case "$command" in
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=step TASKFLOW_STEP="$number" \
       TASKFLOW_STEP_STATUS="$step_status" TASKFLOW_VERIFICATION="$verification"
     echo "progress OK: $task Step $number -> $step_status"
+    ;;
+
+  # Transcribes an approval the user has already given. Does not invent
+  # consent, is not gated by require_approval (writing approval is not
+  # "already approved"), and leaves > Status: / Todo / Git alone.
+  approve)
+    split_root "$@"
+    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task approve <task-id> [approver] [--root <path>]'
+    task="${rest[0]}"
+    if [ "${#rest[@]}" -eq 2 ]; then approver="${rest[1]}"; else approver="user"; fi
+    [ -n "$approver" ] || fail "approver must not be empty"
+    task_paths "$root" "$task"
+    [ -f "$plan" ] || fail "missing plan.md; approval not written"
+    grep -q '^## Approval$' "$plan" || fail "missing Approval section; approval not written"
+    approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
+    [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
+    approved_at="$(date '+%Y-%m-%d %H:%M %z')"
+    approved_scope=""
+    [ -f "$prd" ] && approved_scope="PRD"
+    if [ -f "$base/spec.md" ]; then
+      if [ -n "$approved_scope" ]; then approved_scope="$approved_scope / Spec"; else approved_scope="Spec"; fi
+    fi
+    if [ -n "$approved_scope" ]; then approved_scope="$approved_scope / Plan"; else approved_scope="Plan"; fi
+    # Same five-line shape as promote / version reset; missing lines are
+    # inserted, non-field lines in the section are left alone. Values come
+    # from the environment (not awk -v) so backslashes are not rewritten.
+    if ! TASKFLOW_APPROVER="$approver" TASKFLOW_APPROVED_AT="$approved_at" \
+      TASKFLOW_APPROVED_VERSION="$approved_version" TASKFLOW_APPROVED_SCOPE="$approved_scope" \
+      awk '
+        BEGIN {
+          t[1] = "- Status: approved"
+          t[2] = "- Approved by: " ENVIRON["TASKFLOW_APPROVER"]
+          t[3] = "- Approved at: " ENVIRON["TASKFLOW_APPROVED_AT"]
+          t[4] = "- Approved version: " ENVIRON["TASKFLOW_APPROVED_VERSION"]
+          t[5] = "- Approved scope: " ENVIRON["TASKFLOW_APPROVED_SCOPE"]
+        }
+        function flush_five(   i) {
+          for (i = 1; i <= 5; i++) print t[i]
+          emitted = 1
+        }
+        /^## Approval$/ { approval = 1; emitted = 0; print; next }
+        approval && /^## / {
+          if (!emitted) flush_five()
+          approval = 0
+          print
+          next
+        }
+        approval && /^- Status:/ ||
+        approval && /^- Approved by:/ ||
+        approval && /^- Approved at:/ ||
+        approval && /^- Approved version:/ ||
+        approval && /^- Approved scope:/ {
+          if (!emitted) flush_five()
+          next
+        }
+        { print }
+        END { if (approval && !emitted) flush_five() }
+      ' "$plan" > "$plan.tmp"; then
+      rm -f "$plan.tmp"
+      fail "approval not written"
+    fi
+    mv "$plan.tmp" "$plan"
+    echo "approve OK: $task ($approver, $approved_version)"
     ;;
 
   complete)

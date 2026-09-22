@@ -818,6 +818,68 @@ if bash "$HERE/task" complete 2026-09-09-gate-smoke --user-accepted --root "$gat
 fi
 echo ok
 
+echo "== task approve records the five-field block =="
+ap="$tmp/approve"
+mkdir -p "$ap"
+bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/dev/null
+ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
+bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --root "$ap" >/dev/null
+ap_task="$ap/TaskFlowDocs/2026-09-09-approve-smoke"
+# Missing Approval section: refuse, leave bytes alone.
+ap_bad="$ap/TaskFlowDocs/2026-09-09-approve-bad"
+mkdir -p "$ap_bad"
+printf '# Plan — Bad\n> Task version: v1\n> Status: planning\n' > "$ap_bad/plan.md"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$ap_bad/prd.md"
+ap_bad_before=$(digest "$ap_bad/plan.md")
+if bash "$HERE/task" approve 2026-09-09-approve-bad --root "$ap" >/dev/null 2>&1; then
+  echo "FAIL approve accepted a plan with no Approval section"; exit 1
+fi
+[ "$ap_bad_before" = "$(digest "$ap_bad/plan.md")" ] || { echo "FAIL rejected approve mutated the Plan"; exit 1; }
+bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null
+approval_fields="$(awk '
+  /^## Approval$/ { p = 1; next }
+  p && /^## / { exit }
+  p && /^- Status:/ { print; next }
+  p && /^- Approved by:/ { print; next }
+  p && /^- Approved at:/ { print; next }
+  p && /^- Approved version:/ { print; next }
+  p && /^- Approved scope:/ { print; next }
+' "$ap_task/plan.md")"
+# Approved at is host-local date+time+zone; match prefix, not the clock.
+printf '%s\n' "$approval_fields" | sed -n '1p' | grep -qx -- '- Status: approved' \
+  || { echo "FAIL approve Status"; printf '%s\n' "$approval_fields"; exit 1; }
+printf '%s\n' "$approval_fields" | sed -n '2p' | grep -qx -- '- Approved by: user' \
+  || { echo "FAIL approve by default"; printf '%s\n' "$approval_fields"; exit 1; }
+printf '%s\n' "$approval_fields" | sed -n '3p' | grep -q -- '^- Approved at: [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] ' \
+  || { echo "FAIL approve at shape"; printf '%s\n' "$approval_fields"; exit 1; }
+printf '%s\n' "$approval_fields" | sed -n '4p' | grep -qx -- '- Approved version: v1' \
+  || { echo "FAIL approve version"; printf '%s\n' "$approval_fields"; exit 1; }
+printf '%s\n' "$approval_fields" | sed -n '5p' | grep -qx -- '- Approved scope: PRD / Plan' \
+  || { echo "FAIL approve scope small"; printf '%s\n' "$approval_fields"; exit 1; }
+# Gate accepts the transcribed approval.
+bash "$HERE/task" state 2026-09-09-approve-smoke in_progress --root "$ap" >/dev/null \
+  || { echo "FAIL approve did not satisfy require_approval"; exit 1; }
+# Custom approver + Spec in scope.
+bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap" >/dev/null
+# Bare `# Todo` fixtures have no `## Items`, so intake appends: the new entry is last.
+ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")
+bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap" >/dev/null
+printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap/TaskFlowDocs/2026-09-09-approve-large/spec.md"
+bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null
+approval_fields="$(awk '
+  /^## Approval$/ { p = 1; next }
+  p && /^## / { exit }
+  p && /^- Approved by:/ { print; next }
+  p && /^- Approved scope:/ { print; next }
+' "$ap/TaskFlowDocs/2026-09-09-approve-large/plan.md")"
+printf '%s\n' "$approval_fields" | grep -qx -- '- Approved by: alice' \
+  || { echo "FAIL custom approver"; printf '%s\n' "$approval_fields"; exit 1; }
+printf '%s\n' "$approval_fields" | grep -qx -- '- Approved scope: PRD / Spec / Plan' \
+  || { echo "FAIL approve scope with spec"; printf '%s\n' "$approval_fields"; exit 1; }
+# approve must not rewrite > Status: on the docs
+grep -q '^> Status: in_progress$' "$ap_task/plan.md" || { echo "FAIL approve changed plan doc status"; exit 1; }
+echo ok
+
 echo "== a task is isolated before its first document is written =="
 # A task's first documents are written in Phase 1, so a promotion from the base
 # working tree would put them on whatever branch happens to be checked out — and
