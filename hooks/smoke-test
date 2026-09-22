@@ -1117,6 +1117,10 @@ echo "$art_out" | grep -q 'Task artifacts: none uncommitted' \
 
 mkdir -p "$art_root/TaskFlowDocs/2026-09-01-misplaced"
 printf '# PRD\n' > "$art_root/TaskFlowDocs/2026-09-01-misplaced/prd.md"
+# Referenced by Todo so this section stays about uncommitted state only;
+# orphan detection is exercised in its own section below.
+printf '# Todo\n## Fixture\n- ID: T-20260901-01\n- Task: `TaskFlowDocs/2026-09-01-misplaced/`\n' \
+  > "$art_root/TaskFlowDocs/todo.md"
 set +e
 art_out=$(bash "$HERE/repository-check" "$art_root" 2>&1)
 art_status=$?
@@ -1126,6 +1130,8 @@ set -e
 echo "$art_out" | grep -q 'STATUS: pass' || { echo "FAIL the task-artifact report changed the status"; cat "$art_out"; exit 1; }
 echo "$art_out" | grep -q -- '- TaskFlowDocs/2026-09-01-misplaced/ (untracked)' \
   || { echo "FAIL misplaced task artifact not named"; cat "$art_out"; exit 1; }
+echo "$art_out" | grep -q 'Orphan task directories: none' \
+  || { echo "FAIL referenced artifact reported as orphan"; cat "$art_out"; exit 1; }
 # A directory with no commit cannot be attributed to a branch, and the output must
 # say what it can and cannot claim instead of letting the reader assume.
 echo "$art_out" | grep -q 'follows you to whatever branch you check out' \
@@ -1151,6 +1157,65 @@ echo "$art_out" | grep -q 'Task artifacts: none uncommitted' \
   || { echo "FAIL committed task artifact still reported"; cat "$art_out"; exit 1; }
 echo "$art_out" | grep -q '2026-09-01-misplaced' \
   && { echo "FAIL committed task artifact named in the report"; cat "$art_out"; exit 1; }
+echo ok
+
+echo "== repository-check reports orphan task directories =="
+orphan_root="$tmp/repository-check-orphans"
+mkdir -p "$orphan_root/TaskFlowDocs/repository-docs"
+git -C "$orphan_root" init -q
+git -C "$orphan_root" config user.email smoke@example.invalid
+git -C "$orphan_root" config user.name smoke
+printf '# Catalog\n' > "$orphan_root/TaskFlowDocs/repository-docs/index.md"
+printf 'CONTRIBUTING\n' > "$orphan_root/CONTRIBUTING.md"
+printf 'CODE_STYLE\n' > "$orphan_root/CODE_STYLE.md"
+printf '# Todo\n' > "$orphan_root/TaskFlowDocs/todo.md"
+git -C "$orphan_root" add -A && git -C "$orphan_root" commit -qm base
+git -C "$orphan_root" remote add origin "$orphan_root"
+git -C "$orphan_root" update-ref refs/remotes/origin/main HEAD
+git -C "$orphan_root" branch -q -u origin/main
+# Unreferenced active dir → listed, exit 2
+mkdir -p "$orphan_root/TaskFlowDocs/2026-01-01-lost"
+printf '# PRD\n> Task version: v1\n' > "$orphan_root/TaskFlowDocs/2026-01-01-lost/prd.md"
+printf '# Plan\n> Task version: v1\n' > "$orphan_root/TaskFlowDocs/2026-01-01-lost/plan.md"
+set +e
+orphan_out=$(bash "$HERE/repository-check" "$orphan_root" 2>&1)
+orphan_status=$?
+set -e
+[ "$orphan_status" -eq 2 ] || { echo "FAIL orphan did not set needs: $orphan_status"; printf '%s\n' "$orphan_out"; exit 1; }
+echo "$orphan_out" | grep -q 'STATUS: needs-user-input' || { echo "FAIL orphan status"; printf '%s\n' "$orphan_out"; exit 1; }
+# Orphan lines have no trailing slash; the uncommitted-artifact line does.
+echo "$orphan_out" | grep -q -- '^- TaskFlowDocs/2026-01-01-lost$' \
+  || { echo "FAIL active orphan not named"; printf '%s\n' "$orphan_out"; exit 1; }
+# Achieved orphan is listed too
+mkdir -p "$orphan_root/TaskFlowDocs/achieved/2026-01-01-gone"
+printf '# PRD\n> Task version: v1\n' > "$orphan_root/TaskFlowDocs/achieved/2026-01-01-gone/prd.md"
+set +e
+orphan_out=$(bash "$HERE/repository-check" "$orphan_root" 2>&1)
+set -e
+echo "$orphan_out" | grep -q -- '^- TaskFlowDocs/achieved/2026-01-01-gone$' \
+  || { echo "FAIL achieved orphan not named"; printf '%s\n' "$orphan_out"; exit 1; }
+# Referencing the active path clears it from the orphan list
+printf '# Todo\n## Fixture\n- ID: T-20260101-01\n- Task: `TaskFlowDocs/2026-01-01-lost/`\n' \
+  > "$orphan_root/TaskFlowDocs/todo.md"
+set +e
+orphan_out=$(bash "$HERE/repository-check" "$orphan_root" 2>&1)
+orphan_status=$?
+set -e
+echo "$orphan_out" | grep -q -- '^- TaskFlowDocs/2026-01-01-lost$' \
+  && { echo "FAIL referenced active dir still orphan"; printf '%s\n' "$orphan_out"; exit 1; }
+echo "$orphan_out" | grep -q -- '^- TaskFlowDocs/achieved/2026-01-01-gone$' \
+  || { echo "FAIL achieved orphan dropped early"; printf '%s\n' "$orphan_out"; exit 1; }
+[ "$orphan_status" -eq 2 ] || { echo "FAIL remaining achieved orphan should keep needs"; printf '%s\n' "$orphan_out"; exit 1; }
+# Clear achieved too → pass
+printf '# Todo\n## Fixture\n- ID: T-20260101-01\n- Task: `TaskFlowDocs/2026-01-01-lost/`\n- Task: `TaskFlowDocs/achieved/2026-01-01-gone/`\n' \
+  > "$orphan_root/TaskFlowDocs/todo.md"
+set +e
+orphan_out=$(bash "$HERE/repository-check" "$orphan_root" 2>&1)
+orphan_status=$?
+set -e
+[ "$orphan_status" -eq 0 ] || { echo "FAIL clean-orphan fixture not pass: $orphan_status"; printf '%s\n' "$orphan_out"; exit 1; }
+echo "$orphan_out" | grep -q 'Orphan task directories: none' \
+  || { echo "FAIL empty orphan set should report none"; printf '%s\n' "$orphan_out"; exit 1; }
 echo ok
 
 echo "== todo merge driver keeps both branches' entries =="

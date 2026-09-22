@@ -90,6 +90,35 @@ else
   echo "  branch or moving the work to its own working tree is what removes the report."
 fi
 
+# A task directory (active or achieved) that no Todo `- Task:` line names is a
+# lost Todo record beside live documents — actionable integrity, unlike the
+# informational uncommitted-artifact lines above. Report only: never delete.
+# Sets `needs`.
+orphans=""
+if [ -d TaskFlowDocs ]; then
+  refs=""
+  if [ -f TaskFlowDocs/todo.md ]; then
+    refs="$(sed -n 's/^- Task: `\([^`]*\)`.*/\1/p' TaskFlowDocs/todo.md | sed 's|/*$||')"
+  fi
+  for dir in TaskFlowDocs/*/ TaskFlowDocs/achieved/*/; do
+    [ -d "$dir" ] || continue
+    [ -f "$dir/prd.md" ] || [ -f "$dir/plan.md" ] || continue
+    name="${dir%/}"
+    if [ -z "$refs" ] || ! printf '%s\n' "$refs" | grep -qxF "$name"; then
+      orphans="$orphans- $name
+"
+      needs=1
+    fi
+  done
+fi
+if [ -z "$orphans" ]; then
+  echo "Orphan task directories: none"
+else
+  printf 'Orphan task directories:\n%s' "$orphans"
+  echo "  A directory with prd.md or plan.md that no Todo - Task: line names."
+  echo "  Restore or recreate the Todo entry, or archive/remove the directory deliberately."
+fi
+
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"
   exit 2
