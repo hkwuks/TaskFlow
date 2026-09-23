@@ -800,15 +800,15 @@ Every direct request or imported requireme
 ## Map the personal rule to a single personal.md: one file, each rule in its own se
 
 - ID: TF-20260919-495145
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: user decision
 - Added: 2026-09-19
-- Updated: 2026-09-19
+- Updated: 2026-09-23
 - Goal: Map the personal rule to a single personal.md: one file, each rule in its own section with its own scope etc. The repository-docs index names personal.md and explains its origin (local-only, never committed) and purpose (personal rules that cannot override repository documents).
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-09-23-single-personal-md/`
+- Next action: None — completed and archived.
 
 ## Record the host SessionStart session_id in the active task's sessions.md
 
