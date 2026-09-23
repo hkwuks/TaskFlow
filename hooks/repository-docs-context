@@ -71,16 +71,14 @@ add_entry repository-rule SECURITY.md code,review,release -
 add_entry repository-rule RELEASE.md release -
 add_entry repository-rule CHANGELOG.md release -
 
-# Personal rules sit directly in repository-docs/, so their identity comes from
-# the class column: every recognized repository-owned path above is listed at its
-# conventional source location and is never copied in here.
-for path in "$docs"/*.md; do
-  name="$(basename "$path")"
-  [ "$name" = "index.md" ] && continue
-  relative="TaskFlowDocs/repository-docs/$name"
-  have_known "$relative" && continue
-  add_entry personal-rule "$relative" all local-only
-done
+# Personal rules live only in personal.md beside index.md: one file, each rule
+# its own section with its own scope. Other *.md siblings are not personal rules.
+# Every recognized repository-owned path above is listed at its conventional
+# source location and is never copied in here.
+if [ -f "$docs/personal.md" ]; then
+  relative="TaskFlowDocs/repository-docs/personal.md"
+  have_known "$relative" || add_entry personal-rule "$relative" all local-only
+fi
 
 # validate_relative_path — fail before any write on a path that could escape the
 # repository. ".." and absolute or drive-qualified paths are rejected outright;
@@ -254,10 +252,11 @@ done < "$work/entries"
   printf '| --- | --- | --- | --- | --- |\n'
   cut -f1-5 "$work/rows" | awk -F'\t' '{ printf "| %s | `%s` | %s | %s | %s |\n", $1, $2, $3, $4, $5 }'
   printf '\n## Personal rules\n\n'
+  printf 'Personal rules live in `TaskFlowDocs/repository-docs/personal.md`: one file, each rule in its own section with its own scope. They are local-only, never committed, and cannot override repository documents.\n'
   if cut -f1 "$work/rows" | grep -qx personal-rule; then
-    printf 'Cataloged above when present; they are local-only and never committed.\n'
+    printf 'Status: present (cataloged in the table above).\n'
   else
-    printf 'None.\n'
+    printf 'Status: not present.\n'
   fi
 } > "$work/index.new"
 

@@ -276,12 +276,22 @@ grep -q 'Read authoritative sources: .*CONTRIBUTING.md' "$tmp/design-routes.txt"
 grep -q 'Needs review before routing: TEAM_GOVERNANCE.md' "$tmp/routes.txt" || { echo "FAIL review context"; exit 1; }
 grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | optional |' "$index" || { echo "FAIL optional document status"; exit 1; }
 ! grep -q 'Missing catalog entries:.*CODEOWNERS' "$tmp/routes.txt" || { echo "FAIL optional document treated as missing"; exit 1; }
-# A personal rule sits directly in repository-docs/ and must be routed on its own
-# line so its local-only, subordinate status is visible.
+# Personal rules live only in personal.md: one file, routed on its own line so
+# its local-only, subordinate status is visible. A stray sibling *.md is not a
+# personal rule under the single-file contract.
 before=$(digest "$index")
-printf '# My rule\n' > "$docs/repository-docs/my-card.md"
+printf '# My rule\n' > "$docs/repository-docs/personal.md"
+printf '# Stray\n' > "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/personal-routes.txt"
-grep -q '| personal-rule | `TaskFlowDocs/repository-docs/my-card.md` | all | yes | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | yes | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+! grep -q 'personal-rule | `TaskFlowDocs/repository-docs/my-card.md`' "$index" || { echo "FAIL stray sibling cataloged as personal rule"; exit 1; }
+! grep -q 'my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL stray sibling on personal route line"; exit 1; }
+grep -q 'Personal rules live in `TaskFlowDocs/repository-docs/personal.md`' "$index" || { echo "FAIL index does not name personal.md"; exit 1; }
+grep -q 'local-only, never committed' "$index" || { echo "FAIL index missing personal origin"; exit 1; }
+grep -q 'cannot override repository documents' "$index" || { echo "FAIL index missing personal purpose"; exit 1; }
+grep -q 'Status: present' "$index" || { echo "FAIL personal present status"; exit 1; }
+grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/personal.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
+! grep -q 'Read authoritative sources:.*personal.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
 # An index written before the check-date column was dropped still reads back: its
 # rows carry one extra cell and the status is still last. The path is one no
 # current run would derive on its own, so the row only survives if the carry-over
@@ -300,11 +310,16 @@ TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$legacy" bash "$HERE/repository-docs-con
 grep -q '| repository-rule | `docs/EXTRA_RULE.md` | code,review | yes | ready |' "$legacy/TaskFlowDocs/repository-docs/index.md" \
   || { echo "FAIL a pre-drop index row was not carried over"; cat "$legacy/TaskFlowDocs/repository-docs/index.md"; exit 1; }
 grep -q 'Read authoritative sources: docs/EXTRA_RULE.md' "$tmp/legacy-routes.txt" || { echo "FAIL carried-over row did not route"; exit 1; }
-grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/my-card.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
-! grep -q 'Read authoritative sources:.*my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
-rm -f "$docs/repository-docs/my-card.md"
+rm -f "$docs/repository-docs/personal.md" "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
+grep -q 'Status: not present' "$index" || { echo "FAIL personal not-present status after remove"; exit 1; }
+! grep -q 'personal-rule |' "$index" || { echo "FAIL personal row survived removal"; exit 1; }
 [ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
+# Without personal.md the standing Personal rules prose still names the file,
+# its origin, and its purpose.
+grep -q 'Personal rules live in `TaskFlowDocs/repository-docs/personal.md`' "$index" || { echo "FAIL standing personal prose when absent"; exit 1; }
+grep -q 'never committed' "$index" || { echo "FAIL standing personal origin when absent"; exit 1; }
+grep -q 'cannot override repository documents' "$index" || { echo "FAIL standing personal purpose when absent"; exit 1; }
 # The catalog is derived from the filesystem, so its bytes must not depend on when
 # it is rendered. It used to carry a check date the renderer stamped with `date`,
 # which made every row say "a session started today" — no information the reader
