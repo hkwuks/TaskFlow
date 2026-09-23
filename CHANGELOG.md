@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.1.0] — 2026-09-24
+
+### Added
+
+- **Personal rules live in a single `TaskFlowDocs/repository-docs/personal.md` (PR #55).** Each rule is its own section with its own `Scope`. `hooks/repository-docs-context` catalogs only that file as `personal-rule` and never merges it into `Read authoritative sources:`. Sibling `*.md` files beside `index.md` are not personal rules. The index `## Personal rules` section always names `personal.md`, states origin (local-only, never committed) and purpose (cannot override repository documents), and marks the file present or not present. Skill, artifacts, and both READMEs describe appending a section rather than creating a new sibling file.
+- **Stage-gated capability records on PRD / Spec / Plan (PR #56).** Invoke a matching capability **when each document starts** (not after a draft) and append a stage-tagged line to the Plan’s `## Skills / Tools Used`: `[PRD]`, `[Spec]`, or `[Plan]`. `hooks/task approve` requires `[PRD]`+`[Plan]` always and `[Spec]` when `spec.md` exists; a missing or invalid stage fails closed before Approval is written, naming the stage. Validation is shape-only — any capability id, no product allowlist. Large-task Unaided stages must put a phase-table concept class in `considered:`. Skill and artifacts document the pre-write rule and foreign-output fold by kind (requirements → `prd.md`, design → `spec.md`, breakdown → `plan.md` Steps).
+
+### Fixed
+
+- Smoke fixtures for the stage gate pass multiline Skills bodies through the environment so BSD awk on macOS does not reject newlines in `-v` values (macos-latest CI).
+
+### Compatibility
+
+- **Personal.md is additive for empty catalogs.** Repositories with no personal rules only see richer standing prose in the index. Any existing sibling personal `*.md` files stop being cataloged; move their content into `personal.md` sections (local-only; never committed).
+- **`task approve` now rejects Plans whose Skills section is empty or missing a required stage.** Existing already-approved Plans are not re-validated. Plans awaiting a first approve must carry stage-tagged lines (or are blocked until they do).
+- **No runtime or installation change.** Hook floor (POSIX shell + awk), plugin wiring, and host manifest shape are unchanged from 1.0.9.
+
+### Known limitations
+
+- Temporal order (invoke truly before the first byte of `prd.md`) is Skill discipline plus the stage record, not a filesystem watcher.
+- Stage lines can still be tokenized at approve time.
+- `bash hooks/repository-check .` may still exit `2` for the pre-existing orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/` (no Todo entry in history).
+
 ## [1.0.9] — 2026-09-23
 
 ### Added
