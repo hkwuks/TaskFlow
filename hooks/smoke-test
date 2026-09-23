@@ -864,8 +864,9 @@ set_skills_body() {  # set_skills_body <plan> <stage-lines...>
   local lines=""
   while [ "$#" -gt 0 ]; do lines="$lines$1
 "; shift; done
-  awk -v body="$lines" '
-    BEGIN { done = 0 }
+  # BSD awk rejects newlines in -v; pass the body through the environment.
+  TASKFLOW_SKILLS_BODY="$lines" awk '
+    BEGIN { body = ENVIRON["TASKFLOW_SKILLS_BODY"]; done = 0 }
     /^## Skills \/ Tools Used$/ { print; printf "%s", body; done = 1; next }
     done && /^## / { done = 0 }
     done { next }
