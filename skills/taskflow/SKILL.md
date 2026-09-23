@@ -147,6 +147,8 @@ A phase's artifact has an equivalent outside TaskFlow. TaskFlow names these itse
 
 A phase ran unaided when its artifact exists but nothing was invoked for its concept class; that is a legitimate outcome, but it must be a choice, not an oversight. Record it as one — `## Skills / Tools Used` in `plan.md` is required, and a phase that ran unaided says so in one `Unaided — …` line rather than staying empty.
 
+**Invoke when each document starts, not after it is written.** Before the first body of `prd.md`, invoke (or decide qualified Unaided for) the Define class and append a `[PRD]` line to the Plan’s Skills section; do the same with `[Spec]` before drafting `spec.md` and `[Plan]` before drafting `plan.md`. Stage lines look like `- [PRD] \`some:cap\` — purpose: …; outcome: …; incorporated: …` or `- [PRD] Unaided — …; considered: <concept class>`. `task approve` requires `[PRD]` and `[Plan]` always, and `[Spec]` when `spec.md` exists; each required stage line is shape-only invoke or qualified Unaided (large Unaided stages name a phase-table concept class) — never a product allowlist. Untagged bullets do not satisfy a stage. Fold external requirements/design/planning output by kind: requirements → `prd.md`, design → `spec.md`, breakdown → `plan.md` Steps; never a foreign root `SPEC.md` or `tasks/plan.md` as a second fact source.
+
 For a non-trivial task:
 
 ```text
@@ -220,7 +222,7 @@ The `Implementation checklist` is a checkbox list, not prose. A Step cannot be m
 
 A `## Change Log` in `plan.md` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval. Do not treat a wording or approach clarification as a Task-version event.
 
-Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. `Skills / Tools Used` is required: if a Skill or tool was actually invoked, record its name, purpose, outcome, and incorporated conclusion there; if none was, say so in one `Unaided — …` line. Do not present discovery, selection, or an uninvoked capability as use, and do not leave the section blank in either case.
+Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. `Skills / Tools Used` is required: stage-tagged invoke or Unaided lines as each document starts (see the capability section); do not leave the section blank. `task approve` rejects missing stages and unqualified stage Unaided lines.
 
 Record approval as:
 

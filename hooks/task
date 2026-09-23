@@ -827,6 +827,57 @@ case "$command" in
     task_paths "$root" "$task"
     [ -f "$plan" ] || fail "missing plan.md; approval not written"
     grep -q '^## Approval$' "$plan" || fail "missing Approval section; approval not written"
+    # Stage gate (shape only — never a product/skill allowlist).
+    # Required stages: always [PRD] and [Plan]; [Spec] when spec.md exists
+    # (promote large writes it). Untagged bullets do not satisfy a stage.
+    # Fail closed before any Approval field is written.
+    cap_size=small
+    [ -f "$base/spec.md" ] && cap_size=large
+    cap_skills="$(awk '
+      /^## Skills \/ Tools Used$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$plan")"
+    if [ -z "$(printf '%s' "$cap_skills" | tr -d '[:space:]')" ]; then
+      fail "approve blocked: Skills / Tools Used is missing or empty"
+    fi
+    require_stage() {
+      local stage="$1" stage_lines line
+      stage_lines="$(printf '%s\n' "$cap_skills" | grep -E "^- \\[${stage}\\] " || true)"
+      if [ -z "$(printf '%s' "$stage_lines" | tr -d '[:space:]')" ]; then
+        fail "approve blocked: missing stage [$stage]"
+      fi
+      while IFS= read -r line || [ -n "$line" ]; do
+        [ -n "$line" ] || continue
+        case "$line" in
+          *Unaided*)
+            if ! printf '%s\n' "$line" | grep -q 'considered:'; then
+              fail "approve blocked: stage [$stage] Unaided needs considered:"
+            fi
+            if [ "$cap_size" = large ]; then
+              # Phase-table concept vocabulary only (product-neutral).
+              if ! printf '%s\n' "$line" | grep -qiE \
+                'requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision'; then
+                fail "approve blocked: stage [$stage] Unaided considered: must name a phase-table concept class"
+              fi
+            fi
+            ;;
+          *)
+            # Non-Unaided invoke line: any capability id, non-empty body after tag.
+            if [ -z "$(printf '%s' "$line" | sed 's/^- \[[A-Za-z]*\] //' | tr -d '[:space:]')" ]; then
+              fail "approve blocked: stage [$stage] invoke line is empty"
+            fi
+            ;;
+        esac
+      done <<EOF
+$stage_lines
+EOF
+    }
+    require_stage PRD
+    require_stage Plan
+    if [ "$cap_size" = large ]; then
+      require_stage Spec
+    fi
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     approved_at="$(date '+%Y-%m-%d %H:%M %z')"

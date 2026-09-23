@@ -850,6 +850,41 @@ if bash "$HERE/task" approve 2026-09-09-approve-bad --root "$ap" >/dev/null 2>&1
   echo "FAIL approve accepted a plan with no Approval section"; exit 1
 fi
 [ "$ap_bad_before" = "$(digest "$ap_bad/plan.md")" ] || { echo "FAIL rejected approve mutated the Plan"; exit 1; }
+# Stage gate: empty Skills blocks approve and leaves Approval pending.
+ap_empty_before=$(digest "$ap_task/plan.md")
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>&1; then
+  echo "FAIL approve accepted an empty Skills / Tools Used"; exit 1
+fi
+[ "$ap_empty_before" = "$(digest "$ap_task/plan.md")" ] || { echo "FAIL empty-skills reject mutated the Plan"; exit 1; }
+grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL empty-skills reject wrote Approval"; exit 1; }
+# Replace the Skills body (do not append — leftover stage lines from a prior
+# mutation would still be validated).
+set_skills_body() {  # set_skills_body <plan> <stage-lines...>
+  local plan="$1"; shift
+  local lines=""
+  while [ "$#" -gt 0 ]; do lines="$lines$1
+"; shift; done
+  # BSD awk rejects newlines in -v; pass the body through the environment.
+  TASKFLOW_SKILLS_BODY="$lines" awk '
+    BEGIN { body = ENVIRON["TASKFLOW_SKILLS_BODY"]; done = 0 }
+    /^## Skills \/ Tools Used$/ { print; printf "%s", body; done = 1; next }
+    done && /^## / { done = 0 }
+    done { next }
+    { print }
+  ' "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"
+}
+# Untagged invoke alone does not satisfy [PRD] (v2 stage rule).
+set_skills_body "$ap_task/plan.md" \
+  '- `some:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/untagged.err"; then
+  echo "FAIL approve accepted untagged invoke without stage tags"; exit 1
+fi
+grep -q 'missing stage \[PRD\]' "$ap/untagged.err" \
+  || { echo "FAIL untagged should miss stage"; cat "$ap/untagged.err"; exit 1; }
+# Small: [PRD]+[Plan] placeholder invokes pass (shape only, no product allowlist).
+set_skills_body "$ap_task/plan.md" \
+  '- [PRD] `some:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
+  '- [Plan] `other:breakdown-tool` — purpose: split steps; outcome: succeeded; incorporated: plan steps.'
 bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
@@ -874,25 +909,54 @@ printf '%s\n' "$approval_fields" | sed -n '5p' | grep -qx -- '- Approved scope: 
 # Gate accepts the transcribed approval.
 bash "$HERE/task" state 2026-09-09-approve-smoke in_progress --root "$ap" >/dev/null \
   || { echo "FAIL approve did not satisfy require_approval"; exit 1; }
-# Custom approver + Spec in scope.
+# Large: custom approver; missing [Spec] must fail; then three stages pass.
 bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap" >/dev/null
 # Bare `# Todo` fixtures have no `## Items`, so intake appends: the new entry is last.
 ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")
 bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap" >/dev/null
-printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap/TaskFlowDocs/2026-09-09-approve-large/spec.md"
+ap_large="$ap/TaskFlowDocs/2026-09-09-approve-large"
+printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
+# PRD+Plan only → missing Spec stage.
+set_skills_body "$ap_large/plan.md" \
+  '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null 2>"$ap/large.err"; then
+  echo "FAIL large approve accepted missing [Spec] stage"; exit 1
+fi
+grep -q 'missing stage \[Spec\]' "$ap/large.err" || { echo "FAIL missing Spec message"; cat "$ap/large.err"; exit 1; }
+grep -q '^- Status: requested$' "$ap_large/plan.md" || { echo "FAIL missing Spec reject wrote Approval"; exit 1; }
+# Stage Unaided without considered → fail naming stage.
+set_skills_body "$ap_large/plan.md" \
+  '- [PRD] Unaided — no capability applied to this phase.' \
+  '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null 2>"$ap/large.err"; then
+  echo "FAIL large approve accepted stage Unaided without considered:"; exit 1
+fi
+grep -q 'stage \[PRD\] Unaided needs considered:' "$ap/large.err" \
+  || { echo "FAIL stage considered message"; cat "$ap/large.err"; exit 1; }
+# Three stage Unaided lines with concept classes → pass (still no product names).
+set_skills_body "$ap_large/plan.md" \
+  '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
+  '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
 bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
   p && /^## / { exit }
   p && /^- Approved by:/ { print; next }
   p && /^- Approved scope:/ { print; next }
-' "$ap/TaskFlowDocs/2026-09-09-approve-large/plan.md")"
+' "$ap_large/plan.md")"
 printf '%s\n' "$approval_fields" | grep -qx -- '- Approved by: alice' \
   || { echo "FAIL custom approver"; printf '%s\n' "$approval_fields"; exit 1; }
 printf '%s\n' "$approval_fields" | grep -qx -- '- Approved scope: PRD / Spec / Plan' \
   || { echo "FAIL approve scope with spec"; printf '%s\n' "$approval_fields"; exit 1; }
 # approve must not rewrite > Status: on the docs
 grep -q '^> Status: in_progress$' "$ap_task/plan.md" || { echo "FAIL approve changed plan doc status"; exit 1; }
+# Neutral stage gate wording is pinned.
+grep -q 'missing stage \[' "$HERE/task" || { echo "FAIL stage gate message missing"; exit 1; }
+grep -q 'phase-table concept class' "$HERE/task" || { echo "FAIL phase-table concept gate missing"; exit 1; }
+grep -q 'require_stage PRD' "$HERE/task" || { echo "FAIL PRD stage required"; exit 1; }
 echo ok
 
 echo "== a task is isolated before its first document is written =="

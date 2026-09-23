@@ -9,6 +9,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## Gate PRD/Spec/Plan on real capability invocation: large tasks need one real invo
+
+- ID: TF-20260923-230f49
+- Status: done
+- Priority: normal
+- Owner: Codex
+- Source: user decision 2026-09-23
+- Added: 2026-09-23
+- Updated: 2026-09-24
+- Goal: Gate PRD/Spec/Plan on real capability invocation: large tasks need one real invoke (or qualified Unaided with considered classes); approve validates the Skills/Tools record; TaskFlow maps foreign skill outputs into prd/spec/plan; inject concept-class candidates at doc time
+- Task: `TaskFlowDocs/achieved/2026-09-23-capability-invoke-gate/`
+- Next action: None — completed and archived.
+
 ## Fix hooks/merge-todo so a Removed record matches its live entry by ID token
 
 - ID: TF-20260918-985164
