@@ -9,6 +9,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## Release process: make the manual three-host catalog validation conditional and a
+
+- ID: TF-20260928-3910fb
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-28
+- Updated: 2026-09-28
+- Goal: Release process: make the manual three-host catalog validation conditional and add an automated $schema assertion, since that step is never exercised by CI and its only failure mode is already covered by release-check
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
 - ID: TF-20260927-5814d0
