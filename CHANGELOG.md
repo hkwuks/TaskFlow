@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.1] — 2026-09-28
 
 ### Added
 
@@ -16,11 +16,24 @@
 
 - **In-flight tasks are affected.** A task whose documents were written before this release has no release record for any stage, so `approve` fails closed for it and names the escape hatch. Declare each stage with `hooks/task unaided <stage> --considered "<concept class>"`, or re-run the phase with a capability invoked. Already-approved Plans are not re-validated.
 - **Claude Code only.** `hooks-codex.json`, `hooks-codebuddy.json`, and `hooks-dsh.json` are untouched and carry no gate. A host without a tool-call hook runs the same flow unchanged — the gate is an enforcement, not a step.
-- **No installation or runtime change.** The gate may only deny, never approve, and it never writes a core document. Both hooks are complete no-ops outside an active task directory, which they must be: hooks installed in `~/.claude/settings.json` are machine-global and fire in every concurrent session and unrelated repository.
+- **The installation procedure is unchanged.** The same six files carry the version literal, the marketplace entry still names a tag and the commit it resolves to, and no host gains a runtime dependency. What changed is the wiring: on Claude Code the plugin now also registers a capture on `PostToolUse` and a gate on `PreToolUse`. The gate may only deny, never approve, and it never writes a core document. Both hooks are complete no-ops outside an active task directory, which they must be: hooks installed in `~/.claude/settings.json` are machine-global and fire in every concurrent session and unrelated repository.
 
 ### Verification
 
-- `bash hooks/smoke-test` — new sections cover `json-field` (including a spoofing attempt through `Skill`'s free-form `args`), the capture hook's boundaries, the gate's allow/deny matrix, per-stage freshness, and approve's reconciliation; the rewritten approve section is proven to have teeth by running it against the pre-change hook. The no-interpreter section now drives both new hooks, and the Windows suite drives the gate and the escape hatch through `run-hook.cmd` on a repository path containing a space and Chinese characters. Results on the Ubuntu / macOS / Windows CI matrix are pending, and the end-to-end behaviour in a live session needs a release and reinstall, since a repository edit does not reach an installed plugin. The orphan-directory note under 1.1.0's known limitations still stands.
+- `bash hooks/smoke-test` — new sections cover `json-field` (including a spoofing attempt through `Skill`'s free-form `args`), the capture hook's boundaries, the gate's allow/deny matrix and per-stage freshness, and approve's reconciliation. The rewritten approve section is proven to have teeth by running it against the pre-change hook, where it fails on exactly the new assertion. The no-interpreter section now drives both new hooks, and the Windows suite drives the gate and the escape hatch through `run-hook.cmd` on a repository path containing a space and Chinese characters. The CI matrix is green on all three platforms (PR #57, run 36438913953).
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — Skill is valid!
+- `git diff --check` — clean.
+- The exact `command` strings in `hooks/hooks.json` were executed with synthetic events (deny → record → allow), so the wiring is covered and not only the scripts.
+- **The full suite cannot run on the Windows/MSYS host this was developed on**: it aborts in the no-interpreter section, and the unmodified base fails in the same place. `smoke (macos-latest)` is therefore what adjudicates the bash 3.2 + BSD userland floor, and it passed. End-to-end behaviour in a live session is verified by the recipe in the task Plan after this release, because a repository edit does not reach an installed plugin until a release and reinstall.
+
+### Known limitations
+
+- **`Agent` and `mcp__.*` matching is inferred, not measured.** The hook contract was probed against Claude Code 2.1.282 for `Skill` (it fires both events and carries `tool_input.skill`); that the other two reach `PostToolUse` the same way follows from the same lifecycle. The wiring is executed, but the host's matcher behaviour is not observable from the repository.
+- **A leading UTF-8 BOM makes both hooks no-op** (fail-open). Measured to come from PowerShell piping a string into a native command, not from a host event, and `session-start` shares the same parser — so stripping it is a repo-wide decision rather than a local fix.
+- **`Bash` can still write the evidence store.** v1 refuses a direct `Write`/`Edit` to it as a discipline-level guard; closing the `Bash` path would need signing, deliberately out of scope. `reference/index.md` is not gated either — v1 covers the three stage documents.
+- The three new hooks are recorded in Git as `100644`, not `100755` like most of `hooks/`. Nothing executes them directly — `run-hook.cmd` calls `bash <script>` — so the release is unaffected, and `hooks/release-version` is already `100644`. Normalizing the modes is a follow-up.
+- Pre-existing: `bash hooks/repository-check .` still reports the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`; it does so on the previous release too.
 
 ## [1.1.0] — 2026-09-24
 
