@@ -154,7 +154,7 @@
   - `bash hooks/release-check .` → `STATUS: pass`。
   - **更正一条计划里的错误认知**：`tools/fixture-compare` **不是**静态检查器，它是把一次运行的夹具与参考运行逐字节比对（归一化路径与时间戳）。可移植性下限实际由 smoke 的两段承担——`bash -n`（macOS 上是真 3.2 解析器）与无解释器 PATH。`references/runtime.md` 原来把这功劳记在 `fixture-compare` 上，已改正。
   - **CHANGELOG 属于本任务**（原先怀疑属发版）：查历史确认本仓库的惯例是 feature 分支加 `## [Unreleased]` 段（`83d4eb6`），发版提交只把标题改成 `[X.Y.Z] — 日期`（`620c6a7`），且 `release-check` 会跳过 `[Unreleased]`（已实测 `STATUS: pass`）。已按此写入。
-  - **本机无法给出的判定**：整段 bash smoke 在 MSYS 下跑不完（既有环境问题，基线同样失败，见 Verification / Review），故"两套 smoke 全绿"只能由 CI 裁定；`bash hooks/repository-check .` 仍报 `needs-user-input`，两项都已定性为**既存**——`achieved/2026-09-10-repository-document-placement` 孤儿目录在未修改的 `main` 检出上同样报（已实测），本任务目录未提交是交付前的正常状态。
+  - **本机无法给出的判定已由 CI 补齐**：整段 bash smoke 在 MSYS 下跑不完（既有环境问题，基线同样失败，见 Verification / Review），故其结论改由 PR #57 的 CI 给出——三平台 smoke 全绿，含裁定可移植性下限的 `macos-latest`。`bash hooks/repository-check .` 仍报 `needs-user-input`，两项都已定性为**既存**——`achieved/2026-09-10-repository-document-placement` 孤儿目录在未修改的 `main` 检出上同样报（已实测），本任务目录未提交是交付前的正常状态。
 - Rollback: 还原上述文件
 - Status: done
 
@@ -176,7 +176,7 @@
 
 - [x] 文档不再把 `plan.md` 描述为写前记录位
 - [x] 双语 README 行为一致
-- [ ] 两套 smoke + fixture-compare + release-check 全绿 —— Windows 套件、release-check、静态下限本机全绿；**整段 bash smoke 只能由 CI 裁定**（MSYS 环境，基线同样失败）；`fixture-compare` 不是检查器，见 Step 6 的更正
+- [x] 两套 smoke + fixture-compare + release-check 全绿 —— Windows 套件、release-check、静态下限本机全绿；整段 bash smoke 由 PR #57 的 CI 三平台裁定通过（含 `macos-latest`）；`fixture-compare` 不是检查器，见 Step 6 的更正
 
 ## Verification / Review
 
@@ -193,7 +193,9 @@
 
 **接线本身也已验证（不是只验证钩子脚本）**：从 `hooks/hooks.json` 里取出 `PreToolUse` / `PostToolUse` 各条目的 `command` 原串，按宿主的方式替换 `${CLAUDE_PLUGIN_ROOT}` 后交给 shell 执行——`PreToolUse` 条目对未放行的 stage 返回 `deny`、有证据后放行；`PostToolUse` 的 `Skill|Agent|Task` 条目写出 `invoke|wired:cap`；`mcp__.*` 条目可执行且以 `tool_name`（`mcp__x__y`）入账；`released` 落成 `v1|PRD|1|invoke|wired:cap`。**未覆盖**：matcher 是否真的按宿主语义命中 `Agent`/`mcp__.*`（宿主侧行为，需真实会话）。
 
-**A8 的判定环境受限（实测，必须明说）**：本机是 Windows + MSYS/Git-Bash。套件那个"无解释器"章节会把白名单工具**软链**进一个临时 PATH，而 MSYS 下经软链启动的二进制找不到自己的 DLL（`error while loading shared libraries: ?`），整套在那一章即中止，随后章节一律跑不到。用**未修改的 `origin/main`** 复现，**同一位置同样失败** —— 因此这不是本任务引入的。为拿到真实结论，本地以一个按绝对路径 exec 真二进制的包装目录前置 PATH 跑通了整套；即便如此仍有一个既有章节失败（`a drive-path absolute git dir was read as relative to the root`），基线在同样包装下同样失败，属包装/环境所致而非代码回归。**结论：本机不能给出 A8 的权威判定**，需由 CI（`.github/workflows/hooks.yml`，Linux/macOS）裁定；本机结果只作为"新章节通过、未引入新失败"的证据。
+**A8 的判定环境受限（实测，必须明说）**：本机是 Windows + MSYS/Git-Bash。套件那个"无解释器"章节会把白名单工具**软链**进一个临时 PATH，而 MSYS 下经软链启动的二进制找不到自己的 DLL（`error while loading shared libraries: ?`），整套在那一章即中止，随后章节一律跑不到。用**未修改的 `origin/main`** 复现，**同一位置同样失败** —— 因此这不是本任务引入的。为拿到真实结论，本地以一个按绝对路径 exec 真二进制的包装目录前置 PATH 跑通了整套；即便如此仍有一个既有章节失败（`a drive-path absolute git dir was read as relative to the root`），基线在同样包装下同样失败，属包装/环境所致而非代码回归。**本机不能给出 A8 的权威判定**。
+
+**A8 的权威判定已由 CI 给出（2026-09-28，PR #57）**：`smoke (macos-latest)` 通过 —— 那正是 bash 3.2 + BSD userland 的解析与运行环境；`smoke (ubuntu-latest)` 与 `smoke (windows-latest)` 同样通过，完整套件首次在三平台跑满。上面那段"本机不能判定"仍然成立，只是不再影响结论：本机结果只作为"新章节通过、未引入新失败"的旁证。
 
 **仓库内无法完成的验证（必须明说）**：A1–A5 描述的是**真实会话**里的行为，而插件改动只有发版并重装后才进入真实会话。因此本任务交付时，门只能在合成夹具下被证明，端到端行为待发版后按下述配方验证：
 
@@ -230,6 +232,8 @@
 
 - 勾选口径：`bash hooks/smoke-test` 本机跑不完（MSYS 既有问题，未修改的 `origin/main` 在同一段失败），因此**不勾**该行并在 PR 体里写明由 CI 矩阵裁定——`CONTRIBUTING.md` 要求不得声称未发生的检查。已实际执行的是可提取章节、Windows 套件、`hooks.json` 接线、无解释器段、静态下限、`release-check`、skill 校验器。
 - 用户决定：推送与开 PR 由用户明确要求。
+- **PR 已开**：https://github.com/hkwuks/TaskFlow/pull/57（base `main`，head `feature/capability-pre-write-gate`）
+- **CI 全绿**（run https://github.com/hkwuks/TaskFlow/actions/runs/36438913953，本次推送的 HEAD `7dc8f5b`）：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals` 六项全部通过。**其中 `smoke (macos-latest)` 是 A8 的权威判定**——本机给不出的 bash 3.2 + BSD userland 下限结论由它裁定，整段 smoke 首次在三平台完整跑通。
 
 ## Change Log
 
