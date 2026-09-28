@@ -210,6 +210,27 @@
 
 未通过上述 1–5 之前，不得宣称"门已保证生效"——只能宣称"已实现且夹具通过"。
 
+## PR
+
+- 模板：`.github/pull_request_template.md`（已读；没有任何字段标为可选，按必填处理）
+- 目标仓库：`https://github.com/hkwuks/TaskFlow`（`origin`，https，已抹去凭据）；base 分支 `main`
+- head：`feature/capability-pre-write-gate`；base commit `origin/main` @ `65ddd0a`
+- 新鲜度：开 PR 前执行 `git fetch origin main`，本地 `origin/main` 仍为 `65ddd0a`，本分支领先 1、落后 0——创建时的结论只在这个时点成立
+- 字段映射：
+
+| 模板字段 | 落点 |
+| --- | --- |
+| Summary | PR 体首段：approve 期的"形状"校验换成写前门 + 钩子证据 + 对账 |
+| TaskFlow traceability → Task | `TaskFlowDocs/2026-09-27-capability-pre-write-gate/` |
+| TaskFlow traceability → Scope | `hooks/{capability-evidence,capability-gate,json-field,hooks.json,task,smoke-test,smoke-test-windows.ps1,README.md}`、`skills/taskflow/{SKILL.md,references/artifacts.md,references/runtime.md}`、`README.md` + `README.zh-CN.md`、`CHANGELOG.md` |
+| TaskFlow traceability → Base branch | `main` |
+| TaskFlow traceability → Target repository | `https://github.com/hkwuks/TaskFlow`（origin；无凭据） |
+| Verification 四行 | `git diff --check`、skill 校验、Plan 记录三项已实际执行并勾选；`bash hooks/smoke-test` **不勾**，理由见下 |
+| Review boundaries 四行 | 四条均成立，理由写在 Known limitations |
+
+- 勾选口径：`bash hooks/smoke-test` 本机跑不完（MSYS 既有问题，未修改的 `origin/main` 在同一段失败），因此**不勾**该行并在 PR 体里写明由 CI 矩阵裁定——`CONTRIBUTING.md` 要求不得声称未发生的检查。已实际执行的是可提取章节、Windows 套件、`hooks.json` 接线、无解释器段、静态下限、`release-check`、skill 校验器。
+- 用户决定：推送与开 PR 由用户明确要求。
+
 ## Change Log
 
 - 2026-09-27 — Plan 初稿：6 个 Step + 3 个 Checkpoint。按 `planning-and-task-breakdown` 的垂直切片规则把"存储 + 捕获钩子"排在门之前。
