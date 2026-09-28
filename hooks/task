@@ -464,8 +464,15 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|remove|get|progress|approve|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|remove|get|progress|approve|unaided|complete ..."
 command="$1"; shift
+
+# The phase-table concept classes. This is the only place a concept class is
+# validated: the pre-write gate names a *suggested* class in its block message,
+# and `approve` reconciles a recorded stage against evidence instead of
+# re-reading the prose. Product-neutral by construction — the list names
+# concepts, never a tool.
+concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision'
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
 split_root() {
@@ -818,6 +825,47 @@ case "$command" in
   # Transcribes an approval the user has already given. Does not invent
   # consent, is not gated by require_approval (writing approval is not
   # "already approved"), and leaves > Status: / Todo / Git alone.
+  unaided)
+    split_root "$@"
+    # Exit 2 rather than `fail`, on purpose: CODE_STYLE reserves 2 for
+    # needs-user-input, and an unusable invocation here is exactly that — the
+    # caller must supply the missing input. `fail` is the house helper for
+    # argument errors and exits 1, so do not tidy this branch back onto it.
+    unaided_usage='usage: task unaided <PRD|Spec|Plan> --considered "<concept class>" [--root <path>]'
+    [ "${#rest[@]}" -eq 3 ] || { echo "$unaided_usage" >&2; exit 2; }
+    stage="${rest[0]}"
+    considered="${rest[2]}"
+    [ "${rest[1]}" = "--considered" ] || { echo "$unaided_usage" >&2; exit 2; }
+    case "$stage" in
+      PRD|Spec|Plan) ;;
+      *) echo "stage must be PRD, Spec, or Plan: $stage" >&2; exit 2 ;;
+    esac
+    [ -n "$considered" ] || { echo "--considered must not be empty" >&2; exit 2; }
+    printf '%s' "$considered" | grep -qiE "$concept_class_re" || {
+      printf 'concept class must name a phase-table class: %s\n' "$(printf '%s' "$concept_class_re" | sed 's/|/, /g')" >&2
+      exit 2
+    }
+    # The gate reads the record back from the *task directory's* git dir, so
+    # refuse here rather than writing a record that nothing will ever read. A
+    # caller in the base checkout, or in a tree with no active task, would
+    # otherwise be told the stage was recorded while the gate kept refusing.
+    active=""
+    for dir in "$root/TaskFlowDocs"/*/; do
+      [ -d "$dir" ] || continue
+      name="${dir%/}"
+      name="${name##*/}"
+      case "$name" in achieved|repository-docs) continue ;; esac
+      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
+    done
+    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; run unaided from the task worktree"
+    git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
+      || fail "cannot locate the git directory for $root"
+    mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
+    considered="$(printf '%s' "$considered" | tr -d '|\r\n')"
+    printf 'unaided|%s\n' "$considered" >> "$git_dir/taskflow/evidence"
+    printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
+    ;;
+
   approve)
     split_root "$@"
     [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task approve <task-id> [approver] [--root <path>]'
@@ -827,7 +875,17 @@ case "$command" in
     task_paths "$root" "$task"
     [ -f "$plan" ] || fail "missing plan.md; approval not written"
     grep -q '^## Approval$' "$plan" || fail "missing Approval section; approval not written"
-    # Stage gate (shape only — never a product/skill allowlist).
+    # Stage gate: reconcile each required stage against the record the pre-write
+    # gate wrote, instead of trusting the Plan's prose. Shape alone could not
+    # tell an invoked phase from an uninvoked one — `Unaided — …` is
+    # indistinguishable from a real call in text, and could be written after the
+    # fact. The release record exists only because a capability really ran, or
+    # because a deliberate unaided decision was recorded.
+    #
+    # The concept vocabulary is deliberately NOT re-checked here: `task unaided`
+    # is its single entry point, so re-reading the same text at approve would
+    # only re-validate something the record already guarantees.
+    #
     # Required stages: always [PRD] and [Plan]; [Spec] when spec.md exists
     # (promote large writes it). Untagged bullets do not satisfy a stage.
     # Fail closed before any Approval field is written.
@@ -841,45 +899,53 @@ case "$command" in
     if [ -z "$(printf '%s' "$cap_skills" | tr -d '[:space:]')" ]; then
       fail "approve blocked: Skills / Tools Used is missing or empty"
     fi
+    approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
+    [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
+    cap_released="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)/taskflow/released"
+    cap_invoked=0
+    cap_unaided=0
     require_stage() {
-      local stage="$1" stage_lines line
+      local stage="$1" stage_lines line record kind capability
       stage_lines="$(printf '%s\n' "$cap_skills" | grep -E "^- \\[${stage}\\] " || true)"
       if [ -z "$(printf '%s' "$stage_lines" | tr -d '[:space:]')" ]; then
         fail "approve blocked: missing stage [$stage]"
       fi
-      while IFS= read -r line || [ -n "$line" ]; do
-        [ -n "$line" ] || continue
-        case "$line" in
-          *Unaided*)
-            if ! printf '%s\n' "$line" | grep -q 'considered:'; then
-              fail "approve blocked: stage [$stage] Unaided needs considered:"
-            fi
-            if [ "$cap_size" = large ]; then
-              # Phase-table concept vocabulary only (product-neutral).
-              if ! printf '%s\n' "$line" | grep -qiE \
-                'requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision'; then
-                fail "approve blocked: stage [$stage] Unaided considered: must name a phase-table concept class"
-              fi
-            fi
-            ;;
-          *)
-            # Non-Unaided invoke line: any capability id, non-empty body after tag.
-            if [ -z "$(printf '%s' "$line" | sed 's/^- \[[A-Za-z]*\] //' | tr -d '[:space:]')" ]; then
-              fail "approve blocked: stage [$stage] invoke line is empty"
-            fi
-            ;;
-        esac
-      done <<EOF
-$stage_lines
-EOF
+      record=""
+      if [ -f "$cap_released" ]; then
+        record="$(awk -F'|' -v v="$approved_version" -v s="$stage" \
+          '$1 == v && $2 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
+      fi
+      if [ -z "$record" ]; then
+        fail "approve blocked: stage [$stage] was never released by the pre-write gate. Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
+      fi
+      kind="$(printf '%s' "$record" | cut -d'|' -f4)"
+      capability="$(printf '%s' "$record" | cut -d'|' -f5)"
+      line="$(printf '%s\n' "$stage_lines" | head -1)"
+      case "$line" in
+        *Unaided*)
+          [ "$kind" = "unaided" ] \
+            || fail "approve blocked: stage [$stage] is reported Unaided but was recorded as an invocation ($capability)"
+          printf '%s\n' "$line" | grep -q 'considered:' \
+            || fail "approve blocked: stage [$stage] Unaided needs considered:"
+          printf '%s\n' "$line" | grep -qF -- "$capability" \
+            || fail "approve blocked: stage [$stage] reports a different considered class than the recorded one ($capability)"
+          cap_unaided=$((cap_unaided + 1))
+          ;;
+        *)
+          [ "$kind" = "invoke" ] \
+            || fail "approve blocked: stage [$stage] is reported as an invocation but was recorded as an unaided decision"
+          printf '%s\n' "$line" | grep -qF -- "$capability" \
+            || fail "approve blocked: stage [$stage] does not name the recorded capability ($capability)"
+          cap_invoked=$((cap_invoked + 1))
+          ;;
+      esac
     }
     require_stage PRD
     require_stage Plan
     if [ "$cap_size" = large ]; then
       require_stage Spec
     fi
-    approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
-    [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
+    printf 'stages released by the gate: %s invoked, %s unaided\n' "$cap_invoked" "$cap_unaided"
     approved_at="$(date '+%Y-%m-%d %H:%M %z')"
     approved_scope=""
     [ -f "$prd" ] && approved_scope="PRD"

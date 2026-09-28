@@ -19,4 +19,5 @@ This index is the authoritative routing and check record for repository document
 
 ## Personal rules
 
-None.
+Personal rules live in `TaskFlowDocs/repository-docs/personal.md`: one file, each rule in its own section with its own scope. They are local-only, never committed, and cannot override repository documents.
+Status: not present.

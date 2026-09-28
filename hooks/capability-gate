@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# capability-gate — PreToolUse hook: refuse the first body write of a task
+# document until a capability was really invoked for that stage.
+#
+# Decides from the real tool-call stream, not from prose. The evidence was
+# written by capability-evidence from an actual Skill, agent, or MCP call; this
+# hook only releases a stage against it. Nothing here reads the document, so
+# there is no wording an agent can write to talk its way past the gate.
+#
+# Every decision is a function of the target file path alone. That is not
+# tidiness: the hook is installed machine-wide and fires in concurrent sessions
+# in unrelated repositories, so a `prd.md` anywhere else must pass untouched.
+#
+# Deny is `permissionDecision: deny`, which is current for PreToolUse and
+# overrides every permission mode.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# The concept class each stage is looking for, so the block message names what
+# to look for instead of leaving the agent to guess. Never a product: the
+# phase table says what class fits, the host decides what fills it.
+stage_class() {
+  case "$1" in
+    PRD) printf '%s' 'requirements elicitation and framing' ;;
+    Spec) printf '%s' 'architecture and design specification' ;;
+    Plan) printf '%s' 'work breakdown and task decomposition' ;;
+  esac
+}
+
+# A denial the model reads. The message is kept free of double quotes and
+# backslashes so it can be embedded in JSON without an escaping step.
+deny() {
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$1"
+  exit 0
+}
+
+event_json="$(cat)"
+fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
+  hook_event_name tool_name cwd tool_input.file_path 2>/dev/null)" || exit 0
+
+event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
+tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
+event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
+file_path="$(printf '%s\n' "$fields" | sed -n '4p')"
+
+[ "$event_name" = "PreToolUse" ] || exit 0
+case "$tool_name" in
+  Write|Edit) ;;
+  *) exit 0 ;;
+esac
+[ -n "$file_path" ] || exit 0
+
+# A relative path is resolved against the event cwd, never the hook process cwd:
+# the two are not guaranteed to agree, and a path this hook cannot resolve is a
+# path it silently stops gating. A gate that fails open is worse than none,
+# because nothing reports that it stopped.
+case "$file_path" in
+  /*) ;;                    # POSIX absolute
+  [A-Za-z]:[\\/]*) ;;       # drive absolute, D:/ or D:\
+  *) [ -n "$event_cwd" ] && file_path="$event_cwd/$file_path" ;;
+esac
+
+# The evidence store is not a document. Refusing writes to it is a
+# discipline-level guard and says so in the spec: a Bash write can still reach
+# it, and closing that would need signing, which v1 deliberately does not do.
+case "$file_path" in
+  */taskflow/evidence|*/taskflow/released|*/taskflow/evidence/*|*/taskflow/released/*)
+    deny "TaskFlow capability store is not writable by the agent. Record a stage with:  bash hooks/task unaided STAGE --considered 'concept class'"
+    ;;
+esac
+
+base="${file_path##*/}"
+case "$base" in
+  prd.md) stage="PRD" ;;
+  spec.md) stage="Spec" ;;
+  plan.md) stage="Plan" ;;
+  *) exit 0 ;;
+esac
+
+task_dir="${file_path%/*}"
+[ "$task_dir" != "$file_path" ] || exit 0
+task_name="${task_dir##*/}"
+case "$task_name" in
+  achieved|repository-docs) exit 0 ;;
+esac
+# The document must sit exactly one level under TaskFlowDocs. That one condition
+# is what excludes an archived task, whose parent is `achieved` — checking the
+# task directory name alone reads `<task>` there and would gate the archive.
+docs_dir="${task_dir%/*}"
+[ "${docs_dir##*/}" = "TaskFlowDocs" ] || exit 0
+# An active task is one that has a Plan. Anything else is not TaskFlow business.
+[ -f "$task_dir/plan.md" ] || exit 0
+
+version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$task_dir/plan.md" | sed -n '1p')"
+[ -n "$version" ] || deny "TaskFlow pre-write gate: cannot read the Plan task version, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. If the Plan is fine, record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
+
+git_dir="$(git -C "$task_dir" rev-parse --absolute-git-dir 2>/dev/null)" || git_dir=""
+[ -n "$git_dir" ] || deny "TaskFlow pre-write gate: cannot locate the git directory for this task, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. Record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
+
+store="$git_dir/taskflow"
+evidence="$store/evidence"
+released="$store/released"
+
+# Already released for this task version: later edits to the same document are
+# not a new phase, so the gate is idempotent per version and stage.
+if [ -f "$released" ] \
+   && awk -F'|' -v v="$version" -v s="$stage" '$1 == v && $2 == s { found = 1 } END { exit !found }' "$released"; then
+  exit 0
+fi
+
+# Consumption is global, not per task version. The evidence file is one
+# timeline: a line a released stage spent is spent, so a Task-version bump
+# cannot be satisfied by evidence an earlier version already used.
+consumed=0
+if [ -f "$released" ]; then
+  consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+fi
+# Evidence is consumed as a queue, oldest first. Taking the newest line instead
+# would strand every invocation banked before the first document — and banking
+# one is a normal way to work: read the task, invoke once for the framing, then
+# start writing. Either way each document still spends a distinct invocation.
+total=0
+if [ -f "$evidence" ]; then
+  total="$(awk 'END { print NR }' "$evidence")"
+fi
+
+if [ "$total" -gt "$consumed" ]; then
+  next=$((consumed + 1))
+  record="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
+  kind="${record%%|*}"
+  capability="${record#*|}"
+  mkdir -p "$store" 2>/dev/null || exit 0
+  printf '%s|%s|%s|%s|%s\n' "$version" "$stage" "$next" "$kind" "$capability" >> "$released" 2>/dev/null || exit 0
+  exit 0
+fi
+
+class="$(stage_class "$stage")"
+if [ "$consumed" -gt 0 ]; then
+  detail="the most recent invocation was already spent by an earlier document"
+else
+  detail="no capability invocation is recorded for this task version"
+fi
+deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. Invoke a capability first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'"

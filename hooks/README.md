@@ -17,7 +17,10 @@ taskflow/hooks/
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
-├── task                # explicit intake/promote/state/progress/complete edits
+├── capability-evidence # records real capability invocations (Claude Code only)
+├── capability-gate     # refuses a stage document's first body write (Claude Code only)
+├── json-field          # shared one-level JSON reader for the two hooks above
+├── task                # explicit intake/promote/state/progress/unaided/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
@@ -140,6 +143,18 @@ a plugin. Add the repository as a bundle and let `dsh/index.js` do it.
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
+- `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
+  for Claude Code only. The first appends one `kind|capability` line per real
+  `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`; the
+  second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
+  active task directory until that stage can be released against such a line,
+  and then records the release in `.../taskflow/released`. Both stores live in
+  the git directory, so they are per worktree, invisible to `git status`, and
+  left alone by `version`. Both hooks are complete no-ops outside an active task
+  directory — they must be, because `~/.claude/settings.json` hooks are
+  machine-global and fire in unrelated repositories and concurrent sessions.
+  Neither writes a core document; the gate can only deny, never approve. A host
+  without a tool-call hook has no gate, and no other part of TaskFlow needs one.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
 - `install-merge-driver` writes only repository-local, untracked Git state:
   `merge.taskflow-todo.driver` in the repository's own config and a
@@ -150,8 +165,9 @@ a plugin. Add the repository as a bundle and let `dsh/index.js` do it.
   `../skills/taskflow/references/runtime.md` for the two cases it resolves and
   the web-UI limit it does not.
 - Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote`,
-  `task state`, `task progress`, and `task complete`; append `--root <path>`
-  when operating outside the current repository.
+  `task state`, `task progress`, and `task complete`; `task unaided <stage>
+  --considered "<concept class>"` declares a stage that ran without a capability.
+  Append `--root <path>` when operating outside the current repository.
 - Smoke: `bash smoke-test` (builds temporary TaskFlowDocs fixtures and, on
   Windows, runs the full lifecycle through PowerShell 5.1 + `run-hook.cmd` in
   a path containing spaces and Chinese characters).

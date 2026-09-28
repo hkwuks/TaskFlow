@@ -107,6 +107,61 @@ try {
     if ($second.hookSpecificOutput.additionalContext -notmatch 'Read routing record first') { throw 'Repeated SessionStart context missing' }
     'WINDOWS SESSIONSTART PASSED'
     'WINDOWS LIFECYCLE PASSED'
+
+    # The pre-write gate, driven through the same launcher, on a repository path
+    # that carries both a space and Chinese characters — the two things the
+    # launcher exists for. It needs a real Git repository because the gate
+    # resolves its store with `git -C` on the target file's own directory, and
+    # the event carries a forward-slash drive path, which is what Claude Code
+    # reports on Windows.
+    $gateRepo = Join-Path $Root 'gate repo'
+    $gateTask = Join-Path $gateRepo 'TaskFlowDocs\2026-09-11-gate'
+    New-Item -ItemType Directory -Path $gateTask -Force | Out-Null
+    & git -C $gateRepo init -q 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'gate fixture git init failed' }
+    [IO.File]::WriteAllText((Join-Path $gateTask 'plan.md'), "# Plan`n> Task version: v1`n> Status: planning`n", $utf8)
+
+    # The event goes through a file and a `cmd` redirect rather than the
+    # PowerShell pipeline. PowerShell 5.1 encodes a piped string with a UTF-8 BOM,
+    # and the hook reads the event as JSON, where a leading BOM is not whitespace
+    # — the hook would no-op and the test would prove nothing about it. A file
+    # written without a BOM is the bytes a host actually sends.
+    function Invoke-Hook {
+        param([string]$Hook, [string]$Event)
+        $eventFile = Join-Path $gateRepo 'event.json'
+        [IO.File]::WriteAllText($eventFile, $Event, $utf8)
+        $oldPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $out = & cmd /c "`"$here\run-hook.cmd`" $Hook < `"$eventFile`"" 2>&1
+        $code = $LASTEXITCODE
+        $ErrorActionPreference = $oldPreference
+        Remove-Item -LiteralPath $eventFile -Force
+        return [pscustomobject]@{ Output = ($out -join "`n"); Exit = $code }
+    }
+
+    $gateRepoUrl = $gateRepo.Replace('\', '/')
+    $prdEvent = '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"' + (Join-Path $gateTask 'prd.md').Replace('\', '/') + '"}}'
+
+    $verdict = Invoke-Hook 'capability-gate' $prdEvent
+    if ($verdict.Exit -ne 0) { throw "capability-gate exited $($verdict.Exit): $($verdict.Output)" }
+    if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw "gate did not deny an unreleased stage: $($verdict.Output)" }
+    if ($verdict.Output -notmatch 'task unaided PRD --considered') { throw 'gate deny message omits the escape command' }
+
+    $skillEvent = '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"' + $gateRepoUrl + '","tool_input":{"skill":"windows:cap"}}'
+    $verdict = Invoke-Hook 'capability-evidence' $skillEvent
+    if ($verdict.Exit -ne 0) { throw "capability-evidence exited $($verdict.Exit): $($verdict.Output)" }
+    $verdict = Invoke-Hook 'capability-gate' $prdEvent
+    if ($verdict.Output -match '"permissionDecision":"deny"') { throw 'gate denied a stage that had a real invocation' }
+
+    # One invocation is spent by one stage, and the escape hatch is a real command
+    # that has to work on this host too.
+    $specEvent = '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"' + (Join-Path $gateTask 'spec.md').Replace('\', '/') + '"}}'
+    $verdict = Invoke-Hook 'capability-gate' $specEvent
+    if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw 'gate released a second stage on spent evidence' }
+    Invoke-TaskFlow (@('unaided', 'Spec', '--considered', 'architecture and design') + @('--root', $gateRepo))
+    $verdict = Invoke-Hook 'capability-gate' $specEvent
+    if ($verdict.Output -match '"permissionDecision":"deny"') { throw 'gate denied a stage the escape hatch had released' }
+    'WINDOWS PRE-WRITE GATE PASSED'
 }
 finally {
     if ($createdRoot -and (Test-Path $Root)) { Remove-Item -LiteralPath $Root -Recurse -Force }

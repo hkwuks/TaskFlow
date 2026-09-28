@@ -9,6 +9,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## Block the first body write of prd/spec/plan until a capability-class tool was ac
+
+- ID: TF-20260927-5814d0
+- Status: in_progress
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-27
+- Updated: 2026-09-28
+- Goal: Block the first body write of prd/spec/plan until a capability-class tool was actually invoked: the approve-time Skills check is shape-only and fires after every document exists, so 'invoked nothing' and 'compliant' stay indistinguishable
+- Task: `TaskFlowDocs/2026-09-27-capability-pre-write-gate/`
+- Next action: Steps 1–6 implemented; awaiting the CI matrix verdict (full smoke cannot run on MSYS) and the post-release live check in the plan's Verification recipe.
+
 ## Gate PRD/Spec/Plan on real capability invocation: large tasks need one real invo
 
 - ID: TF-20260923-230f49
