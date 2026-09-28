@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **A pre-write gate on `prd.md` / `spec.md` / `plan.md`.** The stage record added in 1.1.0 was shape-only: `Unaided — …` and a real invocation are the same text, so an overlooked phase could not be told from a compliant one, and the ordering it asked for — invoke before the first body write — was checked by nothing. On Claude Code a `PostToolUse` hook now appends one `kind|capability` line per real `Skill`, agent, or MCP call to `<absolute-git-dir>/taskflow/evidence`, and a `PreToolUse` hook refuses the first body write of a stage document in an active task directory until that stage can be released against one. Nothing is read out of the document, so no wording passes the gate. The store lives in the git directory: per worktree, invisible to `git status`, left alone by `version`, and unaffected by compaction or a changed session id. One invocation is spent by one stage, so writing `prd.md` and then `spec.md` needs two.
+- `hooks/task unaided <PRD|Spec|Plan> --considered "<concept class>"` — declares a phase that ran without a capability and releases its stage. It is the single place a concept class is validated, and a class outside the phase vocabulary exits `2` with the vocabulary printed.
+
+### Changed
+
+- **`hooks/task approve` reconciles the stage record instead of pattern-matching it.** Each required stage line is checked against the release the gate wrote: an invoke line must name the capability that really was invoked, an `Unaided` line must carry the class that really was recorded, and a stage with no release fails closed before any Approval field is written. It prints how many stages were released by an invocation and how many unaided, so a task that declared every phase unaided is visible rather than silent. The large-task concept-class branch and the "invoke line is empty" branch are deleted — the store already guarantees both, and a concept class is validated only at the command that can write one.
+- **The stage record moved out of `plan.md`.** `## Skills / Tools Used` is a report of what happened, reconciled at approve, rather than a declaration written before the document. `SKILL.md` and `references/artifacts.md` no longer ask for a stage line before the first body write; `references/runtime.md` documents the gate, its event wiring, and that it was measured against Claude Code 2.1.282.
+
+### Compatibility
+
+- **In-flight tasks are affected.** A task whose documents were written before this release has no release record for any stage, so `approve` fails closed for it and names the escape hatch. Declare each stage with `hooks/task unaided <stage> --considered "<concept class>"`, or re-run the phase with a capability invoked. Already-approved Plans are not re-validated.
+- **Claude Code only.** `hooks-codex.json`, `hooks-codebuddy.json`, and `hooks-dsh.json` are untouched and carry no gate. A host without a tool-call hook runs the same flow unchanged — the gate is an enforcement, not a step.
+- **No installation or runtime change.** The gate may only deny, never approve, and it never writes a core document. Both hooks are complete no-ops outside an active task directory, which they must be: hooks installed in `~/.claude/settings.json` are machine-global and fire in every concurrent session and unrelated repository.
+
+### Verification
+
+- `bash hooks/smoke-test` — new sections cover `json-field` (including a spoofing attempt through `Skill`'s free-form `args`), the capture hook's boundaries, the gate's allow/deny matrix, per-stage freshness, and approve's reconciliation; the rewritten approve section is proven to have teeth by running it against the pre-change hook. The no-interpreter section now drives both new hooks, and the Windows suite drives the gate and the escape hatch through `run-hook.cmd` on a repository path containing a space and Chinese characters. Results on the Ubuntu / macOS / Windows CI matrix are pending, and the end-to-end behaviour in a live session needs a release and reinstall, since a repository edit does not reach an installed plugin. The orphan-directory note under 1.1.0's known limitations still stands.
+
 ## [1.1.0] — 2026-09-24
 
 ### Added

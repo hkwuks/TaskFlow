@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+# json-field — print selected fields from a JSON object on stdin, one per line.
+#
+# Usage: json-field <spec> [<spec>...]      spec: `key` or `key.sub` (one level)
+#
+# Prints one line per spec, in the order given; a missing field, a null, or a
+# non-string scalar prints an empty line so callers can read by position.
+# Exit 0 on success, 2 on invalid JSON.
+#
+# The parser is the one `session-start` uses, extended to descend one level.
+# It is written by hand rather than pattern-matched because a value inside a
+# string must never be able to masquerade as a top-level field: the Skill
+# event carries free-form `args`, and a regex would read a quoted `skill` key
+# out of that prose.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+KEYS="${*:-}"
+[ -n "$KEYS" ] || exit 0
+
+awk -v KEYS="$KEYS" '
+  function die(msg) {
+    printf "TaskFlow json-field error: invalid event JSON: %s\n", msg > "/dev/stderr"
+    exit 2
+  }
+  function peek() { return (P <= L) ? substr(S, P, 1) : "" }
+  function ws(   c) {
+    while (P <= L) { c = substr(S, P, 1); if (c == " " || c == "\t" || c == "\n" || c == "\r") P++; else break }
+  }
+  function hexnum(h,   i, c, v) {
+    v = 0
+    for (i = 1; i <= 4; i++) {
+      c = tolower(substr(h, i, 1))
+      v = v * 16
+      if (c >= "0" && c <= "9") v += c + 0
+      else if (c >= "a" && c <= "f") v += index("abcdef", c) + 9
+      else die("bad \\u escape")
+    }
+    return v
+  }
+  function utf8(cp,   b1, b2, b3, b4) {
+    if (cp < 0x80) return sprintf("%c", cp)
+    if (cp < 0x800) return sprintf("%c%c", 0xC0 + int(cp / 64), 0x80 + cp % 64)
+    if (cp < 0x10000) return sprintf("%c%c%c", 0xE0 + int(cp / 4096), 0x80 + int(cp / 64) % 64, 0x80 + cp % 64)
+    return sprintf("%c%c%c%c", 0xF0 + int(cp / 262144), 0x80 + int(cp / 4096) % 64, 0x80 + int(cp / 64) % 64, 0x80 + cp % 64)
+  }
+  function str(   out, c, e, h, n, m) {
+    if (peek() != "\"") die("expected a string")
+    P++
+    out = ""
+    while (1) {
+      if (P > L) die("unterminated string")
+      c = substr(S, P, 1)
+      if (c == "\"") { P++; return out }
+      if (c != "\\") { out = out c; P++; continue }
+      P++
+      if (P > L) die("unterminated escape")
+      e = substr(S, P, 1)
+      if (e == "u") {
+        h = substr(S, P + 1, 4)
+        if (h !~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) die("bad \\u escape")
+        n = hexnum(h)
+        P += 5
+        if (n >= 0xD800 && n <= 0xDBFF && substr(S, P, 2) == "\\u") {
+          h = substr(S, P + 2, 4)
+          if (h ~ /^[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]$/) {
+            m = hexnum(h)
+            if (m >= 0xDC00 && m <= 0xDFFF) { n = 0x10000 + (n - 0xD800) * 0x400 + (m - 0xDC00); P += 6 }
+          }
+        }
+        out = out utf8(n)
+        continue
+      }
+      if (e == "n") { out = out "\n"; P++; continue }
+      if (e == "t") { out = out "\t"; P++; continue }
+      if (e == "r") { out = out "\r"; P++; continue }
+      if (e == "b") { out = out sprintf("%c", 8); P++; continue }
+      if (e == "f") { out = out sprintf("%c", 12); P++; continue }
+      if (e == "\"" || e == "\\" || e == "/") { out = out e; P++; continue }
+      die("bad escape")
+    }
+  }
+  # A string is returned unescaped; null, a number, true and false all consume
+  # their token and return empty, so a caller never sees a raw JSON token.
+  function scalar(   c) {
+    ws()
+    c = peek()
+    if (c == "\"") return str()
+    if (substr(S, P, 4) == "null") { P += 4; return "" }
+    while (P <= L) {
+      c = peek()
+      if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") break
+      P++
+    }
+    return ""
+  }
+  function skipval(   c, depth) {
+    ws()
+    c = peek()
+    if (c == "\"") { str(); return }
+    if (c == "{" || c == "[") {
+      depth = 0
+      while (P <= L) {
+        c = peek()
+        if (c == "\"") { str(); continue }
+        if (c == "{" || c == "[") depth++
+        else if (c == "}" || c == "]") { depth--; P++; if (depth == 0) return; continue }
+        P++
+      }
+      die("unterminated value")
+    }
+    while (P <= L) {
+      c = peek()
+      if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") return
+      P++
+    }
+  }
+  # Descend into the object whose opening brace is next, capturing `parent.sub`
+  # specs. A null or a non-object value leaves every nested spec empty.
+  function nested_obj(parent,   k, sp) {
+    ws()
+    if (substr(S, P, 4) == "null") { P += 4; return }
+    if (peek() != "{") { skipval(); return }
+    P++
+    ws()
+    if (peek() == "}") { P++; return }
+    while (1) {
+      ws()
+      k = str()
+      sp = parent SUBSEP k
+      ws()
+      if (peek() != ":") die("expected a colon")
+      P++
+      ws()
+      if (sp in want) out[want[sp]] = scalar()
+      else skipval()
+      ws()
+      if (peek() == ",") { P++; continue }
+      if (peek() == "}") { P++; break }
+      die("expected a comma or a closing brace")
+    }
+  }
+  BEGIN {
+    NS = split(KEYS, K, " ")
+    for (i = 1; i <= NS; i++) {
+      spec = K[i]
+      d = index(spec, ".")
+      if (d > 0) {
+        parent = substr(spec, 1, d - 1)
+        nested[parent] = 1
+        want[parent SUBSEP substr(spec, d + 1)] = i
+      } else {
+        want[spec] = i
+      }
+    }
+  }
+  { S = S $0 "\n" }
+  END {
+    L = length(S)
+    P = 1
+    ws()
+    if (P > L) { for (i = 1; i <= NS; i++) print ""; exit 0 }
+    if (peek() != "{") die("expected a JSON object")
+    P++
+    ws()
+    if (peek() == "}") P++
+    else {
+      while (1) {
+        ws()
+        k = str()
+        ws()
+        if (peek() != ":") die("expected a colon")
+        P++
+        ws()
+        if (k in want) out[want[k]] = scalar()
+        else if (k in nested) nested_obj(k)
+        else skipval()
+        ws()
+        if (peek() == ",") { P++; continue }
+        if (peek() == "}") { P++; break }
+        die("expected a comma or a closing brace")
+      }
+    }
+    ws()
+    if (P <= L) die("unexpected trailing content")
+    for (i = 1; i <= NS; i++) print (i in out) ? out[i] : ""
+  }
+'

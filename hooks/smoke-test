@@ -91,6 +91,23 @@ printf '{"hook_event_name":"SessionStart","cwd":"%s","session_id":"nointerp"}\n'
   { echo "FAIL session-start failed without an interpreter"; cat "$tmp/nointerp2.err"; exit 1; }
 grep -q '"hookSpecificOutput"' "$tmp/nointerp.json" ||
   { echo "FAIL session-start produced no context without an interpreter"; exit 1; }
+# The pre-write gate pair is on the same floor and has to prove it here too: both
+# resolve their store with `git -C`, read the event with awk, and carry no
+# interpreter. That means this fixture has to be a Git repository, which the two
+# commands above did not require.
+git -C "$interp_root" init -q
+printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","tool_input":{"skill":"nointerp:cap"}}\n' "$interp_root" |
+  PATH="$toolbin" bash "$HERE/capability-evidence" 2>"$tmp/nointerp4.err" ||
+  { echo "FAIL capability-evidence failed without an interpreter"; cat "$tmp/nointerp4.err"; exit 1; }
+interp_evidence="$(git -C "$interp_root" rev-parse --absolute-git-dir)/taskflow/evidence"
+[ -f "$interp_evidence" ] && [ "$(wc -l < "$interp_evidence" | tr -d ' ')" -eq 1 ] ||
+  { echo "FAIL capability-evidence recorded nothing without an interpreter"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"%s"}}\n' \
+  "$interp_root/TaskFlowDocs/2026-09-08-nointerp/prd.md" |
+  PATH="$toolbin" bash "$HERE/capability-gate" >"$tmp/nointerp3.json" 2>"$tmp/nointerp3.err" ||
+  { echo "FAIL capability-gate failed without an interpreter"; cat "$tmp/nointerp3.err"; exit 1; }
+[ -s "$tmp/nointerp3.json" ] &&
+  { echo "FAIL capability-gate denied the stage that invocation had released"; cat "$tmp/nointerp3.json"; exit 1; }
 echo ok
 
 echo "== the no-interpreter PATH does not leak past its own section =="
@@ -834,8 +851,32 @@ fi
 echo ok
 
 echo "== task approve records the five-field block =="
-ap="$tmp/approve"
-mkdir -p "$ap"
+# Production is one task per worktree, and the release records live under that
+# worktree's own git dir — so two tasks in one worktree would share them, which
+# is a collision production cannot have. The fixture is therefore two worktrees
+# of one repository.
+ap_base="$tmp/approve"
+mkdir -p "$ap_base"
+(
+  cd "$ap_base" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  printf 'fixture\n' > README.md
+  git add -A && git commit -qm base
+  git worktree add -q .worktrees/approve -b chore/approve
+  git worktree add -q .worktrees/approve-large -b chore/approve-large
+) || { echo "FAIL approve fixture repository"; exit 1; }
+ap="$ap_base/.worktrees/approve"
+ap_large_root="$ap_base/.worktrees/approve-large"
+ap_store="$(git -C "$ap" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$ap_store"
+# The release record is written by the pre-write gate and by nothing else, so the
+# fixture plants it directly: what is under test here is approve's reconciliation
+# against the record, and the gate's own section covers how it gets there.
+ap_release() {  # ap_release <store> <version> <stage> <line-no> <kind> <capability>
+  printf '%s|%s|%s|%s|%s\n' "$2" "$3" "$4" "$5" "$6" >> "$1/released"
+}
 bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/dev/null
 ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
 bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --root "$ap" >/dev/null
@@ -881,11 +922,49 @@ if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>
 fi
 grep -q 'missing stage \[PRD\]' "$ap/untagged.err" \
   || { echo "FAIL untagged should miss stage"; cat "$ap/untagged.err"; exit 1; }
-# Small: [PRD]+[Plan] placeholder invokes pass (shape only, no product allowlist).
+# Shape alone is not a release. These are exactly the lines the passing case
+# writes, and with no record behind them approve must refuse and name the one
+# command that can legitimately stand in for an invocation. This is the whole
+# point of the change: text could not previously be told from a real call.
+ap_line_prd='- [PRD] `some:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
+ap_line_plan='- [Plan] `other:breakdown-tool` — purpose: split steps; outcome: succeeded; incorporated: plan steps.'
+set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan"
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/norec.err"; then
+  echo "FAIL approve accepted stage lines with no release record"; exit 1
+fi
+grep -q 'stage \[PRD\] was never released by the pre-write gate' "$ap/norec.err" \
+  || { echo "FAIL unreleased-stage message"; cat "$ap/norec.err"; exit 1; }
+grep -q 'task unaided PRD --considered' "$ap/norec.err" \
+  || { echo "FAIL unreleased-stage message omits the escape command"; cat "$ap/norec.err"; exit 1; }
+grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased reject wrote Approval"; exit 1; }
+# Now the records exist. Two ways a stage line can still fail to reconcile: it
+# reports an invocation where a deliberate unaided decision was recorded, or it
+# names a capability other than the one actually invoked.
+ap_release "$ap_store" v1 PRD 1 invoke some:requirements-skill
+ap_release "$ap_store" v1 Plan 2 unaided 'work breakdown'
 set_skills_body "$ap_task/plan.md" \
-  '- [PRD] `some:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
-  '- [Plan] `other:breakdown-tool` — purpose: split steps; outcome: succeeded; incorporated: plan steps.'
-bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null
+  '- [PRD] `other:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
+  "$ap_line_plan"
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/mismatch.err"; then
+  echo "FAIL approve accepted a stage naming a capability that was not invoked"; exit 1
+fi
+grep -q 'stage \[PRD\] does not name the recorded capability (some:requirements-skill)' "$ap/mismatch.err" \
+  || { echo "FAIL capability-mismatch message"; cat "$ap/mismatch.err"; exit 1; }
+set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan"
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/kind.err"; then
+  echo "FAIL approve accepted an invocation-shaped line over an unaided record"; exit 1
+fi
+grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unaided decision' "$ap/kind.err" \
+  || { echo "FAIL kind-mismatch message"; cat "$ap/kind.err"; exit 1; }
+# Reconciled: the invoke line names the invoked capability, the unaided line
+# carries the recorded class. The counts line is what makes a task that declared
+# every phase unaided visible instead of silent.
+set_skills_body "$ap_task/plan.md" \
+  "$ap_line_prd" \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" > "$ap/approve.out"
+grep -q 'stages released by the gate: 1 invoked, 1 unaided' "$ap/approve.out" \
+  || { echo "FAIL approve did not report the released stages"; cat "$ap/approve.out"; exit 1; }
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
   p && /^## / { exit }
@@ -910,17 +989,25 @@ printf '%s\n' "$approval_fields" | sed -n '5p' | grep -qx -- '- Approved scope: 
 bash "$HERE/task" state 2026-09-09-approve-smoke in_progress --root "$ap" >/dev/null \
   || { echo "FAIL approve did not satisfy require_approval"; exit 1; }
 # Large: custom approver; missing [Spec] must fail; then three stages pass.
-bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap" >/dev/null
+bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap_large_root" >/dev/null
 # Bare `# Todo` fixtures have no `## Items`, so intake appends: the new entry is last.
-ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap" >/dev/null
-ap_large="$ap/TaskFlowDocs/2026-09-09-approve-large"
+ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap_large_root/TaskFlowDocs/todo.md")
+bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap_large_root" >/dev/null
+ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
+# The large task is its own worktree, so its records are its own: one task per
+# store is the production shape, and it is what keeps this fixture from being
+# satisfied by the small task's releases.
+ap_large_store="$(git -C "$ap_large_root" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$ap_large_store"
+ap_release "$ap_large_store" v1 PRD 1 unaided 'requirements elicitation'
+ap_release "$ap_large_store" v1 Spec 2 unaided 'architecture and design'
+ap_release "$ap_large_store" v1 Plan 3 unaided 'work breakdown'
 # PRD+Plan only → missing Spec stage.
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
-if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null 2>"$ap/large.err"; then
+if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
   echo "FAIL large approve accepted missing [Spec] stage"; exit 1
 fi
 grep -q 'missing stage \[Spec\]' "$ap/large.err" || { echo "FAIL missing Spec message"; cat "$ap/large.err"; exit 1; }
@@ -930,17 +1017,30 @@ set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase.' \
   '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
-if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null 2>"$ap/large.err"; then
+if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
   echo "FAIL large approve accepted stage Unaided without considered:"; exit 1
 fi
 grep -q 'stage \[PRD\] Unaided needs considered:' "$ap/large.err" \
   || { echo "FAIL stage considered message"; cat "$ap/large.err"; exit 1; }
-# Three stage Unaided lines with concept classes → pass (still no product names).
+# A reported class the record does not carry is refused too: the line cannot
+# describe an unaided decision the command never recorded.
+set_skills_body "$ap_large/plan.md" \
+  '- [PRD] Unaided — no capability applied to this phase; considered: literature and evidence' \
+  '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
+  echo "FAIL large approve accepted a considered class the store never recorded"; exit 1
+fi
+grep -q 'stage \[PRD\] reports a different considered class than the recorded one (requirements elicitation)' "$ap/large.err" \
+  || { echo "FAIL considered-class mismatch message"; cat "$ap/large.err"; exit 1; }
+# Three stage Unaided lines with the recorded concept classes → pass.
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
   '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
-bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap" >/dev/null
+bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" > "$ap/large.out"
+grep -q 'stages released by the gate: 0 invoked, 3 unaided' "$ap/large.out" \
+  || { echo "FAIL approve did not report three unaided stages"; cat "$ap/large.out"; exit 1; }
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
   p && /^## / { exit }
@@ -953,10 +1053,14 @@ printf '%s\n' "$approval_fields" | grep -qx -- '- Approved scope: PRD / Spec / P
   || { echo "FAIL approve scope with spec"; printf '%s\n' "$approval_fields"; exit 1; }
 # approve must not rewrite > Status: on the docs
 grep -q '^> Status: in_progress$' "$ap_task/plan.md" || { echo "FAIL approve changed plan doc status"; exit 1; }
-# Neutral stage gate wording is pinned.
-grep -q 'missing stage \[' "$HERE/task" || { echo "FAIL stage gate message missing"; exit 1; }
-grep -q 'phase-table concept class' "$HERE/task" || { echo "FAIL phase-table concept gate missing"; exit 1; }
-grep -q 'require_stage PRD' "$HERE/task" || { echo "FAIL PRD stage required"; exit 1; }
+# The stage gate's wording is pinned behaviourally above: every branch
+# ("missing stage [PRD]", "was never released by the pre-write gate", the two
+# reconciliation mismatches) was just read back out of a real rejection. The three
+# `grep -q … "$HERE/task"` assertions that used to stand here matched the source of
+# an implementation instead, so they pinned how the check was written rather than
+# what it does — and the concept vocabulary one matched a comment. Nothing replaces
+# them: the vocabulary now has a single entry point, `task unaided`, and the
+# pre-write gate section pins it there where it is enforced.
 echo ok
 
 echo "== a task is isolated before its first document is written =="
@@ -1129,8 +1233,169 @@ concept_table=$(sed -n '/^| Phase | Artifact | Equivalent concept class/,/^$/p' 
 if printf '%s' "$concept_table" | grep -qiE 'taskflow|claude|codex|agent-skills|openai|anthropic|mcp'; then
   echo "FAIL concept table names a product instead of a concept"; exit 1
 fi
-grep -q 'must be a choice, not an oversight' "$skill/SKILL.md" || { echo "FAIL unaided-phase signal missing"; exit 1; }
+# The pre-write gate replaced the old advice to append a stage line *before*
+# drafting the document — that ordering was unenforceable prose, which is the
+# whole reason the gate exists. What replaces it is a fact plus a report: SKILL.md
+# names the gate, and the Skills section is described as a record of what happened
+# rather than a declaration. Pin both, and pin that the advice did not survive.
+grep -q 'The first body write of each stage document is gated' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not state the pre-write gate"; exit 1; }
+grep -q 'is a report of what happened' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md still presents the Skills section as a declaration"; exit 1; }
+if grep -q 'append a `\[PRD\]` line' "$skill/SKILL.md"; then
+  echo "FAIL SKILL.md still asks for the stage line before the document"; exit 1
+fi
 grep -q 'says what class to look for' "$skill/references/artifacts.md" || { echo "FAIL accounting rule pointer missing"; exit 1; }
+echo ok
+
+echo "== json-field reads one level deep and cannot be spoofed =="
+# A Skill event carries free-form `args`. A field quoted inside that prose must
+# never be readable as the real field, which is why this is a parser and not a
+# pattern match.
+jf="$HERE/json-field"
+printf '%s' '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"/tmp/a b","tool_input":{"skill":"real:cap","args":"text with \"skill\":\"evil\" inside"}}' \
+  | bash "$jf" hook_event_name tool_name cwd tool_input.skill > "$tmp/jf.out"
+[ "$(sed -n '1p' "$tmp/jf.out")" = "PostToolUse" ] || { echo "FAIL json-field event"; exit 1; }
+[ "$(sed -n '2p' "$tmp/jf.out")" = "Skill" ] || { echo "FAIL json-field tool"; exit 1; }
+[ "$(sed -n '3p' "$tmp/jf.out")" = "/tmp/a b" ] || { echo "FAIL json-field cwd"; exit 1; }
+[ "$(sed -n '4p' "$tmp/jf.out")" = "real:cap" ] \
+  || { echo "FAIL json-field was spoofed by args prose: $(sed -n '4p' "$tmp/jf.out")"; exit 1; }
+[ "$(printf '%s' '{"a":{"b":"x\"y"}}' | bash "$jf" a.b)" = 'x"y' ] \
+  || { echo "FAIL json-field nested escape"; exit 1; }
+# Missing, null and non-string fields print empty lines, so callers read by position.
+[ "$(printf '%s' '{"a":null,"b":12,"c":true}' | bash "$jf" a b c zz | wc -l)" -eq 4 ] \
+  || { echo "FAIL json-field placeholder count"; exit 1; }
+# Invalid JSON is a hard error; empty input is not.
+printf '%s' '{not-json}' | bash "$jf" tool_name >/dev/null 2>&1 \
+  && { echo "FAIL json-field accepted invalid JSON"; exit 1; }
+printf '' | bash "$jf" a b >/dev/null || { echo "FAIL json-field rejected empty input"; exit 1; }
+echo ok
+
+echo "== capability capture records real calls and leaves everything else alone =="
+ce="$HERE/capability-evidence"
+ce_root="$tmp/capability-evidence"
+mkdir -p "$ce_root/active/TaskFlowDocs/2026-09-27-demo" \
+         "$ce_root/plain" \
+         "$ce_root/achieved/TaskFlowDocs/achieved/2026-01-01-old"
+for ce_repo in active plain achieved; do git -C "$ce_root/$ce_repo" init -q; done
+printf 'x\n' > "$ce_root/active/TaskFlowDocs/2026-09-27-demo/plan.md"
+printf 'x\n' > "$ce_root/achieved/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
+ce_store="$(git -C "$ce_root/active" rev-parse --absolute-git-dir)/taskflow/evidence"
+ce_fire() {  # ce_fire <repo-name> <event-json>
+  printf '%s' "$2" | bash "$ce" || { echo "FAIL capability-evidence exited nonzero"; exit 1; }
+}
+ce_lines() {  # ce_lines <evidence-file>
+  [ -f "$1" ] && wc -l < "$1" | tr -d ' ' || printf '0'
+}
+ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"skill\":\"agent-skills:spec\",\"args\":\"x\"}}"
+ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"subagent_type\":\"Explore\"}}"
+ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"mcp__exa__web_search_exa\",\"cwd\":\"$ce_root/active\",\"tool_input\":{}}"
+[ "$(ce_lines "$ce_store")" -eq 3 ] || { echo "FAIL expected 3 records, got $(ce_lines "$ce_store")"; exit 1; }
+[ "$(sed -n '1p' "$ce_store")" = "invoke|agent-skills:spec" ] || { echo "FAIL Skill record shape"; exit 1; }
+[ "$(sed -n '2p' "$ce_store")" = "invoke|Explore" ] || { echo "FAIL Agent record shape"; exit 1; }
+[ "$(sed -n '3p' "$ce_store")" = "invoke|mcp__exa__web_search_exa" ] || { echo "FAIL MCP record shape"; exit 1; }
+# The predicate is a tool class. A built-in tool is not a capability, and an
+# event that is not PostToolUse is not this hook's business.
+ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"command\":\"ls\"}}"
+ce_fire active "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"skill\":\"x:y\"}}"
+ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"command\":\"echo \\\"skill\\\":\\\"evil\\\"\"}}"
+[ "$(ce_lines "$ce_store")" -eq 3 ] || { echo "FAIL a non-capability tool added a record"; exit 1; }
+# No-op outside a repository running TaskFlow. The hook is installed machine-wide,
+# so other projects and other sessions reach it too.
+ce_fire plain "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$ce_root/plain\",\"tool_input\":{\"skill\":\"x:y\"}}"
+[ ! -e "$(git -C "$ce_root/plain" rev-parse --absolute-git-dir)/taskflow/evidence" ] \
+  || { echo "FAIL a non-TaskFlow repository got a store"; exit 1; }
+ce_fire achieved "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$ce_root/achieved\",\"tool_input\":{\"skill\":\"x:y\"}}"
+[ ! -e "$(git -C "$ce_root/achieved" rev-parse --absolute-git-dir)/taskflow/evidence" ] \
+  || { echo "FAIL an achieved-only repository got a store"; exit 1; }
+# Bad input is a silent no-op, never a failed tool call.
+printf '{not-json}' | bash "$ce" || { echo "FAIL capability-evidence failed on bad JSON"; exit 1; }
+# With no cwd field the hook falls back to the process working directory. Run it
+# from a subshell so the fallback is exercised without touching this repository.
+( cd "$ce_root/active" \
+  && printf '%s' '{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"fallback:cwd"}}' | bash "$ce" ) \
+  || { echo "FAIL capability-evidence failed with no cwd field"; exit 1; }
+[ "$(sed -n '4p' "$ce_store")" = "invoke|fallback:cwd" ] \
+  || { echo "FAIL the cwd fallback did not record"; exit 1; }
+echo ok
+
+echo "== the pre-write gate releases a stage only against real evidence =="
+cg="$HERE/capability-gate"
+cg_root="$tmp/capability-gate"
+cg_task="$cg_root/repo/TaskFlowDocs/2026-09-27-gate"
+mkdir -p "$cg_task"
+git -C "$cg_root/repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$cg_task/plan.md"
+cg_store="$(git -C "$cg_root/repo" rev-parse --absolute-git-dir)/taskflow"
+cg_event() {  # cg_event <file-path> [tool-name]
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"${2:-Edit}\",\"tool_input\":{\"file_path\":\"$1\"}}"
+}
+cg_verdict() {  # cg_verdict <file-path> <allow|deny> [tool-name]
+  cg_got="$(cg_event "$1" "${3:-Edit}" | bash "$cg")"
+  case "$cg_got" in *'"deny"'*) cg_got="deny" ;; *) cg_got="allow" ;; esac
+  [ "$cg_got" = "$2" ] || { echo "FAIL gate gave $cg_got for $1, expected $2"; exit 1; }
+}
+cg_skill() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"skill\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
+cg_agent() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"subagent_type\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
+cg_mcp()   { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"mcp__m__t\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{}}" | bash "$HERE/capability-evidence"; }
+
+cg_verdict "$cg_task/prd.md" deny
+# The block message is the only place the rule reaches the agent, at the moment
+# it matters, so all three parts have to be in it.
+cg_event "$cg_task/prd.md" | bash "$cg" > "$tmp/cg.deny"
+grep -q '\[PRD\]' "$tmp/cg.deny" || { echo "FAIL gate message does not name the stage"; exit 1; }
+grep -q 'requirements elicitation and framing' "$tmp/cg.deny" || { echo "FAIL gate message omits the concept class"; exit 1; }
+grep -q 'task unaided PRD --considered' "$tmp/cg.deny" || { echo "FAIL gate message omits the escape command"; exit 1; }
+cg_skill idea-refine
+cg_verdict "$cg_task/prd.md" allow
+cg_verdict "$cg_task/prd.md" allow          # idempotent: same document, same version
+cg_verdict "$cg_task/spec.md" deny          # one invocation cannot serve two stages
+cg_agent Explore
+cg_verdict "$cg_task/spec.md" allow
+cg_verdict "$cg_task/plan.md" deny
+cg_mcp
+cg_verdict "$cg_task/plan.md" allow
+[ "$(wc -l < "$cg_store/released" | tr -d ' ')" -eq 3 ] || { echo "FAIL expected three releases"; exit 1; }
+
+# Boundaries. The hook is installed machine-wide and fires in other repositories
+# and other sessions, so anything that is not an active task document passes.
+mkdir -p "$cg_root/plain" "$cg_root/repo/TaskFlowDocs/achieved/2026-01-01-old" \
+         "$cg_root/repo/TaskFlowDocs/repository-docs" "$cg_task/nested" \
+         "$cg_root/other/2026-09-27-x" "$cg_root/repo/TaskFlowDocs/2026-09-27-noplan"
+printf 'x\n' > "$cg_root/repo/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
+printf 'x\n' > "$cg_root/other/2026-09-27-x/plan.md"
+cg_verdict "$cg_root/plain/prd.md" allow
+cg_verdict "$cg_root/repo/TaskFlowDocs/achieved/2026-01-01-old/prd.md" allow
+cg_verdict "$cg_root/repo/TaskFlowDocs/achieved/2026-01-01-old/plan.md" allow
+cg_verdict "$cg_task/nested/prd.md" allow
+cg_verdict "$cg_root/other/2026-09-27-x/prd.md" allow
+cg_verdict "$cg_root/repo/TaskFlowDocs/2026-09-27-noplan/prd.md" allow
+
+# The evidence store is not a document, and a built-in tool is not this hook business.
+cg_verdict "$cg_store/evidence" deny
+cg_verdict "$cg_store/released" deny
+cg_verdict "$cg_task/prd.md" allow Bash
+cg_event "$cg_task/prd.md" | bash "$cg" >/dev/null
+printf '%s' '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{}}' | bash "$cg" > "$tmp/cg.nofile"
+[ -s "$tmp/cg.nofile" ] && { echo "FAIL gate answered a missing file_path"; exit 1; }
+printf '%s' '{bad json' | bash "$cg" > "$tmp/cg.bad"
+[ -s "$tmp/cg.bad" ] && { echo "FAIL gate answered invalid JSON"; exit 1; }
+
+# A Task-version bump spends nothing: evidence an earlier version used is used.
+printf '# Plan\n> Task version: v2\n' > "$cg_task/plan.md"
+cg_verdict "$cg_task/prd.md" deny
+cg_skill spec-skill
+cg_verdict "$cg_task/prd.md" allow
+# An unaided decision is a first-class record, not a blank cheque. The command
+# that writes it is also the only place a concept class is validated.
+cg_unaided() {  # cg_unaided <stage> <class> -> exit code of the command
+  bash "$HERE/task" unaided "$1" --considered "$2" --root "$cg_root/repo" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+[ "$(cg_unaided Plan 'just vibes')" = "2" ] || { echo "FAIL unaided accepted an off-vocabulary class"; exit 1; }
+[ "$(cg_unaided XXX 'work breakdown')" = "2" ] || { echo "FAIL unaided accepted an invalid stage"; exit 1; }
+[ "$(cg_unaided Plan 'work breakdown and task decomposition')" = "0" ] || { echo "FAIL unaided rejected a valid class"; exit 1; }
+cg_verdict "$cg_task/plan.md" allow
 echo ok
 
 echo "== the capability record is required, not optional =="

@@ -42,8 +42,21 @@ An environment running any other agent host needs no hooks: it continues with th
 | End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` |
 | Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) |
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` |
+| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired | not wired | not wired |
 
-Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release.
+Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured.
+
+## Pre-write capability gate
+
+Claude Code only, and defined together with the event map above: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
+
+Three properties are worth stating because each one is load-bearing:
+
+- **Path-only.** The gate resolves everything from `tool_input.file_path` and never from a "current task", because hooks installed in `~/.claude/settings.json` are machine-global and fire in every concurrent session and every unrelated repository. Outside an active task directory both hooks are complete no-ops.
+- **Deny only.** A release is a `permissionDecision: deny` withheld, never a grant; every other permission surface keeps its own say, and a hook still never approves.
+- **One invocation per stage.** The evidence file is one timeline and a release spends a line from it, so writing `prd.md` and then `spec.md` needs two invocations. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`, the single place a concept class is validated.
+
+A host without a tool-call hook has no gate at all — and nothing else in TaskFlow depends on one. The flow is unchanged there; the gate is an enforcement, not a step.
 
 ### dsh specifics
 
@@ -83,10 +96,12 @@ A hook MAY:
 - update a `TaskFlowDocs/todo.md` item's triage metadata (status, priority, date, `Next`) — Todo is triage metadata only;
 - inject a derived, clearly non-authoritative context summary (e.g. the SessionStart state summary);
 - maintain the selected task's `sessions.md` session index from the host event: one entry per session, limited to the session id, agent/platform, availability, started/last-active timestamps, code working directory, task artifact directory, and Task version/phase. `Last completed`, `Next step`, and `Notes` stay Agent-owned; the hook never creates the entry in another task, never touches `TaskFlowDocs/achieved/`, and never marks a session `closed`;
+- record a real capability invocation in the task worktree's evidence store, and refuse a stage document's first body write until one was recorded for that stage (`capability-evidence`, `capability-gate`);
 - run one of the single-command transition scripts below.
 
 A hook MUST NOT:
 - create, rewrite, or delete `prd.md`, `spec.md`, `plan.md`, `reference/index.md`, or move anything under `TaskFlowDocs/achieved/` on its own;
+- grant a permission or approve: the pre-write gate can only deny, and every other permission surface keeps its own say;
 - create or alter an `## Approval` block, or otherwise approve;
 - duplicate promoted task facts into Todo, `sessions.md`, or any hook output;
 - read secrets or carry sensitive payloads in hook output (both hosts spill oversized output to disk).
@@ -107,13 +122,13 @@ Keep summaries short; both hosts cap oversized hook context (Claude Code caps at
 
 Scripts are extensionless bash so Claude Code's Windows auto-detection (prepends `bash` to any command containing `.sh`) never interferes. On Windows, `hooks/run-hook.cmd` is a polyglot batch/bash wrapper that locates Git Bash; the same `command` value works on every OS for Claude Code, and Codex `hooks-codex.json` uses `commandWindows` where desired.
 
-Hooks carry no language runtime. Text work is done with `awk` and `sed` at the bash 3.2 + BSD userland level, which is the floor `2026-09-14-macos-hook-portability` established and which `tools/fixture-compare` protects: no `declare -A`, no `mapfile`, and no GNU-only `sed -i` may appear in a hook. The smoke suite runs the hooks against a curated `PATH` containing no interpreter, so a reintroduced runtime dependency fails CI rather than a user's session.
+Hooks carry no language runtime. Text work is done with `awk` and `sed` at the bash 3.2 + BSD userland level, which is the floor `2026-09-14-macos-hook-portability` established: no `declare -A`, no `mapfile`, and no GNU-only `sed -i` may appear in a hook. Two smoke sections carry that floor rather than a linter — every hook must `bash -n` clean under the shell on the runner, which on macOS is a real 3.2 parser check, and every hook must run against a curated `PATH` holding no interpreter, so a reintroduced runtime dependency fails CI rather than a user's session. `tools/fixture-compare` is a different tool: it byte-compares the fixtures one run produced against a reference run, normalizing paths and timestamps, which is how a hook rewrite is proven equivalent.
 
 Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and `cmd.exe` do not maintain separate lifecycle logic. `hooks/smoke-test-windows.ps1` exercises the complete lifecycle through that launcher, including a repository path with spaces and Chinese characters.
 
 ## Single-command transitions
 
-Run explicitly by the Agent as one operation. Only SessionStart summary injection is automatically wired; write commands never bind to `UserPromptSubmit`, `PostToolUse`, or `Stop`.
+Run explicitly by the Agent as one operation. Only SessionStart summary injection, the sessions index, and the Claude Code pre-write gate are automatically wired; the write commands never bind to `UserPromptSubmit`, `PostToolUse`, or `Stop`.
 
 `intake` and `promote` both care whether the working tree they write into is the base one: a task's first documents are written in Phase 1, so writing them in the base tree puts them on whatever branch happens to be checked out. `promote` refuses there; `intake` only notes it, because triage should stay cheap. Both read the same signal — a linked worktree's git directory contains `commondir`, which is Git's own answer and needs no branch-name parsing — and neither applies where `--root` is not a repository at all.
 
@@ -123,6 +138,7 @@ Run explicitly by the Agent as one operation. Only SessionStart summary injectio
 | `hooks/task promote <todo-id> <task-id> <small\|large> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. Refuses with `STATUS: blocked` (exit `3`) outside a task worktree — the first task documents are written in Phase 1, so they would otherwise land in the base tree on whatever branch is checked out. The message prints the `git worktree add` command with everything but `<type>` filled in. |
 | `hooks/task state <task-id> <state> [--root <path>]` | Update PRD/Plan state and Todo triage state. | `in_progress` requires approval for the current Task version. |
 | `hooks/task progress <task-id> <step> <status> [verification] [--root <path>]` | Update one Plan Step and optionally append a verification line. | `done` rejects unchecked checklist items. |
+| `hooks/task unaided <PRD\|Spec\|Plan> --considered "<concept class>" [--root <path>]` | Record a deliberate unaided decision for a stage, which is what lets the pre-write gate release it and `approve` reconcile it. | Exit `2` on a stage that is not one of the three, a missing `--considered`, or a class outside the phase vocabulary, which it prints. It validates a class against the vocabulary and nothing else — it cannot judge whether the decision was right. |
 | `hooks/task complete <task-id> --user-accepted [--root <path>]` | Validate completion gates, set core statuses, and invoke archive. | Requires explicit acceptance and leaves no active task on success. |
 | `hooks/archive <task-id>` | Move `TaskFlowDocs/<task-id>` → `TaskFlowDocs/achieved/<task-id>`, update the linked Todo item's `Task:` path and status to `done`, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. | Prints a check report; on any failure leaves the Todo not `done` and exits nonzero. |
 | `hooks/reopen <task-id>` | Move `TaskFlowDocs/achieved/<task-id>` → `TaskFlowDocs/<task-id>`, record the Todo source/reopen reason in the Plan change log. | Prints a check report; exit nonzero on mismatch. |
@@ -184,7 +200,10 @@ repo-root/
         ├── install-merge-driver         # configures the repo-local Todo merge driver
         ├── merge-todo                   # the driver: merges todo.md by entry
         ├── repository-docs-context      # syncs index metadata + derives routes
-        ├── task                         # explicit intake/promote/state/progress/complete
+        ├── capability-evidence          # records real invocations in the worktree store
+        ├── capability-gate              # refuses a stage document's first body write
+        ├── json-field                   # shared one-level JSON reader
+        ├── task                         # explicit intake/promote/state/progress/unaided/complete
         ├── summarize-state              # shared state-summary generator
         ├── archive                      # full archive transaction (incl. Todo update)
         ├── version                      # archive changed docs + version bump

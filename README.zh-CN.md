@@ -88,9 +88,9 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 | 状态、批准、交接、回滚和恢复记录 | 替换编辑器、Git、测试工具或其他 Skills |
 | 重大决策的语义版本边界 | 强制 Agent 模型、编程语言、框架或工具链 |
 
-在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。
+在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。在 Claude Code 上，`prd.md`、`spec.md`、`plan.md` 的首次正文写入会被拒绝，直到该阶段确实调用过某项能力——记录来自工具调用本身而不是文档，因此没有任何措辞可以替代一次并未发生的调用。确实没有值得调用的能力时，改用显式声明：`hooks/task unaided <stage> --considered "<概念类别>"`。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy 与 dsh）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态。
+TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy 与 dsh）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。在 Claude Code 上，hook 还会记录真实的能力调用，并在该阶段尚无调用时拒绝阶段文档的首次正文写入。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态——写前门只能拒绝，不能批准。
 
 ## 防止设计丢失的一条规则
 
@@ -304,7 +304,7 @@ dsh plugin --profile web add <仓库根目录>
 > [!NOTE]
 > Hooks 是可选的。插件安装的 SessionStart hook 注入一份简短的状态摘要（未完成的收件箱条目 + 活跃任务）和当前阶段适用的仓库文档路由，让 Agent 不必重读整棵树。它从不创建、改写或删除 `prd.md`/`spec.md`/`plan.md`/`reference/index.md`，也从不批准；它唯一会写的文件是所选任务的 `sessions.md` 会话索引和 `TaskFlowDocs/repository-docs/index.md` 里确定性的路由元数据。没有 hooks 的宿主按同样的流程运行。
 
-对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|state|progress|complete`；这些写命令不会绑定到事件 Hook。
+对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|state|progress|unaided|complete`；这些写命令不会绑定到事件 Hook。
 
 ## 验证与 CI
 

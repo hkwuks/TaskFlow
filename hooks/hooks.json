@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Claude Code).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, pre-write capability gate, and capability-call capture (Claude Code).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,40 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-gate",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-evidence",
+            "shell": "bash"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-evidence",
             "shell": "bash"
           }
         ]

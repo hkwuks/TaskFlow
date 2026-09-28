@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# capability-evidence — PostToolUse hook: record that a capability-class tool
+# was really invoked.
+#
+# Appends one line `invoke|<capability>` to
+#   <absolute-git-dir>/taskflow/evidence
+#
+# The store lives inside the git directory on purpose. It stays out of
+# `git status`; it survives compact and resume because it is keyed by neither
+# session nor branch name; and a linked worktree has its own git directory, so
+# one task, one worktree and one store line up without the record having to
+# carry a task id.
+#
+# What this hook records is deliberately dumb: it does not know which phase is
+# running, because the event does not say. The stage is attached later, when
+# the gate releases a document and consumes a record. That decoupling is what
+# keeps the design free of any phase-to-tool mapping.
+#
+# Every error path exits 0. This hook must never fail the tool call it observes,
+# and a missing record only means the gate denies later, where the agent still
+# has the unaided escape hatch.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# A non-zero exit from the parser means unusable input, not a reportable error.
+event_json="$(cat)"
+fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
+  hook_event_name tool_name cwd tool_input.skill tool_input.subagent_type 2>/dev/null)" || exit 0
+
+event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
+tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
+event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
+cap_skill="$(printf '%s\n' "$fields" | sed -n '4p')"
+cap_agent="$(printf '%s\n' "$fields" | sed -n '5p')"
+
+[ "$event_name" = "PostToolUse" ] || exit 0
+
+# The predicate is a tool class, never a product list: whatever the host
+# offers, if it is a Skill, an agent, or an MCP tool, it counts.
+case "$tool_name" in
+  Skill) capability="$cap_skill" ;;
+  Agent|Task) capability="$cap_agent" ;;
+  mcp__*) capability="$tool_name" ;;
+  *) exit 0 ;;
+esac
+[ -n "$capability" ] || exit 0
+
+# No path normalization here on purpose. `$root` is handed only to `git -C`,
+# and Git for Windows resolves a backslash drive path itself, so a conversion
+# would guard nothing and could not be exercised by a test on either platform.
+root="${event_cwd:-$PWD}"
+
+# The store is per working tree, and so is the task.
+git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
+[ -n "$git_dir" ] || exit 0
+worktree="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$worktree" ] || exit 0
+
+# No-op outside a repository running TaskFlow. This matters: the hook is
+# installed machine-wide, so every unrelated project on the machine reaches
+# this script, including concurrent sessions in other repositories.
+docs="$worktree/TaskFlowDocs"
+[ -d "$docs" ] || exit 0
+active=0
+for dir in "$docs"/*/; do
+  [ -d "$dir" ] || continue
+  name="${dir%/}"
+  name="${name##*/}"
+  case "$name" in achieved|repository-docs) continue ;; esac
+  if [ -f "$dir/plan.md" ]; then active=1; break; fi
+done
+[ "$active" = 1 ] || exit 0
+
+# `|` would corrupt the record and a newline would corrupt the line structure;
+# the cap keeps one pathological id from bloating a file that every write reads.
+capability="$(printf '%s' "$capability" | tr -d '|\r\n' | cut -c1-200)"
+[ -n "$capability" ] || exit 0
+
+store="$git_dir/taskflow"
+mkdir -p "$store" 2>/dev/null || exit 0
+printf 'invoke|%s\n' "$capability" >> "$store/evidence" 2>/dev/null || exit 0
+exit 0

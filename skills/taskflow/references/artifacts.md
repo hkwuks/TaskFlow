@@ -78,8 +78,8 @@ TaskFlowDocs/
 ## Reference Pointers
 ## Related Tasks
 ## Skills / Tools Used
-- `<name>` — purpose: `<why it was invoked>`; outcome: `succeeded | failed | unavailable`; incorporated: `<reviewed conclusion or None>`
-- `Unaided — no capability applied to this phase; considered: <concept classes inspected>`
+- [PRD] `<name>` — purpose: `<why it was invoked>`; outcome: `succeeded | failed | unavailable`; incorporated: `<reviewed conclusion or None>`
+- [PRD] `Unaided — no capability applied to this phase; considered: <concept classes inspected>`
 ## Preconditions
 - [ ] Applicable repository documents and personal rules inspected; precedence/conflicts recorded.
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
@@ -110,9 +110,9 @@ TaskFlowDocs/
 
 List a capability only after an actual invocation attempt. Discovery or selection is not use. A failed or unavailable optional invocation may be recorded when relevant, but it has no incorporated conclusion and does not block the base flow unless it is required for correctness. The phase-to-concept table in `SKILL.md` says what class to look for; this rule says what may be recorded afterwards.
 
-`## Skills / Tools Used` is required, not optional. Invoke when **starting** each document and record a stage-tagged line in that section: `- [PRD] …` before `prd.md`, `- [Spec] …` before `spec.md`, `- [Plan] …` before `plan.md`. Each line is either a real invoke (purpose/outcome) or `Unaided — …; considered: <concept classes>` for that stage. Untagged lines do not count toward a stage.
+`## Skills / Tools Used` is required, not optional, and it is a report of what happened rather than a declaration: the first body write of `prd.md`, `spec.md`, or `plan.md` is refused by a `PreToolUse` hook until a capability was really invoked for that stage, and one invocation is spent by one stage. Record a stage-tagged line in that section once the stage document is under way: `- [PRD] …`, `- [Spec] …`, `- [Plan] …`. Each line is either the invocation that was made (capability, purpose, outcome) or `Unaided — …; considered: <concept classes>` for that stage. A phase with no capability worth invoking is declared with `hooks/task unaided <stage> --considered "<concept class>"` — that command is the only place a concept class is validated. Untagged lines do not count toward a stage.
 
-`task approve` gates stages before Approval fields: required = `[PRD]`+`[Plan]`, plus `[Spec]` when `spec.md` exists; missing stage or invalid stage line fails naming that stage. Shape only — no product allowlist. Fold foreign capability output by kind: requirements → `prd.md`, design → `spec.md`, breakdown → `plan.md` Steps; never a second fact root.
+`task approve` gates stages before Approval fields: required = `[PRD]`+`[Plan]`, plus `[Spec]` when `spec.md` exists. A missing stage line fails naming that stage; so does a stage with no release record, a line naming a capability other than the one that was invoked, and an invocation-shaped line standing over an unaided record. It prints how many stages were released by an invocation and how many unaided, so a task that declared every phase unaided is visible rather than silent. A task promoted before this gate existed has no release record for any stage, and `approve` fails closed for it: declare each stage with `hooks/task unaided`, or re-run the phase with a capability invoked. Fold foreign capability output by kind: requirements → `prd.md`, design → `spec.md`, breakdown → `plan.md` Steps; never a second fact root.
 
 ## Release task documents
 
