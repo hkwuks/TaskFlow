@@ -961,5 +961,5 @@ Every direct request or imported requireme
 - Updated: 2026-09-29
 - Goal: 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 - Task: `TaskFlowDocs/2026-09-15-hook-integrity/` (v2)
-- Next action: Record v2 approval before implementing Step 2.
+- Next action: Await CI on PR #59, then user acceptance and task complete
 

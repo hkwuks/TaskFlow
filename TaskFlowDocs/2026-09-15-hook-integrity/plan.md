@@ -97,6 +97,8 @@ No spec required — 三个既有 hook 的局部修复加一条文档规则，�
 
 ## Pre-PR checks and template mapping
 
+PR：**#59** — https://github.com/hkwuks/TaskFlow/pull/59（head `fix/artifact-language-heading-scope` → base `main`）。分支已推送并设置 upstream。
+
 `CONTRIBUTING.md` 的三项检查与 `.github/pull_request_template.md` 的逐字段映射（模板路径已读：`.github/pull_request_template.md`）。
 
 | 检查 | 结果 |
@@ -129,6 +131,7 @@ No spec required — 三个既有 hook 的局部修复加一条文档规则，�
 - 2026-09-29 Step 2 实施中发现并在本次修掉：新 smoke 段的 fixture 缺 `mkdir -p`，`task intake` 以 `root not found` 失败；该错误只在把该段单独运行时可暴露。
 - 2026-09-29 基线前移与冲突决策 —— 起分支的 `65ddd0a` 已被 `main` 超过 8 个提交。rebase 到 `477ced6` 时 `CHANGELOG.md` 冲突（`main` 在同一锚点加了 `## [1.1.1]`）。**用户决定：两侧都保留**，`## [Unreleased]` 置于 `## [1.1.1]` 之上。已逐字节确认 `## [1.1.1]` 段与 `main` 一致、全树无冲突标记，其余文件自动合并。
 - 2026-09-29 新契约对齐 —— `main` 新增写前能力门禁，且 `task approve` 改为按门禁 release 记录核对阶段行。本任务两个阶段确为 Unaided，已声明并让门禁生成 `released` 记录；`task approve` 复跑通过（`0 invoked, 2 unaided`），并把 `- Approved at:` 刷新为 `2026-09-29 19:33 +0800`。批准依据未变，无需重新取得批准。
+- 2026-09-29 进入 checking 并开 PR —— 本机三项 pre-PR 检查结果：`smoke-test` 不可用（既有 MSYS 段），`quick_validate.py` 通过（需 `PYTHONUTF8=1`），`git diff --check` 干净。分支已推送，开 **PR #59**。`repository-check` 仍报两项既有项：`Base: ambiguous`（推分支后应消失）与 orphan `achieved/2026-09-10-repository-document-placement`（1.1.1 亦记录为 pre-existing）。任务尚未完成：待 CI 三平台与用户验收。
 
 ## Follow-ups
 
