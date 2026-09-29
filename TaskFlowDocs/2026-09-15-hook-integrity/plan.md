@@ -1,6 +1,6 @@
 # Plan — Hook integrity: unpolluted archives, unbypassable gates, user-language documents
 > Task version: v2
-> Status: in_progress
+> Status: checking
 
 No spec required — three localized fixes in existing hooks plus a documentation rule.
 
