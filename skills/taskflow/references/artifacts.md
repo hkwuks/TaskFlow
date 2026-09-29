@@ -14,7 +14,19 @@ When a user changes an approved task fact, classify it before editing artifacts.
 
 ## Artifact language
 
-Write `prd.md`, `spec.md`, `plan.md`, and `reference/` prose in the user's working language. Hooks parse task documents, so the lines they match stay English verbatim: `> Task version:`, `> Status:`, `## ` section headings, the `## Approval` fields, `### Step N`, the `- Status:` lines inside Steps and Todo entries, Todo field names (`- ID:`, `- Goal:`, `- Task:`, …), and the `- [ ]` / `- [x]` checklist markers. Field *values* written by a hook are fixed English tokens (`approved`, `done`, `in_progress`) and are not translated; prose inside a value you write yourself may be in either language.
+Write `prd.md`, `spec.md`, `plan.md`, and `reference/` prose in the user's working language, including every section heading the list below does not name.
+
+Hooks parse task documents by exact text, so the lines they match stay English verbatim:
+
+- Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`
+- Entry headings a hook matches by name: `### Step N — <name>`, `### SN — <Agent>`
+- The `## Approval` fields, in order: `- Status:`, `- Approved by:`, `- Approved at:`, `- Approved version:`, `- Approved scope:`
+- Todo field names: `- ID:`, `- Goal:`, `- Task:`, `- Source:`, `- Status:`, `- Updated:`, `- Next action:`
+- Blockquote and inline lines: `> Task version:`, `> Status:`, `> Current Task version:`, the `- Status:` lines inside Steps, session entries, and Todo entries, and the `- [ ]` / `- [x]` checklist markers.
+
+The list is the whole boundary. A heading outside it is prose and follows the user's language; translating one is safe because the hooks read the `## ` prefix as the section boundary and never the words after it. `hooks/task promote` writes its own English scaffold into a new document, so headings arrive in English whatever the language — that scaffold is not prose this rule governs, and a scaffolded heading follows the rule only once you edit it.
+
+Field *values* written by a hook are fixed English tokens (`approved`, `done`, `in_progress`) and are not translated; prose inside a value you write yourself may be in either language.
 
 This applies to documents created from now on. Existing documents are not rewritten for language, in particular not under `TaskFlowDocs/achieved/`, which is read-only history.
 
