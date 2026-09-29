@@ -9,6 +9,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+
 ## Verify the released pre-write gate end-to-end in a live session: install the rel
 
 - ID: TF-20260929-3fc4b8
@@ -83,7 +84,6 @@ This is the repository's single lightweight intake list. It stores triage metada
   **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
 
   **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。
-
 
 ## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
@@ -949,4 +949,17 @@ Every direct request or imported requireme
 - ID: TF-20260919-2877ca (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
 - ID: TF-20260918-88e04c (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R3 stage print + branch rule).)
 - ID: TF-20260918-172455 (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R4 three-field rewrite lock).)
+
+## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
+
+- ID: TF-20260928-07c659
+- Status: promoted
+- Priority: normal
+- Owner: Claude
+- Source: direct user request 2026-09-28；reopen：v1 的 artifact-language 规则把"章节标题"整体划为英文，收窄为 hook 精确匹配的显式名单
+- Added: 2026-09-28
+- Updated: 2026-09-29
+- Goal: 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
+- Task: TaskFlowDocs/2026-09-15-hook-integrity/ (v2)
+- Next action: Record v2 approval before implementing Step 2.
 
