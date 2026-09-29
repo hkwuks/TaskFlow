@@ -1,6 +1,6 @@
 # Plan — 修复 TaskFlow hooks 的四处遗留缺陷
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
