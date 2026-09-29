@@ -1,6 +1,6 @@
 # Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

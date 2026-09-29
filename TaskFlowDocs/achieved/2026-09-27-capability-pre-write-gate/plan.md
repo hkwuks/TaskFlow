@@ -1,6 +1,6 @@
 # Plan — Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -162,9 +162,9 @@
 
 ### Checkpoint A — after Steps 1–2（地基与门）
 
-- [ ] `evidence` 与 `released` 的读写路径在合成夹具下行为正确
-- [ ] no-op 边界全覆盖：外来仓库、`achieved/`、非任务目录、basename 不匹配
-- [ ] 无解释器 PATH 下两个新脚本可运行
+- [x] `evidence` 与 `released` 的读写路径在合成夹具下行为正确
+- [x] no-op 边界全覆盖：外来仓库、`achieved/`、非任务目录、basename 不匹配
+- [x] 无解释器 PATH 下两个新脚本可运行
 
 ### Checkpoint B — after Steps 3–4（逃生舱与对账）
 
@@ -212,6 +212,8 @@
 
 未通过上述 1–5 之前，不得宣称"门已保证生效"——只能宣称"已实现且夹具通过"。
 
+**本任务归档时的实际状态（必须与上面的差别一致）**：1–5 **没有跑**。第 1 步（发版）由用户完成——1.1.1 于 2026-09-28 发布（tag `v1.1.1` = `6df863d`，pin `bf8dc96`）；第 2 步（重装插件）需要在**本机全局**安装，属于项目路径之外的改动，未获许可故未执行，因此第 3–5 步的观察也就无从进行。**这不是测试没跑完**：CI 能覆盖的都已覆盖并在三平台为绿（见上），缺的只是"装上去之后真机会不会拦"这一步。该残留已移出本任务，承接条目为 `TF-20260929-3fc4b8`"真实会话验证"（见 Follow-ups），并明确要求**优先用 CI**、只手工跑 CI 覆盖不到的部分。因此本任务归档时的结论是"已实现、已发版、夹具与 CI 通过"，**不是**"已证明在真实会话中生效"。
+
 ## PR
 
 - 模板：`.github/pull_request_template.md`（已读；没有任何字段标为可选，按必填处理）
@@ -234,6 +236,9 @@
 - 用户决定：推送与开 PR 由用户明确要求。
 - **PR 已开**：https://github.com/hkwuks/TaskFlow/pull/57（base `main`，head `feature/capability-pre-write-gate`）
 - **CI 全绿**（run https://github.com/hkwuks/TaskFlow/actions/runs/36438913953，本次推送的 HEAD `7dc8f5b`）：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals` 六项全部通过。**其中 `smoke (macos-latest)` 是 A8 的权威判定**——本机给不出的 bash 3.2 + BSD userland 下限结论由它裁定，整段 smoke 首次在三平台完整跑通。
+- **PR 已合并**：`ce40f3d`（merge commit，保留两个提交）。分支的两个提交 `d72c2b2`（实现）与 `7dc8f5b`（Plan 的 PR 记录）随合并进入 main；后续两个提交 `4e4b48b`（CI 结论回填）与 `8cabd17`（发布流程遗留条目）是在合并之后追加的，已 cherry-pick 回 main（`0c860b0`、`6c705d6`），未再走一次 PR。
+- **已发版 1.1.1**（2026-09-28，用户执行 RELEASE.md，发布不经 TaskFlow）：tag `v1.1.1` = `6df863d`、pin 提交 `bf8dc96`、Release https://github.com/hkwuks/TaskFlow/releases/tag/v1.1.1 ；发布提交与 pin 推送后的 CI 亦为绿（run 36442929130）。CHANGELOG 段落 `## [1.1.1] — 2026-09-28` 即本任务的发布记录，其中 Verification 段写的是实测结果而非"pending"。
+- 发版过程中发现一个与本任务无关的陈旧字段：`.codebuddy-plugin/marketplace.json` 的插件条目里带着 `"version": "1.0.5"`（`4e497c3` 写入后六次发版无人更新）。CodeBuddy 官方 schema 里该字段可选，且 plugin reference 明说与 `plugin.json` 同时设置时以 `plugin.json` 为准、"只应设在一处"；TaskFlow 的版本由 `release-version` 维护在 `plugin.json`，故这是纯死值。已单独开 PR #58 删除，不带进本任务。
 
 ## Change Log
 
@@ -249,9 +254,12 @@
 - 2026-09-28 — Step 5 完成。契约文档改为"门在写入时拦、Skills 段是报告"：删掉 `prd.md` 前先写 `[PRD]` 的顺序纪律与"必须是选择而非疏忽"的说教，`artifacts.md` 的 before 要求同步删除，`runtime.md` 补 `PreToolUse` 行、门的独立小节、实测版本（Claude Code 2.1.282）与非 Claude Code host 无门，双语 README 对应改写。顺带修掉两处既有文档/实现矛盾：`task` 子命令列表缺 `unaided`；Plan 模板的 Skills 示例无 stage 标签，照抄必被 approve 拒。
 - 2026-09-28 — Step 6 完成。**Windows 套件本机跑通**（此前一直列为未跑），并新增"门 + 逃生舱"段，经真实启动器在一个含空格与中文的仓库路径上驱动；为此实测出一个测试宿主的坑：PS 5.1 管道会写入 UTF-8 BOM，而解析器视 BOM 为非法 JSON，于是门静默 no-op、测试会假装通过——改成无 BOM 文件 + `cmd` 重定向后才有区分力，并把 BOM 记为 fail-open 的独立遗留项。无解释器段补上两个新钩子。静态下限零命中。CHANGELOG 加 `[Unreleased]` 段（查历史确认这是本仓库 feature 分支的惯例，且 `release-check` 会跳过它）。更正计划里的一条错误认知：`tools/fixture-compare` 是夹具比对器而非静态检查器，`runtime.md` 里那句错误归因一并改正。
 
+- 2026-09-28 — **已发版 1.1.1**（用户执行 `RELEASE.md`，发布不经 TaskFlow）：tag `v1.1.1` = `6df863d`、pin 提交 `bf8dc96`，GitHub Release 已建；CHANGELOG 段落定稿（Verification 从"CI pending"改为实测结果，并补 `Known limitations`）。PR #57 合并为 `ce40f3d`；合并之后追加的两个提交 `4e4b48b`（CI 结论回填）与 `8cabd17`（发布流程遗留条目）已 cherry-pick 回 main（`0c860b0`、`6c705d6`），未再走一次 PR。
+- 2026-09-29 — **归档收尾**（用户裁定）：Checkpoint A 三项按已有实测勾选；Verification / Review 里明写"1–5 配方**没有跑**"及其原因，把该残留移交 `TF-20260929-3fc4b8`，并按用户要求写明**优先采用 CI**、只手工跑 CI 结构上覆盖不到的步骤。因此本任务归档时的结论是"已实现、已发版、夹具与 CI 通过"，而非"已证明在真实会话中生效"。
+
 ## Follow-ups
 
-- 发版后执行 Verification / Review 里的 1–5 配方，把真实会话结果回填本 Plan；未验证前不得宣称端到端保证。
+- **真实会话验证（本任务唯一移出的事项，承接条目 `TF-20260929-3fc4b8`）**：Verification / Review 里的 1–5 配方没有跑——第 1 步发版已由用户完成（1.1.1），第 2 步需要在项目路径之外做全局安装而未经许可。承接条目已写明**优先采用 CI**：凡是 CI 能覆盖的（例如把 `hooks.json` 的接线、门矩阵、approve 对账放进 smoke 或新的 CI 作业）一律不要手工跑，只把"装上去之后真机会不会拦"这类 CI 结构上覆盖不到的步骤留给人手。未跑完之前不得宣称端到端保证。
 - 定案 MCP matcher 写法（裸 `mcp__` 前缀匹配 vs `mcp__.*`），记入 `references/runtime.md`。
 - Research 阶段（`reference/index.md`）是否也需要写前门——本任务有意未覆盖。
 - Codex / CodeBuddy / dsh 三 host 的等价接线；接线前需先摸清各 host 是否有 tool-call 级钩子。

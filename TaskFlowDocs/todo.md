@@ -9,6 +9,24 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+## Verify the released pre-write gate end-to-end in a live session: install the rel
+
+- ID: TF-20260929-3fc4b8
+- Status: inbox
+- Priority: normal
+- Owner: Codex
+- Source: direct user request
+- Added: 2026-09-29
+- Updated: 2026-09-29
+- Goal: Verify the released pre-write gate end-to-end in a live session: install the released plugin and run the archived task Plan's 5-step recipe (deny before an invocation, allow after, deny the next stage on spent evidence, escape hatch releases) — prefer CI for anything CI can cover, hand-run only the install-and-observe steps
+- Task: Not promoted.
+- Next action: Extend CI to cover what it still can, then hand-run only the install-and-observe steps
+- Notes: **2026-09-29 用户要求：优先采用 CI 进行测试。** 理由来自 2026-09-27-capability-pre-write-gate 的实测：本机是 Windows + MSYS，整段 `hooks/smoke-test` 跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，用未修改的 `origin/main` 在同一处同样失败），所以本地跑既不可靠也不完整；而 CI 的 smoke 矩阵（ubuntu/macos/windows）一次就给出权威结论，其中 `macos-latest` 正是 bash 3.2 + BSD userland 的判定环境。因此凡是 CI 结构上能覆盖的（接线、门矩阵、approve 对账、无解释器下限、Windows 套件）一律不要手工跑，缺什么就往 CI 里补；人手只跑 CI 覆盖不到的——即「装上发出去的插件后，真实会话里门是否真的拦下来」。
+
+配方见归档后的 `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/plan.md` Verification / Review。第 1 步发版已完成（1.1.1，tag `v1.1.1` = `6df863d`，pin `bf8dc96`）；第 2 步是全局安装，属项目路径之外，需用户许可或由用户执行；第 3–5 步为观察项：不调用任何能力直接写 `prd.md` 正文应被拒（消息含 stage、概念类、可复制的 `task unaided` 命令），`task unaided PRD --considered "requirements elicitation and framing"` 后重试应放行，紧接着写 `spec.md` 应被拒（逐阶段新鲜度）。
+
+顺带核对宿主侧尚未实测的一项：matcher 是否真按宿主语义命中 `Agent` 与 `mcp__.*`（`Skill` 已实测同时触发两个事件且携带 `tool_input.skill`）。
+
 ## Release process: make the manual three-host catalog validation conditional and a
 
 - ID: TF-20260928-3910fb
@@ -25,15 +43,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
 - ID: TF-20260927-5814d0
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-27
 - Updated: 2026-09-28
 - Goal: Block the first body write of prd/spec/plan until a capability-class tool was actually invoked: the approve-time Skills check is shape-only and fires after every document exists, so 'invoked nothing' and 'compliant' stay indistinguishable
-- Task: `TaskFlowDocs/2026-09-27-capability-pre-write-gate/`
-- Next action: Steps 1–6 implemented; awaiting the CI matrix verdict (full smoke cannot run on MSYS) and the post-release live check in the plan's Verification recipe.
+- Task: `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/`
+- Next action: None — completed and archived.
 
 ## Gate PRD/Spec/Plan on real capability invocation: large tasks need one real invo
 
