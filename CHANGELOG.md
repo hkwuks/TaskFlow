@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **The task-document language rule names its English lines instead of naming every section heading.** `skills/taskflow/references/artifacts.md` and `skills/taskflow/SKILL.md` no longer put all `## ` section headings on the machine side of the boundary. The English list is now the section headings and entry headings `hooks/` matches by exact text (`## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`, `### Step N`, `### SN`), the `## Approval` fields, Todo field names, and the `> Task version:` / `> Status:` / `> Current Task version:` / `- Status:` lines and `- [ ]` / `- [x]` markers. A section heading outside that list is prose and follows the user's working language; translating one is safe because the hooks read the `## ` prefix as the section boundary and never the words after it. `hooks/task promote` still writes its own English scaffold, so a newly created document's headings arrive in English regardless.
+
+### Fixed
+
+- **The task-document language rule is now recorded in the changelog.** It shipped inside `fix: require an approval before progress and completion` with no changelog entry and no mention of language in that commit message, so neither `git log -S"working language"` nor this file could find it. Recorded here retroactively rather than rewriting that commit's history.
+
 ## [1.1.1] — 2026-09-28
 
 ### Added

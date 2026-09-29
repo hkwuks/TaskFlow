@@ -953,13 +953,13 @@ Every direct request or imported requireme
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
 - ID: TF-20260928-07c659
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-09-28；reopen：v1 的 artifact-language 规则把"章节标题"整体划为英文，收窄为 hook 精确匹配的显式名单
 - Added: 2026-09-28
 - Updated: 2026-09-29
 - Goal: 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
-- Task: TaskFlowDocs/2026-09-15-hook-integrity/ (v2)
+- Task: `TaskFlowDocs/2026-09-15-hook-integrity/` (v2)
 - Next action: Record v2 approval before implementing Step 2.
 

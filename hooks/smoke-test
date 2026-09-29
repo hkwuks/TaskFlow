@@ -1204,6 +1204,50 @@ grep -q 'are not rewritten for language' "$skill/references/artifacts.md" || { e
 for token in '^## Approval$' '^- Status:' '> Task version:' '### Step '; do
   grep -q -- "$token" "$skill/references/artifacts.md" || { echo "FAIL language rule does not pin: $token"; exit 1; }
 done
+# The boundary is a name list, so the list itself is what has to stay complete: a
+# heading the rule names is English, and a heading it omits is prose free to be
+# translated. Pin every name the hooks match by text or write themselves.
+for name in '`## Approval`' '`## Skills / Tools Used`' '`## Verification / Review`' '`## Change Log`' '`## Items`' '`## Removed`' '`## Active / Resumable`' '`## Closed / Reference Only`' '`### Step N' '`### SN' '`## Approval` fields' '`- Approved version:`' '`- Next action:`' '`> Current Task version:`'; do
+  grep -q -F -- "$name" "$skill/references/artifacts.md" || { echo "FAIL language list omits: $name"; exit 1; }
+done
+# Going back to "every section heading is English" would put translatable prose
+# back on the machine side of the boundary, which is what the list replaced.
+for f in "$skill/references/artifacts.md" "$skill/SKILL.md"; do
+  grep -q -F -- '`## ` section headings' "$f" && { echo "FAIL language rule still names every section heading: $f"; exit 1; }
+  grep -q -F -- '`## ` headings' "$f" && { echo "FAIL language rule still names every section heading: $f"; exit 1; }
+done
+echo ok
+
+echo "== a heading the language rule leaves as prose is free to be translated =="
+# Both sides of the boundary, on a real promoted task: translating a heading the
+# rule omits changes nothing, while translating a named one changes the outcome.
+# Without the second half this would pass on any edit at all.
+lang="$tmp/language-heading"
+mkdir -p "$lang"
+bash "$HERE/task" intake "Translated heading fixture." "local fixture" --root "$lang" >/dev/null
+lang_id=$(awk '/^- ID: TF-/{print $3; exit}' "$lang/TaskFlowDocs/todo.md")
+bash "$HERE/task" promote "$lang_id" 2026-09-10-translated-heading small --root "$lang" >/dev/null
+lang_plan="$lang/TaskFlowDocs/2026-09-10-translated-heading/plan.md"
+sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' "$lang_plan" > "$lang_plan.tmp"
+mv "$lang_plan.tmp" "$lang_plan"
+sed 's/^## Checkpoints$/## 检查点/' "$lang_plan" > "$lang_plan.tmp"
+mv "$lang_plan.tmp" "$lang_plan"
+grep -qx -- '## 检查点' "$lang_plan" || { echo "FAIL fixture did not translate the prose heading"; exit 1; }
+bash "$HERE/task" state 2026-09-10-translated-heading in_progress --root "$lang" >/dev/null ||
+  { echo "FAIL a translated prose heading blocked state"; exit 1; }
+sed 's/- \[ \]/- [x]/g' "$lang_plan" > "$lang_plan.tmp"
+mv "$lang_plan.tmp" "$lang_plan"
+bash "$HERE/task" progress 2026-09-10-translated-heading 1 done "prose-heading-ok" --root "$lang" >/dev/null ||
+  { echo "FAIL a translated prose heading blocked progress"; exit 1; }
+grep -q 'prose-heading-ok' "$lang_plan" || { echo "FAIL verification was not recorded"; exit 1; }
+# The other side: `## Verification / Review` is on the list because the hook finds
+# it by that exact text. Translating it must stop the entry landing -- asserted as
+# "did not land" rather than "command failed", so a future loud refusal is not a
+# regression here.
+sed 's/^## Verification \/ Review$/## 验证 \/ 审查/' "$lang_plan" > "$lang_plan.tmp"
+mv "$lang_plan.tmp" "$lang_plan"
+bash "$HERE/task" progress 2026-09-10-translated-heading 1 done "named-heading-must-not-land" --root "$lang" >/dev/null 2>&1 || true
+grep -q 'named-heading-must-not-land' "$lang_plan" && { echo "FAIL a translated named heading still matched"; exit 1; }
 echo ok
 
 echo "== a release runs RELEASE.md instead of the task workflow =="

@@ -1,6 +1,6 @@
 # Hook integrity: unpolluted archives, unbypassable gates, user-language documents
 > Task version: v2
-> Status: ready
+> Status: in_progress
 
 ## Goal
 

@@ -43,7 +43,7 @@ Conditional artifacts:
 
 Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, or an automatic review file for the same task. `TaskFlowDocs/todo.md` is the sole repository Todo inbox; it contains triage metadata only and never duplicates promoted task facts.
 
-Task documents are read by the user and parsed by hooks, so they carry two languages at once. Write the prose in the user's working language; keep the lines hooks match — `> Task version:`, `> Status:`, `## ` headings, the `## Approval` fields, `### Step N`, `- Status:` lines, Todo field names, and `- [ ]` / `- [x]` markers — in English exactly as the hooks expect. `references/artifacts.md` lists the boundary. Existing documents, including everything under `TaskFlowDocs/achieved/`, are not rewritten for language.
+Task documents are read by the user and parsed by hooks, so they carry two languages at once. Write the prose, and any section heading the boundary does not name, in the user's working language; keep the lines hooks match — the section and entry headings they match by name, the `## Approval` fields, `> Task version:`, `> Status:`, `- Status:` lines, Todo field names, and `- [ ]` / `- [x]` markers — in English exactly as the hooks expect. `references/artifacts.md` states the boundary as an explicit name list, and says why a heading outside it is free to be translated and why the `hooks/task promote` scaffold arrives in English. Existing documents, including everything under `TaskFlowDocs/achieved/`, are not rewritten for language.
 
 ## Triage and lifecycle
 

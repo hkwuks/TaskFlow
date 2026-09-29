@@ -1,6 +1,6 @@
 # Plan — Hook integrity: unpolluted archives, unbypassable gates, user-language documents
 > Task version: v2
-> Status: ready
+> Status: in_progress
 
 No spec required — three localized fixes in existing hooks plus a documentation rule.
 
@@ -36,11 +36,11 @@ No spec required — 三个既有 hook 的局部修复加一条文档规则，�
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-29 18:55 +0800
+- Approved version: v2
+- Approved scope: PRD / Plan
 
 ## Steps
 
