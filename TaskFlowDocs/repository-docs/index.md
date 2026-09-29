@@ -16,8 +16,9 @@ This index is the authoritative routing and check record for repository document
 | repository-rule | `SECURITY.md` | code,review,release | no | optional |
 | repository-rule | `RELEASE.md` | release | yes | ready |
 | repository-rule | `CHANGELOG.md` | release | yes | ready |
+| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | local | local-only |
 
 ## Personal rules
 
 Personal rules live in `TaskFlowDocs/repository-docs/personal.md`: one file, each rule in its own section with its own scope. They are local-only, never committed, and cannot override repository documents.
-Status: not present.
+The table names that path as a routing location and marks it `Exists: local`. Whether a personal rule is present in this clone is reported on the session route line, not here: this file is committed and cannot carry a local-only fact without going permanently modified on the machines that have one.
