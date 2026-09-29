@@ -7,7 +7,6 @@
   "plugins": [
     {
       "name": "taskflow",
-      "version": "1.0.5",
       "description": "PRD/Spec/Plan task workflow skill with lifecycle hooks",
       "source": {
         "source": "url",
