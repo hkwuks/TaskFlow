@@ -69,6 +69,28 @@ function trim(s) { return rtrim(ltrim(s)) }
 function is_blank(s) { return s ~ /^[[:space:]]*$/ }
 function at(s, p) { return index(s, p) == 1 }
 function die(msg) { print msg > "/dev/stderr"; exit 1 }
+
+# Longest prefix of s that is at most max bytes and ends on a whole character.
+# Under LC_ALL=C every awk counts bytes, so a bare substr() cut can land inside a
+# UTF-8 sequence and write an invalid byte into todo.md. Under a UTF-8-aware awk
+# substr() already stops on a character boundary: no single byte then answers the
+# table, every character measures 1, and the prefix comes back cut to characters
+# instead -- also a boundary. Both worlds get valid UTF-8, and pure ASCII is
+# byte-for-byte what the old substr() returned.
+function cutbytes(s, max,   i, n, c, len) {
+  i = 1
+  n = length(s)
+  while (i <= n) {
+    c = ord[substr(s, i, 1)] + 0
+    if (c < 128) len = 1
+    else if (c < 224) len = 2
+    else if (c < 240) len = 3
+    else len = 4
+    if (i - 1 + len > max) break
+    i += len
+  }
+  return substr(s, 1, i - 1)
+}
 # A field line is "- Name:" with a letter-initial, space-separated name. Notes
 # continuation bullets start with "- " too, so this is what tells the two apart
 # when the end of a Notes block has to be found.
@@ -154,6 +176,7 @@ BEGIN {
   pairs = ENVIRON["TASKFLOW_PAIRS"]
   value = ENVIRON["TASKFLOW_VALUE"]
   goal = ENVIRON["TASKFLOW_GOAL"]
+  owner = ENVIRON["TASKFLOW_OWNER"]
   source = ENVIRON["TASKFLOW_SOURCE"]
   step = ENVIRON["TASKFLOW_STEP"]
   step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
@@ -163,6 +186,10 @@ BEGIN {
   removed_reason = ENVIRON["TASKFLOW_REASON"]
   ends_nl = ENVIRON["TASKFLOW_ENDS_NL"] + 0
   today = ENVIRON["TASKFLOW_TODAY"]
+  # Byte value of every single byte, for cutbytes. A character this table cannot
+  # answer -- one UTF-8-aware awk hands back whole, or one from a sequence that
+  # is not valid UTF-8 to begin with -- reads as 0 and is measured as one byte.
+  for (i = 1; i < 256; i++) ord[sprintf("%c", i)] = i
   n = 0
 }
 { n++; line[n] = $0 }
@@ -202,7 +229,7 @@ END {
     # str.rstrip(".") first, then truncate: the two steps are not commutative.
     t = goal
     sub(/\.+$/, "", t)
-    title = substr(t, 1, 80)
+    title = cutbytes(t, 80)
 
     # Insertion index: top of `## Items` (after its heading, blanks, and a
     # leading HTML comment), else just before `## Removed`, else EOF. The old
@@ -248,7 +275,7 @@ END {
     nb++; blk[nb] = "- ID: " id
     nb++; blk[nb] = "- Status: inbox"
     nb++; blk[nb] = "- Priority: normal"
-    nb++; blk[nb] = "- Owner: Codex"
+    nb++; blk[nb] = "- Owner: " owner
     nb++; blk[nb] = "- Source: " source
     nb++; blk[nb] = "- Added: " today
     nb++; blk[nb] = "- Updated: " today
@@ -291,6 +318,7 @@ END {
     if (!setr(a, b, "Status", step_status)) die("Step " step " missing Status")
     if (verification != "") {
       vline = "- " today " Step " step ": " verification
+      found = 0
       for (i = 1; i <= n; i++) {
         if (line[i] == "## Verification / Review") {
           # Equivalent to replacing "## Verification / Review\n" with
@@ -300,9 +328,15 @@ END {
           line[i + 1] = ""
           line[i + 2] = vline
           n += 2
+          found = 1
           break
         }
       }
+      # Reporting success while the line went nowhere is the worse failure, and it
+      # is invisible: a translated or mistyped heading lost the verification with no
+      # signal. Nothing has been printed yet -- `emit` is the only writer and this
+      # exits before reaching it -- so dying here leaves the Plan byte-identical.
+      if (!found) die("missing ## Verification / Review section; verification not recorded")
     }
     emit()
     exit 0
@@ -530,6 +564,23 @@ case "$command" in
     goal="${rest[0]}"
     if [ "${#rest[@]}" -eq 2 ]; then source="${rest[1]}"; else source="direct user request"; fi
     [ -n "$goal" ] || fail "goal must not be empty"
+    # Who wrote the entry is the host that ran the command, and only the host can
+    # answer that. The detection is the one `hooks/session-record` already uses, so
+    # the Todo entry and the sessions index name the same agent. An unrecognized
+    # host gets `Unknown` rather than a guess: the previous literal said `Codex` in
+    # every host, which recorded an owner that was simply not true.
+    owner=""
+    case "${AI_AGENT:-}" in *claude*) owner=Claude ;; esac
+    if [ -z "$owner" ] && { [ -n "${CLAUDECODE:-}" ] || [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; }; then
+      owner=Claude
+    fi
+    if [ -z "$owner" ]; then
+      case "${AI_AGENT:-}" in *codex*) owner=Codex ;; esac
+      if [ -z "$owner" ] && { [ -n "${CODEX_HOME:-}" ] || [ -n "${CODEX_SANDBOX:-}" ]; }; then
+        owner=Codex
+      fi
+    fi
+    owner="${owner:-Unknown}"
     mkdir -p "$root/TaskFlowDocs"
     todo="$root/TaskFlowDocs/todo.md"
     [ -f "$todo" ] || printf '# Todo\n' | write_file "$todo"
@@ -542,7 +593,7 @@ case "$command" in
     digest="$(printf '%s' "$goal" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
     todo_id="TF-$(printf '%s' "$today" | tr -d '-')-$digest"
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
-      TASKFLOW_ID="$todo_id"
+      TASKFLOW_ID="$todo_id" TASKFLOW_OWNER="$owner"
     echo "intake OK: $todo_id"
     # Nothing here is refused: triage is meant to be cheap, and an inbox item may
     # never be planned. But `todo.md` is shared, and leaving it modified in the

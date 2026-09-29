@@ -296,17 +296,26 @@ grep -q '| repository-rule | `.github/CODEOWNERS` | pr,review | no | optional |'
 # Personal rules live only in personal.md: one file, routed on its own line so
 # its local-only, subordinate status is visible. A stray sibling *.md is not a
 # personal rule under the single-file contract.
+#
+# The row and the presence are split because the file is untracked and this index
+# is committed: the row has to read the same on every clone, or a machine that has
+# a personal rule keeps the tracked index permanently modified. `before` is the
+# digest from a clone without one, and both later renders compare against it.
 before=$(digest "$index")
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | local | local-only |' "$index" \
+  || { echo "FAIL personal rule routing row absent with no personal rule"; exit 1; }
 printf '# My rule\n' > "$docs/repository-docs/personal.md"
 printf '# Stray\n' > "$docs/repository-docs/my-card.md"
 TASKFLOW_PHASE=code TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/personal-routes.txt"
-grep -q '| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | yes | local-only |' "$index" || { echo "FAIL personal rule catalog row"; exit 1; }
+[ "$before" = "$(digest "$index")" ] || { echo "FAIL a personal rule changed the committed index"; exit 1; }
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | local | local-only |' "$index" \
+  || { echo "FAIL personal rule routing row"; exit 1; }
 ! grep -q 'personal-rule | `TaskFlowDocs/repository-docs/my-card.md`' "$index" || { echo "FAIL stray sibling cataloged as personal rule"; exit 1; }
 ! grep -q 'my-card.md' "$tmp/personal-routes.txt" || { echo "FAIL stray sibling on personal route line"; exit 1; }
 grep -q 'Personal rules live in `TaskFlowDocs/repository-docs/personal.md`' "$index" || { echo "FAIL index does not name personal.md"; exit 1; }
 grep -q 'local-only, never committed' "$index" || { echo "FAIL index missing personal origin"; exit 1; }
 grep -q 'cannot override repository documents' "$index" || { echo "FAIL index missing personal purpose"; exit 1; }
-grep -q 'Status: present' "$index" || { echo "FAIL personal present status"; exit 1; }
+! grep -q 'Status: present' "$index" || { echo "FAIL the committed index carries local presence"; exit 1; }
 grep -q '^- Local personal rules (local-only, never committed; they cannot override the sources above): TaskFlowDocs/repository-docs/personal.md$' "$tmp/personal-routes.txt" || { echo "FAIL personal rule route line"; exit 1; }
 ! grep -q 'Read authoritative sources:.*personal.md' "$tmp/personal-routes.txt" || { echo "FAIL personal rule merged into authoritative sources"; exit 1; }
 # An index written before the check-date column was dropped still reads back: its
@@ -328,9 +337,12 @@ grep -q '| repository-rule | `docs/EXTRA_RULE.md` | code,review | yes | ready |'
   || { echo "FAIL a pre-drop index row was not carried over"; cat "$legacy/TaskFlowDocs/repository-docs/index.md"; exit 1; }
 grep -q 'Read authoritative sources: docs/EXTRA_RULE.md' "$tmp/legacy-routes.txt" || { echo "FAIL carried-over row did not route"; exit 1; }
 rm -f "$docs/repository-docs/personal.md" "$docs/repository-docs/my-card.md"
-TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" >/dev/null
-grep -q 'Status: not present' "$index" || { echo "FAIL personal not-present status after remove"; exit 1; }
-! grep -q 'personal-rule |' "$index" || { echo "FAIL personal row survived removal"; exit 1; }
+TASKFLOW_PHASE=pr TASKFLOW_REPO_ROOT="$tmp" bash "$HERE/repository-docs-context" > "$tmp/removed-routes.txt"
+# The row is a routing location, not a state: removing the file must not remove
+# it, and must not change one byte of the committed index.
+grep -q '| personal-rule | `TaskFlowDocs/repository-docs/personal.md` | all | local | local-only |' "$index" \
+  || { echo "FAIL personal routing row did not survive removal"; exit 1; }
+! grep -q 'Local personal rules' "$tmp/removed-routes.txt" || { echo "FAIL personal route line outlived the file"; exit 1; }
 [ "$before" = "$(digest "$index")" ] || { echo "FAIL index sync not idempotent"; exit 1; }
 # Without personal.md the standing Personal rules prose still names the file,
 # its origin, and its purpose.
@@ -806,6 +818,47 @@ grep -q -- '- Next action: None — completed and archived\.' "$todo" || { echo 
 grep -q -- '- Next action: Complete PRD' "$todo" && { echo "FAIL lifecycle archive kept the pre-completion next action"; exit 1; }
 echo ok
 
+echo "== a Todo title is cut on a character boundary, not mid-byte =="
+# `intake` derives the heading from the goal with an 80-byte cap. The cap is byte
+# based by necessity — LC_ALL=C is what makes the ID digest and the index bytes
+# agree across hosts — so the cut has to be moved off both a byte that starts no
+# character and the continuation bytes that finish one.
+utf8="$tmp/utf8-title"
+mkdir -p "$utf8"
+# Every character is three bytes, so byte 80 is the second byte of a character:
+# this goal fails a plain `substr(goal, 1, 80)` by construction, and the check
+# that it does is what keeps the assertion from passing on an unchanged hook.
+utf8_goal="$(printf '修复遗留缺陷%.0s' 1 2 3 4 5 6 7 8)"
+bash "$HERE/task" intake "$utf8_goal" "fixture" --root "$utf8" >/dev/null
+utf8_title="$(sed -n 's/^## //p' "$utf8/TaskFlowDocs/todo.md")"
+[ -n "$utf8_title" ] || { echo "FAIL no Todo title for a multi-byte goal"; exit 1; }
+[ "$(printf '%s' "$utf8_title" | wc -c | tr -d ' ')" -le 80 ] || { echo "FAIL title over the 80-byte cap"; exit 1; }
+[ "$utf8_title" = "修复遗留缺陷修复遗留缺陷修复遗留缺陷修复遗留缺陷修复" ] \
+  || { echo "FAIL title is not the character-boundary prefix: $utf8_title"; exit 1; }
+old_title="$(awk '{ print substr($0, 1, 80) }' <<<"$utf8_goal")"
+[ "$old_title" != "$utf8_title" ] || { echo "FAIL fixture does not exercise a mid-byte cut"; exit 1; }
+echo ok
+
+echo "== a Todo entry names the host that created it as its owner =="
+# The entry template wrote `- Owner: Codex` as a literal, so an entry created on
+# any other host recorded an owner that was not true. The value belongs to the
+# host, and a host this cannot identify gets `Unknown` rather than a guess. Each
+# case starts from an environment with every host marker removed, so the variable
+# under test is the only thing that can decide it.
+owner_root="$tmp/owner"
+mkdir -p "$owner_root"
+no_host="env -u AI_AGENT -u CLAUDECODE -u CLAUDE_CODE_SESSION_ID -u CODEX_HOME -u CODEX_SANDBOX"
+$no_host CLAUDE_CODE_SESSION_ID=session-1 bash "$HERE/task" intake "Owner smoke goal." "fixture" --root "$owner_root" >/dev/null
+grep -qx -- '- Owner: Claude' "$owner_root/TaskFlowDocs/todo.md" \
+  || { echo "FAIL a Claude Code entry does not name Claude"; exit 1; }
+$no_host CODEX_HOME=/tmp/codex-home bash "$HERE/task" intake "Owner smoke goal two." "fixture" --root "$owner_root" >/dev/null
+grep -qx -- '- Owner: Codex' "$owner_root/TaskFlowDocs/todo.md" \
+  || { echo "FAIL a Codex entry does not name Codex"; exit 1; }
+$no_host bash "$HERE/task" intake "Owner smoke goal three." "fixture" --root "$owner_root" >/dev/null
+grep -qx -- '- Owner: Unknown' "$owner_root/TaskFlowDocs/todo.md" \
+  || { echo "FAIL an unidentified host did not fall back to Unknown"; exit 1; }
+echo ok
+
 echo "== approval gates block progress and completion =="
 # `state in_progress` had this check from the start; `progress` and `complete`
 # did not, so a task that was never approved could be marked done and archived.
@@ -1241,12 +1294,17 @@ bash "$HERE/task" progress 2026-09-10-translated-heading 1 done "prose-heading-o
   { echo "FAIL a translated prose heading blocked progress"; exit 1; }
 grep -q 'prose-heading-ok' "$lang_plan" || { echo "FAIL verification was not recorded"; exit 1; }
 # The other side: `## Verification / Review` is on the list because the hook finds
-# it by that exact text. Translating it must stop the entry landing -- asserted as
-# "did not land" rather than "command failed", so a future loud refusal is not a
-# regression here.
+# it by that exact text. A missing one is a refusal now instead of a dropped line,
+# and the check is the pair — the command must fail *and* leave the Plan untouched.
+# The old behaviour got both wrong: it exited 0 and the verification was gone.
 sed 's/^## Verification \/ Review$/## 验证 \/ 审查/' "$lang_plan" > "$lang_plan.tmp"
 mv "$lang_plan.tmp" "$lang_plan"
-bash "$HERE/task" progress 2026-09-10-translated-heading 1 done "named-heading-must-not-land" --root "$lang" >/dev/null 2>&1 || true
+before_missing="$(digest "$lang_plan")"
+if bash "$HERE/task" progress 2026-09-10-translated-heading 1 done "named-heading-must-not-land" --root "$lang" > "$tmp/missing-heading.txt" 2>&1; then
+  echo "FAIL progress reported success with no Verification / Review section"; cat "$tmp/missing-heading.txt"; exit 1
+fi
+grep -q 'Verification / Review' "$tmp/missing-heading.txt" || { echo "FAIL the refusal does not name the missing section"; cat "$tmp/missing-heading.txt"; exit 1; }
+[ "$before_missing" = "$(digest "$lang_plan")" ] || { echo "FAIL a refused verification still changed the Plan"; exit 1; }
 grep -q 'named-heading-must-not-land' "$lang_plan" && { echo "FAIL a translated named heading still matched"; exit 1; }
 echo ok
 

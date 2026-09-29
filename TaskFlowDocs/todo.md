@@ -10,6 +10,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## 修复 TaskFlow hooks 的四处遗留缺陷
+
+- ID: TF-20260929-f9b6c9
+- Status: in_progress
+- Priority: normal
+- Owner: Claude
+- Source: TaskFlowDocs/achieved/2026-09-15-hook-integrity/plan.md ## Follow-ups
+- Added: 2026-09-29
+- Updated: 2026-09-29
+- Goal: 修复 TaskFlow hooks 的四处遗留缺陷
+- Task: `TaskFlowDocs/2026-09-29-hook-defect-followups/`
+- Next action: Open the PR, then merge once CI is green.
+
 ## Verify the released pre-write gate end-to-end in a live session: install the rel
 
 - ID: TF-20260929-3fc4b8

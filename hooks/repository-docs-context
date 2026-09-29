@@ -75,10 +75,15 @@ add_entry repository-rule CHANGELOG.md release -
 # its own section with its own scope. Other *.md siblings are not personal rules.
 # Every recognized repository-owned path above is listed at its conventional
 # source location and is never copied in here.
-if [ -f "$docs/personal.md" ]; then
-  relative="TaskFlowDocs/repository-docs/personal.md"
-  have_known "$relative" || add_entry personal-rule "$relative" all local-only
-fi
+#
+# The row is unconditional, and that is the point: the file is local-only and
+# untracked while this index is committed, so a row that followed the file would
+# make this tracked file differ per clone — permanently modified on any machine
+# that has a personal rule, which is the uncommitted-but-tracked state that makes
+# the next checkout refuse to move. The index records where a personal rule would
+# live; whether this clone has one is a per-session fact, reported on the route
+# line at the bottom instead.
+add_entry personal-rule TaskFlowDocs/repository-docs/personal.md all local-only
 
 # validate_relative_path — fail before any write on a path that could escape the
 # repository. ".." and absolute or drive-qualified paths are rejected outright;
@@ -230,6 +235,13 @@ phase_matches() {
 
 while IFS="$(printf '\t')" read -r kind relative phases override; do
   [ -n "$relative" ] || continue
+  if [ "$kind" = personal-rule ]; then
+    # Local-only. Whether the file exists in this clone is not a fact this
+    # committed index is allowed to carry, so the cell says `local` rather than
+    # reading the filesystem.
+    printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "$relative" "$phases" local "$override" >> "$work/rows"
+    continue
+  fi
   if [ -f "$repo_root/$relative" ]; then exists=yes; else exists=no; fi
   if [ "$override" = "-" ]; then
     if [ "$exists" = yes ]; then
@@ -253,11 +265,7 @@ done < "$work/entries"
   cut -f1-5 "$work/rows" | awk -F'\t' '{ printf "| %s | `%s` | %s | %s | %s |\n", $1, $2, $3, $4, $5 }'
   printf '\n## Personal rules\n\n'
   printf 'Personal rules live in `TaskFlowDocs/repository-docs/personal.md`: one file, each rule in its own section with its own scope. They are local-only, never committed, and cannot override repository documents.\n'
-  if cut -f1 "$work/rows" | grep -qx personal-rule; then
-    printf 'Status: present (cataloged in the table above).\n'
-  else
-    printf 'Status: not present.\n'
-  fi
+  printf 'The table names that path as a routing location and marks it `Exists: local`. Whether a personal rule is present in this clone is reported on the session route line, not here: this file is committed and cannot carry a local-only fact without going permanently modified on the machines that have one.\n'
 } > "$work/index.new"
 
 # --- write -----------------------------------------------------------------
@@ -292,6 +300,10 @@ done < "$work/rows"
 list=""
 while IFS="$(printf '\t')" read -r kind relative phases exists status; do
   [ "$kind" = personal-rule ] || continue
+  # Presence is the local half of the record. The index names the location for
+  # every clone; this line is what says whether this clone has one, and it is
+  # printed per session rather than written into a committed file.
+  [ -f "$repo_root/$relative" ] || continue
   list="$list, $relative"
 done < "$work/rows"
 [ -z "$list" ] || echo "- Local personal rules (local-only, never committed; they cannot override the sources above): ${list#, }"
