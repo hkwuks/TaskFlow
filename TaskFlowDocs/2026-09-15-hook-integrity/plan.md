@@ -95,6 +95,29 @@ No spec required — 三个既有 hook 的局部修复加一条文档规则，�
 - 逐个验证每个新断言会在对应缺陷回归时失败（临时回退一行代码确认变红），避免"断言写得刚好通过"。
 - v2 的判据是"名单与实测匹配点一致"，不是"文本看起来更窄"：名单每条都要指到具体的 hook 行号；翻译标题的行为断言必须在把 `## Verification / Review` 也翻译时变红。
 
+## Pre-PR checks and template mapping
+
+`CONTRIBUTING.md` 的三项检查与 `.github/pull_request_template.md` 的逐字段映射（模板路径已读：`.github/pull_request_template.md`）。
+
+| 检查 | 结果 |
+| --- | --- |
+| `bash hooks/smoke-test` | **不可用（本机）**：在 "hooks run with no interpreter available" 段中止，MSYS 无法运行 symlink 出来的二进制（`error while loading shared libraries: ?`）；基线在同一处同样失败，1.1.1 的 Known limitations 亦记录同一点。语言规则两段已逐字抽出单独运行并 `ok`。完整套件交给 CI（ubuntu / macos-latest / windows）裁定。 |
+| `python3 …/quick_validate.py skills/taskflow` | **通过** —— `Skill is valid!`。注意必须 `PYTHONUTF8=1`：本机 locale 为 GBK，直接运行会以 `UnicodeDecodeError: 'gbk' codec can't decode byte 0x94` 失败；这是宿主 locale 问题，不是 Skill 问题。另外本机 `python3` 解析到 WindowsApps 的 redirector 桩（`python3 -c "print(...)"` 无输出却 exit 0），必须用 `python3.12`。 |
+| `git diff --check` | **干净**（`477ced6..HEAD` 无空白错误） |
+
+| 模板字段 | 取值 |
+| --- | --- |
+| Summary | 把 artifact-language 规则的英文边界从"所有 `## ` 章节标题"收窄为 hook 精确匹配的显式名单；非匹配标题归入正文、跟随用户语言；并补上 v1 从未记录的 CHANGELOG 条目 |
+| Task: | `TaskFlowDocs/2026-09-15-hook-integrity/`（v2；v1 归档于 `old/v1/`） |
+| Scope | `skills/taskflow/references/artifacts.md`、`skills/taskflow/SKILL.md`、`hooks/smoke-test`、`CHANGELOG.md`，以及本任务 PRD / Plan（含 `old/v1/`、`todo.md` 条目）。**不改任何 hook 行为** |
+| Base branch | `main` |
+| Target repository | `https://github.com/hkwuks/TaskFlow`（`origin`；无凭据） |
+| Verification 四项 | `smoke-test` 不可用并已在 Plan 记录原因；`git diff --check` 干净；`quick_validate.py` 通过；结果全部记录于本 Plan |
+| Review boundaries 四项 | 无密钥或不可读远端载荷；未改无关任务或用户文件（取回的是本任务自己的归档目录）；远程 / 基线假设已在上表逐条写明；已知限制与 follow-up 见本节与 `## Follow-ups` |
+
+- [x] Remote/base 假设：`origin` = `hkwuks/TaskFlow`，base = `main`（`477ced6`）。未新增或改写任何 remote。
+- [x] 未推送、未创建 PR 之前不得声称 CI 结果。
+
 ## Change Log
 
 - 2026-09-29 reopen — retrieved achieved task `2026-09-15-hook-integrity` for new work; re-approval required before core changes (`hooks/reopen` 的规范行；本次用 `git mv` 完成同一移动以保留 Git 重命名追踪)
