@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.2] — 2026-09-30
 
 ### Changed
 
@@ -14,6 +14,29 @@
 - **A Todo title is cut on a character boundary instead of mid-byte.** `hooks/task intake` derived the entry heading with `substr(goal, 1, 80)` while the same script sets `LC_ALL=C`, where awk counts bytes, so a goal whose 80th byte fell inside a UTF-8 sequence wrote an invalid byte into the tracked `TaskFlowDocs/todo.md`. The 80-byte cap stays — it is what keeps the ID digest and the index bytes host-independent — and the cut now backs off to the last whole character, leaving a pure-ASCII goal byte-for-byte unchanged.
 - **`hooks/task intake` records the host that ran it as the Todo owner.** The entry template wrote `- Owner: Codex` as a literal, so an entry created on Claude Code, CodeBuddy, or dsh claimed Codex. It now applies the detection `hooks/session-record` already uses and writes `Claude`, `Codex`, or `Unknown`.
 - **`hooks/task progress` fails instead of dropping a verification line.** When the Plan carried no `## Verification / Review` — a translated or mistyped heading — the line was written nowhere and the command still printed `progress OK` and exited 0, so the verification was silently gone. It now exits nonzero and, because the write path is a temp file that is discarded on failure, leaves the Plan byte-identical.
+- **The pre-write gate no longer fails open on Windows paths.** Claude Code delivers `tool_input.file_path` with backslashes there (claude-code #83877, #64432), and the gate extracted the task directory with `${file_path%/*}` — which finds no separator in a backslash path. The task directory came out as the whole path, the not-a-task-document guard fired, and every stage write was allowed with no output at all. Measured on 1.1.1: one document denied with forward slashes and allowed with backslashes, in the same repository. Nothing reported that the gate had stopped, and because the gate is the only writer of `released`, that record was never created on Windows either — so `task approve` failed with "was never released by the pre-write gate" for every task there, while naming the one command that could not fix it. The path and the event `cwd` are now normalized at entry, before any path test, and the Windows suite feeds the backslash form the host actually sends; it fed forward slashes before, which is how this shipped behind a green job.
+- **The gate's regression fixtures escape backslashes for JSON.** The first version of the new assertion fed a raw backslash into the hand-written event, putting `\c` and `\r` in it — not escapes JSON defines. The parser rejected the whole event, the hook exited 0, and the write was allowed: the fixture reproduced the defect instead of detecting it. Escaping now happens where the host does it, in the JSON layer.
+
+### Compatibility
+
+- **Nothing else about the gate moves.** The evidence store and its format, the escape hatch, the `hooks.json` wiring, and the manifest shape are unchanged; the fix is one normalization at the gate's entry and one more on the event `cwd` it joins a relative path onto. No host gains a runtime dependency.
+- **A task blocked at `approve` on Windows needs no repair beyond installing this release.** With the gate actually running, the stage is released the next time the document is written, or declared with `hooks/task unaided <stage> --considered "<concept class>"`. Plans approved before this release are not re-validated.
+- **Claude Code only, unchanged from 1.1.1.** Codex, CodeBuddy, and dsh carry no gate.
+
+### Verification
+
+- `bash hooks/smoke-test` — the gate section asserts that both spellings of one file get one verdict: unreleased denied twice, released allowed twice, and a non-task path and an `achieved/**` path still no-ops, each case fed once as written and once with every separator flipped. The backslash `cwd` plus relative-path form is driven separately, since `cwd` is joined and normalized with the path. The new assertions were run against the un-normalized gate first and are red there (the backslash case is allowed), then green against the fix.
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — Skill is valid!
+- `git diff --check` — clean.
+- The Windows suite drives the gate and the escape hatch through `run-hook.cmd` on a repository path containing a space and Chinese characters, now feeding the native backslash `file_path` and a backslash `cwd`.
+- **The full suite cannot run on the Windows/MSYS host this was developed on** — it aborts in the no-interpreter section, and the unmodified base fails in the same place. `smoke (macos-latest)` adjudicates the bash 3.2 + BSD userland floor and `smoke (windows-latest)` the Windows behaviour; both passed on PR #61 (run 36700345485).
+
+### Known limitations
+
+- **1.1.1 still fails open on Windows; this release is what fixes it.** The defect was found in a live session rather than by the suite, because a repository edit does not reach an installed plugin until a release and reinstall. Verifying the installed 1.1.2 in a real session — a `prd.md` written through the host's own backslash path must be denied — is the remaining step, tracked as `TF-20260929-3fc4b8`.
+- Unchanged from 1.1.1: `Agent` and `mcp__.*` matching is inferred from the tool-call lifecycle rather than measured; a leading UTF-8 BOM makes both hooks no-op; `Bash` can still write the evidence store and `reference/index.md` is not gated; the newer hooks are recorded `100644`.
+- Pre-existing: `bash hooks/repository-check .` still reports the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`; it does so on the previous release too.
 
 ## [1.1.1] — 2026-09-28
 
