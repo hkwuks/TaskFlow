@@ -1,6 +1,6 @@
 # Plan — Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v2
-> Status: ready
+> Status: checking
 
 ## Spec Pointers
 
@@ -292,9 +292,13 @@
 | Review boundaries 四行 | 四条均成立，理由写在 Known limitations |
 
 - 勾选口径：与 v1 同。`bash hooks/smoke-test` 整段在本机跑不完（MSYS 既有问题，未修改的 `origin/main` 在同一段失败），故**不勾**该行，并在 PR 体写明由 CI 矩阵裁定——`CONTRIBUTING.md` 要求不得声称未发生的检查。已实际执行的是：抽出后的门段（含新增四组正/反斜杠对照与相对路径对照）、Windows 套件、**新增用例对未归一实现的复跑（预期为红，实测为红）**、`release-check`、`git diff --check`、skill 校验器。注意本机 `python3` 是 Windows Store 占位符（静默 exit 49），须用 `python`。
-- 用户决定：推送与开 PR 需用户明确要求（同 v1）。
+- 用户决定：推送与开 PR 需用户明确要求（同 v1）。用户已于 2026-09-30 明确批准推送并开 PR。
+- **PR 已开**：https://github.com/hkwuks/TaskFlow/pull/61（base `main`，head `fix/capability-gate-windows-path`，`Mergeable: MERGEABLE`）。
+- **CI 全绿**（run https://github.com/hkwuks/TaskFlow/actions/runs/36700345485）：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals` 六项全部 pass。**其中 `smoke (macos-latest)` 与 `smoke (windows-latest)` 是本步最关键的判定**——本机给不出的"整段 bash 套件 + bash 3.2/BSD 下限"由前者裁定，宿主反斜杠投递路径由后者裁定。
+- 推送到 CI 之间：`git fetch origin main` 复核，`origin/main` 仍为 `a23fc88`，本分支领先 6、落后 0，无需 rebase；base 假设成立。
 
 ## Change Log
+- 2026-09-30 — **PR #61 已开，CI 六项全绿**（含 `smoke (macos-latest)` 与 `smoke (windows-latest)`）。本机给不出的两项判定至此由 CI 补齐：整段 bash 套件在 bash 3.2 + BSD userland 下的结果，以及 Windows 上真实投递的反斜杠路径。修复本身仍需发版（1.1.2）并重装才到达用户——装的是 1.1.1，本机仍会 fail open。
 - 2026-09-30 — 新增用例第一次跑就红，红的却是**用例自己**，值得记下。`cg_flip` 把 `/` 换成裸 `\` 后直接塞进手写的 event JSON，于是路径里出现 `\c`、`\r`、`\U` 这些 JSON 未定义的转义；`json-field` 拒绝解析整条事件，门 `exit 0`，判定结果与"本来无物可拦"再次不可区分——**和本任务要修的缺陷是同一类错误**，只是这次长在测试里（R14 说的正是这件事，它当场生效了）。修法是在 JSON 层做转义（新增 `cg_json`，`\` → `\\`），而不是让 `cg_flip` 兼职转义：宿主投递路径时也是这个层次在转义，Windows 套件的 `.Replace('\','\\')` 同理。另有一处干扰必须记下：本机 Bash 工具会吞掉命令里的反斜杠，所以同样的 `sed 's/\\/\\\\/g'` 写在命令行里会报 "unterminated s command"，写进脚本文件才正常——**据此得到的"红"是假象**，本次因此重新用文件形式复核过一遍。
 - 2026-09-30 — Step 7 完成。门在入口把 `\` 与事件 `cwd` 一并归一成 `/`（放在**任何**路径判断之前；`event_cwd` 随之归一，因为相对路径会拼到它上面，混形的结果两种形态都判不中）。原因写在代码注释里并附上游 issue 号，免得下一个人重新发现。三处用例同步：bash 套件加"同一文件两种拼写同判"四组（含反斜杠 cwd + 相对路径），Windows 套件把 event 的 `file_path` 改成宿主真实投递的**反斜杠**形态并保留一条正斜杠——它此前只喂正斜杠，这正是 1.1.1 能带着这个洞过绿的原因。A14 的双跑证据：未归一的实现下反斜杠 `allow`（空输出）/ 正斜杠 `deny`，归一后两者皆 `deny`。复核后**证据钩子无需改动**：它不做路径切分，只把 `cwd` 交给 `git -C`，而 Git for Windows 自己认反斜杠盘符路径（该理由已在钩子注释里）。另外，`references/runtime.md` 的"三条 load-bearing 性质"增为四条，新条目即"分隔符不得被假设"（I9 的落点）。
 - 2026-09-30 — 记录 v2 批准（用户明确批准该范围），并记下比"门不拦"更严重的后果：**门在 Windows 上从不触发**——`released` 文件从未被创建。而 `released` 的**唯一**写入者是门，`task unaided` 只写 `evidence`，所以逃生舱在此平台救不了 approve：实测 `task approve` 报 `stage [PRD] was never released by the pre-write gate`，而它建议执行的命令正是那条走不通的路。影响面因此升级为"Windows 上任务生命周期卡死在 approve，无法进入 `in_progress`／无法 `complete`"，并落成 PRD 的 A15 与 spec 的 I3 补正。批准改用 1.0.9 已文档化的兜底（手写五行 Approval），理由写在 Approval 块旁。

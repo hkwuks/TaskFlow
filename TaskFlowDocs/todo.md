@@ -13,7 +13,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_
 
 - ID: TF-20260930-ba3b0c
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-09-30；reopen：v1 的门在 Windows 上对反斜杠路径静默 fail-open（本机实测门对正斜杠 deny、对反斜杠 allow；上游 issue #83877 / #64432 确认宿主行为），即 v1 的验收在真实宿主路径形态下不成立，故取回并升 v2 修正
@@ -21,7 +21,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Updated: 2026-09-30
 - Goal: Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_input.file_path with backslash separators there, so the gate's directory extraction finds no separator and allows every stage write — normalize separators before any path test, and add the regression test that feeds a backslash path
 - Task: `TaskFlowDocs/2026-09-27-capability-pre-write-gate/` (v2)
-- Next action: Await the user approval of the v2 scope, then fix and verify
+- Next action: PR #61 open and CI green; merge, then release 1.1.2 so the fix reaches this machine, then TF-20260929-3fc4b8 verifies it in a real session
 - Notes: **2026-09-30 实测（本机 Windows + 已发布 1.1.1）**：
 (1) 在项目内对真实任务文档（同级有 `plan.md`、无任何证据）执行 Write → **被放行**；
 (2) 直接喂装机包的门：正斜杠 `/d/WorkSpace/.../prd.md` → **deny**（消息完整）；反斜杠 `D:\WorkSpace\...\prd.md` → **allow**（空输出）。
