@@ -171,16 +171,19 @@
 - Dependencies: 无（v1 已交付并发布为 1.1.1；本步修正它在 Windows 上的静默 fail-open）
 - Files: `hooks/capability-gate`、`hooks/smoke-test`、`hooks/smoke-test-windows.ps1`、`skills/taskflow/references/runtime.md`
 - Implementation checklist:
-  - [ ] 门在**任何**路径判断之前把 `\` 归一成 `/`，并把"为什么必须先归一"写成一行注释（含上游 issue 号），而不是留给下一个人重新发现
-  - [ ] `hooks/smoke-test` 新增：同一份文件用正/反斜杠两种写法各判一次——无证据时两者都被拒、有证据时两者都放行；反斜杠形态的非任务目录与 `achieved/**` 仍 no-op
-  - [ ] `hooks/smoke-test-windows.ps1` 的 event `file_path` 改为**反斜杠**（当前是套件自己拼的正斜杠，这正是 v1 漏掉该洞的原因），并保留一条正斜杠用例
-  - [ ] 用**未归一**的实现复跑新增用例，确认它们会红（A14）——用例不得与实现共享同一个错误假设
-  - [ ] `references/runtime.md` 记录该宿主事实（含 issue 号），使下一个"按路径匹配"的 hook 不必重踩
-  - [ ] 复核证据钩子无需改动：实测它拿到的 `cwd` 是 `/d/...`，且只把路径交给 `git -C`
-- Acceptance: A13、A14。顺序是先证明"未归一即红"，再证明"归一即绿"。
-- Verification: 提取的新用例段跑两遍（一遍对未归一的实现、一遍对归一后的实现）+ Windows 套件 + `bash hooks/release-check .`；可移植性下限仍由 CI 的 `macos-latest` 裁定
+  - [x] 门在**任何**路径判断之前把 `\` 归一成 `/`，并把"为什么必须先归一"写成一行注释（含上游 issue 号），而不是留给下一个人重新发现
+  - [x] `hooks/smoke-test` 新增：同一份文件用正/反斜杠两种写法各判一次——无证据时两者都被拒、有证据时两者都放行；反斜杠形态的非任务目录与 `achieved/**` 仍 no-op
+  - [x] `hooks/smoke-test-windows.ps1` 的 event `file_path` 改为**反斜杠**（当前是套件自己拼的正斜杠，这正是 v1 漏掉该洞的原因），并保留一条正斜杠用例
+  - [x] 用**未归一**的实现复跑新增用例，确认它们会红（A14）——用例不得与实现共享同一个错误假设
+  - [x] `references/runtime.md` 记录该宿主事实（含 issue 号），使下一个"按路径匹配"的 hook 不必重踩
+  - [x] 复核证据钩子无需改动：实测它拿到的 `cwd` 是 `/d/...`，且只把路径交给 `git -C`（Windows 套件另喂反斜杠 `cwd` 同样解析成功），它不做自己的路径切分，故不受此缺陷影响。该理由已写在钩子内注释里。
+- Acceptance: A13、A14。顺序是先证明"未归一即红"，再证明"归一即绿"。**已满足**。
+- Verification: 提取的新用例段跑两遍（一遍对未归一的实现、一遍对归一后的实现）+ Windows 套件 + `bash hooks/release-check .`；可移植性下限仍由 CI 的 `macos-latest` 裁定。**已执行**：
+  - A14 双跑：以 Python `json.dumps` 生成事件（手写转义正是本缺陷同类错误，会伪造出假结果）。未归一的实现（`git show HEAD:hooks/capability-gate` 取到临时目录）：正斜杠 `deny`、反斜杠 **`allow`（空输出）**——即缺陷本体；归一后的实现：两种拼写**都是 `deny`**。
+  - bash 套件门段：`== the pre-write gate releases a stage only against real evidence == ok`，退出 0；新增的四组正/反斜杠对照（含反斜杠 cwd + 相对路径）全绿。
+  - Windows 套件（真实启动器 + `cmd` 重定向喂无 BOM 事件）：`LAUNCHER ARGS` / `SESSIONSTART` / `LIFECYCLE` / `PRE-WRITE GATE` 四项 PASSED，退出 0。
 - Rollback: 还原上述四个文件——本步不改存储、谓词与逃生舱，回退面就是一处归一与两处用例
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -204,9 +207,9 @@
 
 ### Checkpoint D — after Step 7（v2：路径形态）
 
-- [ ] 反斜杠用例在**未归一**的实现上确实会红（先证明用例有区分力，再谈修好）
-- [ ] 归一后正/反斜杠同判，bash 与 Windows 两套 smoke 全绿
-- [ ] `references/runtime.md` 记下该宿主事实与 issue 号
+- [x] 反斜杠用例在**未归一**的实现上确实会红（先证明用例有区分力，再谈修好）——未归一的实现：反斜杠 `allow`（空输出），正斜杠 `deny`
+- [x] 归一后正/反斜杠同判，bash 与 Windows 两套 smoke 全绿
+- [x] `references/runtime.md` 记下该宿主事实与 issue 号
 
 ## Verification / Review
 
@@ -272,6 +275,8 @@
 - 发版过程中发现一个与本任务无关的陈旧字段：`.codebuddy-plugin/marketplace.json` 的插件条目里带着 `"version": "1.0.5"`（`4e497c3` 写入后六次发版无人更新）。CodeBuddy 官方 schema 里该字段可选，且 plugin reference 明说与 `plugin.json` 同时设置时以 `plugin.json` 为准、"只应设在一处"；TaskFlow 的版本由 `release-version` 维护在 `plugin.json`，故这是纯死值。已单独开 PR #58 删除，不带进本任务。
 
 ## Change Log
+- 2026-09-30 — 新增用例第一次跑就红，红的却是**用例自己**，值得记下。`cg_flip` 把 `/` 换成裸 `\` 后直接塞进手写的 event JSON，于是路径里出现 `\c`、`\r`、`\U` 这些 JSON 未定义的转义；`json-field` 拒绝解析整条事件，门 `exit 0`，判定结果与"本来无物可拦"再次不可区分——**和本任务要修的缺陷是同一类错误**，只是这次长在测试里（R14 说的正是这件事，它当场生效了）。修法是在 JSON 层做转义（新增 `cg_json`，`\` → `\\`），而不是让 `cg_flip` 兼职转义：宿主投递路径时也是这个层次在转义，Windows 套件的 `.Replace('\','\\')` 同理。另有一处干扰必须记下：本机 Bash 工具会吞掉命令里的反斜杠，所以同样的 `sed 's/\\/\\\\/g'` 写在命令行里会报 "unterminated s command"，写进脚本文件才正常——**据此得到的"红"是假象**，本次因此重新用文件形式复核过一遍。
+- 2026-09-30 — Step 7 完成。门在入口把 `\` 与事件 `cwd` 一并归一成 `/`（放在**任何**路径判断之前；`event_cwd` 随之归一，因为相对路径会拼到它上面，混形的结果两种形态都判不中）。原因写在代码注释里并附上游 issue 号，免得下一个人重新发现。三处用例同步：bash 套件加"同一文件两种拼写同判"四组（含反斜杠 cwd + 相对路径），Windows 套件把 event 的 `file_path` 改成宿主真实投递的**反斜杠**形态并保留一条正斜杠——它此前只喂正斜杠，这正是 1.1.1 能带着这个洞过绿的原因。A14 的双跑证据：未归一的实现下反斜杠 `allow`（空输出）/ 正斜杠 `deny`，归一后两者皆 `deny`。复核后**证据钩子无需改动**：它不做路径切分，只把 `cwd` 交给 `git -C`，而 Git for Windows 自己认反斜杠盘符路径（该理由已在钩子注释里）。另外，`references/runtime.md` 的"三条 load-bearing 性质"增为四条，新条目即"分隔符不得被假设"（I9 的落点）。
 - 2026-09-30 — 记录 v2 批准（用户明确批准该范围），并记下比"门不拦"更严重的后果：**门在 Windows 上从不触发**——`released` 文件从未被创建。而 `released` 的**唯一**写入者是门，`task unaided` 只写 `evidence`，所以逃生舱在此平台救不了 approve：实测 `task approve` 报 `stage [PRD] was never released by the pre-write gate`，而它建议执行的命令正是那条走不通的路。影响面因此升级为"Windows 上任务生命周期卡死在 approve，无法进入 `in_progress`／无法 `complete`"，并落成 PRD 的 A15 与 spec 的 I3 补正。批准改用 1.0.9 已文档化的兜底（手写五行 Approval），理由写在 Approval 块旁。
 - 2026-09-30 — 顺带更正 `spec.md` 的判定算法：v1 在 Step 2 修掉两个实现缺陷（消费改为**全局**、取**最旧未消费**一条），实现已如此而 spec 文本仍写着按版本统计、取最新行——属文档落后于代码，趁 v2 一并同步，并把路径归一写进算法第 1 步与新增的 I9。这不是 Task-version 事件，是同一份契约补正。
 - 2026-09-30 reopen — retrieved achieved task `2026-09-27-capability-pre-write-gate` for new work; re-approval required before core changes
@@ -294,7 +299,7 @@
 
 ## Follow-ups
 
-- **真实会话验证（本任务唯一移出的事项，承接条目 `TF-20260929-3fc4b8`）**：Verification / Review 里的 1–5 配方没有跑——第 1 步发版已由用户完成（1.1.1），第 2 步需要在项目路径之外做全局安装而未经许可。承接条目已写明**优先采用 CI**：凡是 CI 能覆盖的（例如把 `hooks.json` 的接线、门矩阵、approve 对账放进 smoke 或新的 CI 作业）一律不要手工跑，只把"装上去之后真机会不会拦"这类 CI 结构上覆盖不到的步骤留给人手。未跑完之前不得宣称端到端保证。
+- **真实会话验证（本任务唯一移出的事项，承接条目 `TF-20260929-3fc4b8`）**：Verification / Review 里的 1–5 配方没有跑——第 1 步发版已由用户完成（1.1.1），第 2 步需要在项目路径之外做全局安装而未经许可。承接条目已写明**优先采用 CI**：凡是 CI 能覆盖的（例如把 `hooks.json` 的接线、门矩阵、approve 对账放进 smoke 或新的 CI 作业）一律不要手工跑，只把"装上去之后真机会不会拦"这类 CI 结构上覆盖不到的步骤留给人手。未跑完之前不得宣称端到端保证。**v2 补充**：该条目现在还要覆盖本次修复——本缺陷正是"在真实会话里才发现"的，所以修好之后仍然只有一次真实会话能判定：v2 发版（1.1.2）装回本机后，同一个 `prd.md` 用 **Claude Code 真实投递的反斜杠路径**写一次，必须得到 `deny`（1.1.1 时是静默放行）。在此之前的判定仍只到"仓库内夹具与 Windows 套件"为止。
 - 定案 MCP matcher 写法（裸 `mcp__` 前缀匹配 vs `mcp__.*`），记入 `references/runtime.md`。
 - Research 阶段（`reference/index.md`）是否也需要写前门——本任务有意未覆盖。
 - Codex / CodeBuddy / dsh 三 host 的等价接线；接线前需先摸清各 host 是否有 tool-call 级钩子。
