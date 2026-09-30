@@ -1,6 +1,6 @@
 # A release skips re-running tests that CI already ran green on the same revision,
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Plan — A release skips re-running tests that CI already ran green on the same revision,
 > Task version: v2
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -90,13 +90,13 @@ No spec required — small, self-contained task.
 - Files: `TaskFlowDocs/2026-09-30-release-ci-test-policy/`, `TaskFlowDocs/todo.md`.
 - Implementation checklist:
   - [x] Run `git diff --check`, `bash hooks/release-check .`, and `bash hooks/repository-check .`; record results and any unavailable check as unavailable.
-  - [ ] Push the branch and let CI's matrix give the verdict the change itself argues for (A5). Do not claim a local suite result that was not obtained — the change would be self-refuting.
+  - [x] Push the branch and let CI's matrix give the verdict the change itself argues for (A5). Do not claim a local suite result that was not obtained — the change would be self-refuting.
   - [x] Record, against `TF-20260929-3fc4b8`, the live gate observation from Preconditions: the deny, its message, and the allow after invocation.
-  - [ ] Once CI is green and the owner merges, move `TF-20260930-c4e4c8` to `done` and archive this task.
+  - [x] Once CI is green and the owner merges, move `TF-20260930-c4e4c8` to `done` and archive this task.
 - Acceptance: A5.
 - Verification: `gh pr checks <n>` all green; the recorded evidence quoted from the observed message, not paraphrased.
 - Rollback: the branch and PR are discardable before merge; nothing on `main` changes until the owner merges.
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -114,9 +114,12 @@ No spec required — small, self-contained task.
   - `bash hooks/repository-check .` — `STATUS: needs-user-input`，唯一原因是既存孤儿目录 `TaskFlowDocs/achieved/2026-09-10-repository-document-placement`（早于本任务，本任务未触碰）；另有「工作树有未提交改动」的提示，提交后即消失。
   - R8 复查 — `grep -rn smoke-test --include=*.md` 后逐条比对：余下命中全部是**描述**套件（`README.md:354` 与 `README.zh-CN.md:315` 的表格、两份 README 的文件树、`hooks/README.md`、`references/runtime.md`）或**条件性**提及（`CONTRIBUTING.md:31`、`RELEASE.md:69`），无一处要求本地必须跑。
   - 未执行 `bash hooks/smoke-test`：本次改动不碰 `hooks/` 与 `skills/`，且该套件在本机跑不完（无解释器章节因 MSYS 软链二进制缺 DLL 而中止，未修改的 `origin/main` 在同一处同样失败）。本地不跑它**正是本次改动要立的规则**，不是回避；判定交给 CI 三平台矩阵，结果记在 PR 里。
+  - CI（PR #62，run `36742917605`）— 六项全绿：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals`。这一步本身就是本改动主张的做法：本地不跑套件，判定由 CI 给出，而且给的是三台宿主而不是一台。
+  - 合入 — PR #62 以 merge commit `3094f69` 进入 `main`（2026-09-30T16:20:52Z）。
 
 ## Change Log
 
+- 2026-10-01 — 实现与验证完成并合入。PR #62 六项 CI 全绿（run `36742917605`）后以 merge commit `3094f69` 进入 `main`。本地**未**跑 `hooks/smoke-test`——这正是本改动所立的规则：CI 覆盖得到的交给 CI，此处 CI 还多给了两台宿主。实际改动的五处文档：`RELEASE.md`、`CONTRIBUTING.md`、`.github/pull_request_template.md`、`README.md`、`README.zh-CN.md`。
 - 2026-10-01 — v2. Implementing v1 surfaced `.github/pull_request_template.md:14` and `README.md:361` / `README.zh-CN.md:322` as further local-run requirements; left alone they would have contradicted the rule on merge. Release owner approved the version bump and required R7: state both directions, so a preference for CI never reads as an exemption.
 - 2026-09-30 — Plan written. Scope widened mid-PRD by the release owner: the CI-first rule covers every pull request, and CI's own upkeep is part of it. Recorded as R5/R6 rather than as a follow-up, because the preference is only safe while CI covers the right surfaces.
 - 2026-09-30 — Recorded the live pre-write gate observation from this session (deny on the first `prd.md` write, allow after a capability invocation) as evidence for `TF-20260929-3fc4b8`.
