@@ -10,6 +10,27 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_
+
+- ID: TF-20260930-ba3b0c
+- Status: promoted
+- Priority: normal
+- Owner: Claude
+- Source: direct user request 2026-09-30；reopen：v1 的门在 Windows 上对反斜杠路径静默 fail-open（本机实测门对正斜杠 deny、对反斜杠 allow；上游 issue #83877 / #64432 确认宿主行为），即 v1 的验收在真实宿主路径形态下不成立，故取回并升 v2 修正
+- Added: 2026-09-30
+- Updated: 2026-09-30
+- Goal: Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_input.file_path with backslash separators there, so the gate's directory extraction finds no separator and allows every stage write — normalize separators before any path test, and add the regression test that feeds a backslash path
+- Task: `TaskFlowDocs/2026-09-27-capability-pre-write-gate/` (v2)
+- Next action: Await the user approval of the v2 scope, then fix and verify
+- Notes: **2026-09-30 实测（本机 Windows + 已发布 1.1.1）**：
+(1) 在项目内对真实任务文档（同级有 `plan.md`、无任何证据）执行 Write → **被放行**；
+(2) 直接喂装机包的门：正斜杠 `/d/WorkSpace/.../prd.md` → **deny**（消息完整）；反斜杠 `D:\WorkSpace\...\prd.md` → **allow**（空输出）。
+**根因（我方代码）**：门用 `task_dir="${file_path%/*}"` 取目录，`%/*` 只认正斜杠；反斜杠路径切不出分隔符 → `task_dir == file_path` → 撞上"切不出目录即视为非任务文档"的守卫 → `exit 0`。门假设了路径形态，而这是它最不该假设的东西。
+**宿主行为已由上游确认**：issue #83877「Windows 上 `tool_input.file_path` 以反斜杠分隔投递……匹配路径的 hook **静默 fail open**，外面无法区分『没被拦』与『本来无物可拦』」；#64432「Write 工具**总是**投递带反斜杠的 `file_path`」，给的解法即 hook 内做分隔符归一；#40076 / #52962 是 WSL2 下的同一类。
+**为什么 v1 的验证没抓到**：Windows 套件里的 event JSON 是我**自己拼**的，而我在拼的时候写了 `.Replace('\','/')` —— 测的是我假设的格式而不是宿主真实格式。测试与实现对同一个假设犯了同一个错，于是双双通过。
+**修法**：门内先把 `\` 归一成 `/` 再做任何路径判断（证据钩子不受影响：实测它拿到的 `cwd` 是 `/d/...` 形态，且它只把路径交给 `git -C`）；**并补回归断言**，喂反斜杠路径——这正是本该存在的测试。
+**影响**：Windows 上这个门等于不存在，而已发布的 1.1.1 带着它；macOS/Linux 正常（路径本就是正斜杠），故 CI 全绿是真的绿，只是覆盖不到该洞。修好后需再发一版才惠及用户。
+
 ## 修复 TaskFlow hooks 的四处遗留缺陷
 
 - ID: TF-20260929-f9b6c9

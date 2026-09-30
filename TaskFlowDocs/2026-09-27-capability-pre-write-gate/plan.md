@@ -1,6 +1,6 @@
 # Plan — Block the first body write of prd/spec/plan until a capability-class tool was ac
-> Task version: v1
-> Status: completed
+> Task version: v2
+> Status: ready
 
 ## Spec Pointers
 
@@ -31,11 +31,11 @@
 
 ## Approval
 
-- Status: approved
-- Approved by: user
-- Approved at: 2026-09-27 23:41 +0800
-- Approved version: v1
-- Approved scope: PRD / Spec / Plan
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
 
 ## Steps
 
@@ -241,6 +241,7 @@
 - 发版过程中发现一个与本任务无关的陈旧字段：`.codebuddy-plugin/marketplace.json` 的插件条目里带着 `"version": "1.0.5"`（`4e497c3` 写入后六次发版无人更新）。CodeBuddy 官方 schema 里该字段可选，且 plugin reference 明说与 `plugin.json` 同时设置时以 `plugin.json` 为准、"只应设在一处"；TaskFlow 的版本由 `release-version` 维护在 `plugin.json`，故这是纯死值。已单独开 PR #58 删除，不带进本任务。
 
 ## Change Log
+- 2026-09-30 reopen — retrieved achieved task `2026-09-27-capability-pre-write-gate` for new work; re-approval required before core changes
 
 - 2026-09-27 — Plan 初稿：6 个 Step + 3 个 Checkpoint。按 `planning-and-task-breakdown` 的垂直切片规则把"存储 + 捕获钩子"排在门之前。
 - 2026-09-27 — `spec.md` 修正（措辞/方法澄清，非 Task-version 变更）：证据钩子按事件 `cwd` 解析存储，而非按文件路径——`Skill` 的 `tool_input` 里没有路径。该缺口是 Step 5 的 read-only 规划规则逼出来的。
