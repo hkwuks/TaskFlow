@@ -358,7 +358,7 @@ Every check is a plain script at the repository root — no service, no test fra
 
 `.github/workflows/hooks.yml` runs four jobs on every push to `main` and every pull request: `smoke` on an Ubuntu / macOS / Windows matrix, `release`, `todo-merge-audit` (no merge in the pushed range dropped a Todo entry), and `evals`. The smoke job deliberately installs no language runtime — the hooks carry none, so a hook that ever grew an interpreter dependency fails there rather than in a user's session.
 
-`CONTRIBUTING.md` lists the checks required before a pull request, including `hooks/smoke-test`, the Skill validator, and `git diff --check`. `RELEASE.md` is the release checklist: the version literals a release must move, the two-commit ordering a release tag and its catalog pin have to follow, and the rollback rules. It runs on the base checkout rather than as a TaskFlow task.
+`CONTRIBUTING.md` names CI as the test authority: the workflow above runs the smoke suite on three hosts for every pull request and every push to `main`, so what stays local is the checks CI does not run — the Skill validator and `git diff --check`. `RELEASE.md` is the release checklist: the version literals a release must move, the two-commit ordering a release tag and its catalog pin have to follow, and the rollback rules. It runs on the base checkout rather than as a TaskFlow task.
 
 The hooks themselves are documented in [`hooks/README.md`](hooks/README.md) — what each one may write, why they are extensionless bash with no language runtime, and the per-host wiring.
 

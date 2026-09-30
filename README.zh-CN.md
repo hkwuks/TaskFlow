@@ -319,7 +319,7 @@ dsh plugin --profile web add <仓库根目录>
 
 `.github/workflows/hooks.yml` 在每次推送 `main` 和每个 Pull Request 上跑四个作业：`smoke`（Ubuntu / macOS / Windows 矩阵）、`release`、`todo-merge-audit`（推送范围内没有 merge 丢掉 Todo 条目）、`evals`。smoke 作业刻意不安装任何语言运行时——hook 本身不依赖运行时，所以一旦某个 hook 长出解释器依赖，会在这里失败，而不是等到用户会话里才暴露。
 
-`CONTRIBUTING.md` 列出提交 Pull Request 前必须跑的检查，包括 `hooks/smoke-test`、Skill 校验器和 `git diff --check`。`RELEASE.md` 是发布清单：一次发布要挪动的版本字面量、发布标签与其 catalog pin 必须遵守的两提交顺序，以及回退规则。它在 base 检出上执行，而不是作为一个 TaskFlow 任务。
+`CONTRIBUTING.md` 把 CI 立为测试权威：上面的工作流在每个 Pull Request 和每次推送 `main` 时，于三台宿主上跑 smoke 套件；留给本地的是 CI 跑不到的检查——Skill 校验器与 `git diff --check`。`RELEASE.md` 是发布清单：一次发布要挪动的版本字面量、发布标签与其 catalog pin 必须遵守的两提交顺序，以及回退规则。它在 base 检出上执行，而不是作为一个 TaskFlow 任务。
 
 hook 本身的说明在 [`hooks/README.md`](hooks/README.md)——每个 hook 允许写什么、为什么是 extensionless bash 且不依赖语言运行时，以及各宿主的接线方式。
 

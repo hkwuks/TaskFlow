@@ -11,7 +11,7 @@
 
 ## Verification
 
-- [ ] `bash hooks/smoke-test`
+- [ ] The `Hooks` workflow reports pass for this branch — link the run; re-running the CI matrix locally is not required
 - [ ] `git diff --check`
 - [ ] Relevant Skill/plugin validation
 - [ ] Results recorded in the TaskFlow Plan

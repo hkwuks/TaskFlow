@@ -46,15 +46,38 @@ The default path is a direct tag from the verified base commit; a `release/vX.Y.
 
 ## Validation checklist
 
-Run and record applicable results:
+Run and record applicable results. These four stay unconditional:
 
 ```bash
 bash hooks/repository-check .
 bash hooks/release-check .
-bash hooks/smoke-test
 python3 <skill-creator>/scripts/quick_validate.py skills/taskflow   # <skill-creator> is wherever that checkout lives
 git diff --check
 ```
+
+`hooks/release-check` and `hooks/repository-check` inspect the release's own
+artifacts — the version literals, the catalog pin, and the record's freshness —
+and those differences do not exist until the release is prepared, so no CI job
+can see them. `quick_validate.py` and `git diff --check` are simply not run by
+any CI job. None of the four is covered by CI, which is why none of them is
+skippable.
+
+The smoke suite is not on that list, because CI does cover it: the `smoke` job
+runs it on `ubuntu-latest`, `macos-latest`, and `windows-latest` for every pull
+request and every push to `main` (`.github/workflows/hooks.yml`). That is wider
+than any single local run and is the verdict this release stands on. Run
+`bash hooks/smoke-test` locally only when the release touches a surface the suite
+exercises — a release does not: the release commit moves version literals and the
+`CHANGELOG.md` section, and the commit after it moves the two marketplace
+catalogs.
+
+The test is the surface, not the revision. "CI already ran this commit" cannot be
+the rule: the tag names a commit that does not exist until the release is
+prepared, and the tag and pin are pushed together, so at checklist time CI has not
+seen it. What does hold is that the release commit's difference from a CI-green
+commit — the last one on `main` before the release began — falls outside what the
+suite exercises. Record that comparison in the release notes, together with the
+CI run being relied on.
 
 `hooks/release-check` compares the version literals a release has to move — the
 three host manifests, the dsh bundle manifest, the newest `CHANGELOG.md` section,
@@ -70,7 +93,9 @@ The dsh bundle manifest carries no cachebuster. dsh installs the package through
 pnpm rather than through a host-side plugin cache, so there is no stale-copy
 failure for a suffix to defeat; bump its `version` with the others.
 
-Do not claim an unavailable check passed; record limitations in the release notes.
+Do not claim an unavailable check passed. A check that was skipped is recorded as
+skipped — with the CI run that covered it and the comparison that justified the
+skip — so that "not run" and "ran and passed" never read the same.
 
 ## Release notes
 
