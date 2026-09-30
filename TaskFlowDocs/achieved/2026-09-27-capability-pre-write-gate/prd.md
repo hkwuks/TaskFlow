@@ -1,6 +1,6 @@
 # Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v2
-> Status: ready
+> Status: completed
 > v2 只改一件事：门不得假设路径分隔符（R13/R14、A13/A14）。v1 的存储、谓词与逃生舱不变。
 
 ## Goal

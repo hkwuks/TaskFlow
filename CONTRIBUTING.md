@@ -28,7 +28,7 @@ cd .worktrees/<slug>
 - Keep a task's documents and its code on the same branch so the Plan, the diff, and the verification stay together.
 - `hooks/task promote` refuses to run outside a task working tree, and `hooks/task intake` warns when it has written `todo.md` in a shared one.
 - Confirm where you are before editing. `git branch --show-current` shows the branch; `bash hooks/repository-check .` reports the local branch and warns with `Base: ambiguous` when no upstream is set.
-- Run `bash hooks/smoke-test` on the branch whose files changed, not on another checkout.
+- If a local `bash hooks/smoke-test` is warranted, run it in the worktree whose files changed, not in another checkout — the suite reads the tree it is run from.
 
 `skills/taskflow/SKILL.md` states the same rule where the phases are defined.
 
@@ -38,13 +38,34 @@ Use short-lived branches named `feature/<description>`, `fix/<description>`, `do
 
 ## Checks
 
-Before opening a pull request, run:
+CI is the test authority. The `Hooks` workflow runs the full matrix — the smoke
+suite on `ubuntu-latest`, `macos-latest`, and `windows-latest`, plus
+`hooks/release-check`, the Todo merge audit, and the evals — for every pull
+request and every push to `main`. Push the branch and read the verdict there
+rather than reproducing the matrix locally: a local run spends time and resources
+CI has already spent, and it adjudicates one host where CI adjudicates three.
+
+Run something locally only when CI cannot cover it — the host-specific, such as
+the Windows suite on a Windows machine, and the pre-push, where failing early is
+worth more than failing in CI. Two checks no CI job runs, so they stay local for
+every change:
 
 ```bash
-bash hooks/smoke-test
-python3 /home/hk/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/taskflow
+python3 <skill-creator>/scripts/quick_validate.py skills/taskflow   # <skill-creator> is wherever that checkout lives
 git diff --check
 ```
+
+**A surface CI does not exercise is added to CI in the same change** — not left
+to a local run, and not shipped unverified. The smoke matrix exists because the
+hooks have to work on three hosts; a new hook, a new host, or a changed plugin
+surface belongs in it before it belongs in a pull request. When adding it in that
+change is not possible, say so in the TaskFlow Plan and run it locally until it
+is. A preference for CI is never a reason for something to go unverified, and CI
+that has fallen behind the surface it is supposed to cover is not an authority —
+keep it current, and keep it running on the hosts it declares.
+
+Release-time checks are their own list, in `RELEASE.md`, which states which of
+them CI covers and which it cannot.
 
 Record unavailable checks and their limitations in the TaskFlow Plan. Do not claim checks or synchronization that did not occur.
 
