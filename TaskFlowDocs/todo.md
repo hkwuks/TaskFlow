@@ -10,18 +10,36 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## A release skips re-running tests that CI already ran green on the same revision,
+
+- ID: TF-20260930-c4e4c8
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: direct user request 2026-09-30
+- Added: 2026-09-30
+- Updated: 2026-09-30
+- Goal: A release skips re-running tests that CI already ran green on the same revision, and testing prefers CI over local runs
+- Task: Not promoted.
+- Next action: Decide with the user which release steps CI already covers, then promote and amend RELEASE.md
+- Notes: 用户 2026-09-30 提出：该 revision 若已在 CI 跑绿，发布时不再重复跑同一批测试；测试一律优先交给 CI。与 `TF-20260928-3910fb` 同属「砍掉发布时多余的重复校验」，两条互链。
+  **落点**：`RELEASE.md:54` 的 Validation checklist 里有 `bash hooks/smoke-test`。发布提交本身只改版本字面量与 CHANGELOG（1.1.2 实测为 `5d4fccf`），`hooks/` 与 `skills/` 一行未动，所以这批用例在发布提交上的结果不可能与已跑绿的 CI 不同——重跑在道理上就是空的，不只是「CI 跑过了」。
+  **本机的额外理由**：整段 `hooks/smoke-test` 在这台 Windows + MSYS 上跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，未修改的 `origin/main` 在同一处同样失败），发布时跑它既给不出判定，又要如实记一次「未通过」。
+  **不能跟着砍掉的**：`hooks/release-check`、`hooks/repository-check`、`quick_validate.py`、`git diff --check` 检查的是版本字面量、catalog 的 `ref`/`sha` 与发布记录新鲜度——这些差异**只有发布提交才产生**，CI 结构上覆盖不到，必须留在发布流程里。
+  **待定的边界**：(a) 判据用严格相等（tag 指向的提交 == CI 跑绿的提交），还是允许「发布提交只动版本字面量与 CHANGELOG」这一形态；(b) 跳过时发布记录里要写什么，才能让「没跑」与「跑了没过」仍可区分。
+
 ## Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_
 
 - ID: TF-20260930-ba3b0c
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-09-30；reopen：v1 的门在 Windows 上对反斜杠路径静默 fail-open（本机实测门对正斜杠 deny、对反斜杠 allow；上游 issue #83877 / #64432 确认宿主行为），即 v1 的验收在真实宿主路径形态下不成立，故取回并升 v2 修正
 - Added: 2026-09-30
 - Updated: 2026-09-30
 - Goal: Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_input.file_path with backslash separators there, so the gate's directory extraction finds no separator and allows every stage write — normalize separators before any path test, and add the regression test that feeds a backslash path
-- Task: `TaskFlowDocs/2026-09-27-capability-pre-write-gate/` (v2)
-- Next action: PR #61 open and CI green; merge, then release 1.1.2 so the fix reaches this machine, then TF-20260929-3fc4b8 verifies it in a real session
+- Task: `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/` (v2)
+- Next action: None — completed and archived.
 - Notes: **2026-09-30 实测（本机 Windows + 已发布 1.1.1）**：
 (1) 在项目内对真实任务文档（同级有 `plan.md`、无任何证据）执行 Write → **被放行**；
 (2) 直接喂装机包的门：正斜杠 `/d/WorkSpace/.../prd.md` → **deny**（消息完整）；反斜杠 `D:\WorkSpace\...\prd.md` → **allow**（空输出）。
@@ -70,10 +88,11 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-28
-- Updated: 2026-09-28
+- Updated: 2026-09-30
 - Goal: Release process: make the manual three-host catalog validation conditional and add an automated $schema assertion, since that step is never exercised by CI and its only failure mode is already covered by release-check
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+- Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
 
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 

@@ -1,6 +1,6 @@
 # Plan — Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
