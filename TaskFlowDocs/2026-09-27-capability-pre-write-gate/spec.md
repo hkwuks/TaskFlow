@@ -118,7 +118,7 @@ hooks/task unaided <PRD|Spec|Plan> --considered "<concept class>" [--root <path>
 
 - **I1 路径唯一决定行为。** 门的行为只是目标文件路径的函数，不读任何"当前任务"状态。本机实测 `~/.claude/settings.json` 的 hooks 是全机全局、对每个并发会话与项目都触发的，所以这条是正确性条件而不是设计洁癖——邻仓一个 `prd.md` 绝不能被拦下。
 - **I2 证据不可由 Agent 用 `Write`/`Edit` 写入。** 门拒绝目标是证据存储路径的 `Write`/`Edit`。**天花板声明**：Agent 仍可用 `Bash` 写它，所以这是纪律级而非密码学级的防伪；要真正堵死需要签名，v1 明确不做。
-- **I3 不锁死。** 证据缺失（新 clone、换机器、非 Claude Code host）时门拒绝，但 `task unaided` 永远可用，因此用户始终有一条一命令的出路。
+- **I3 不锁死。** 证据缺失（新 clone、换机器、非 Claude Code host）时门拒绝，但 `task unaided` 永远可用，因此用户始终有一条一命令的出路。**（v2 补正）** 这条的完整表述要加上后半段：`unaided` 登记声明 → **下一次该 stage 文档的写入被放行并写出 `released`**。只登记不释放等于半条出路——approve 读的是 `released`，而 `released` 的唯一写入者是门。Windows 上的实测正是"前半段成立、后半段为空"，于是 approve 报"never released"并建议执行那条恰恰救不了命的命令。
 - **I4 版本使证据失效。** Task version 从 v1 升到 v2 时，v1 的 `released` 记录不满足 `V=v2`，三个 stage 自动重新需要调用。不需要额外清理步骤。
 - **I5 门的失败安全。** 门在任何路径上都不写核心文档、不碰 Approval；最坏的副作用是少写或多写一条 `released` 记录，而它只影响门自身，不影响任务事实。
 - **I6 非 Claude Code host 无门。** Codex / CodeBuddy / dsh 保持现状（仅 approve 的形状校验）。这是用户已批准的 v1 范围，必须在 `runtime.md` 写明，避免被误读为"全平台已保证"。

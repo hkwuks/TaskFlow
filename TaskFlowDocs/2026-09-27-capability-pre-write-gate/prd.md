@@ -1,6 +1,7 @@
 # Block the first body write of prd/spec/plan until a capability-class tool was ac
 > Task version: v2
 > Status: ready
+> v2 只改一件事：门不得假设路径分隔符（R13/R14、A13/A14）。v1 的存储、谓词与逃生舱不变。
 
 ## Goal
 
@@ -37,6 +38,7 @@
 ### v2 新增事实（2026-09-30 实测，v1 的验收在真实宿主路径形态下不成立）
 
 - **v1 的门在 Windows 上完全不生效**，且是静默的。已发布的 1.1.1 带着这个洞。
+- **更严重的是它同时把生命周期卡死在 approve（2026-09-30 实测）**：只有门会写 `released`，而 `task unaided` 只写 `evidence`；门在 Windows 上从不触发，于是没有任何 stage 能被释放。实测 v2 任务执行 `task approve` → `approve blocked: stage [PRD] was never released by the pre-write gate`，**而它给出的补救命令（`task unaided PRD …`）在这个平台上正是死路**——命令会成功登记声明，但释放 stage 的那一步永远等不到。即 Windows 上新建或修订的任务都无法通过 approve，也就无法进入 `in_progress`、无法 `complete`。这条把"门不生效"从"少了一层保护"升级为"流程不可用"。
 - 实测（本机 Windows + 装机包 1.1.1）：对项目内一个真实任务文档（同级有 `plan.md`、无证据）执行 `Write` → **被放行**；直接喂装机包的门，正斜杠 `/d/WorkSpace/.../prd.md` → **deny**，反斜杠 `D:\WorkSpace\...\prd.md` → **allow（空输出）**。
 - 根因：门用 `task_dir="${file_path%/*}"` 取目录，`%/*` 只认正斜杠；反斜杠路径切不出分隔符 → `task_dir == file_path` → 命中"切不出目录即视为非任务文档"的守卫 → `exit 0`。**门假设了路径分隔符，而这是它最不该假设的东西。**
 - 宿主行为由上游确认，不是本仓库的臆测：claude-code issue **#83877**（Windows 上 `tool_input.file_path` 以反斜杠分隔投递，匹配路径的 hook 会静默 fail open；外面无法区分"没被拦"与"本来无物可拦"）、**#64432**（Write 工具**总是**投递带反斜杠的 `file_path`，解法即 hook 内做分隔符归一）、#40076 / #52962（WSL2 下的同类）。
@@ -76,6 +78,7 @@ A11. 记录门所依赖的钩子契约是针对哪个 Claude Code 版本实测�
 A12. 门与证据钩子在**非活动 TaskFlow 任务目录**上完全 no-op：覆盖同机并发会话、无关仓库、`TaskFlowDocs/achieved/**`。本机实测 hooks 是全机全局的，所以这条不是理论边界而是正确性条件，必须有对应用例。
 A13. （v2）**同一份文件的不同路径拼写得到同一判定**：在 Windows 上，反斜杠路径与正斜杠路径在无证据时同样被拒、有证据时同样放行；反斜杠形态的非任务目录与 `TaskFlowDocs/achieved/**` 仍 no-op。本机实测（正斜杠 deny / 反斜杠 allow）即 v1 在此条上的失败证据。
 A14. （v2）反斜杠用例在**不做归一**的实现上会红：这条断言必须能区分"门真的在把守"与"门静默放行"，否则重犯 v1 那个"测试与实现共享同一个错误假设"的错。
+A15. （v2）**逃生舱在自己的平台语义下闭环，approve 因此可用**：在 Windows（反斜杠路径）上，`task unaided <stage> --considered "<class>"` 之后写该 stage 文档，门必须放行**并写出 `released` 记录**，随后 `task approve` 通过。判据是"这条命令真的把人从锁死里救出来"，而不是"它自己退出 0"——v1 恰恰是后者成立、前者为空。
 
 ## In Scope
 

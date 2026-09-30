@@ -18,9 +18,9 @@
 
 ## Skills / Tools Used
 
-- [PRD] `agent-skills:idea-refine` — purpose: stress-test the requirements framing before the first body write of `prd.md`; invoked for the Define class. outcome: succeeded. incorporated: six assumptions that would otherwise have reached implementation unexamined — tool-class predicate boundary, evidence scope versus compact/resume, `plan.md` serving both as record and gated document, evidence-store placement, fail-open versus fail-closed, escape-hatch accountability.
-- [Spec] `agent-skills:spec-driven-development` — purpose: produce the design contract before the first body write of `spec.md`; invoked for the Design class. outcome: succeeded. incorporated: Phase 0 scope check (one capability, not several), explicit-unknowns discipline, and its "reuse the project's own spec system instead of a duplicate SPEC.md" rule. Its `tasks/plan.md` / `SPEC-*.md` convention was deliberately not adopted — TaskFlow is this project's spec system.
-- [Plan] `agent-skills:planning-and-task-breakdown` — purpose: dependency-order the steps before the first body write of this Plan; invoked for the Plan class. outcome: succeeded. incorporated: vertical-slice rule (store + capture hook before the gate that reads it), checkpoint after every 2–3 steps, and the never-overwrite-an-incomplete-plan guard. Its planning-time read-only rule is what surfaced the "evidence hook has no file path" gap, now fixed in `spec.md`.
+- [PRD] Unaided — 未为 v2 调用能力：需求增量（R13/R14、A15）直接来自本机实测与上游 issue 报告（#83877 / #64432），v1 由 `agent-skills:idea-refine` 建立的需求框架未变；considered: requirements elicitation and framing。
+- [Spec] Unaided — 未为 v2 调用能力：设计增量（入口归一 + I9 + I3 补正）由同一次实测推出，契约其余部分沿用 v1 的 `agent-skills:spec-driven-development` 产物；considered: architecture and design specification。
+- [Plan] Unaided — 未为 v2 调用能力：v2 只分解为一个 Step（归一 + 两处回归用例 + 一页文档），其内部顺序由"先证未归一即红"决定，v1 的 `agent-skills:planning-and-task-breakdown` 框架未变；considered: work breakdown and task decomposition。
 
 ## Preconditions
 
@@ -33,11 +33,16 @@
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-30 10:01 +0800
+- Approved version: v2
+- Approved scope: PRD / Spec / Plan
+
+<!-- 手写而非 `task approve`：门在 Windows 上从不触发（本任务即修此缺陷），因此没有任何 stage 能被释放，
+     `task approve` 必然报 "stage [PRD] was never released by the pre-write gate"。
+     按 1.0.9 的既有约定，`task approve` 不可用时手写这五行是兜底；此处对应用户 2026-09-30 的明确批准
+     （"批准，按这个范围做"）。详见 Change Log 同日条目。 -->
 
 ## Steps
 
@@ -267,6 +272,7 @@
 - 发版过程中发现一个与本任务无关的陈旧字段：`.codebuddy-plugin/marketplace.json` 的插件条目里带着 `"version": "1.0.5"`（`4e497c3` 写入后六次发版无人更新）。CodeBuddy 官方 schema 里该字段可选，且 plugin reference 明说与 `plugin.json` 同时设置时以 `plugin.json` 为准、"只应设在一处"；TaskFlow 的版本由 `release-version` 维护在 `plugin.json`，故这是纯死值。已单独开 PR #58 删除，不带进本任务。
 
 ## Change Log
+- 2026-09-30 — 记录 v2 批准（用户明确批准该范围），并记下比"门不拦"更严重的后果：**门在 Windows 上从不触发**——`released` 文件从未被创建。而 `released` 的**唯一**写入者是门，`task unaided` 只写 `evidence`，所以逃生舱在此平台救不了 approve：实测 `task approve` 报 `stage [PRD] was never released by the pre-write gate`，而它建议执行的命令正是那条走不通的路。影响面因此升级为"Windows 上任务生命周期卡死在 approve，无法进入 `in_progress`／无法 `complete`"，并落成 PRD 的 A15 与 spec 的 I3 补正。批准改用 1.0.9 已文档化的兜底（手写五行 Approval），理由写在 Approval 块旁。
 - 2026-09-30 — 顺带更正 `spec.md` 的判定算法：v1 在 Step 2 修掉两个实现缺陷（消费改为**全局**、取**最旧未消费**一条），实现已如此而 spec 文本仍写着按版本统计、取最新行——属文档落后于代码，趁 v2 一并同步，并把路径归一写进算法第 1 步与新增的 I9。这不是 Task-version 事件，是同一份契约补正。
 - 2026-09-30 reopen — retrieved achieved task `2026-09-27-capability-pre-write-gate` for new work; re-approval required before core changes
 - 2026-09-30 — **取回并升 v2 的原因**：v1 已发布为 1.1.1 并装在本机，于是在**真实会话**里发现门对 Windows 的反斜杠路径**静默放行**（装机包实测：正斜杠 `/d/.../prd.md` → deny；反斜杠 `D:\...\prd.md` → allow 空输出）。上游 claude-code **#83877** / **#64432** 确认这是宿主行为——Windows 上 `tool_input.file_path` 以反斜杠投递，按路径匹配的 hook 会静默 fail open。含义是 v1 的 A1–A5 只在"测试自造的正斜杠形态"下成立。**教训（已写成 R14）**：测试自己拼 event JSON 时，拼出的是测试的假设，不是宿主的事实；测试与实现共享同一个错误假设时会双双通过。
