@@ -10,6 +10,36 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Commit Todo, release, and TaskFlowDocs changes straight to main when the author 
+
+- ID: TF-20261001-331f7c
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: direct user request 2026-10-01
+- Added: 2026-10-01
+- Updated: 2026-10-01
+- Goal: Commit Todo, release, and TaskFlowDocs changes straight to main when the author can push there; open a pull request only when they cannot
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: 用户 2026-10-01 提出：Todo 改动、发布、以及 TaskFlowDocs 的处理，凡作者能直接推 main 的直接推 main，不为「同步」这类改动开 PR；只有没有推送权限时才走 PR。判据是**权限**，不是改动大小——这一点与仓库现有的「一任务一分支 + PR」规则冲突，需要裁定边界。
+- 本仓库实测（2026-10-01）：`main` 未受保护（`gh api repos/hkwuks/TaskFlow/branches/main/protection` → 404 Branch not protected），当前身份为 admin（`permissions` 含 `push: true`），故本仓库可直接推。**一般规律**（用户所问）：仓库主人有 admin/write，默认可直推；协助者通常只有 read 或无访问权，只能 fork 后提 PR。但这不自动成立——给协作者 write、或给 main 加「必须走 PR」的保护规则，都会改变结论；反过来保护规则也会让 owner 自己推不进去。
+
+## Reconcile the artifact-language rule with capability-written documents: a phase 
+
+- ID: TF-20261001-51d9c8
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: direct user request 2026-10-01
+- Added: 2026-10-01
+- Updated: 2026-10-01
+- Goal: Reconcile the artifact-language rule with capability-written documents: a phase capability emits English prose, so the rule requiring the user's working language silently stops holding
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: 用户 2026-10-01 提出：采用专业工具写文档之后，原先「prose 用用户惯用语言」的约束失效了——不是被推翻，是没被带上。
+- 实例（本会话）：`2026-09-30-release-ci-test-policy` 的 prd.md 与 plan.md 全程英文——因为 `agent-skills:spec-driven-development` 与 `agent-skills:planning-and-task-breakdown` 的文档骨架是英文，照着写就默认变英文；而 `skills/taskflow/SKILL.md` 要求 prose 用用户工作语言、只有 hook 匹配的行用英文。同仓库 `achieved/2026-09-27-capability-pre-write-gate` 的 v2 文档全是中文，说明这是「写作移交给能力」之后才出现的静默偏离。落点待定：调用能力后把骨架译回用户语言，或在 SKILL 里写明骨架语言与 prose 语言的优先级，或干脆改判为英文——前两者都要动 SKILL。
+
 ## A release skips re-running tests that CI already ran green on the same revision,
 
 - ID: TF-20260930-c4e4c8
