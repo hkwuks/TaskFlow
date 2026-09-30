@@ -1429,8 +1429,14 @@ mkdir -p "$cg_task"
 git -C "$cg_root/repo" init -q
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$cg_task/plan.md"
 cg_store="$(git -C "$cg_root/repo" rev-parse --absolute-git-dir)/taskflow"
+# A backslash reaches the hook as two of them, because that is what JSON requires
+# of a path the host spells with backslashes. Emitting one would put `\c` or `\r`
+# in the event — not escapes JSON defines — and the parser then rejects the whole
+# event, so the hook exits 0 and the write is allowed. That is the same silent
+# fail-open this section exists to catch, so the fixture must not carry it either.
+cg_json() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
 cg_event() {  # cg_event <file-path> [tool-name]
-  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"${2:-Edit}\",\"tool_input\":{\"file_path\":\"$1\"}}"
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"${2:-Edit}\",\"tool_input\":{\"file_path\":\"$(cg_json "$1")\"}}"
 }
 cg_verdict() {  # cg_verdict <file-path> <allow|deny> [tool-name]
   cg_got="$(cg_event "$1" "${3:-Edit}" | bash "$cg")"
@@ -1498,6 +1504,34 @@ cg_unaided() {  # cg_unaided <stage> <class> -> exit code of the command
 [ "$(cg_unaided XXX 'work breakdown')" = "2" ] || { echo "FAIL unaided accepted an invalid stage"; exit 1; }
 [ "$(cg_unaided Plan 'work breakdown and task decomposition')" = "0" ] || { echo "FAIL unaided rejected a valid class"; exit 1; }
 cg_verdict "$cg_task/plan.md" allow
+
+# A path's spelling must not decide the verdict. The host sends backslashes on
+# Windows (claude-code #83877, #64432), and v1 shipped a gate that assumed the
+# other separator: `${file_path%/*}` found nothing, the no-op guard fired, and
+# every stage write was allowed with no error. Measured on 1.1.1 — one file
+# denied with forward slashes and allowed with backslashes, in one repository.
+#
+# The assertion is therefore equality of the two verdicts, not "backslashes are
+# denied": on a POSIX host a backslash path names a different file, so demanding
+# a denial there would test nothing about the hook. Each case below is fed twice,
+# once as the real path and once with every separator flipped, and normalization
+# must map the flipped form back to the same file.
+cg_flip() { printf '%s' "$1" | tr '/' '\134'; }
+cg_verdict_pair() {  # cg_verdict_pair <file-path> <allow|deny>
+  cg_verdict "$1" "$2"
+  cg_verdict "$(cg_flip "$1")" "$2"
+}
+cg_verdict_pair "$cg_task/spec.md" deny          # unreleased at this version
+cg_verdict_pair "$cg_task/prd.md" allow          # released at this version
+cg_verdict_pair "$cg_root/plain/prd.md" allow    # not a task document at all
+cg_verdict_pair "$cg_root/repo/TaskFlowDocs/achieved/2026-01-01-old/prd.md" allow
+
+# The relative form is joined onto the event cwd, so that path is normalized too:
+# a mixed `C:/repo\file.md` would otherwise be judged as neither form.
+printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","cwd":"%s","tool_input":{"file_path":"%s"}}' \
+  "$(cg_json "$(cg_flip "$cg_task")")" 'spec.md' | bash "$cg" > "$tmp/cg.rel"
+grep -q '"deny"' "$tmp/cg.rel" \
+  || { echo "FAIL a backslash cwd + relative path was not judged as a task document"; cat "$tmp/cg.rel"; exit 1; }
 echo ok
 
 echo "== the capability record is required, not optional =="

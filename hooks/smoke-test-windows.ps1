@@ -139,28 +139,54 @@ try {
         return [pscustomobject]@{ Output = ($out -join "`n"); Exit = $code }
     }
 
-    $gateRepoUrl = $gateRepo.Replace('\', '/')
-    $prdEvent = '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"' + (Join-Path $gateTask 'prd.md').Replace('\', '/') + '"}}'
+    $prdPath = Join-Path $gateTask 'prd.md'
+    $specPath = Join-Path $gateTask 'spec.md'
+    # The host delivers `tool_input.file_path` with backslashes on Windows
+    # (claude-code #83877, #64432), so the backslash spelling is the one that must
+    # be asserted. The forward-slash event is kept beside it because a gate that
+    # answers differently for two spellings of one file is the defect this pair
+    # exists to catch — and because this fixture used to feed only the forward
+    # form, which is how 1.1.1 shipped that defect behind a green Windows job.
+    function New-PathEvent {
+        param([string]$Path, [string]$Tool)
+        return '{"hook_event_name":"PreToolUse","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '\\') + '"}}'
+    }
+    function New-PathEventFwd {
+        param([string]$Path, [string]$Tool)
+        return '{"hook_event_name":"PreToolUse","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '/') + '"}}'
+    }
+    $prdEvents = @((New-PathEvent $prdPath 'Edit'), (New-PathEventFwd $prdPath 'Edit'))
+    $specEvents = @((New-PathEvent $specPath 'Write'), (New-PathEventFwd $specPath 'Write'))
 
-    $verdict = Invoke-Hook 'capability-gate' $prdEvent
-    if ($verdict.Exit -ne 0) { throw "capability-gate exited $($verdict.Exit): $($verdict.Output)" }
-    if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw "gate did not deny an unreleased stage: $($verdict.Output)" }
-    if ($verdict.Output -notmatch 'task unaided PRD --considered') { throw 'gate deny message omits the escape command' }
+    foreach ($ev in $prdEvents) {
+        $verdict = Invoke-Hook 'capability-gate' $ev
+        if ($verdict.Exit -ne 0) { throw "capability-gate exited $($verdict.Exit): $($verdict.Output)" }
+        if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw "gate did not deny an unreleased stage: $ev -> $($verdict.Output)" }
+        if ($verdict.Output -notmatch 'task unaided PRD --considered') { throw 'gate deny message omits the escape command' }
+    }
 
-    $skillEvent = '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"' + $gateRepoUrl + '","tool_input":{"skill":"windows:cap"}}'
+    # The capture hook gets the native form too: it resolves its store from the
+    # event cwd, so a backslash cwd that it could not resolve would leave the gate
+    # below with nothing to release.
+    $skillEvent = '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"' + $gateRepo.Replace('\', '\\') + '","tool_input":{"skill":"windows:cap"}}'
     $verdict = Invoke-Hook 'capability-evidence' $skillEvent
     if ($verdict.Exit -ne 0) { throw "capability-evidence exited $($verdict.Exit): $($verdict.Output)" }
-    $verdict = Invoke-Hook 'capability-gate' $prdEvent
-    if ($verdict.Output -match '"permissionDecision":"deny"') { throw 'gate denied a stage that had a real invocation' }
+    foreach ($ev in $prdEvents) {
+        $verdict = Invoke-Hook 'capability-gate' $ev
+        if ($verdict.Output -match '"permissionDecision":"deny"') { throw "gate denied a stage that had a real invocation: $ev" }
+    }
 
     # One invocation is spent by one stage, and the escape hatch is a real command
     # that has to work on this host too.
-    $specEvent = '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"' + (Join-Path $gateTask 'spec.md').Replace('\', '/') + '"}}'
-    $verdict = Invoke-Hook 'capability-gate' $specEvent
-    if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw 'gate released a second stage on spent evidence' }
+    foreach ($ev in $specEvents) {
+        $verdict = Invoke-Hook 'capability-gate' $ev
+        if ($verdict.Output -notmatch '"permissionDecision":"deny"') { throw "gate released a second stage on spent evidence: $ev" }
+    }
     Invoke-TaskFlow (@('unaided', 'Spec', '--considered', 'architecture and design') + @('--root', $gateRepo))
-    $verdict = Invoke-Hook 'capability-gate' $specEvent
-    if ($verdict.Output -match '"permissionDecision":"deny"') { throw 'gate denied a stage the escape hatch had released' }
+    foreach ($ev in $specEvents) {
+        $verdict = Invoke-Hook 'capability-gate' $ev
+        if ($verdict.Output -match '"permissionDecision":"deny"') { throw "gate denied a stage the escape hatch had released: $ev" }
+    }
     'WINDOWS PRE-WRITE GATE PASSED'
 }
 finally {

@@ -57,13 +57,28 @@ case "$tool_name" in
 esac
 [ -n "$file_path" ] || exit 0
 
+# Separators are normalized before ANY path test below, including the case that
+# immediately follows. On Windows the host delivers `tool_input.file_path` with
+# backslashes (claude-code #83877 and #64432), and every extraction here assumes
+# the other one: `${file_path%/*}` finds no separator, the "cannot find a task
+# directory" guard below then fires, and the write is allowed with no error at
+# all. Measured on 1.1.1 — one file denied with forward slashes and allowed with
+# backslashes, in the same repository. A gate that silently stops gating is worse
+# than no gate, because nothing reports that it stopped, and the caller's path
+# spelling is not something this hook may depend on. `event_cwd` is normalized
+# with it, since a relative path is joined onto that below and a mixed result
+# would be judged as neither form. Octal `\134` is a backslash: `tr '\\'` is
+# ambiguous here, and the pattern form of this character is exactly the kind of
+# escaping that hides.
+file_path="$(printf '%s' "$file_path" | tr '\134' '/')"
+event_cwd="$(printf '%s' "$event_cwd" | tr '\134' '/')"
+
 # A relative path is resolved against the event cwd, never the hook process cwd:
 # the two are not guaranteed to agree, and a path this hook cannot resolve is a
-# path it silently stops gating. A gate that fails open is worse than none,
-# because nothing reports that it stopped.
+# path it silently stops gating.
 case "$file_path" in
   /*) ;;                    # POSIX absolute
-  [A-Za-z]:[\\/]*) ;;       # drive absolute, D:/ or D:\
+  [A-Za-z]:[\\/]*) ;;       # drive absolute, D:/ or D:\ (normalized above)
   *) [ -n "$event_cwd" ] && file_path="$event_cwd/$file_path" ;;
 esac
 
