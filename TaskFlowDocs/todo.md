@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## A release skips re-running tests that CI already ran green on the same revision,
 
 - ID: TF-20260930-c4e4c8
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-09-30
 - Added: 2026-09-30
 - Updated: 2026-10-01
 - Goal: A release skips re-running tests that CI already ran green on the same revision, and testing prefers CI over local runs
-- Task: `TaskFlowDocs/2026-09-30-release-ci-test-policy/`
-- Next action: Await CI on PR #62; after the owner merges, close this and archive the task.
+- Task: `TaskFlowDocs/achieved/2026-09-30-release-ci-test-policy/`
+- Next action: None — completed and archived.
 - Notes: 用户 2026-09-30 提出：该 revision 若已在 CI 跑绿，发布时不再重复跑同一批测试；测试一律优先交给 CI。与 `TF-20260928-3910fb` 同属「砍掉发布时多余的重复校验」，两条互链。
   **落点**：`RELEASE.md:54` 的 Validation checklist 里有 `bash hooks/smoke-test`。发布提交本身只改版本字面量与 CHANGELOG（1.1.2 实测为 `5d4fccf`），`hooks/` 与 `skills/` 一行未动，所以这批用例在发布提交上的结果不可能与已跑绿的 CI 不同——重跑在道理上就是空的，不只是「CI 跑过了」。
   **本机的额外理由**：整段 `hooks/smoke-test` 在这台 Windows + MSYS 上跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，未修改的 `origin/main` 在同一处同样失败），发布时跑它既给不出判定，又要如实记一次「未通过」。
@@ -75,7 +75,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Task: Not promoted.
 - Next action: Core observation obtained 2026-10-01 on 1.1.2; confirm the remaining recipe steps against the archived Plan and close.
 - Notes: **2026-09-29 用户要求：优先采用 CI 进行测试。** 理由来自 2026-09-27-capability-pre-write-gate 的实测：本机是 Windows + MSYS，整段 `hooks/smoke-test` 跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，用未修改的 `origin/main` 在同一处同样失败），所以本地跑既不可靠也不完整；而 CI 的 smoke 矩阵（ubuntu/macos/windows）一次就给出权威结论，其中 `macos-latest` 正是 bash 3.2 + BSD userland 的判定环境。因此凡是 CI 结构上能覆盖的（接线、门矩阵、approve 对账、无解释器下限、Windows 套件）一律不要手工跑，缺什么就往 CI 里补；人手只跑 CI 覆盖不到的——即「装上发出去的插件后，真实会话里门是否真的拦下来」。
-- 2026-10-01 实测（本机 Windows，插件已升到 1.1.2 = commit `5d4fccf`）：门对宿主真实投递的路径**拦下了**。在 `TaskFlowDocs/2026-09-30-release-ci-test-policy/` 写 `prd.md` 正文被拒，消息完整且含可复制的逃生舱命令：`TaskFlow pre-write gate blocked stage [PRD]: no capability invocation is recorded for this task version. Invoke a capability first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided PRD --considered "requirements elicitation and framing"`。随后调用 `agent-skills:spec-driven-development` 记录证据，重试即放行；`plan.md` 同理需要**另一次**能力调用（逐阶段新鲜度），v2 时改用 `task unaided` 亦放行（逃生舱有效）。同日 `hooks/task approve` 成功，说明 `released` 记录确实被写下——1.1.1 上卡死的正是这一步。**判据即行为差**：同一个 `prd.md` 在 1.1.1 上静默放行、在 1.1.2 上被拒。
+- 2026-10-01 实测（本机 Windows，插件已升到 1.1.2 = commit `5d4fccf`）：门对宿主真实投递的路径**拦下了**。在 `TaskFlowDocs/achieved/2026-09-30-release-ci-test-policy/` 写 `prd.md` 正文被拒，消息完整且含可复制的逃生舱命令：`TaskFlow pre-write gate blocked stage [PRD]: no capability invocation is recorded for this task version. Invoke a capability first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided PRD --considered "requirements elicitation and framing"`。随后调用 `agent-skills:spec-driven-development` 记录证据，重试即放行；`plan.md` 同理需要**另一次**能力调用（逐阶段新鲜度），v2 时改用 `task unaided` 亦放行（逃生舱有效）。同日 `hooks/task approve` 成功，说明 `released` 记录确实被写下——1.1.1 上卡死的正是这一步。**判据即行为差**：同一个 `prd.md` 在 1.1.1 上静默放行、在 1.1.2 上被拒。
 
 配方见归档后的 `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/plan.md` Verification / Review。第 1 步发版已完成（1.1.1，tag `v1.1.1` = `6df863d`，pin `bf8dc96`）；第 2 步是全局安装，属项目路径之外，需用户许可或由用户执行；第 3–5 步为观察项：不调用任何能力直接写 `prd.md` 正文应被拒（消息含 stage、概念类、可复制的 `task unaided` 命令），`task unaided PRD --considered "requirements elicitation and framing"` 后重试应放行，紧接着写 `spec.md` 应被拒（逐阶段新鲜度）。
 
