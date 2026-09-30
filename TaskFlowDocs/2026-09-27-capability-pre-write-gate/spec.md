@@ -91,13 +91,15 @@ released:                  version|stage|line-no|kind|capability
 
 触发：`PreToolUse`，`tool_name` ∈ {`Write`,`Edit`}。
 
-1. 取 `tool_input.file_path`，解析为绝对路径；`basename` ∈ {`prd.md`,`spec.md`,`plan.md`}，否则 **exit 0（no-op）**。
+1. 取 `tool_input.file_path`；**先把 `\` 归一成 `/`**，再解析为绝对路径（相对路径按事件 `cwd` 拼接）；`basename` ∈ {`prd.md`,`spec.md`,`plan.md`}，否则 **exit 0（no-op）**。
+
+   归一必须发生在**任何**路径判断之前，理由不是整洁：宿主在 Windows 上投递的是反斜杠路径（claude-code #83877 / #64432 实测确认），而 `${file_path%/*}` 这类切分只认正斜杠——不归一就会"切不出目录 → 命中下面的 no-op 守卫 → 静默放行"。v1 正是这样在 Windows 上完全失效的，且失败是静默的。判据是"同一份文件的不同拼写得到同一判定"，见 I9。
 2. 该文件的直接父目录必须是 `<root>/TaskFlowDocs/<task-id>/`，且 `task-id` ∉ {`achieved`,`repository-docs`}，且 `<task-id>/plan.md` 存在（活动任务）。否则 **no-op**。
 3. `stage` = prd→`PRD`，spec→`Spec`，plan→`Plan`。
 4. 读该任务 `plan.md` 的 `> Task version:` 得 `V`。
 5. 若 `released` 中已有 `V|<stage>|…` → **放行**（幂等，不重复消费；同一版本内对同一文档的后续编辑不再拦）。
-6. 否则取 `needAbove` = `released` 中版本为 `V` 的行的最大 `line-no`（无则 0），`maxLine` = `evidence` 的最后一行号。
-7. `maxLine > needAbove` → 追加 `V|stage|maxLine|kind|capability` 到 `released`，**放行**。
+6. 否则取 `consumed` = `released` 中**所有版本**的 `line-no` 最大值（无则 0）——**消费是全局的，不按版本重置**：证据文件是一条时间线，某个版本已经花掉的行就是花掉了，版本升级不能拿旧证据来满足。
+7. `evidence` 的总行数 > `consumed` → 取下一条（`consumed + 1`，**队列式、最旧优先**）并追加 `V|stage|consumed+1|kind|capability` 到 `released`，**放行**。取最新一行会把"先攒几次调用再动笔"这种正常节奏里攒下的调用永久作废。
 8. 否则 → **拒绝**，消息含：缺失的 stage、该 stage 的相位概念类、以及可复制执行的 `hooks/task unaided <stage> --considered "…"` 命令。
 
 第 6–7 步就是"逐阶段新鲜度"：每份文档各消费一条新证据，同一次调用不可能同时满足两个 stage。
@@ -122,6 +124,7 @@ hooks/task unaided <PRD|Spec|Plan> --considered "<concept class>" [--root <path>
 - **I6 非 Claude Code host 无门。** Codex / CodeBuddy / dsh 保持现状（仅 approve 的形状校验）。这是用户已批准的 v1 范围，必须在 `runtime.md` 写明，避免被误读为"全平台已保证"。
 - **I7 兼容：** `promote` / `version` / `archive` / `reopen` 都是 Bash 调用，不经过 `Write`/`Edit`，因此不受门影响——这是 A7 的机理由。
 - **I8 钩子契约对版本敏感。** 必须记录门所依赖的 `PreToolUse`/`PostToolUse` 字段与 matcher 语义是针对哪个 Claude Code 版本实测的（本任务实测于 2026-09-27）。
+- **I9 路径分隔符不得被假设（v2）。** 判据是"同一份文件的不同拼写得到同一判定"：`C:\a\b\prd.md`、`C:/a/b/prd.md`、`/c/a/b/prd.md` 必须同判。实现手段是入口归一（`\`→`/`），不得依赖某一种拼写。**为什么单列一条**：v1 违反了它却不报错——不同拼写得到的是"拦"与"不拦"，而"不拦"与"本来无物可拦"在外部不可区分（宿主侧同类问题见 claude-code #83877）。任何"按路径匹配"的新 hook 都必须满足本条。
 
 ## Validation and Error Semantics
 

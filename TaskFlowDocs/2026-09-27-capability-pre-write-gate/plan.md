@@ -12,7 +12,8 @@
 
 ## Related Tasks
 
-- Todo `TF-20260927-5814d0`（本任务）
+- Todo `TF-20260927-5814d0`（v1 的条目）
+- Todo `TF-20260930-ba3b0c`（**v2 的条目**：`Source` 记 reopen 原因，`Notes` 记本次实测、根因与上游 issue 号）
 - 推进的上游遗留项：`TaskFlowDocs/achieved/2026-09-23-capability-invoke-gate/` 的 Follow-ups 第一条（"hook that refuses first write to `prd.md` without a `[PRD]` line"）
 
 ## Skills / Tools Used
@@ -23,11 +24,12 @@
 
 ## Preconditions
 
-- **工作树隔离已建立**：分支 `feature/capability-pre-write-gate`，工作树 `.worktrees/2026-09-27-capability-pre-write-gate`，base = `origin/main` @ `65ddd0a`（v1.1.0）。分支**未设 upstream**（裸 `git push` 不会直推 main）。
-- **适用仓库文档**（已读，据 `TaskFlowDocs/repository-docs/index.md` 路由）：`CONTRIBUTING.md`（分支前缀、提交格式、PR 模板）、`CODE_STYLE.md`（shell 约定、退出码 `0/2/3`、复用优先、双语 README 对齐）、`LICENSE`、`README.md` + `README.zh-CN.md`、`ROADMAP.md`、`.github/pull_request_template.md`、`RELEASE.md` + `CHANGELOG.md`。无个人规则（`repository-docs/personal.md` 不存在）。
-- **钩子契约已实测**（见 Reference Pointers），门的两个事件面成立。
-- **本任务的文档写入不会被新门拦截**：本机活动插件是 `1.1.0`，仓库里的 hooks 改动在发版重装前不生效（这是本任务最大的外部依赖，见 Verification / Review）。
-- 无并发写入者：本任务 core documents 只有本会话在写。
+- **工作树隔离**：v2 分支 `fix/capability-gate-windows-path`，工作树 `.worktrees/2026-09-27-capability-pre-write-gate`，base = `origin/main` @ `a23fc88`（1.1.1 之后）。v1 在 `feature/capability-pre-write-gate` 上交付并合并为 `ce40f3d`，v1 文档保留在 `old/v1/`。
+- **适用仓库文档**（v1 已读，v2 沿用同一批，据 `TaskFlowDocs/repository-docs/index.md` 路由）：`CONTRIBUTING.md`、`CODE_STYLE.md`、`LICENSE`、`README.md` + `README.zh-CN.md`、`ROADMAP.md`、`.github/pull_request_template.md`、`RELEASE.md` + `CHANGELOG.md`。无个人规则。
+- **钩子契约已实测**（v1，见 Reference Pointers）：门的两个事件面成立。
+- **（v2）真实宿主已在环**：本机活动插件为 **1.1.1**，门与证据钩子确实在会话里触发（本次实测中证据钩子写入了真实记录）。所以 v2 的问题可以在真实会话里观测，不必只靠夹具——反斜杠 fail-open 正是这样发现的。
+- **（v2）修好不等于用户可用**：仓库改动仍要发一版并重装才惠及用户；本步的产出是"下一版带上真正会拦的门"。
+- 无并发写入者：core documents 只有本会话在写。
 
 ## Approval
 
@@ -158,6 +160,23 @@
 - Rollback: 还原上述文件
 - Status: done
 
+### Step 7 — Windows 路径形态归一与回归测试（v2）
+
+- Goal: 反斜杠与正斜杠两种路径拼写得到同一判定；回归用例在"门不做归一"的实现上会红。
+- Dependencies: 无（v1 已交付并发布为 1.1.1；本步修正它在 Windows 上的静默 fail-open）
+- Files: `hooks/capability-gate`、`hooks/smoke-test`、`hooks/smoke-test-windows.ps1`、`skills/taskflow/references/runtime.md`
+- Implementation checklist:
+  - [ ] 门在**任何**路径判断之前把 `\` 归一成 `/`，并把"为什么必须先归一"写成一行注释（含上游 issue 号），而不是留给下一个人重新发现
+  - [ ] `hooks/smoke-test` 新增：同一份文件用正/反斜杠两种写法各判一次——无证据时两者都被拒、有证据时两者都放行；反斜杠形态的非任务目录与 `achieved/**` 仍 no-op
+  - [ ] `hooks/smoke-test-windows.ps1` 的 event `file_path` 改为**反斜杠**（当前是套件自己拼的正斜杠，这正是 v1 漏掉该洞的原因），并保留一条正斜杠用例
+  - [ ] 用**未归一**的实现复跑新增用例，确认它们会红（A14）——用例不得与实现共享同一个错误假设
+  - [ ] `references/runtime.md` 记录该宿主事实（含 issue 号），使下一个"按路径匹配"的 hook 不必重踩
+  - [ ] 复核证据钩子无需改动：实测它拿到的 `cwd` 是 `/d/...`，且只把路径交给 `git -C`
+- Acceptance: A13、A14。顺序是先证明"未归一即红"，再证明"归一即绿"。
+- Verification: 提取的新用例段跑两遍（一遍对未归一的实现、一遍对归一后的实现）+ Windows 套件 + `bash hooks/release-check .`；可移植性下限仍由 CI 的 `macos-latest` 裁定
+- Rollback: 还原上述四个文件——本步不改存储、谓词与逃生舱，回退面就是一处归一与两处用例
+- Status: pending
+
 ## Checkpoints
 
 ### Checkpoint A — after Steps 1–2（地基与门）
@@ -178,6 +197,12 @@
 - [x] 双语 README 行为一致
 - [x] 两套 smoke + fixture-compare + release-check 全绿 —— Windows 套件、release-check、静态下限本机全绿；整段 bash smoke 由 PR #57 的 CI 三平台裁定通过（含 `macos-latest`）；`fixture-compare` 不是检查器，见 Step 6 的更正
 
+### Checkpoint D — after Step 7（v2：路径形态）
+
+- [ ] 反斜杠用例在**未归一**的实现上确实会红（先证明用例有区分力，再谈修好）
+- [ ] 归一后正/反斜杠同判，bash 与 Windows 两套 smoke 全绿
+- [ ] `references/runtime.md` 记下该宿主事实与 issue 号
+
 ## Verification / Review
 
 仓库内可完成的验证（Step 1–6 各自列出的命令）与 PRD A1–A12 的对应关系：
@@ -190,6 +215,7 @@
 | A8 | Step 1 / 2 / 6 的 smoke + 无解释器 PATH + Windows 套件 |
 | A9 | Step 4 保留既有 approve 失败用例 |
 | A10、A11 | Step 5 的文档与 skill 校验 |
+| A13、A14 | **v2 Step 7**：新增用例对同一文件喂正/反斜杠两种写法；先对未归一的实现跑一遍确认会红，再对归一后的实现跑一遍确认全绿 |
 
 **接线本身也已验证（不是只验证钩子脚本）**：从 `hooks/hooks.json` 里取出 `PreToolUse` / `PostToolUse` 各条目的 `command` 原串，按宿主的方式替换 `${CLAUDE_PLUGIN_ROOT}` 后交给 shell 执行——`PreToolUse` 条目对未放行的 stage 返回 `deny`、有证据后放行；`PostToolUse` 的 `Skill|Agent|Task` 条目写出 `invoke|wired:cap`；`mcp__.*` 条目可执行且以 `tool_name`（`mcp__x__y`）入账；`released` 落成 `v1|PRD|1|invoke|wired:cap`。**未覆盖**：matcher 是否真的按宿主语义命中 `Agent`/`mcp__.*`（宿主侧行为，需真实会话）。
 
@@ -241,7 +267,9 @@
 - 发版过程中发现一个与本任务无关的陈旧字段：`.codebuddy-plugin/marketplace.json` 的插件条目里带着 `"version": "1.0.5"`（`4e497c3` 写入后六次发版无人更新）。CodeBuddy 官方 schema 里该字段可选，且 plugin reference 明说与 `plugin.json` 同时设置时以 `plugin.json` 为准、"只应设在一处"；TaskFlow 的版本由 `release-version` 维护在 `plugin.json`，故这是纯死值。已单独开 PR #58 删除，不带进本任务。
 
 ## Change Log
+- 2026-09-30 — 顺带更正 `spec.md` 的判定算法：v1 在 Step 2 修掉两个实现缺陷（消费改为**全局**、取**最旧未消费**一条），实现已如此而 spec 文本仍写着按版本统计、取最新行——属文档落后于代码，趁 v2 一并同步，并把路径归一写进算法第 1 步与新增的 I9。这不是 Task-version 事件，是同一份契约补正。
 - 2026-09-30 reopen — retrieved achieved task `2026-09-27-capability-pre-write-gate` for new work; re-approval required before core changes
+- 2026-09-30 — **取回并升 v2 的原因**：v1 已发布为 1.1.1 并装在本机，于是在**真实会话**里发现门对 Windows 的反斜杠路径**静默放行**（装机包实测：正斜杠 `/d/.../prd.md` → deny；反斜杠 `D:\...\prd.md` → allow 空输出）。上游 claude-code **#83877** / **#64432** 确认这是宿主行为——Windows 上 `tool_input.file_path` 以反斜杠投递，按路径匹配的 hook 会静默 fail open。含义是 v1 的 A1–A5 只在"测试自造的正斜杠形态"下成立。**教训（已写成 R14）**：测试自己拼 event JSON 时，拼出的是测试的假设，不是宿主的事实；测试与实现共享同一个错误假设时会双双通过。
 
 - 2026-09-27 — Plan 初稿：6 个 Step + 3 个 Checkpoint。按 `planning-and-task-breakdown` 的垂直切片规则把"存储 + 捕获钩子"排在门之前。
 - 2026-09-27 — `spec.md` 修正（措辞/方法澄清，非 Task-version 变更）：证据钩子按事件 `cwd` 解析存储，而非按文件路径——`Skill` 的 `tool_input` 里没有路径。该缺口是 Step 5 的 read-only 规划规则逼出来的。
@@ -271,3 +299,4 @@
 ## Version History
 
 - v1 — 前置门 + 证据存储 + `task unaided` 逃生舱 + approve 对账；v1 只接 Claude Code；stage 记录移出 `plan.md`；谓词限定 `Skill`/`Agent`/MCP。
+- v2 — 修正 v1 在 Windows 上的静默 fail-open（R13/R14、A13/A14）：门按 `file_path` 取目录，而宿主在 Windows 上投递反斜杠路径，切不出分隔符即静默放行。范围仅"归一 + 回归测试 + 文档"，不动存储、谓词与逃生舱。用户 2026-09-30 裁定立刻修正（本条即 reopen 的 v2）。
