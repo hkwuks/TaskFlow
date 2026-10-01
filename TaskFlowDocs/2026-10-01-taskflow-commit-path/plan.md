@@ -46,15 +46,15 @@ No spec required — small, self-contained task.
 - Dependencies: none.
 - Files: `CONTRIBUTING.md`.
 - Implementation checklist:
-  - [ ] 在 v3 那两段之后接着说第四条：任务的落地主张记录在**它的 PR 里**——正文与提交（R1）。
-  - [ ] 写明任务在合并之后**不再回写任务文档**，并给出理由：那是一次合并后的任务文档写入，规则已禁止（R2）。
-  - [ ] 写明只有合并后才知道的事实按**核对**处理，不写成分解成回写的承诺；点明核对本身不需要文档（R3）。
-  - [ ] 不与 v3 的措辞冲突：两根轴、draft→ready、隔离规则、发布例外都不动（R4）。
-  - [ ] 逐处核对 `SKILL.md:121` 与 `RELEASE.md`，只在因此不准时才改（R5）。
+  - [x] 在 v3 那两段之后接着说第四条：任务的落地主张记录在**它的 PR 里**——正文与提交（R1）。
+  - [x] 写明任务在合并之后**不再回写任务文档**，并给出理由：那是一次合并后的任务文档写入，规则已禁止（R2）。
+  - [x] 写明只有合并后才知道的事实按**核对**处理，不写成分解成回写的承诺；点明核对本身不需要文档（R3）。
+  - [x] 不与 v3 的措辞冲突：两根轴、draft→ready、隔离规则、发布例外都不动（R4）。
+  - [x] 逐处核对 `SKILL.md:121` 与 `RELEASE.md`，只在因此不准时才改（R5）。
 - Acceptance: A1, A2, A4.
 - Verification: 只读该节，回答两问——「本任务的落地记在哪」「合并后才知道的核对结果呢」。两个都答得出才算过（A2）；需要翻别的文档就是没写成。
 - Rollback: `git restore --source=HEAD -- CONTRIBUTING.md skills/taskflow/SKILL.md RELEASE.md`（本步提交前）。
-- Status: pending
+- Status: done
 
 ### Step 2 — Pin the frozen wording
 
@@ -62,13 +62,13 @@ No spec required — small, self-contained task.
 - Dependencies: Step 1 —— 钉子引的是它的**最终**措辞。
 - Files: `hooks/smoke-test`.
 - Implementation checklist:
-  - [ ] 措辞到此冻结：钉的字符串从改完的文本里复制，只取足够独特的最短片段（先例 `:1391` 取的是段首短句，不取整段），沿用 `grep -q -F --`。
-  - [ ] 加钉位置接在 v3 的 landing 钉段（`:1395-1416`）之后，同属「陈述点」那一族。
-  - [ ] push 分支、以 draft 开 PR、读 CI 三主机结果。
+  - [x] 措辞到此冻结：钉的字符串从改完的文本里复制，只取足够独特的最短片段（先例 `:1391` 取的是段首短句，不取整段），沿用 `grep -q -F --`。
+  - [x] 加钉位置接在 v3 的 landing 钉段（`:1395-1416`）之后，同属「陈述点」那一族。
+  - [x] push 分支、以 draft 开 PR、读 CI 三主机结果。
 - Acceptance: A3；A5 的 CI 部分。
 - Verification: CI 的 `smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` 三项绿。本机跑不了整套，记录为未执行，不写成「已验证」。
 - Rollback: 分支上的普通提交，`git restore` 后重新 push；措辞不改则回滚只涉及 `hooks/smoke-test`。
-- Status: pending
+- Status: done
 
 ### Step 3 — Land by the rule, and record the claim in the PR
 
@@ -76,8 +76,8 @@ No spec required — small, self-contained task.
 - Dependencies: Step 2.
 - Files: `TaskFlowDocs/2026-10-01-taskflow-commit-path/`, `TaskFlowDocs/todo.md`.
 - Implementation checklist:
-  - [ ] 把 CI run 与 PR 模板字段映射写进本 Plan，提交并推送（仍在同一 PR）。
-  - [ ] PR 正文的 Task 字段一次写成覆盖两种状态的形态（评审期间在活动根，末次提交归档到 `achieved/`）——避免 archive 之后再改 body。
+  - [x] 把 CI run 与 PR 模板字段映射写进本 Plan，提交并推送（仍在同一 PR）。
+  - [x] PR 正文的 Task 字段一次写成覆盖两种状态的形态（评审期间在活动根，末次提交归档到 `achieved/`）——避免 archive 之后再改 body。
   - [ ] `hooks/task complete --user-accepted`（需用户验收），再 archive；提交并推送（仍在同一 PR）。
   - [ ] `gh pr ready` 转正，交用户合并。
   - [ ] 落地主张写进 PR 正文，**不写回本 Plan**（A6）。
@@ -94,11 +94,26 @@ No spec required — small, self-contained task.
 
 ## Verification / Review
 
+- 2026-10-01 Step 2: CI run 36878119261 六项全绿（含 smoke 三主机）；本机跑不了整套，仅抽出本段所需的两个定义单独执行并通过
+
+- 2026-10-01 Step 1: 只读该节即可答出两问；git diff 佐证所钉句子全为新增；SKILL/RELEASE 逐处核对后确认无需改动
+
 - A1、A2、A4 是散文主张，靠阅读判定——与 `2026-09-30-release-ci-test-policy` 及本任务 v2/v3 记录的同一限制一致。
 - A3 由 CI 裁定：钉子本身是 smoke 套件的一部分。
 - A5 本机执行三项：`git diff --check`、`bash hooks/release-check .`、Skill 的 `quick_validate`（本机须 `PYTHONUTF8=1`，否则 GBK 解码报错）。
 - A6 的落地部分在合入后**核对**（`git merge-base --is-ancestor`），结果只说给用户，不写回本 Plan——见 Preconditions。本 Plan 自身不含任何回写承诺，这可由阅读直接确认。
 - 未执行：`bash hooks/smoke-test` 整套，原因见 Preconditions。
+- 已执行（**v4**，2026-10-01，分支 `docs/taskflow-commit-path-v4`，PR #67，draft）：
+  - `git diff --check` — clean；`bash hooks/release-check .` — `STATUS: pass`；`quick_validate.py skills/taskflow` — `Skill is valid!`（须带 `PYTHONUTF8=1`，否则本机 GBK 解码报错）。
+  - 新增钉子单独执行并通过。**抽取方式本身有讲究**：第一次把 `:1294-1428` 整段抽出，结果在相邻的 fixture 段失败——那些段调用文件前部定义的工具（`digest`、`tmp` 等），抽取范围不含它们，所以那里的失败与本次改动无关，也**不构成**对本段的校验。改为只抽 `repo=` / `skill=` 两行定义加本段，才是一次可信的最小校验。记下来，免得下次又把大范围抽取当证据。
+  - 钉子的**非空过**：`git diff` 显示四条被钉片段全在新增的那一段里，对改前文本必然失败。
+  - CI（run `36878119261`，sha `f9930f5`）— `success`，六项全绿：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals`。三个宿主都执行了新增的钉子段。
+  - R5 的核对结论：`SKILL.md:121` 说路由是「两个独立问题」，新条款不是第三个路由问题，而是第一个答案内部的约束——不改；`RELEASE.md:161-166` 讲发布作为不隶属任务的 bookkeeping——不改。两处都**只核对、未改动**，结论记在此处。
+- PR 模板字段映射（`.github/pull_request_template.md`，逐字段，PR #67）：
+  - `Summary` — 写清 v3 蕴含却未写出的第四条，以及 v3 首次实战撞上它的具体经过（PR #66 的 Plan）。
+  - `TaskFlow traceability` 四项 — `Task` 写成覆盖两种状态的形态；`Scope`、`Base branch`、`Target repository` 按实际填写。
+  - `Verification` 四项 — `git diff --check` 与 Skill 校验在 push 前即可判、已勾；「Hooks workflow pass」与「Results recorded in the TaskFlow Plan」在 push 之后才可判，故 PR 开出时留空，本提交补上后者。模板未要求的字段一律不加。
+  - `Review boundaries` 四项 — 全部勾选；「Known limitations」指向本 Plan 的 Follow-ups，不另起一套说法。
 
 ## Change Log
 - 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
