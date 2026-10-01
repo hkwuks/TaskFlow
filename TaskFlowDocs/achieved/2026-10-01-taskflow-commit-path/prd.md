@@ -1,6 +1,6 @@
 # Commit Todo, release, and TaskFlowDocs changes straight to main when the author
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

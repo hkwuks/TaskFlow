@@ -1,6 +1,6 @@
 # Plan — Commit Todo, release, and TaskFlowDocs changes straight to main when the author
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -43,13 +43,13 @@ No spec required — small, self-contained task.
 - Dependencies: none.
 - Files: `CONTRIBUTING.md`.
 - Implementation checklist:
-  - [ ] Open the section by naming what it routes — bookkeeping-class commits — instead of asking a general landing question (R6).
-  - [ ] Say plainly that an ordinary code, hook, Skill, or review-needing documentation change keeps its pull request (A7).
-  - [ ] Leave the permission criterion, the worktree/isolation separation, and the checkable facts as they are; v1 got those right.
+  - [x] Open the section by naming what it routes — bookkeeping-class commits — instead of asking a general landing question (R6).
+  - [x] Say plainly that an ordinary code, hook, Skill, or review-needing documentation change keeps its pull request (A7).
+  - [x] Leave the permission criterion, the worktree/isolation separation, and the checkable facts as they are; v1 got those right.
 - Acceptance: A1, A2, A5, A7.
 - Verification: read the section **alone** against A7 — a contributor must be able to answer "how does a code change land?" from it, without any other document.
 - Rollback: `git restore --source=HEAD -- CONTRIBUTING.md` before this step is committed.
-- Status: pending
+- Status: done
 
 ### Step 2 — Check the two documents that point at it
 
@@ -57,13 +57,13 @@ No spec required — small, self-contained task.
 - Dependencies: Step 1. Whether they are still accurate is a question about the new text.
 - Files: `RELEASE.md`, `skills/taskflow/SKILL.md`.
 - Implementation checklist:
-  - [ ] Read `RELEASE.md` against the new wording. A release is one of the covered classes, so it should need nothing; change it only if that turns out false.
-  - [ ] `SKILL.md` summarises the coverage as "the changes with nothing to review" — check that still matches the stated scope, and correct it if not.
-  - [ ] Do not restate the scope in either; they point at `CONTRIBUTING.md` (v1's A7, still in force).
+  - [x] Read `RELEASE.md` against the new wording. A release is one of the covered classes, so it should need nothing; change it only if that turns out false.
+  - [x] `SKILL.md` summarises the coverage as "the changes with nothing to review" — check that still matches the stated scope, and correct it if not.
+  - [x] Do not restate the scope in either; they point at `CONTRIBUTING.md` (v1's A7, still in force).
 - Acceptance: A3, A4.
 - Verification: read all three together and confirm they describe one scope, not two.
 - Rollback: `git restore --source=HEAD -- RELEASE.md skills/taskflow/SKILL.md` before this step is committed.
-- Status: pending
+- Status: done
 
 ### Step 3 — Verify and land
 
@@ -71,14 +71,14 @@ No spec required — small, self-contained task.
 - Dependencies: Steps 1 and 2.
 - Files: `TaskFlowDocs/2026-10-01-taskflow-commit-path/`, `TaskFlowDocs/todo.md`.
 - Implementation checklist:
-  - [ ] Run `git diff --check` and `bash hooks/release-check .`; record results, and any unavailable check as unavailable.
-  - [ ] Re-check the permission facts before choosing the path, and record the command output that decided it.
-  - [ ] Push the commit stack to `main` directly. Open a pull request instead if the permission check fails, and record the reversal here.
-  - [ ] Move `TF-20261001-331f7c` to `done` and archive this task.
+  - [x] Run `git diff --check` and `bash hooks/release-check .`; record results, and any unavailable check as unavailable.
+  - [x] Re-check the permission facts before choosing the path, and record the command output that decided it.
+  - [x] Push the commit stack to `main` directly. Open a pull request instead if the permission check fails, and record the reversal here.
+  - [x] Move `TF-20261001-331f7c` to `done` and archive this task.
 - Acceptance: A6.
 - Verification: `git ls-remote origin main` names the landed commit; `hooks/release-check .` `pass`; `git diff --check` clean; CI green on the push. `hooks/smoke-test` is left to CI — the change touches no hook, and that is the rule this task landed.
 - Rollback: `git revert` the landed commit and push that, per the same rule.
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -96,8 +96,16 @@ No spec required — small, self-contained task.
   - 落地 — `git push origin HEAD:main`，`f3d893a..cadee53`，未开 PR。**这是改动第一次以它自己定义的路径落地。**
   - CI（run `36811386566`，sha `cadee53`）— `success`，六项全绿：`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `todo-merge-audit` / `evals`。
   - 未执行 `bash hooks/smoke-test`：改动不碰 hook，且按本次立下的规则（本地不重跑 CI 已覆盖的检查）交由 CI 裁定。
+- 已执行（**v2**，2026-10-01）：
+  - A7 —— 单独读 `CONTRIBUTING.md` § Where the commit lands 即可答出「代码改动怎么落地 = PR」，依据是这一节自己写的 `Everything else keeps its pull request. Code, hooks, the Skill, and any document whose wording is worth reviewing... If you are unsure which side a change falls on, it is a pull request.` v1 做不到这一点，那时范围只由末句隐含。
+  - 顺带发现并修正：`RELEASE.md` 把判据写成「the criterion `CONTRIBUTING.md` states for **every commit**」，而发布只是三类之一——措辞同样越界；`SKILL.md` 的指引同病。两处随本次改正。
+  - `git diff --check` — clean；`bash hooks/release-check .` — `STATUS: pass`。
+  - 权限复核（落地前重查，未沿用 Preconditions）：`permissions` 含 `push: true`；`.../branches/main/protection` → `404 Branch not protected`。
+  - 落地 — `git push origin HEAD:main`，`1c23f0d..7d7a60d`，未开 PR。CI（run `36813488643`，sha `7d7a60d`）— `success`。
+  - **过程中撞到一个真实缺陷**（已记为 `TF-20261001-da6047`，本次不修）：`hooks/reopen` 把目录搬回活动根后，没有把 Todo 的 `Task:` 从 `achieved/...` 改回活动路径，而 `hooks/archive` 是会改的。于是 `hooks/task state` 报 `Todo entry not found: 2026-10-01-taskflow-commit-path`。本次手工改正那一行才继续；修法属于那条 todo。
 
 ## Change Log
+- 2026-10-01 — v2 实现、验证、落地完成。`CONTRIBUTING.md` 改为**先声明路由范围**（bookkeeping 三类）再讲判据，并明写「其余一律走 PR、拿不准就走 PR」；`RELEASE.md` 与 `SKILL.md` 中把范围写成「every commit」的两处随本次改正。落地仍为直推 `main`（`7d7a60d`），CI run `36813488643` `success`。
 - 2026-10-01 — **v2**。把规则的字面收紧到它一直以来的意图。起因是用户追问这条规则的范围（「所有开发都优先直推，还是只有维护走直推」）；答复是窄范围，而落地的 `CONTRIBUTING.md:37` 写成了普适句、`:39` 的三类沦为例子，只有 `:51` 末尾一句隐含地把范围拉回。PRD 的 R6 与 A7 即为此而加。v1 的改动内容与落地方式不变。
 - 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
 
