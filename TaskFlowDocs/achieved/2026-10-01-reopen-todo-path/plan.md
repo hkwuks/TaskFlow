@@ -1,6 +1,6 @@
 # Plan — hooks/reopen does not rewrite the Todo Task: path back to the active root, so ta
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
