@@ -87,17 +87,17 @@ No spec required — small, self-contained task.
   - [x] 本地复刻场景：在一个临时 root 上走 intake → promote → 补批准 → `state in_progress` → `complete --user-accepted` 得到已归档状态，然后 `hooks/reopen`，逐条核对 A1/A2；再各建一个 fixture 核对 A3/A4（含**反向验证**：把改前的 `reopen` 换回，断言必须失败）。脚本以临时文件交给 `bash`，跑完即删，不落盘、不留在仓库里。
   - [x] `git diff --stat` 复核改动面；`hooks/task`、`hooks/archive`、`skills/**` 零改动（A6）——任务自带 `todo.md` 的字面偏差同前记入 Verification。
   - [x] 两条本地静态检查：`git diff --check`；`bash -n hooks/reopen`。`quick_validate.py` 只适用于 Skill，本次未改 Skill，不跑。
-  - [ ] 推分支、开 PR、按模板逐项填字段；smoke 套件整体不在本地重跑，判定以 CI `Hooks` 三平台为准（A7）。
+  - [x] 推分支、开 PR、按模板逐项填字段；smoke 套件整体不在本地重跑，判定以 CI `Hooks` 三平台为准（A7）。
 - Acceptance: A1–A8 全部满足；CI `Hooks` 三平台通过。
 - Verification: CI run URL 记入本 Plan；PR 模板字段逐项映射。
 - Rollback: 丢弃分支即可，`main` 未受影响。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
 - [x] Step 1 后：`bash -n hooks/reopen` 通过；本地三例（正向 / 负向 / 回滚）全绿。
 - [x] Step 2 后：本地跑抽取出的测试代码全绿，且反向验证（换回改前 `reopen`）在第一节即失败。
-- [ ] Step 3 后：A1–A8 逐条有结论，CI `Hooks` 通过，PR 已开且模板字段完整。
+- [x] Step 3 后：A1–A8 逐条有结论，CI `Hooks` 通过，PR 已开且模板字段完整。
 
 ## Verification / Review
 
@@ -107,8 +107,15 @@ No spec required — small, self-contained task.
 - **A4 —— 达成。** 回滚 fixture 的条目带 achieved 的 `Task:` 行但**没有** `- Status:`，于是写成功、校验失败：`reopen` 退出非零，输出含 `FAIL: Todo status not promoted`（断言专门钉这条，以免把「预检就拒绝」误读成「回滚生效」），目录回到 `achieved/`，`todo.md` 与 `plan.md` 的 sha256 与运行前一致。
 - **A5 —— 达成。** 既有的三项断言（目录搬回、Plan 有 `reopen` 行）继续通过；另外把紧随其后的 `== version bumps root + archives only changed docs ==` 一节也跑了，确认新增的 `task state … planning` 调用没有破坏后续流程。
 - **A6 —— 达成，字面偏差同前。** `git diff --stat` 见下：两个目标文件之外还有本任务自己的 `TaskFlowDocs/todo.md` 与任务目录（本仓库每个任务提交都带着它们）。`hooks/task`、`hooks/archive`、`skills/**` **零改动**，逐条成立。
-- **A7 —— 见下。** 判定以 CI `Hooks` 三平台为准。
+- **A7 —— 达成。** CI `Hooks` 三平台通过：run `36820873430`（`fix/reopen-todo-path`，`pull_request`，success，49s）。PR https://github.com/hkwuks/TaskFlow/pull/65 （base `main`，head `fix/reopen-todo-path`）。
 - **A8 —— 如实记录，见下。**
+
+**PR 模板字段映射**（`.github/pull_request_template.md`，逐项无跳过）
+
+- `## Summary` → PR 正文前三段：缺陷与断点、reopen 现在写回的四个字段、以及「文件内容全改完再 `mv`」这一顺序设计。
+- `## TaskFlow traceability` 四项 → `Task`、`Scope`、`Base branch`、`Target repository` 逐项填写，无空项。
+- `## Verification` 四项 → `Hooks` run `36820873430`（success）已勾并附链接；`git diff --check` 与 `bash -n hooks/reopen` 通过；Skill 校验一栏**明写不适用且未运行**（本次未改 Skill），不冒充通过；结果记录于本节。
+- `## Review boundaries` 四项 → 无密钥、无额外文件、remote/base 假设已述、限制与 follow-up 指向 `## Follow-ups`。
 
 **未在本地重跑、且如实记为「未跑」的检查**：整段 `bash hooks/smoke-test`。本机 Windows + MSYS 上它在无解释器一节（`:53-117`）中止，而那一节**早于** reopen 一节（`:645`），所以本机根本走不到相关断言。本地跑的是把 `:645-745`（reopen 三节 + 紧随的 version 一节）**抽取出来、配等价 fixture** 执行的**同一份测试代码**——不是另写一套，也不是套件运行结果，两者不得混读。
 
