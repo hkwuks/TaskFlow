@@ -136,6 +136,7 @@ No spec required — small, self-contained task.
 
 ## Change Log
 - 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
+- 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
 - 2026-10-01 — **v3**。起因是所有者提出：PR 里的文档操作应当随同一个 PR 提交，不要为文档操作另开 PR。裁定把 landing 规则拆成两根独立的轴——「作者能否推送」路由**不隶属任何任务**的 bookkeeping；任务自己的文档随该任务的 PR 落地。类目表里的「A task's status and archive」因此移出权限判据。v1/v2 的权限判据、隔离规则与发布例外均不变，v3 只改这一项的归属并新增 draft→ready 的机制。
 - 2026-10-01 — v3 实现完成并推送（`5b4cbfc`，PR #66 开为 draft）。三处文档改动落定，`hooks/smoke-test` 加六条字面串钉（含一条负向钉：`A task's status and archive` 不得回来）。CI run `36827790066` 六项全绿。
 - 2026-10-01 — **一处相对 Plan 的偏离**：Plan 把加钉位置写成「`:1240-1400` 一带的既有措辞钉段」。实际落点是**新起一节**（`:1395-1416`），紧接「a release runs RELEASE.md…」那节之后，而不是并入既有的 artifact-language 钉段——因为本次钉的是 landing 规则，与语言规则不是同一件事，合在一起会让那一节的标题说谎。`:1395` 仍在所写带内，但该带因此变长；记下以免日后再按 `:1240-1400` 去找。
