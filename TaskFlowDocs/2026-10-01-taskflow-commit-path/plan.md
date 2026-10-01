@@ -105,6 +105,7 @@ No spec required — small, self-contained task.
   - **过程中撞到一个真实缺陷**（已记为 `TF-20261001-da6047`，本次不修）：`hooks/reopen` 把目录搬回活动根后，没有把 Todo 的 `Task:` 从 `achieved/...` 改回活动路径，而 `hooks/archive` 是会改的。于是 `hooks/task state` 报 `Todo entry not found: 2026-10-01-taskflow-commit-path`。本次手工改正那一行才继续；修法属于那条 todo。
 
 ## Change Log
+- 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
 - 2026-10-01 — v2 实现、验证、落地完成。`CONTRIBUTING.md` 改为**先声明路由范围**（bookkeeping 三类）再讲判据，并明写「其余一律走 PR、拿不准就走 PR」；`RELEASE.md` 与 `SKILL.md` 中把范围写成「every commit」的两处随本次改正。落地仍为直推 `main`（`7d7a60d`），CI run `36813488643` `success`。
 - 2026-10-01 — **v2**。把规则的字面收紧到它一直以来的意图。起因是用户追问这条规则的范围（「所有开发都优先直推，还是只有维护走直推」）；答复是窄范围，而落地的 `CONTRIBUTING.md:37` 写成了普适句、`:39` 的三类沦为例子，只有 `:51` 末尾一句隐含地把范围拉回。PRD 的 R6 与 A7 即为此而加。v1 的改动内容与落地方式不变。
 - 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
