@@ -32,6 +32,24 @@ cd .worktrees/<slug>
 
 `skills/taskflow/SKILL.md` states the same rule where the phases are defined.
 
+### Where the commit lands
+
+Everything above is about **isolation** — keeping a task's work off whatever branch happened to be checked out. Landing is a separate question, and one fact decides it: **can the author push the target branch?**
+
+- If they can, the commits go straight to it, with no pull request. Todo entries, a task's status and archive, and release execution land this way — from a task worktree that means pushing the branch's commits to the base, because the branch there is a work surface, not a proposal.
+- If they cannot, open a pull request.
+
+Whether you can push is a checkable fact, not a job title — the target branch's protection rules, and the author's role on the repository:
+
+```bash
+gh api repos/<owner>/<repo> --jq .permissions
+gh api repos/<owner>/<repo>/branches/<base>/protection
+```
+
+An unprotected branch plus a role carrying `push` is the direct path. A protected branch, a read-only role, or a fork you cannot write to is a pull request. Neither answer is permanent — protection and roles are configuration — so check rather than remember, and do not infer it from who someone is.
+
+This does not relax the rule above. A worktree isolates a task's work; this decides where that work's commits go, and the isolation rule is unchanged. The three classes named here are the ones with nothing to review — an archive, a status move, a release pin. A change that does need review keeps its pull request.
+
 ## Branches and commits
 
 Use short-lived branches named `feature/<description>`, `fix/<description>`, `docs/<description>`, or `chore/<description>`. Keep commits focused and use `<type>: <imperative description>` (for example, `docs: clarify fork workflow`). Separate unrelated refactors and formatting changes.
