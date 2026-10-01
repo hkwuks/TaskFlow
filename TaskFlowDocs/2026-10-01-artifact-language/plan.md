@@ -92,19 +92,19 @@ No spec required — small, self-contained task.
   - [x] 逐条核对 A1–A9，结论写入 `## Verification / Review`。
   - [x] `git diff --stat` 复核改动面；`CODE_STYLE.md`、`evals/**`、`.github/**` 零改动（A6）——字面偏差已记入 Verification。
   - [x] 两条本地静态检查（`CONTRIBUTING.md` § Checks）：`git diff --check`；`quick_validate.py skills/taskflow`（本机 `python3` 为 Store stub，以 `python` 代之，并需 `PYTHONUTF8=1`，见 Verification）。
-  - [ ] 推分支、开 PR、按模板逐项填字段；smoke 套件整体不在本地重跑，判定以 CI `Hooks` 三平台为准（A9）。
+  - [x] 推分支、开 PR、按模板逐项填字段；smoke 套件整体不在本地重跑，判定以 CI `Hooks` 三平台为准（A9）。
   - [x] A5 的下游复核义务写入 `## Follow-ups`，并在 `TaskFlowDocs/todo.md` 另立相邻缺陷的待办（`TF-20261001-efbc51`）。
 - Acceptance: A1–A9 全部满足；CI `Hooks` 三平台通过。
 - Verification: CI run URL 记入本 Plan；PR 模板字段逐项映射。
 - Rollback: 丢弃分支即可，`main` 未受影响。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
 - [x] Step 1 后：`artifacts.md` 单读可判，且英文行名单与两处被钉字符串逐条未变。
 - [x] Step 2 后：两文件交叉核对无重复定义、无悬空指针。
 - [x] Step 3 后：删条款能令该节失败，恢复后通过。
-- [ ] Step 4 后：A1–A9 逐条有结论，CI `Hooks` 通过，PR 已开且模板字段完整。
+- [x] Step 4 后：A1–A9 逐条有结论，CI `Hooks` 通过，PR 已开且模板字段完整。
 
 ## Verification / Review
 
@@ -116,8 +116,16 @@ No spec required — small, self-contained task.
 - **A6 —— 达成，但字面有一处必须点明。** `git diff --stat` 为四个文件：`hooks/smoke-test`(+10)、`skills/taskflow/SKILL.md`(+1/−1)、`skills/taskflow/references/artifacts.md`(+6/−2)、`TaskFlowDocs/todo.md`(+8/−3)。第四个是本任务自己的 Todo 条目，本仓库每个任务提交都带着它（`7d7a60d`、`cb4423e` 各带 15 行 `todo.md` 改动），A6 第一句漏列了它——判据写窄，非改动越界，本任务不对 A6 作事后改字。A6 明列的排除项 `CODE_STYLE.md`、`evals/**`、`.github/**` **零改动**，逐条成立；任务目录 `TaskFlowDocs/2026-10-01-artifact-language/` 为新增未跟踪文件。
 - **A7 —— 达成。** `artifacts.md` 的英文行名单整段未进入 `git diff`；`hooks/smoke-test` 原已钉的 14 个名字与 `^## Approval$`、`^- Status:`、`> Task version:`、`### Step ` 四个 token 全部继续匹配；两条反向禁止（`` `## ` section headings ``、`` `## ` headings ``）未被触发。
 - **A8 —— 达成。** 新增的 5 条钉字符串逐条命中原条款；把 `That exemption ends at the headings` 从副本里删去后该钉不再匹配，即被删时该节会 `exit 1` 并打印 `FAIL artifact language rule does not pin: …`。
-- **A9 —— 见下。** 本地不重跑 smoke 套件；判定以 CI `Hooks` 工作流三平台结论为准。
-  - CI run: 待推分支后填写。
+- **A9 —— 达成。** 本地不重跑 smoke 套件；判定以 CI `Hooks` 工作流三平台结论为准。
+  - CI run: `36816945250`（`Hooks`，`docs/artifact-language`，`pull_request`，success，54s）。
+  - PR: https://github.com/hkwuks/TaskFlow/pull/64 （base `main`，head `docs/artifact-language`）。
+
+**PR 模板字段映射**（`.github/pull_request_template.md`，逐项无跳过）
+
+- `## Summary` → PR 正文前三段：规则从未按起草者限定；`38adbbb` 新增的骨架豁免以 `hooks/task promote` 为主语而被读宽，`d72c2b2` 使能力调用成为常规步骤后从罕见变为必经；三处改动与 `hooks/smoke-test` 的钉。
+- `## TaskFlow traceability` 四项 → `Task`、`Scope`、`Base branch`、`Target repository` 逐项填写，无空项。
+- `## Verification` 四项 → `Hooks` run `36816945250`（success）已勾并附链接；`git diff --check` 干净；`quick_validate.py` 通过；结果记录于本节。
+- `## Review boundaries` 四项 → 无密钥、无额外文件、remote/base 假设已述、限制与 follow-up 指向 `## Follow-ups`。
 
 **未在本地重跑、且如实记为「未跑」的检查**：`bash hooks/smoke-test` 整段在本机 Windows + MSYS 上跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，未修改的 `origin/main` 在同一处同样失败），故按 `CONTRIBUTING.md` § Checks 交给 CI。上面 A7/A8 是我手工执行该节**等价 grep** 的结果，不是套件运行结果，两者不得混读。
 
