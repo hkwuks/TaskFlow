@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.3] — 2026-10-01
+
+### Fixed
+
+- **`hooks/reopen` undoes what `hooks/archive` wrote into the Todo.** Reopening an archived task moved the directory back to the active root and stopped there, leaving the entry's `Task:` line pointing at `TaskFlowDocs/achieved/<task>/`. `hooks/task` locates an entry by the literal substring `TaskFlowDocs/<task>/`, which that spelling does not contain, so the first `state`, `get`, `progress`, or `complete` after a reopen failed with `Todo entry not found` — and the only way to continue was to hand-edit `todo.md`. Measured in a live session on 2026-10-01 and recorded there as `TF-20261001-da6047`. `reopen` now writes `Task:` back to the active root, `Status: promoted`, a reopen-specific `Next action`, and `Updated:`, and it carries the three guarantees `archive` has: a fail-closed preflight, a rollback, and a post-write verification. The ordering is part of the fix rather than an accident of it — every file-content change is made while the tree is still in its original layout, so the single `mv` is the last mutation and the rollback never has to put a file back into a directory that has already moved out from under it.
+
+### Changed
+
+- **The task-document language rule binds the document, not whoever drafts it.** A capability invoked for a phase supplies a shape to fill, and prose folded in from it is written in the user's working language exactly as prose written directly is; the language of a template is not a policy adopted along with it. The scaffold exemption now covers any skeleton rather than `hooks/task promote`'s alone, and states where it ends: an unedited scaffold heading may stay in the language it arrived in, and it follows the rule once edited. The boundary the hooks read is unchanged.
+- **The landing rule is two independent questions, not one.** A task's documents — its PRD, Spec, and Plan, the verification record written into the Plan, and the archive — land on the task's branch inside that task's own pull request, whatever the author's push permission. Push permission routes only the bookkeeping that belongs to no task: a Todo entry edited on its own, a `reopen`, release execution, and documentation maintenance with no task behind it. The section previously stated one permission criterion with a list of covered classes beneath it, which read as covering every change; a task's documents could then be pushed to the base outside its pull request, and on 2026-10-01 that happened twice in a row — one Plan record had to be cherry-picked onto `main`, and two archives were pushed after their merges.
+- **A task's pull request is opened as a draft, and marked ready only once its documents are in it.** The Plan record and the archive can only be written after the branch is pushed and CI has run, so a merge otherwise arrives before the documents do. A draft is a state GitHub enforces and a reader sees; a sentence in the body is only a request.
+- **A task's landing claim is recorded in that pull request, not written back afterwards.** Because the verification record itself now lands inside the pull request, a fact that exists only once the merge has happened has no place in the task's documents — writing it back would be a task document pushed to the base outside its own pull request. Such a criterion is stated as a check, and the merge topology is the evidence.
+- **CI is named the test authority.** `CONTRIBUTING.md` and `RELEASE.md` now say that the smoke matrix runs on three hosts for every pull request and every push to `main`, so what stays local is what CI does not run — the Skill validator and `git diff --check`. Both READMEs' description of the check policy follows.
+
+### Compatibility
+
+- **No hook gains an interpreter dependency.** The smoke job still installs no language runtime, and the four host manifests and the `hooks.json` wiring are unchanged.
+- **`reopen`'s Todo rewrite touches only the entry it retrieves.** Entries left broken by an older `reopen` are not repaired retroactively — `hooks/task` still cannot find them, and the remedy for those is to correct the `Task:` path by hand once, as it was before this release.
+- **The rule changes are statements, not mechanics.** The landing rule, the landing-claim rule, and the artifact-language rule live in `CONTRIBUTING.md`, `RELEASE.md`, and the Skill. They change what is written and where it is recorded; the pre-write gate, the evidence store, the escape hatch, and every hook's behaviour are untouched apart from `reopen`.
+- **All four hosts see the same rule text and the same `reopen` fix**; no host-specific path changed.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/repository-check .` — exits `2` (`needs-user-input`) on the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement`, which no Todo `- Task:` line names. Recorded rather than repaired here: it is pre-existing, it was recorded the same way in 1.1.2, and repairing it is a bookkeeping change a release does not carry.
+- `bash hooks/smoke-test` — **not run locally, and recorded as skipped**, per the CI-first policy this release records. The release commit's difference from `fdc4139` — the last commit on `main` before this release began, CI run `36880093919` on `main`, `success` — is the version literals and this section, which the suite does not exercise; the commit after it moves only the two marketplace catalogs. The suite ran on all three hosts for each change this release ships, while each was a pull request.
+- The `reopen` fix was verified locally by extracting the reopen section of `hooks/smoke-test` and running it against an equivalent fixture, because the full suite aborts in its no-interpreter section on the Windows/MSYS host this was developed on. Swapping the pre-change `hooks/reopen` back in fails the first new assertion, so the assertions are not vacuous. The same assertions ran in the three-host matrix on PR #65 (run `36820873430`).
+
+### Known limitations
+
+- **The landing rule's draft boundary is a convention, not a mechanism.** No CI job fails if a pull request is merged before its documents are in it; the draft state is what makes it visible.
+- **The landing-claim rule is prose only.** No hook refuses a Plan that promises to write a result back after the merge; the rule is read, not enforced.
+- **Entries broken by an older `reopen` are not repaired retroactively.** `hooks/task` still cannot find an entry whose `Task:` path points at `achieved/`.
+- Unchanged from 1.1.2: `Agent` and `mcp__.*` matching is inferred from the tool-call lifecycle rather than measured; a leading UTF-8 BOM makes both gate hooks no-op; `Bash` can still write the evidence store and `reference/index.md` is not gated; the newer hooks are recorded `100644`.
+- Pre-existing: `bash hooks/repository-check .` still reports the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`; it does so on 1.1.2 as well.
+
 ## [1.1.2] — 2026-09-30
 
 ### Changed
