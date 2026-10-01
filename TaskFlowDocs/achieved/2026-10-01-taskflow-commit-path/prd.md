@@ -1,6 +1,6 @@
 # Land a task's documents with its pull request, and route only standalone bookkeeping by push permission
 > Task version: v3
-> Status: ready
+> Status: completed
 
 ## Goal
 

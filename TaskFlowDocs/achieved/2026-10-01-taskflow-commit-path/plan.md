@@ -1,6 +1,6 @@
 # Plan — Land a task's documents with its pull request, and route only standalone bookkeeping by push permission
 > Task version: v3
-> Status: ready
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -91,12 +91,12 @@ No spec required — small, self-contained task.
 - Implementation checklist:
   - [x] 把 CI run、PR 模板字段映射与本步的验证结果写进本 Plan，提交并推送（仍在同一 PR）。
   - [x] **先切断那个环**：PR body 的 Task 字段一次写成两份都覆盖的形态——评审期间任务在活动根，最后一个提交把它归档到 `achieved/`。一次写完，避免 archive 之后再改 body。
-  - [ ] `hooks/task complete --user-accepted`，再 `hooks/archive`；提交并推送（仍在同一 PR）。archive 之后不再有直推 `main` 的动作。
-  - [ ] `gh pr ready` 转正，交用户合并。
+  - [x] `hooks/task complete --user-accepted`，再 `hooks/archive`；提交并推送（仍在同一 PR）。archive 之后不再有直推 `main` 的动作。
+  - [x] `gh pr ready` 转正，交用户合并。
 - Acceptance: A8.
 - Verification: 合入后 `git log --oneline main` 显示 archive 提交在 PR 的合并之内、而不是合并之后的直推；`git ls-remote origin main` 指向该合并。
 - Rollback: PR 被拒则用 `hooks/reopen 2026-10-01-taskflow-commit-path` 取回（`TF-20261001-da6047` 已修复此路径），并按 PRD 的 Risks 记录这次配对的首次实战结果。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -105,6 +105,8 @@ No spec required — small, self-contained task.
 - After Step 4：PR 内含 archive，且已合入 `main`。
 
 ## Verification / Review
+
+- 2026-10-01 Step 4: PR #66 于 2026-10-01 由用户验收；archive 提交与 CI 记录同在该 PR 内，不另开 PR、不合并后直推
 
 - 2026-10-01 Step 3: CI run 36827790066 六项全绿（含 smoke 三主机）；本机未跑整套，见 Preconditions
 
