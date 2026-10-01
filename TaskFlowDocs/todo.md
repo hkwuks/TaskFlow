@@ -52,6 +52,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Notes: 用户 2026-10-01 提出：Todo 改动、发布、以及 TaskFlowDocs 的处理，凡作者能直接推 main 的直接推 main，不为「同步」这类改动开 PR；只有没有推送权限时才走 PR。判据是**权限**，不是改动大小——这一点与仓库现有的「一任务一分支 + PR」规则冲突，需要裁定边界。
 - 本仓库实测（2026-10-01）：`main` 未受保护（`gh api repos/hkwuks/TaskFlow/branches/main/protection` → 404 Branch not protected），当前身份为 admin（`permissions` 含 `push: true`），故本仓库可直接推。**一般规律**（用户所问）：仓库主人有 admin/write，默认可直推；协助者通常只有 read 或无访问权，只能 fork 后提 PR。但这不自动成立——给协作者 write、或给 main 加「必须走 PR」的保护规则，都会改变结论；反过来保护规则也会让 owner 自己推不进去。
 - reopen 来源（2026-10-01）：用户追问「这个 todo 创立的目的是什么——所有开发都优先直推，还是只有维护走直推？」。答复与记录一致：意图一直是**窄**——Todo 条目、任务状态与归档、发布执行；批准时选的也是「窄：只含 bookkeeping」。但落地的 `CONTRIBUTING.md:37` 写成了普适句（「Landing is a separate question, and one fact decides it: **can the author push the target branch?**」），读起来像**所有**改动都按权限选路径，而 `:39` 列举的三类沦为例子；真正把范围拉回来的只有 `:51` 末尾一句。**意图是窄的，字面是宽的**——本次把它收紧到字面与意图一致。
+- reopen 来源（2026-10-01，第二次）：用户提出「PR 里的文档操作应当随同一个 PR 提交，不要为文档操作另开 PR」，裁定拆成两根独立的轴（v3）。**v3 合并后首次实战立刻暴露一条缺口**：v3 把「Plan 里的验证记录」一并收进 PR，于是「合入后回填 Plan」这个动作变成规则明令禁止的合并后写入——任务文档里没有位置安放只有合并后才知道的事实。v3 的 PR #66 里我的 Plan 恰好写了「合入后按 A8 核对并回填本处」，正要撞上。用户裁定**取消这个期待**（不改文件），并改为现在就把这句写进规则。本次即 v4：任务落地的主张写在它的 PR 里（正文与提交），任务文档在合并之后不再回写；A8 一类的核对按「核对」表述，不写成分解成回填的承诺。
 
 ## Reconcile the artifact-language rule with capability-written documents: a phase 
 
