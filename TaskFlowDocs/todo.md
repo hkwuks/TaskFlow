@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Commit Todo, release, and TaskFlowDocs changes straight to main when the author 
 
 - ID: TF-20261001-331f7c
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-10-01
 - Added: 2026-10-01
 - Updated: 2026-10-01
 - Goal: Commit Todo, release, and TaskFlowDocs changes straight to main when the author can push there; open a pull request only when they cannot
-- Task: `TaskFlowDocs/2026-10-01-taskflow-commit-path/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-01-taskflow-commit-path/`
+- Next action: None — completed and archived.
 - Notes: 用户 2026-10-01 提出：Todo 改动、发布、以及 TaskFlowDocs 的处理，凡作者能直接推 main 的直接推 main，不为「同步」这类改动开 PR；只有没有推送权限时才走 PR。判据是**权限**，不是改动大小——这一点与仓库现有的「一任务一分支 + PR」规则冲突，需要裁定边界。
 - 本仓库实测（2026-10-01）：`main` 未受保护（`gh api repos/hkwuks/TaskFlow/branches/main/protection` → 404 Branch not protected），当前身份为 admin（`permissions` 含 `push: true`），故本仓库可直接推。**一般规律**（用户所问）：仓库主人有 admin/write，默认可直推；协助者通常只有 read 或无访问权，只能 fork 后提 PR。但这不自动成立——给协作者 write、或给 main 加「必须走 PR」的保护规则，都会改变结论；反过来保护规则也会让 owner 自己推不进去。
 
