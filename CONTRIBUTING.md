@@ -34,10 +34,17 @@ cd .worktrees/<slug>
 
 ### Where the commit lands
 
-Everything above is about **isolation** — keeping a task's work off whatever branch happened to be checked out. Landing is a separate question, and one fact decides it: **can the author push the target branch?**
+Everything above is about **isolation** — keeping a task's work off whatever branch happened to be checked out. This section is the other half: which commits go straight to the target branch, and which go through a pull request.
 
-- If they can, the commits go straight to it, with no pull request. Todo entries, a task's status and archive, and release execution land this way — from a task worktree that means pushing the branch's commits to the base, because the branch there is a work surface, not a proposal.
-- If they cannot, open a pull request.
+It routes **bookkeeping**, and only bookkeeping:
+
+- **Todo entries** — intake, promotion, status, next action, removal.
+- **A task's status and archive** — moving `TaskFlowDocs/<task>/` to `achieved/`, and the status lines that move with it.
+- **Release execution** — the release commit and the catalog pin, as `RELEASE.md` describes.
+
+None of those has anything to review, so each goes straight to the target branch when the author can push it, and to a pull request when they cannot. From a task worktree that means pushing the branch's commits to the base — the branch there is a work surface, not a proposal.
+
+**Everything else keeps its pull request.** Code, hooks, the Skill, and any document whose wording is worth reviewing do not become direct pushes because the author happens to have permission. If you are unsure which side a change falls on, it is a pull request.
 
 Whether you can push is a checkable fact, not a job title — the target branch's protection rules, and the author's role on the repository:
 
@@ -48,7 +55,7 @@ gh api repos/<owner>/<repo>/branches/<base>/protection
 
 An unprotected branch plus a role carrying `push` is the direct path. A protected branch, a read-only role, or a fork you cannot write to is a pull request. Neither answer is permanent — protection and roles are configuration — so check rather than remember, and do not infer it from who someone is.
 
-This does not relax the rule above. A worktree isolates a task's work; this decides where that work's commits go, and the isolation rule is unchanged. The three classes named here are the ones with nothing to review — an archive, a status move, a release pin. A change that does need review keeps its pull request.
+This does not relax the rule above. A worktree isolates a task's work; this decides where that work's commits go, and the isolation rule is unchanged.
 
 ## Branches and commits
 

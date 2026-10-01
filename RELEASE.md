@@ -158,12 +158,12 @@ only reintroduce the interval it is meant to close, for a four-line diff whose
 content the tag already determined. The release metadata commit is a different
 matter: it carries prose, so it takes the Release PR path above.
 
-This is the criterion `CONTRIBUTING.md` states for every commit — push the target
-branch directly when its author can push it, open a pull request when they cannot
-— applied to a step whose answer has so far always been yes. A release assumes
-that answer rather than choosing it: the tag and the pin must become visible
-together, and a pull request cannot carry a tag, so an author who cannot push
-`main` needs the release owner to push it rather than a different path here.
+This is the criterion `CONTRIBUTING.md` states for the changes it routes — push
+the target branch directly when its author can push it, open a pull request when
+they cannot — and a release is one of the three classes it covers. A release
+assumes the first answer rather than choosing it: the tag and the pin must become
+visible together, and a pull request cannot carry a tag, so an author who cannot
+push `main` needs the release owner to push it rather than a different path here.
 
 If the remote rejects an atomic push, fall back to pushing the tag first and
 updating the catalog after, exactly as this document required before the

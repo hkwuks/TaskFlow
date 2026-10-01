@@ -1,6 +1,6 @@
 # Plan — Commit Todo, release, and TaskFlowDocs changes straight to main when the author
-> Task version: v1
-> Status: completed
+> Task version: v2
+> Status: in_progress
 
 No spec required — small, self-contained task.
 
@@ -24,62 +24,61 @@ No spec required — small, self-contained task.
 
 ## Preconditions
 
-- Worktree `.worktrees/2026-10-01-taskflow-commit-path`, branch `chore/taskflow-commit-path`, based on `main` at `f3d893a`.
+- Worktree `.worktrees/2026-10-01-taskflow-commit-path`, branch `chore/taskflow-commit-path-v2`, based on `main` at `1c23f0d` — the commit that recorded the reopen. v1's branch and its commit `cadee53` are already on `main` and are not reopened.
 - The landing path this task writes is the one it will use: `main` is unprotected and this identity is admin, so Step 3 pushes directly rather than opening a pull request. If that stops being true before Step 3, the fallback is the ordinary PR path, and this Plan is where that deviation gets recorded.
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-10-01 11:35 +0800
-- Approved version: v1
+- Approved at: 2026-10-01 12:01 +0800
+- Approved version: v2
 - Approved scope: PRD / Plan
 
 ## Steps
 
-### Step 1 — State the landing rule in `CONTRIBUTING.md`
+### Step 1 — State the rule's scope in `CONTRIBUTING.md`
 
-- Goal: put the rule where the branch rule already lives, so a reader meets both at once and cannot take one for the other.
+- Goal: make the section say which changes it routes, so the sentence at `CONTRIBUTING.md:37` cannot be read as covering every change.
 - Dependencies: none.
 - Files: `CONTRIBUTING.md`.
 - Implementation checklist:
-  - [x] State the rule: land by pushing the target branch when the author can push it; open a pull request when they cannot (R1).
-  - [x] Name its coverage — Todo entries, a task's status and archive, release execution (R2).
-  - [x] Name how "can push" is decided: branch protection and the author's repository role, both checkable (R3).
-  - [x] Separate the two mechanisms explicitly: a worktree isolates, the landing rule routes. Say the isolation rule is unchanged (A2).
-  - [x] Keep "needs review" a live reason to use a pull request, so the rule does not read as direct-push-by-default (R4).
-- Acceptance: A1, A2, A5.
-- Verification: read the amended section against A1, A2, A5; confirm the sentence at line 18 still holds with the new text beside it.
+  - [ ] Open the section by naming what it routes — bookkeeping-class commits — instead of asking a general landing question (R6).
+  - [ ] Say plainly that an ordinary code, hook, Skill, or review-needing documentation change keeps its pull request (A7).
+  - [ ] Leave the permission criterion, the worktree/isolation separation, and the checkable facts as they are; v1 got those right.
+- Acceptance: A1, A2, A5, A7.
+- Verification: read the section **alone** against A7 — a contributor must be able to answer "how does a code change land?" from it, without any other document.
 - Rollback: `git restore --source=HEAD -- CONTRIBUTING.md` before this step is committed.
-- Status: done
+- Status: pending
 
-### Step 2 — Point the other two documents at it
+### Step 2 — Check the two documents that point at it
 
-- Goal: remove the places that imply PR-only, without restating the rule and creating a second source.
-- Dependencies: Step 1. The rule has to exist before anything can point at it.
+- Goal: confirm `RELEASE.md` and `SKILL.md` still describe the narrowed rule, and correct them only if Step 1 makes their wording wrong.
+- Dependencies: Step 1. Whether they are still accurate is a question about the new text.
 - Files: `RELEASE.md`, `skills/taskflow/SKILL.md`.
 - Implementation checklist:
-  - [x] `RELEASE.md`: name the permission criterion the direct push already relies on, changing nothing it does (R5, A3).
-  - [x] `SKILL.md`: make the PR paragraph and the isolation paragraph distinguish routing from isolation, and point at `CONTRIBUTING.md` rather than restating (A4).
+  - [ ] Read `RELEASE.md` against the new wording. A release is one of the covered classes, so it should need nothing; change it only if that turns out false.
+  - [ ] `SKILL.md` summarises the coverage as "the changes with nothing to review" — check that still matches the stated scope, and correct it if not.
+  - [ ] Do not restate the scope in either; they point at `CONTRIBUTING.md` (v1's A7, still in force).
 - Acceptance: A3, A4.
-- Verification: read Steps 1 and 2 together; confirm no document states the rule twice and none contradicts it.
-- Rollback: same as Step 1, scoped to the two files.
-- Status: done
+- Verification: read all three together and confirm they describe one scope, not two.
+- Rollback: `git restore --source=HEAD -- RELEASE.md skills/taskflow/SKILL.md` before this step is committed.
+- Status: pending
 
 ### Step 3 — Verify and land
 
-- Goal: run the checks, then land the way the rule says.
+- Goal: run the checks, then land the wording fix by direct push.
 - Dependencies: Steps 1 and 2.
 - Files: `TaskFlowDocs/2026-10-01-taskflow-commit-path/`, `TaskFlowDocs/todo.md`.
 - Implementation checklist:
-  - [x] Run `git diff --check` and `bash hooks/release-check .`; record results, and any unavailable check as unavailable.
-  - [x] Confirm the permission facts still hold before choosing the path — unprotected `main` and a role with `push` — and record the command output that decided it.
-  - [x] Push the commit stack to `main` directly, then fast-forward the base checkout. Open a pull request instead if the permission check fails, and record the reversal here.
-  - [x] Move `TF-20261001-331f7c` to `done` and archive the task.
+  - [ ] Run `git diff --check` and `bash hooks/release-check .`; record results, and any unavailable check as unavailable.
+  - [ ] Re-check the permission facts before choosing the path, and record the command output that decided it.
+  - [ ] Push the commit stack to `main` directly. Open a pull request instead if the permission check fails, and record the reversal here.
+  - [ ] Move `TF-20261001-331f7c` to `done` and archive this task.
 - Acceptance: A6.
-- Verification: `git ls-remote origin main` names the landed commit; `hooks/release-check .` `pass`; `git diff --check` clean. CI runs on the push to `main` as usual — the rule changes the review path, not the test path.
-- Rollback: `git revert` the landed commit and push that, per the same rule. The branch and worktree are discardable before landing.
-- Status: done
+- Verification: `git ls-remote origin main` names the landed commit; `hooks/release-check .` `pass`; `git diff --check` clean; CI green on the push. `hooks/smoke-test` is left to CI — the change touches no hook, and that is the rule this task landed.
+- Rollback: `git revert` the landed commit and push that, per the same rule.
+- Status: pending
 
 ## Checkpoints
 
@@ -91,7 +90,7 @@ No spec required — small, self-contained task.
 - A1–A5 are prose claims checked by reading. There is no command that inspects rule wording, and this change does not invent one — the same limitation `2026-09-30-release-ci-test-policy` recorded. Stated here so it is on the record.
 - A6 is mechanical: `bash hooks/release-check .` and `git diff --check`. `hooks/smoke-test` covers the hooks, and this change touches none, so per the landing rule now in force it is left to CI on the push to `main`.
 - The permission facts in Preconditions are re-checked in Step 3 rather than trusted from the day this Plan was written; branch protection and roles are configuration, and configuration changes.
-- 已执行（2026-10-01，本工作树与 `main`）：
+- 已执行（**v1**，2026-10-01，当时的 `chore/taskflow-commit-path` 工作树与 `main`）——保留在此以延续记录，v1 的完整文档见 `old/v1/`：
   - `git diff --check` — clean；`bash hooks/release-check .` — `STATUS: pass`。
   - 权限复核（落地前重查，未沿用 Preconditions）：`gh api repos/hkwuks/TaskFlow --jq .permissions` → `{"admin":true,"maintain":true,"pull":true,"push":true,"triage":true}`；`.../branches/main/protection` → `404 Branch not protected`。据这两个事实选直推。
   - 落地 — `git push origin HEAD:main`，`f3d893a..cadee53`，未开 PR。**这是改动第一次以它自己定义的路径落地。**
@@ -99,6 +98,8 @@ No spec required — small, self-contained task.
   - 未执行 `bash hooks/smoke-test`：改动不碰 hook，且按本次立下的规则（本地不重跑 CI 已覆盖的检查）交由 CI 裁定。
 
 ## Change Log
+- 2026-10-01 — **v2**。把规则的字面收紧到它一直以来的意图。起因是用户追问这条规则的范围（「所有开发都优先直推，还是只有维护走直推」）；答复是窄范围，而落地的 `CONTRIBUTING.md:37` 写成了普适句、`:39` 的三类沦为例子，只有 `:51` 末尾一句隐含地把范围拉回。PRD 的 R6 与 A7 即为此而加。v1 的改动内容与落地方式不变。
+- 2026-10-01 reopen — retrieved achieved task `2026-10-01-taskflow-commit-path` for new work; re-approval required before core changes
 
 - 2026-10-01 — 实现、验证、落地完成。改动落在 `CONTRIBUTING.md`（规则本体）、`RELEASE.md`（补上它本就依赖的权限判据）、`skills/taskflow/SKILL.md`（指向规则，不复述）。落地方式为直推 `main`（`cadee53`），CI run `36811386566` 全绿。**记一处过程事实**：本次改动本身仍按原流程走了 worktree + PRD/Plan + 批准，只有「落盘」这一步用了新规则——这正是批准时确认的「走流程，只是落盘直推」。若新规则日后要把任务文档的写作也纳入 base 检出，这条记录就是下一次改动的起点。
 - 2026-10-01 — Plan written. The release owner's instruction covered three change classes; the open question about whether `TaskFlowDocs` handling extends to authoring the task documents was answered at the approval round as the narrow reading — bookkeeping only.
@@ -110,4 +111,5 @@ No spec required — small, self-contained task.
 
 ## Version History
 
-- v1 — planning.
+- v1 — the rule stated and landed as `cadee53`; superseded because its text did not carry its own scope.
+- v2 — the rule text tightened to state the scope it always had (R6, A7).
