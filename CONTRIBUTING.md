@@ -34,15 +34,13 @@ cd .worktrees/<slug>
 
 ### Where the commit lands
 
-Everything above is about **isolation** — keeping a task's work off whatever branch happened to be checked out. This section is the other half: which commits go straight to the target branch, and which go through a pull request.
+Everything above is about **isolation** — keeping a task's work off whatever branch happened to be checked out. This section is the other half: where the commits go once they exist. Two questions decide that, and they are independent — neither answer implies the other.
 
-It routes **bookkeeping**, and only bookkeeping:
+**A task's documents land with the task, inside its pull request.** Its PRD, Spec, and Plan; the verification record written into the Plan; and the archive that moves `TaskFlowDocs/<task>/` to `achieved/` — each is a commit on the task's branch, and they land in the task's own pull request before it is merged. They are part of what the task delivers, so they are reviewed with it. Do not push them to the base branch outside that pull request, and do not give them a pull request of their own. Either one splits the record from the change it describes, and the split is what strands a branch's commits when the pull request is merged without them.
 
-- **Todo entries** — intake, promotion, status, next action, removal.
-- **A task's status and archive** — moving `TaskFlowDocs/<task>/` to `achieved/`, and the status lines that move with it.
-- **Release execution** — the release commit and the catalog pin, as `RELEASE.md` describes.
+This holds whatever the author's push permission. Being able to push the base branch is not a reason to land a task's documents outside the task's pull request — they are not a separate change that happens to be small. A task that lands without a pull request at all, because its whole change is bookkeeping, takes its documents the same way as its change.
 
-None of those has anything to review, so each goes straight to the target branch when the author can push it, and to a pull request when they cannot. From a task worktree that means pushing the branch's commits to the base — the branch there is a work surface, not a proposal.
+**Push permission routes the bookkeeping that belongs to no task.** A Todo entry edited on its own; a `reopen`; release execution, as `RELEASE.md` describes; documentation maintenance with no task behind it. None of those has anything to review and none has a pull request to ride in, so each goes straight to the target branch when the author can push it, and to a pull request when they cannot. From a task worktree that means pushing the branch's commits to the base — the branch there is a work surface, not a proposal.
 
 **Everything else keeps its pull request.** Code, hooks, the Skill, and any document whose wording is worth reviewing do not become direct pushes because the author happens to have permission. If you are unsure which side a change falls on, it is a pull request.
 
@@ -97,3 +95,12 @@ Record unavailable checks and their limitations in the TaskFlow Plan. Do not cla
 ## Pull requests
 
 Read `.github/pull_request_template.md` before creating or updating a PR. Complete every required field and record its mapping in the TaskFlow Plan. Describe the goal, scope, TaskFlow task path, verification commands and results, remote/base assumptions, and known limitations. Do not include secrets or opaque remote payloads.
+
+**Open it as a draft, and mark it ready only once the task's documents are in it.** A task's pull request is not complete when the code is pushed: its Plan record and its archive land in that same pull request (see Where the commit lands), and the verification record can only be written after the branch is pushed and CI has run. So the order is — push the branch, read CI, write the verification record into the Plan, commit and push it, archive the task, commit and push that, then mark the pull request ready:
+
+```bash
+gh pr create --draft --base <base> --title '<title>' --body-file <file>
+gh pr ready <number>
+```
+
+A draft pull request still runs CI, so the matrix is not deferred by opening one. What it defers is the merge, and that is the point: "do not merge yet" is then a state GitHub enforces and a reader sees, where a sentence in the body is only a request. The merge that arrives before the documents do is the one that leaves them behind.

@@ -1392,6 +1392,28 @@ grep -q '^\*\*A release is the exception\.\*\*' "$repo/CONTRIBUTING.md" || { ech
 grep -q 'does not create a TaskFlow task or a `todo.md` item' "$repo/RELEASE.md" || { echo "FAIL RELEASE.md does not exclude the task path"; exit 1; }
 echo ok
 
+echo "== a task's documents land with its pull request, not by push permission =="
+# The landing rule was one axis — push permission — and a task's status and
+# archive was one of its classes. That class is what let a task merge its pull
+# request and leave its documents behind on the branch: measured twice on
+# 2026-10-01, once as a Plan record that had to be cherry-picked onto main
+# (64ac50d) and twice as archives pushed after the merge (35a4071, e603f2c).
+# Pin both axes, and pin that they are stated as independent — one sentence
+# carrying both is what made the wrong reading available in the first place.
+for clause in "A task's documents land with the task, inside its pull request." "Push permission routes the bookkeeping that belongs to no task." "This holds whatever the author's push permission." "Open it as a draft, and mark it ready only once the task's documents are in it."; do
+  grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" || { echo "FAIL landing rule does not pin: $clause"; exit 1; }
+done
+# The permission criterion no longer reaches a task's archive. Let the class come
+# back and the defect it caused comes back with it.
+if grep -q -F -- "A task's status and archive" "$repo/CONTRIBUTING.md"; then
+  echo "FAIL CONTRIBUTING routes a task's archive by push permission again"; exit 1
+fi
+# The two statements that cite the rule must cite it rather than restate a class
+# list that drifts from it — which is how SKILL.md went stale in this change.
+grep -q -F -- 'it is not one question but two independent ones' "$skill/SKILL.md" || { echo "FAIL SKILL does not state the landing rule as two questions"; exit 1; }
+grep -q -F -- 'for the bookkeeping that belongs to' "$repo/RELEASE.md" || { echo "FAIL RELEASE.md does not cite the narrowed criterion"; exit 1; }
+echo ok
+
 echo "== phases map to concept classes without naming a capability =="
 grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
 grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
