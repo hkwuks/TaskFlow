@@ -16,6 +16,8 @@ When a user changes an approved task fact, classify it before editing artifacts.
 
 Write `prd.md`, `spec.md`, `plan.md`, and `reference/` prose in the user's working language, including every section heading the list below does not name.
 
+The rule binds the document, not whoever drafts it: prose that arrives from a capability and is folded in obeys it exactly as prose you write yourself does. A capability supplies a shape to fill, and the language of its template is not a policy adopted along with it.
+
 Hooks parse task documents by exact text, so the lines they match stay English verbatim:
 
 - Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`
@@ -24,7 +26,7 @@ Hooks parse task documents by exact text, so the lines they match stay English v
 - Todo field names: `- ID:`, `- Goal:`, `- Task:`, `- Source:`, `- Status:`, `- Updated:`, `- Next action:`
 - Blockquote and inline lines: `> Task version:`, `> Status:`, `> Current Task version:`, the `- Status:` lines inside Steps, session entries, and Todo entries, and the `- [ ]` / `- [x]` checklist markers.
 
-The list is the whole boundary. A heading outside it is prose and follows the user's language; translating one is safe because the hooks read the `## ` prefix as the section boundary and never the words after it. `hooks/task promote` writes its own English scaffold into a new document, so headings arrive in English whatever the language — that scaffold is not prose this rule governs, and a scaffolded heading follows the rule only once you edit it.
+The list is the whole boundary. A heading outside it is prose and follows the user's language; translating one is safe because the hooks read the `## ` prefix as the section boundary and never the words after it. A skeleton arrives in English whatever the language — `hooks/task promote` writes one into every new document, and a capability invoked for a phase brings its own — and a skeleton is not prose this rule governs: an unedited scaffold heading may stay in the language it arrived in, and it follows the rule once you edit it. That exemption ends at the headings. The prose written underneath them is not the skeleton's and not the template's: it is yours, and it is in the user's working language however the words around it are phrased.
 
 Field *values* written by a hook are fixed English tokens (`approved`, `done`, `in_progress`) and are not translated; prose inside a value you write yourself may be in either language.
 
@@ -143,7 +145,7 @@ The approval a Plan's `## Approval` block normally records comes with the proced
 | research / evidence | `reference/` |
 | resume index | `sessions.md` |
 
-If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative.
+If there is no research, do not create `reference/`. If `reference/` is small, `index.md` is optional. If a tool emits a default root-level artifact, move or rewrite its content into the current task destination before accepting it as authoritative. Rewriting it covers the language as well as the structure: what folds in is the shape, and the prose is rewritten in the user's working language rather than carried over from whoever produced the draft.
 
 A new Task version or a user change is governed by the lifecycle rules in `SKILL.md` (User-change trigger, Phase 5 Build, Complete and archive); this reference does not restate them. Archive a completed task as one transaction per `SKILL.md`. Tool output is candidate material until the core-document owner reviews and merges it.
 
