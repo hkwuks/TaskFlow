@@ -646,6 +646,67 @@ echo "== reopen restores =="
 bash "$HERE/reopen" 2026-09-08-smoke "$tmp" >/dev/null
 [ -d "$docs/2026-09-08-smoke" ] || { echo "FAIL reopen"; exit 1; }
 grep -q "reopen" "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL reopen log"; exit 1; }
+# Retrieving a task is half of it: `archive` rewrote the Todo entry's Task: to
+# the achieved path and its Status to done, and `hooks/task` finds an entry by
+# the literal substring `TaskFlowDocs/<task>/`, which that spelling does not
+# contain. Reopening the directory without reconnecting the entry leaves a task
+# no lifecycle command can see, so the inverse rewrite is asserted here.
+grep -qx -- '- Task: `TaskFlowDocs/2026-09-08-smoke/`' "$docs/todo.md" || { echo "FAIL reopen left the Todo at the achieved path"; exit 1; }
+grep -qx -- '- Status: promoted' "$docs/todo.md" || { echo "FAIL reopen left the Todo status"; exit 1; }
+grep -qxF -- '- Next action: Re-approve the new Task version before core changes.' "$docs/todo.md" || { echo "FAIL reopen left the Todo next action"; exit 1; }
+# The end-to-end half, and the exact command that used to fail on a reopened
+# task: `findsec` matches on the path spelling this asserts.
+if ! bash "$HERE/task" state 2026-09-08-smoke planning --root "$tmp" >/dev/null; then
+  echo "FAIL reopen left the entry unfindable by task state"
+  exit 1
+fi
+echo ok
+
+echo "== reopen preflight does not move without a Todo entry =="
+nr="$tmp/reopen-preflight"
+mkdir -p "$nr/TaskFlowDocs/achieved/2026-09-08-noreopen"
+cp "$docs/2026-09-08-smoke/prd.md" "$nr/TaskFlowDocs/achieved/2026-09-08-noreopen/prd.md"
+cp "$docs/2026-09-08-smoke/plan.md" "$nr/TaskFlowDocs/achieved/2026-09-08-noreopen/plan.md"
+printf '# Todo inbox\n' > "$nr/TaskFlowDocs/todo.md"
+nr_out="$tmp/reopen-preflight.txt"
+if bash "$HERE/reopen" 2026-09-08-noreopen "$nr" > "$nr_out" 2>&1; then
+  echo "FAIL reopen accepted a missing Todo entry"
+  exit 1
+fi
+grep -q 'Todo entry for 2026-09-08-noreopen missing' "$nr_out" || { echo "FAIL the refusal does not name the missing entry"; cat "$nr_out"; exit 1; }
+[ -d "$nr/TaskFlowDocs/achieved/2026-09-08-noreopen" ] || { echo "FAIL reopen moved before preflight"; exit 1; }
+[ ! -d "$nr/TaskFlowDocs/2026-09-08-noreopen" ] || { echo "FAIL reopen left an active copy"; exit 1; }
+echo ok
+
+echo "== reopen rolls back when the entry cannot be rewritten =="
+# An entry carrying the achieved Task: line but no `- Status:` cannot come out
+# in the shape the lookup needs, so the write succeeds and verification fails.
+# That is the reachable failure this exercises -- and it is `reopen`'s decision
+# to refuse rather than leave a field stale, which is why the assertion is a
+# rollback and not a silent success.
+rb="$tmp/reopen-rollback"
+mkdir -p "$rb/TaskFlowDocs/achieved/2026-09-08-rb"
+cp "$docs/2026-09-08-smoke/prd.md" "$rb/TaskFlowDocs/achieved/2026-09-08-rb/prd.md"
+cp "$docs/2026-09-08-smoke/plan.md" "$rb/TaskFlowDocs/achieved/2026-09-08-rb/plan.md"
+printf '%s\n' \
+  '# Todo inbox' \
+  '## Rollback fixture' \
+  '- ID: T-20260908-rb' \
+  '- Goal: Force a verification failure.' \
+  '- Task: `TaskFlowDocs/achieved/2026-09-08-rb/`' \
+  > "$rb/TaskFlowDocs/todo.md"
+rb_todo_before="$(digest "$rb/TaskFlowDocs/todo.md")"
+rb_plan_before="$(digest "$rb/TaskFlowDocs/achieved/2026-09-08-rb/plan.md")"
+rb_out="$tmp/reopen-rollback.txt"
+if bash "$HERE/reopen" 2026-09-08-rb "$rb" > "$rb_out" 2>&1; then echo "FAIL reopen reported success on an unrewritable entry"; exit 1; fi
+# Distinguish the rollback from an early refusal: the entry is present and names
+# the achieved path, so a preflight rejection here would mean this proved
+# nothing about the rollback.
+grep -q 'FAIL: Todo status not promoted' "$rb_out" || { echo "FAIL the failure did not come from verification"; cat "$rb_out"; exit 1; }
+[ -d "$rb/TaskFlowDocs/achieved/2026-09-08-rb" ] || { echo "FAIL rollback did not return the directory to achieved"; exit 1; }
+[ ! -d "$rb/TaskFlowDocs/2026-09-08-rb" ] || { echo "FAIL rollback left an active copy"; exit 1; }
+[ "$rb_todo_before" = "$(digest "$rb/TaskFlowDocs/todo.md")" ] || { echo "FAIL rollback did not restore the Todo"; exit 1; }
+[ "$rb_plan_before" = "$(digest "$rb/TaskFlowDocs/achieved/2026-09-08-rb/plan.md")" ] || { echo "FAIL rollback did not restore the Plan"; exit 1; }
 echo ok
 
 echo "== version bumps root + archives only changed docs =="
