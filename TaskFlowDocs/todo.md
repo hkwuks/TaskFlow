@@ -26,15 +26,16 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## hooks/reopen does not rewrite the Todo Task: path back to the active root, so ta
 
 - ID: TF-20261001-da6047
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: audit follow-up 2026-10-01
 - Added: 2026-10-01
 - Updated: 2026-10-01
 - Goal: hooks/reopen does not rewrite the Todo Task: path back to the active root, so task state cannot find the entry it just retrieved
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-01-reopen-todo-path/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+- 裁定（2026-10-01）: (1) 范围取「完全对称 archive」——reopen 写回 `Task:` 活动根、`Status: promoted`、`Next action: Re-approve the new Task version before core changes.`、`Updated:` 当天；(2) 取「与 archive 同纪律」——失败回滚 `mv`，写后校验，并打印提交用的 stage 行；(3) `Status:` 取 `promoted`，与 `hooks/task:796` 的 `task state planning|ready` 一致。
 
 ## Commit Todo, release, and TaskFlowDocs changes straight to main when the author 
 

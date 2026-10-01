@@ -1,20 +1,134 @@
 #!/usr/bin/env bash
 # reopen — retrieve an achieved TaskFlow task back to the active root.
 # Usage: reopen <task-id> [root]
-# Moves TaskFlowDocs/achieved/<task-id> -> TaskFlowDocs/<task-id> and records a
-# reopen line in the Plan change log. Approval stays with the user.
+# Moves TaskFlowDocs/achieved/<task-id> -> TaskFlowDocs/<task-id>, records a
+# reopen line in the Plan change log, and undoes the Todo rewrite `archive`
+# made: the entry's Task: path returns to the active root, Status to promoted,
+# and Next action states what the reopen actually requires. Approval stays with
+# the user.
+#
+# `archive` is the forward half of this pair and carries three guarantees.
+# This is the inverse, so it carries the same three, because a task whose Todo
+# still points at achieved/ is a task no `task state`, `task get`, `task
+# progress`, or `task complete` can find: `hooks/task` locates an entry by the
+# literal substring `TaskFlowDocs/<task>/`, which the achieved spelling does
+# not contain. Fail closed, roll back on failure, verify after writing.
+#
+# Ordering is not cosmetic. Every file-content change is made while the tree is
+# still in its original layout, so the single `mv` at the end is the only
+# path-level change in the sequence and the rollback never has to put a file
+# back into a directory that has already moved out from under it.
 set -euo pipefail
 task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 docs="$root/TaskFlowDocs"
+todo="$docs/todo.md"
+today="$(date +%Y-%m-%d)"
+next_action='Re-approve the new Task version before core changes.'
+changed="TaskFlowDocs/$task/"
+was="TaskFlowDocs/achieved/$task/"
+
 [ -d "$docs/achieved/$task" ] || { echo "no achieved task $docs/achieved/$task"; exit 1; }
 [ ! -e "$docs/$task" ] || { echo "active $docs/$task already exists"; exit 1; }
+[ -f "$todo" ] || { echo "todo.md missing; reopen not started"; exit 1; }
 
-mv "$docs/achieved/$task" "$docs/$task"
+# The entry, delimited the way `hooks/task` delimits it: the last "## " heading
+# at or before the line that links this task, up to the next "## " heading.
+entry_block() {  # entry_block <needle>
+  awk -v needle="$1" '
+    { n++; line[n] = $0 }
+    END {
+      start = 0
+      for (i = 1; i <= n; i++) {
+        if (index(line[i], "## ") == 1) s = i
+        if (index(line[i], needle)) { start = s; break }
+      }
+      if (!start) exit 1
+      for (i = start + 1; i <= n; i++) {
+        if (index(line[i], "## ") == 1) break
+        print line[i]
+      }
+    }
+  ' "$todo"
+}
 
-plan="$docs/$task/plan.md"
+# Fail closed before anything moves. A retrieval that cannot reconnect the Todo
+# would leave the pair split, which is the defect this hook exists to prevent,
+# so leaving the directory where it is beats moving it and reporting the rest.
+entry_block "\`$was\`" >/dev/null || { echo "Todo entry for $task missing; reopen not started"; exit 1; }
+
+plan="$docs/achieved/$task/plan.md"
+todo_tmp="$todo.tmp"
+plan_tmp="$plan.tmp"
+
+todo_bak="$(mktemp "$docs/.taskflow-reopen.XXXXXX")"
+cp "$todo" "$todo_bak"
+plan_bak=""
 if [ -f "$plan" ]; then
-  entry="- $(date +%Y-%m-%d) reopen — retrieved achieved task \`$task\` for new work; re-approval required before core changes"
-  awk -v entry="$entry" '
+  plan_bak="$(mktemp "$docs/.taskflow-reopen-plan.XXXXXX")"
+  cp "$plan" "$plan_bak"
+fi
+
+moved=0
+# Undoes whatever the steps below already did. The Plan backup is restored into
+# achieved/ because that is where the directory ends up, whether the `mv` never
+# ran or was undone here -- one place, no branch on where we failed. Both
+# backups are moved rather than copied, so a rollback leaves none behind.
+rollback() {
+  rm -f "$todo_tmp" "$plan_tmp" 2>/dev/null || true
+  if [ "$moved" = "1" ] && [ -d "$docs/$task" ] && [ ! -d "$docs/achieved/$task" ]; then
+    mv "$docs/$task" "$docs/achieved/$task" || true
+  fi
+  if [ -n "$plan_bak" ] && [ -f "$plan_bak" ]; then
+    mv "$plan_bak" "$docs/achieved/$task/plan.md" || true
+  fi
+  if [ -n "$todo_bak" ] && [ -f "$todo_bak" ]; then
+    mv "$todo_bak" "$todo" || true
+  fi
+}
+
+# 1. Todo: Task: back to the active root, Status back to promoted, and a next
+#    action that is true again. `promoted` is what `task state planning|ready`
+#    writes, so a re-approved task lands on the same value either way. Only
+#    those three fields and Updated: change; every other line is emitted
+#    verbatim, which is what keeps ID:, Source:, Goal:, and Notes: intact.
+if ! awk -v was="\`$was\`" -v now="\`$changed\`" -v next_action="$next_action" -v today="$today" '
+  { n++; line[n] = $0 }
+  END {
+    found = 0
+    for (i = 1; i <= n; i++) {
+      if (index(line[i], "## ") == 1) start = i
+      if (index(line[i], was)) { found = 1; break }
+    }
+    if (!found) { for (i = 1; i <= n; i++) print line[i]; exit 0 }
+    finish = n + 1
+    for (i = start + 1; i <= n; i++) {
+      if (index(line[i], "## ") == 1) { finish = i; break }
+    }
+    for (i = start + 1; i < finish; i++) {
+      if (index(line[i], "- Status:") == 1) { line[i] = "- Status: promoted"; break }
+    }
+    for (i = start + 1; i < finish; i++) {
+      if (index(line[i], "- Next action:") == 1) { line[i] = "- Next action: " next_action; break }
+    }
+    for (i = start + 1; i < finish; i++) {
+      if (index(line[i], "- Updated:") == 1) { line[i] = "- Updated: " today; break }
+    }
+    for (i = 1; i <= n; i++) {
+      gsub(was, now, line[i])
+      print line[i]
+    }
+  }
+' "$todo" > "$todo_tmp"; then
+  rollback
+  echo "reopen FAILED: Todo rewrite"
+  exit 1
+fi
+mv "$todo_tmp" "$todo"
+
+# 2. Plan change log, still at its achieved path.
+if [ -f "$plan" ]; then
+  entry="- $today reopen — retrieved achieved task \`$task\` for new work; re-approval required before core changes"
+  if ! awk -v entry="$entry" '
     { n++; line[n] = $0 }
     END {
       # The insertion is decided before anything is printed: when there is no
@@ -36,8 +150,58 @@ if [ -f "$plan" ]; then
       if (n > 0) printf "%s", line[n]
       printf "\n\n## Change Log\n%s\n", entry
     }
-  ' "$plan" > "$plan.tmp"
-  mv "$plan.tmp" "$plan"
+  ' "$plan" > "$plan_tmp"; then
+    rollback
+    echo "reopen FAILED: Plan change log"
+    exit 1
+  fi
+  mv "$plan_tmp" "$plan"
 fi
 
-[ -d "$docs/$task" ] && echo "reopen OK: achieved/$task -> active root; record Todo source and re-approve before core changes"
+# 3. The one path-level change, and the last mutation in the sequence.
+if ! mv "$docs/achieved/$task" "$docs/$task"; then
+  rollback
+  echo "reopen FAILED: could not move $docs/achieved/$task"
+  exit 1
+fi
+moved=1
+
+# 4. Verify against the same predicate the lookup uses, not a looser one.
+# The Plan moved with the directory, so its path is re-derived here rather than
+# reused: the achieved path no longer exists.
+plan="$docs/$task/plan.md"
+fail=0
+[ -d "$docs/$task" ] || { echo "FAIL: active path missing"; fail=1; }
+[ ! -d "$docs/achieved/$task" ] || { echo "FAIL: achieved path still present"; fail=1; }
+[ ! -f "$plan" ] || grep -q -- "reopen — retrieved achieved task \`$task\`" "$plan" || { echo "FAIL: Plan change log line missing"; fail=1; }
+block=""
+if ! block="$(entry_block "\`$changed\`")"; then
+  echo "FAIL: Todo entry not findable at the active path"
+  fail=1
+fi
+if [ "$fail" = "0" ]; then
+  printf '%s\n' "$block" | grep -qx -- "- Task: \`$changed\`" || { echo "FAIL: Todo Task: path not restored"; fail=1; }
+  printf '%s\n' "$block" | grep -qx -- "- Status: promoted" || { echo "FAIL: Todo status not promoted"; fail=1; }
+  printf '%s\n' "$block" | grep -qxF -- "- Next action: $next_action" || { echo "FAIL: Todo next action not rewritten"; fail=1; }
+fi
+# The old spelling surviving anywhere means the rewrite did not finish, so the
+# entry would still be unfindable by `hooks/task` even with the new line added.
+if grep -q -- "\`$was\`" "$todo"; then
+  echo "FAIL: achieved path still in the Todo entry"
+  fail=1
+fi
+if [ "$fail" != "0" ]; then
+  rollback
+  echo "reopen FAILED"
+  exit 1
+fi
+
+rm -f "$todo_bak"
+[ -z "$plan_bak" ] || rm -f "$plan_bak"
+echo "reopen OK: achieved/$task -> active root; Todo reconnected at promoted, next action reset"
+# The hook does not touch Git (design boundary). Print the exact stage so the
+# Agent cannot miss the deletion half of the mv, and pin the branch rule: the
+# revert commit belongs on the current worktree branch, not on main.
+printf '%s\n' \
+  "Stage (commit on the current branch; do not switch to main for this commit):" \
+  "  git add -A -- 'TaskFlowDocs/$task' 'TaskFlowDocs/achieved/$task' 'TaskFlowDocs/todo.md'"
