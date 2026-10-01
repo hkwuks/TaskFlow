@@ -1,6 +1,6 @@
 # Reconcile the artifact-language rule with capability-written documents: a phase
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

@@ -55,15 +55,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Reconcile the artifact-language rule with capability-written documents: a phase 
 
 - ID: TF-20261001-51d9c8
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request 2026-10-01
 - Added: 2026-10-01
 - Updated: 2026-10-01
 - Goal: Reconcile the artifact-language rule with capability-written documents: a phase capability emits English prose, so the rule requiring the user's working language silently stops holding
-- Task: `TaskFlowDocs/2026-10-01-artifact-language/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-01-artifact-language/`
+- Next action: None — completed and archived.
 - 裁定（2026-10-01）: (1) 机制取「只改文档措辞」——把规则改写成约束绑定目的文档而非起草者，不加 hook、不加命令；(2) 骨架语言沿用 `artifacts.md:27` 已为 `task promote` 立下的让步，并推广到任何骨架（含能力模板）：未编辑的骨架标题可留英文，一旦编辑即服从规则，prose 一律用户语言；(3) 验收取「阅读式验收 + 一次下游复核」。
 - Notes: 用户 2026-10-01 提出：采用专业工具写文档之后，原先「prose 用用户惯用语言」的约束失效了——不是被推翻，是没被带上。
 - 实例（本会话）：`2026-09-30-release-ci-test-policy` 的 prd.md 与 plan.md 全程英文——因为 `agent-skills:spec-driven-development` 与 `agent-skills:planning-and-task-breakdown` 的文档骨架是英文，照着写就默认变英文；而 `skills/taskflow/SKILL.md` 要求 prose 用用户工作语言、只有 hook 匹配的行用英文。同仓库 `achieved/2026-09-27-capability-pre-write-gate` 的 v2 文档全是中文，说明这是「写作移交给能力」之后才出现的静默偏离。落点待定：调用能力后把骨架译回用户语言，或在 SKILL 里写明骨架语言与 prose 语言的优先级，或干脆改判为英文——前两者都要动 SKILL。
