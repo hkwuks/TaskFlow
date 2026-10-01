@@ -1254,6 +1254,16 @@ grep -q "the lines they match stay English verbatim" "$skill/references/artifact
 grep -q 'in the user.s working language' "$skill/SKILL.md" || { echo "FAIL SKILL language rule missing"; exit 1; }
 grep -q 'user.s working language' "$repo/CODE_STYLE.md" || { echo "FAIL code style language rule missing"; exit 1; }
 grep -q 'are not rewritten for language' "$skill/references/artifacts.md" || { echo "FAIL no-rewrite rule missing"; exit 1; }
+# The rule and its one exemption have to stay about the document, not about who
+# drafted it. Each clause below was added because a capability's English template
+# was read as carrying a language policy with it, and the promote-only exemption
+# beside it as excusing the template too. Pinning the clauses is what stops the
+# next narrowing from dropping them in silence, since nothing here can read a
+# document's prose and tell which language it was written in.
+for clause in 'The rule binds the document, not whoever drafts it' 'a capability invoked for a phase brings its own' 'That exemption ends at the headings' 'Rewriting it covers the language as well as the structure'; do
+  grep -q -F -- "$clause" "$skill/references/artifacts.md" || { echo "FAIL artifact language rule does not pin: $clause"; exit 1; }
+done
+grep -q -F -- 'The rule binds the document, not its drafter' "$skill/SKILL.md" || { echo "FAIL SKILL language rule does not bind the document"; exit 1; }
 for token in '^## Approval$' '^- Status:' '> Task version:' '### Step '; do
   grep -q -- "$token" "$skill/references/artifacts.md" || { echo "FAIL language rule does not pin: $token"; exit 1; }
 done
