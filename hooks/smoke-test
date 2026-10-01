@@ -1414,6 +1414,19 @@ grep -q -F -- 'it is not one question but two independent ones' "$skill/SKILL.md
 grep -q -F -- 'for the bookkeeping that belongs to' "$repo/RELEASE.md" || { echo "FAIL RELEASE.md does not cite the narrowed criterion"; exit 1; }
 echo ok
 
+echo "== a task's landing claim is recorded in its pull request, not written back =="
+# v4: the clause v3 implied and left unwritten. Because the verification record
+# now lands inside the task's pull request, a fact that exists only after the
+# merge has nowhere to go — writing it back into prd.md or plan.md would be a
+# task document pushed to the base outside its own pull request, which the rule
+# forbids. v3's first use hit exactly this: the Plan for PR #66 promised to
+# "backfill" the A8 result once the merge had happened.
+for clause in 'The landing claim is recorded in that pull request' 'written back into `prd.md` or `plan.md` after the merge' 'not as a promise to write the result back'; do
+  grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" || { echo "FAIL landing-claim rule does not pin: $clause"; exit 1; }
+done
+grep -q -F -- "not in the task's documents" "$repo/CONTRIBUTING.md" || { echo "FAIL the landing claim is not distinguished from the task documents"; exit 1; }
+echo ok
+
 echo "== phases map to concept classes without naming a capability =="
 grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
 grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
