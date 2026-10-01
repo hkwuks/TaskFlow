@@ -32,11 +32,11 @@ No spec required — small, self-contained task.
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-10-01 22:31 +0800
+- Approved version: v4
+- Approved scope: PRD / Plan
 
 ## Steps
 
