@@ -1,6 +1,6 @@
 # Plan — Land a task's documents with its pull request, and record its landing claim there
 > Task version: v4
-> Status: ready
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -78,13 +78,13 @@ No spec required — small, self-contained task.
 - Implementation checklist:
   - [x] 把 CI run 与 PR 模板字段映射写进本 Plan，提交并推送（仍在同一 PR）。
   - [x] PR 正文的 Task 字段一次写成覆盖两种状态的形态（评审期间在活动根，末次提交归档到 `achieved/`）——避免 archive 之后再改 body。
-  - [ ] `hooks/task complete --user-accepted`（需用户验收），再 archive；提交并推送（仍在同一 PR）。
-  - [ ] `gh pr ready` 转正，交用户合并。
-  - [ ] 落地主张写进 PR 正文，**不写回本 Plan**（A6）。
+  - [x] `hooks/task complete --user-accepted`（需用户验收），再 archive；提交并推送（仍在同一 PR）。
+  - [x] `gh pr ready` 转正，交用户合并。
+  - [x] 落地主张写进 PR 正文，**不写回本 Plan**（A6）。
 - Acceptance: A6；A5.
 - Verification: 合入后用**核对**确认 archive 提交在合并之内——`git merge-base --is-ancestor <archive-sha> <merge-sha>`。这是核对不是回写，不产生新的文档提交。
 - Rollback: PR 被拒则 `hooks/reopen 2026-10-01-taskflow-commit-path` 取回（`TF-20261001-da6047` 已修复此路径）。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -93,6 +93,8 @@ No spec required — small, self-contained task.
 - After Step 3：PR 内含 archive 且已合入。
 
 ## Verification / Review
+
+- 2026-10-01 Step 3: PR #67 于 2026-10-01 由用户验收；文档提交与 archive 同在该 PR 内；本 Plan 不含任何合并后回写承诺
 
 - 2026-10-01 Step 2: CI run 36878119261 六项全绿（含 smoke 三主机）；本机跑不了整套，仅抽出本段所需的两个定义单独执行并通过
 

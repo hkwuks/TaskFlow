@@ -1,6 +1,6 @@
 # Land a task's documents with its pull request, and record its landing claim there
 > Task version: v4
-> Status: ready
+> Status: completed
 
 ## Goal
 
