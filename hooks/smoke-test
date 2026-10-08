@@ -1306,6 +1306,23 @@ grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$s
 grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
 echo ok
 
+echo "== a resume entry is required, not a judgement about usefulness =="
+# `sessions.md` existed in 2 of 88 task directories because nothing made the Agent
+# write an entry: the only trigger was "when continuation is useful", which cannot
+# be decided from the state at hand. Pin the checkable condition instead — a
+# session that ends while its task is not `completed` writes the entry — and pin
+# that the undecidable phrasing does not come back.
+grep -q -F -- 'Write the resume entry before you leave a task unfinished.' "$skill/SKILL.md" \
+  || { echo "FAIL the sessions resume-entry trigger is not stated"; exit 1; }
+grep -q -F -- 'if the session ends while the task is not `completed`, write the current entry' "$skill/SKILL.md" \
+  || { echo "FAIL the sessions trigger is not a checkable condition"; exit 1; }
+if grep -q -F -- 'only when cross-session or cross-agent continuation is useful' "$skill/SKILL.md"; then
+  echo "FAIL the undecidable sessions trigger is back"; exit 1
+fi
+grep -q -F -- 'a session that ends while its task is not `completed` writes one' "$skill/references/artifacts.md" \
+  || { echo "FAIL artifacts.md does not cite the resume-entry condition"; exit 1; }
+echo ok
+
 echo "== artifact language rule is documented without contradicting the parsers =="
 # The rule splits one document into prose and machine-read structure. If it ever
 # names a structural line as translatable, the hooks stop finding it, so pin both

@@ -38,7 +38,7 @@ Conditional artifacts:
 
 - `spec.md` — required for a large task; optional for a small, self-contained task.
 - `reference/` — optional research and evidence. Create `reference/index.md` only when the material is numerous enough to need navigation.
-- `sessions.md` — optional session/resume index when work spans sessions or agents.
+- `sessions.md` — session/resume index. Optional as a file; whether an entry must be written is a condition, stated under **Sessions and collaboration**.
 - `old/vN/` — only for a superseded logical version.
 
 Never create a second task fact source such as a root `SPEC.md`, `TaskFlowDocs/plan.md`, or an automatic review file for the same task. `TaskFlowDocs/todo.md` is the sole repository Todo inbox; it contains triage metadata only and never duplicates promoted task facts.
@@ -286,7 +286,7 @@ Publishing, merging, deployment, or delivery processes managed by other tools ar
 
 ## Sessions and collaboration
 
-Use `sessions.md` only when cross-session or cross-agent continuation is useful. Record platform, session ID, availability, code working directory, task artifact directory, Task version, phase, last completed Step, next Step, status, and resume command. Do not store chat transcripts, model reasoning, full logs, secrets, or tokens. The SessionStart hook maintains the mechanical fields of the selected task's session entry — session id, agent, availability, timestamps, directories, Task version/phase — so normally you only add `Last completed`, `Next step`, and `Notes`, and you remain the only writer that closes an entry. Never treat the hook's entry as progress: `plan.md` stays authoritative for steps and verification.
+**Write the resume entry before you leave a task unfinished.** `sessions.md` is what a later session reads to pick the work up, so it is not left to a judgement about whether continuation "seems useful": if the session ends while the task is not `completed`, write the current entry's `Last completed` and `Next step` before ending it. That condition is the whole trigger, and it is checkable — the task's own phase answers it. A task that ends `completed` needs no entry; a task that ends `blocked`, `planning`, or `in_progress` does. The SessionStart hook maintains the mechanical fields of the selected task's session entry — session id, agent, availability, timestamps, directories, Task version/phase — so normally you add `Last completed`, `Next step`, and `Notes`, and you remain the only writer that closes an entry. If no hook wrote an entry — hooks are optional, and an environment without them runs the same flow — create the file from the Session outline in [artifacts.md](references/artifacts.md) and fill the entry yourself. Never treat the hook's entry as progress: `plan.md` stays authoritative for steps and verification.
 
 Only one named owner may write `prd.md`, `spec.md`, `plan.md`, or `reference/index.md` at a time. Agents may read in parallel and produce independent research/review notes. The Primary Agent or user merges conclusions, changes Task version, records approval, and changes the phase. On handoff, the old owner updates `sessions.md` and `plan.md`; the new owner reads the current artifacts before writing. If a task has multiple agents, designate at most one `Primary` session.
 

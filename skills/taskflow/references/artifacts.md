@@ -181,7 +181,7 @@ Do not alter external source files to add status metadata. Update the index or a
 
 ## Session outline
 
-`TaskFlowDocs/<task>/sessions.md` is the optional resume index. Hook and Agent own different fields: the SessionStart hook writes the session id, agent, availability, started/last-active timestamps, code working directory, task artifact directory, and Task version/phase; the Agent owns `Last completed`, `Next step`, and `Notes`, and is the only writer that may mark an entry `closed`. Never restate progress or next-step detail here that belongs in `plan.md`.
+`TaskFlowDocs/<task>/sessions.md` is the resume index. Whether an entry must exist is a condition rather than a judgement — a session that ends while its task is not `completed` writes one — and `SKILL.md` under **Sessions and collaboration** states that condition and the fields to record; this reference does not restate it. Hook and Agent own different fields: the SessionStart hook writes the session id, agent, availability, started/last-active timestamps, code working directory, task artifact directory, and Task version/phase; the Agent owns `Last completed`, `Next step`, and `Notes`, and is the only writer that may mark an entry `closed`. Never restate progress or next-step detail here that belongs in `plan.md`.
 
 ```markdown
 # Sessions — <Task title>
