@@ -1,6 +1,6 @@
 # Plan — 任务关系与会话延续：sessions.md 触发条件、重叠上报、父子任务协调
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 改动集中在一份 Skill 文档、一份 reference 与 `hooks/task` 的一个子命令；无跨层契约、无数据结构变更、无兼容性决策，边界由 PRD 的 Acceptance Criteria 完全界定。
 

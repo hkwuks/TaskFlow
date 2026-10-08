@@ -1,6 +1,6 @@
 # 任务关系与会话延续：sessions.md 触发条件、重叠上报、父子任务协调
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

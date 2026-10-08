@@ -78,15 +78,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## sessions.md needs a trigger condition, or should be demoted to a hook-only artif
 
 - ID: TF-20261008-b1f5e0
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-08, 8-item doc/tooling batch
 - Added: 2026-10-08
 - Updated: 2026-10-08
 - Goal: sessions.md needs a trigger condition, or should be demoted to a hook-only artifact: only the SessionStart hook ever creates it, so 2 of 88 task dirs have one and SKILL.md:289 states no condition that makes the Agent write one
-- Task: `TaskFlowDocs/2026-10-08-task-open-and-continuation/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-08-task-open-and-continuation/`
+- Next action: None — completed and archived.
 
 ## The capability-evidence hook and the capability-gate anchor on different things,
 
