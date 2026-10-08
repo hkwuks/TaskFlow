@@ -191,6 +191,68 @@ BEGIN {
   # is not valid UTF-8 to begin with -- reads as 0 and is measured as one byte.
   for (i = 1; i < 256; i++) ord[sprintf("%c", i)] = i
   n = 0
+  lc = "abcdefghijklmnopqrstuvwxyz"
+  uc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  min_token_len = ENVIRON["TASKFLOW_MIN_TOKEN"] + 0
+  if (min_token_len < 1) min_token_len = 2
+  min_shared = ENVIRON["TASKFLOW_MIN_SHARED"] + 0
+  if (min_shared < 1) min_shared = 2
+  overlap_pct = ENVIRON["TASKFLOW_OVERLAP_PCT"] + 0
+  if (overlap_pct < 1) overlap_pct = 40
+}
+
+# Word-overlap heuristic backing the intake candidate report. Words are split on
+# anything that is not a letter or digit and lowercased with the `lc`/`uc` string
+# pair, because the tolower() of POSIX awk is locale-dependent and the bash 3.2 +
+# BSD floor this file is written to offers nothing better. Tokens shorter than
+# `min_token_len` are dropped, which is what keeps two CJK sentences that share
+# only function words from scoring above the threshold.
+#
+# The measure is Jaccard, set against a floor: the intersection must be at least
+# `min_shared` tokes before the ratio counts at all. Jaccard alone is too eager
+# between short entries -- half of "fix a typo in the README title" is "the
+# README" on any entry that names README -- and too quiet between a long and a
+# short one, which is why the floor rather than a containment term is what makes
+# the report usable. Measured, not assumed: at 2 tokes and 40% the report fires
+# on a genuine re-wording and stays silent on a library of unrelated entries.
+function addtok(s,   w) {
+  if (s == "") return
+  w = lcsub(s)
+  if (length(w) < min_token_len) return
+  if (!(w in seenm)) { seenm[w] = 1; toks[++ntok] = w }
+}
+function lcsub(s,   i, c, o) {
+  o = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    p = index(uc, c)
+    o = o (p ? substr(lc, p, 1) : c)
+  }
+  return o
+}
+# Fills a set array keyed by token; callers intersect by lookup, so two sets never
+# share an index space.
+function tokset(s, set,   i, c, buf, w) {
+  delete set; nt = 0
+  buf = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    if (c ~ /[A-Za-z0-9]/) { buf = buf c; continue }
+    if (buf != "") { w = lcsub(buf); if (length(w) >= min_token_len) { set[w] = 1; nt++ } }
+    buf = ""
+  }
+  if (buf != "") { w = lcsub(buf); if (length(w) >= min_token_len) { set[w] = 1; nt++ } }
+  return nt
+}
+# Returns the Jaccard ratio, or 0 when the two goals share fewer than min_shared
+# tokes. That floor is what makes it a candidate report rather than noise.
+function overlap(   w) {
+  intercount = 0
+  for (w in goaltoks) if (w in candtoks) intercount++
+  if (intercount < min_shared) return 0
+  denom = ngoaltoks + ncandtoks - intercount
+  if (denom <= 0) return 0
+  return intercount / denom
 }
 { n++; line[n] = $0 }
 END {
@@ -226,10 +288,45 @@ END {
       # resolve to one entry.
       if (rfield(a, b, "ID") == id) die("Todo ID already in use: " id)
     }
+    # Candidates for the same work, reported but never acted on. The duplicate
+    # check above is byte-exact, so a re-worded item used to appear beside the
+    # one it duplicates with no signal at all. Reported on stderr, because the
+    # stdout contract is the single `intake OK:` line and smoke-test reads the
+    # ID as its last field.
+    ncand = 0; candtrunc = 0
+    ngoaltoks = tokset(goal, goaltoks)
+    for (j = 1; j <= hc; j++) {
+      a = bstart(j); b = bend(j)
+      st = rfield(a, b, "Status")
+      if (st == "" || st == "done" || st == "cancelled") continue
+      jid = rfield(a, b, "ID")
+      if (jid == "") continue
+      jgoal = rfield(a, b, "Goal")
+      if (jgoal == goal) continue
+      ncandtoks = tokset(jgoal, candtoks)
+      if (overlap() * 100 >= overlap_pct) {
+        ncand++
+        if (ncand <= 3) { candid[ncand] = jid; candtitle[ncand] = cutbytes(jgoal, 80) }
+        else candtrunc = 1
+      }
+    }
+    if (ncand > 0) {
+      printf "note: %d existing live Todo %s may cover the same work -- review before planning:\n", \
+        ncand, (ncand == 1 ? "entry" : "entries") > "/dev/stderr"
+      for (j = 1; j <= (ncand < 3 ? ncand : 3); j++)
+        printf "  %s  %s\n", candid[j], candtitle[j] > "/dev/stderr"
+      if (candtrunc) printf "  ... and more\n" > "/dev/stderr"
+    }
     # str.rstrip(".") first, then truncate: the two steps are not commutative.
+    # Whitespace is stripped before *and* after the cut. Before, so a goal ending
+    # in spaces does not push its period out of reach of the regex above. After,
+    # because the cut itself can land inside a run of spaces mid-goal, and the
+    # result is not a field but a `## ` heading -- a line other people diff, where
+    # `git diff --check` reports the trailing space on every review.
     t = goal
+    sub(/[[:space:]]+$/, "", t)
     sub(/\.+$/, "", t)
-    title = cutbytes(t, 80)
+    title = rtrim(cutbytes(t, 80))
 
     # Insertion index: top of `## Items` (after its heading, blanks, and a
     # leading HTML comment), else just before `## Removed`, else EOF. The old

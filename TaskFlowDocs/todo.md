@@ -10,6 +10,84 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Define how work already committed in the main checkout moves into the task workt
+
+- ID: TF-20261008-84a0ce
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: Define how work already committed in the main checkout moves into the task worktree: SKILL.md:244 says move the work there with no procedure, and nothing warns about pre-existing dirty state outside TaskFlowDocs
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Name hooks/version at the SKILL.md update points and add a cheap assertion that
+
+- ID: TF-20261008-4d37b2
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: Name hooks/version at the SKILL.md update points and add a cheap assertion that detects a core document edited without a version transition: SKILL.md never mentions the command, and nothing detects an edit without a bump
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real h
+
+- ID: TF-20261008-a4454d
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real hooks directory: smoke-test pins clauses in SKILL.md and artifacts.md but never validates these two documents against the hooks that exist
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Define TaskFlow compatibility with loop and long-running tasks: repeated externa
+
+- ID: TF-20261008-ca2fce
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: Define TaskFlow compatibility with loop and long-running tasks: repeated external driving of one task, partial progress records, and resume boundaries when a task is entered many times
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Add a brainstorming and idea-refinement concept class to the phase-to-capability
+
+- ID: TF-20261008-5b5635
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: Add a brainstorming and idea-refinement concept class to the phase-to-capability table: phase 1 bundles refining a vague idea with writing the requirements document, so ideation capabilities are never considered
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## sessions.md needs a trigger condition, or should be demoted to a hook-only artif
+
+- ID: TF-20261008-b1f5e0
+- Status: done
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-08, 8-item doc/tooling batch
+- Added: 2026-10-08
+- Updated: 2026-10-08
+- Goal: sessions.md needs a trigger condition, or should be demoted to a hook-only artifact: only the SessionStart hook ever creates it, so 2 of 88 task dirs have one and SKILL.md:289 states no condition that makes the Agent write one
+- Task: `TaskFlowDocs/achieved/2026-10-08-task-open-and-continuation/`
+- Next action: None — completed and archived.
+
 ## The capability-evidence hook and the capability-gate anchor on different things,
 
 - ID: TF-20261001-efbc51
@@ -37,7 +115,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Next action: None — completed and archived.
 - 裁定（2026-10-01）: (1) 范围取「完全对称 archive」——reopen 写回 `Task:` 活动根、`Status: promoted`、`Next action: Re-approve the new Task version before core changes.`、`Updated:` 当天；(2) 取「与 archive 同纪律」——失败回滚 `mv`，写后校验，并打印提交用的 stage 行；(3) `Status:` 取 `promoted`，与 `hooks/task:796` 的 `task state planning|ready` 一致。
 
-## Commit Todo, release, and TaskFlowDocs changes straight to main when the author 
+## Commit Todo, release, and TaskFlowDocs changes straight to main when the author
 
 - ID: TF-20261001-331f7c
 - Status: done
@@ -54,7 +132,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 - reopen 来源（2026-10-01）：用户追问「这个 todo 创立的目的是什么——所有开发都优先直推，还是只有维护走直推？」。答复与记录一致：意图一直是**窄**——Todo 条目、任务状态与归档、发布执行；批准时选的也是「窄：只含 bookkeeping」。但落地的 `CONTRIBUTING.md:37` 写成了普适句（「Landing is a separate question, and one fact decides it: **can the author push the target branch?**」），读起来像**所有**改动都按权限选路径，而 `:39` 列举的三类沦为例子；真正把范围拉回来的只有 `:51` 末尾一句。**意图是窄的，字面是宽的**——本次把它收紧到字面与意图一致。
 - reopen 来源（2026-10-01，第二次）：用户提出「PR 里的文档操作应当随同一个 PR 提交，不要为文档操作另开 PR」，裁定拆成两根独立的轴（v3）。**v3 合并后首次实战立刻暴露一条缺口**：v3 把「Plan 里的验证记录」一并收进 PR，于是「合入后回填 Plan」这个动作变成规则明令禁止的合并后写入——任务文档里没有位置安放只有合并后才知道的事实。v3 的 PR #66 里我的 Plan 恰好写了「合入后按 A8 核对并回填本处」，正要撞上。用户裁定**取消这个期待**（不改文件），并改为现在就把这句写进规则。本次即 v4：任务落地的主张写在它的 PR 里（正文与提交），任务文档在合并之后不再回写；A8 一类的核对按「核对」表述，不写成分解成回填的承诺。
 
-## Reconcile the artifact-language rule with capability-written documents: a phase 
+## Reconcile the artifact-language rule with capability-written documents: a phase
 
 - ID: TF-20261001-51d9c8
 - Status: done
@@ -836,7 +914,7 @@ Every direct request or imported requireme
 - **`hooks/todo-check` 覆盖不到这一类**：它是纯 hook、无 LLM，对每个 merge commit 比较两个 parent 各自持有的 `- ID:` 集合与结果的集合（`sed` 提取 + `sort -u` + `comm -13`），只查 `TaskFlowDocs/todo.md` 一个文件的条目级丢失，不做三方比较，因此看不见"解决冲突时取错侧"。它由 `.github/workflows/hooks.yml` 的 `todo-merge-audit` 作业调用（非自动 hook），跑 `git rev-list --merges` 范围内的每个 merge。所以本条不能靠泛化 `todo-check` 解决——「取错侧」这个动作必然伴随一次冲突解决，应该做成"冲突解决后需记录取舍"的流程规则，而非内容比对。
 - Updated: 2026-09-18
 
-## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: 
+## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits:
 
 - ID: TF-20260918-e2317d
 - Status: done
@@ -1063,6 +1141,9 @@ Every direct request or imported requireme
 - ID: TF-20260919-2877ca (removed 2026-09-22: stale: delivered by release-flow-exception; merged in PR 42 (caad35b))
 - ID: TF-20260918-88e04c (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R3 stage print + branch rule).)
 - ID: TF-20260918-172455 (removed 2026-09-23: Covered by umbrella e7c041 / 2026-09-22-archive-transaction (R4 three-field rewrite lock).)
+- ID: TF-20261008-ee2c27 (removed 2026-10-08: Absorbed into TaskFlowDocs/2026-10-08-task-open-and-continuation/ (R2): the same SKILL.md triage paragraph carries the overlap-report obligation, so a separate task would re-edit the same files)
+- ID: TF-20261008-73facd (removed 2026-10-08: Absorbed into TaskFlowDocs/2026-10-08-task-open-and-continuation/ (R3): parent-child coordination edits the same SKILL.md section and artifacts.md Related Tasks block)
+- ID: TF-20261008-6b6ecf (removed 2026-10-08: probe entry created while verifying the intake exit-code contract; not a real request)
 
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
