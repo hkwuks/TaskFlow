@@ -2074,6 +2074,101 @@ fi
 grep -q "^- ID: $first$" "$id_a/TaskFlowDocs/todo.md" || { echo "FAIL ID not written"; exit 1; }
 [ "$(grep -c '^- ID: ' "$id_a/TaskFlowDocs/todo.md")" -eq 2 ] || { echo "FAIL duplicate goal wrote an entry"; exit 1; }
 
+echo "== a re-worded goal reports its likely duplicate on stderr, never on stdout =="
+# `intake` refused only byte-identical goals, so a re-worded item landed beside
+# the entry it duplicated with no signal. The report is a hint about wording, so
+# it must not touch the stdout contract callers read the ID out of, and it must
+# not fire on unrelated entries.
+ovl="$tmp/overlap"
+mkdir -p "$ovl/TaskFlowDocs"
+git -C "$ovl" init -q
+printf '# Todo\n\n## Items\n\n## Stop the Todo file from growing without bound\n\n- ID: TF-20260101-aaaaaa\n- Status: inbox\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Stop the TaskFlowDocs todo list from growing without bound; it is a growing archive every task must read\n- Task: Not promoted.\n- Next action: Decide.\n\n## A finished item that must never be a candidate\n\n- ID: TF-20260101-bbbbbb\n- Status: done\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Reword the TaskFlowDocs todo list so it stops growing without bound\n- Task: Not promoted.\n- Next action: None.\n' > "$ovl/TaskFlowDocs/todo.md"
+ovl_out="$(bash "$HERE/task" intake "Prevent the TaskFlowDocs todo list from growing without bound over time" fixture --root "$ovl" 2>"$ovl/err")"
+ovl_rc=$?
+[ "$ovl_rc" -eq 0 ] || { echo "FAIL overlap candidate changed the exit code: $ovl_rc"; exit 1; }
+# The stdout contract is unchanged: the ID is still the last field of the last line.
+[ "$(printf '%s\n' "$ovl_out" | head -1 | awk '{ print $NF }')" = "$(awk '/^- ID: /{ print $3 }' "$ovl/TaskFlowDocs/todo.md" | head -1)" ] \
+  || { echo "FAIL overlap report reached stdout"; printf '%s\n' "$ovl_out"; exit 1; }
+grep -q 'TF-20260101-aaaaaa' "$ovl/err" || { echo "FAIL a re-worded goal reported no candidate"; cat "$ovl/err"; exit 1; }
+# A `done` entry mentions the same words and must stay silent: the report is about
+# live work, and a closed item cannot be the same work as an open one.
+if grep -q 'TF-20260101-bbbbbb' "$ovl/err"; then
+  echo "FAIL a done Todo entry was reported as a candidate"; cat "$ovl/err"; exit 1
+fi
+# Unrelated vocabulary reports nothing rather than guessing.
+bash "$HERE/task" intake "Upgrade the CI runner to the latest Ubuntu image" fixture --root "$ovl" 2>"$ovl/err2" >/dev/null
+[ -s "$ovl/err2" ] && { echo "FAIL an unrelated goal reported a candidate"; cat "$ovl/err2"; exit 1; }
+# The report is a hint, so it is capped: a user who sees ten candidates reads none.
+ovl2="$tmp/overlap-many"
+mkdir -p "$ovl2/TaskFlowDocs"
+git -C "$ovl2" init -q
+{
+  printf '# Todo\n\n## Items\n'
+  i=1
+  while [ "$i" -le 6 ]; do
+    printf '\n## Candidate %s about the TaskFlowDocs todo list growing without bound\n\n- ID: TF-2026010%s-%s\n- Status: inbox\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Stop the TaskFlowDocs todo list from growing without bound, variant %s\n- Task: Not promoted.\n- Next action: Decide.\n' \
+      "$i" "$i" "aaaaa$i" "$i"
+    i=$((i + 1))
+  done
+} > "$ovl2/TaskFlowDocs/todo.md"
+bash "$HERE/task" intake "Prevent the TaskFlowDocs todo list from growing without bound over time" fixture --root "$ovl2" 2>"$ovl2/err" >/dev/null
+[ "$(grep -c '^  TF-' "$ovl2/err")" -eq 3 ] || { echo "FAIL the candidate report is not capped at three"; cat "$ovl2/err"; exit 1; }
+grep -q 'and more' "$ovl2/err" || { echo "FAIL the capped report does not say more exist"; cat "$ovl2/err"; exit 1; }
+echo ok
+
+echo "== a goal cut at 80 bytes leaves no trailing whitespace on its heading =="
+# The heading is the one line `intake` writes that reviewers diff, so a cut
+# landing inside a run of spaces used to put a trailing space into `todo.md` and
+# make `git diff --check` fail on a file nobody had edited by hand. The cut is
+# byte-based, so the fix is to rstrip after it rather than to trust the goal.
+ws="$tmp/heading-ws"
+mkdir -p "$ws/TaskFlowDocs"
+git -C "$ws" init -q
+printf '# Todo\n\n## Items\n' > "$ws/TaskFlowDocs/todo.md"
+bash "$HERE/task" intake "Name the hook points in the Skill and add a cheap assertion anchored on     the artifact" fixture --root "$ws" >/dev/null 2>&1
+bash "$HERE/task" intake "A goal that ends in a period." fixture --root "$ws" >/dev/null 2>&1
+if grep -nE '^## .*[[:space:]]$' "$ws/TaskFlowDocs/todo.md"; then
+  echo "FAIL an intake heading carries trailing whitespace"; exit 1
+fi
+git -C "$ws" add -A >/dev/null 2>&1
+git -C "$ws" diff --cached --check > "$ws/check" 2>&1 || true
+if grep -q '^## ' "$ws/check"; then
+  echo "FAIL git diff --check reports an intake heading:"; cat "$ws/check"; exit 1
+fi
+echo ok
+
+echo "== the overlap obligation is stated, and the hook report alone is not it =="
+# The report is word-overlap. A goal re-worded out of the shared vocabulary
+# produces no candidate at all, so the duty has to be stated in the workflow and
+# not delegated to whatever the hook happened to notice.
+grep -q -F -- 'Report overlap before you commit to a task.' "$skill/SKILL.md" \
+  || { echo "FAIL the overlap-report obligation is not stated"; exit 1; }
+grep -q -F -- 'say so to the user and get their choice before planning either one' "$skill/SKILL.md" \
+  || { echo "FAIL the overlap obligation does not require a user decision"; exit 1; }
+grep -q -F -- 'never merge, close, or re-scope another entry on your own' "$skill/SKILL.md" \
+  || { echo "FAIL the overlap obligation permits unilateral merging"; exit 1; }
+echo ok
+
+echo "== a child task reports into its own plan and does not edit the parent =="
+# The failure this prevents: a child finding its parent's approved requirement
+# wrong and editing the parent's PRD in place, which silently rewrites an approved
+# contract that nobody re-approved. The rules are stated in the workflow, and the
+# child's carrier for the parent version is pinned as a whole block so the link
+# cannot lose the version it was reasoned from.
+grep -q -F -- "**A task's requirements are its own.**" "$skill/SKILL.md" \
+  || { echo "FAIL the parent/child ownership rule is not stated"; exit 1; }
+grep -q -F -- 'does not edit the parent' "$skill/SKILL.md" \
+  || { echo "FAIL the child is not forbidden from editing the parent's documents"; exit 1; }
+grep -q -F -- "The parent's requirements change only through its own User-change trigger" "$skill/SKILL.md" \
+  || { echo "FAIL the parent change route is not stated"; exit 1; }
+grep -q -F -- 're-record the parent version before continuing' "$skill/SKILL.md" \
+  || { echo "FAIL the child is not required to re-record the parent version"; exit 1; }
+grep -q -F -- 'Parent: `<task path> (Task version: vN) or None`' "$skill/references/artifacts.md" \
+  || { echo "FAIL Related Tasks does not carry the parent Task version"; exit 1; }
+grep -q -F -- '`Parent` and `Children` carry direction; `Related` is symmetric' "$skill/references/artifacts.md" \
+  || { echo "FAIL Related Tasks does not distinguish direction from symmetry"; exit 1; }
+echo ok
+
 # The end the two mechanisms exist for: two branches cut from one base each intake
 # their own goal on the same day, then merge. A shared counter would hand both of
 # them "-01"; deterministic IDs give them different keys, so the driver sees two

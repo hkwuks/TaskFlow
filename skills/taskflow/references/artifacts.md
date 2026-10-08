@@ -157,12 +157,14 @@ Put lightweight dependency links in `plan.md`:
 
 ```markdown
 ## Related Tasks
+- Parent: `<task path> (Task version: vN) or None`
+- Children: `<task path or None>`
 - Depends on: `<task path or None>`
 - Blocks: `<task path or None>`
 - Related: `<task path or None>`
 ```
 
-Do not create a global task index solely for these links.
+`Parent` and `Children` carry direction; `Related` is symmetric and covers tasks with neither. `Parent` names the Task version the link was planned against, because that is the version the relationship was reasoned from — the coordination rules that use it are in `SKILL.md` (Existing-task-first selection). Do not create a global task index solely for these links.
 
 ## Reference index when needed
 
