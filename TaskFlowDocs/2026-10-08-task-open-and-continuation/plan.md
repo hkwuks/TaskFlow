@@ -137,7 +137,15 @@ Both stages were declared with `hooks/task unaided` rather than asserted in pros
 | `quick_validate.py skills/taskflow` | `Skill is valid!`（exit 0）。用 `/home/hk/miniconda3/envs/torch/bin/python` 运行——系统 `python3` 与 base conda 均无 PyYAML，torch 环境有（yaml 6.0.2）。未安装任何依赖，只换了执行解释器 | 通过 |
 | `todo.md` merge driver 未受影响 | 未执行独立合并实验：本任务对 `todo.md` 的改动只是 `intake` 写入的条目内容，未触碰 `hooks/merge-todo`、`hooks/install-merge-driver` 或 `merge.taskflow-todo` 配置，而全量 `smoke-test` 中的并行 intake 合并段（`== Todo IDs are derived from the goal… ==`）已覆盖驱动路径并通过 | 通过（由 smoke 覆盖，未另做实验） |
 
-**未做的检查与限制**：CI 的三 host 矩阵（ubuntu / macos / windows）未在本地复现，按 `CONTRIBUTING.md:66-71` 由推送后的 CI 裁决——本任务尚未推送。
+**未做的检查与限制**：CI 的三 host 矩阵由推送后的 CI 裁决（`CONTRIBUTING.md:66-71`）。**第一次运行结果（run 37801648319）**：`evals` / `release` / `todo-merge-audit` / `smoke (ubuntu-latest)` / `smoke (windows-latest)` 通过，**`smoke (macos-latest)` 失败**——`hooks/task: line 880: syntax error near unexpected token '<'`，即段 1 的 bash 3.2 解析检查。根因见下。
+
+### CI 失败复现与修复（macos-latest，bash 3.2）
+
+失败根因：我在 `TASK_AWK` 的 `$(cat <<'AWK' … )` heredoc 注释里写了一处撇号（`POSIX awk's`）。bash 3.2 的解析器不接受**嵌在 `$( )` 里的 heredoc** 中出现撇号，它在替换结束处报语法错——与 `hooks/smoke-test:33-37` 记录的同一个坑。两条修复：heredoc 内不再出现撇号（`POSIX awk's` → `the tolower() of POSIX awk`），并顺手去掉另一处拗口的 `caller's`；两者都只改注释文本，无行为变化。
+
+- 复现与验证：`docker run --rm -v "$PWD:/w" -w /w bash:3.2 bash -c 'bash -n hooks/task'` → `bash 3.2 parses hooks/task OK`；`awk` 扫描确认 heredoc 内（第 65–567 行）已无撇号。
+- 全量 suite 在本地（bash 5.x）仍 `ALL SMOKE PASSED`。
+- **限制**：`bash:3.2` 镜像基于 Alpine，无 `git` 也无包管理器，容器内无法跑完整 `smoke-test`（其合并驱动段需要 `git`），故 bash 3.2 下只做到了 `bash -n` 解析检查；完整矩阵仍由 macOS CI 裁定。
 
 ### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
 

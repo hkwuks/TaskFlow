@@ -203,8 +203,8 @@ BEGIN {
 
 # Word-overlap heuristic backing the intake candidate report. Words are split on
 # anything that is not a letter or digit and lowercased with the `lc`/`uc` string
-# pair, because POSIX awk's tolower() is locale-dependent and the bash 3.2 + BSD
-# floor this file is written to offers nothing better. Tokens shorter than
+# pair, because the tolower() of POSIX awk is locale-dependent and the bash 3.2 +
+# BSD floor this file is written to offers nothing better. Tokens shorter than
 # `min_token_len` are dropped, which is what keeps two CJK sentences that share
 # only function words from scoring above the threshold.
 #
@@ -291,8 +291,8 @@ END {
     # Candidates for the same work, reported but never acted on. The duplicate
     # check above is byte-exact, so a re-worded item used to appear beside the
     # one it duplicates with no signal at all. Reported on stderr, because the
-    # caller's stdout contract is `intake OK: <id>` and `smoke-test` reads the
-    # ID as stdout's last field.
+    # stdout contract is the single `intake OK:` line and smoke-test reads the
+    # ID as its last field.
     ncand = 0; candtrunc = 0
     ngoaltoks = tokset(goal, goaltoks)
     for (j = 1; j <= hc; j++) {
