@@ -163,7 +163,7 @@ Both stages were declared with `hooks/task unaided` rather than asserted in pros
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
 | Summary | PR 正文首节——三条规则的缺口与改法 | 待推送时写 |
-| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-08-task-open-and-continuation/` | 已确定 |
+| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-08-task-open-and-continuation/`（归档后为 `TaskFlowDocs/achieved/2026-10-08-task-open-and-continuation/`） | 已确定 |
 | TaskFlow traceability: Scope | 见 PRD 的 In Scope：`SKILL.md`、`references/artifacts.md`、`hooks/task`、`hooks/smoke-test`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`，已 fetch，本地 `main` 为 `origin/main` 的祖先） | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
