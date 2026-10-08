@@ -137,7 +137,16 @@ Both stages were declared with `hooks/task unaided` rather than asserted in pros
 | `quick_validate.py skills/taskflow` | `Skill is valid!`（exit 0）。用 `/home/hk/miniconda3/envs/torch/bin/python` 运行——系统 `python3` 与 base conda 均无 PyYAML，torch 环境有（yaml 6.0.2）。未安装任何依赖，只换了执行解释器 | 通过 |
 | `todo.md` merge driver 未受影响 | 未执行独立合并实验：本任务对 `todo.md` 的改动只是 `intake` 写入的条目内容，未触碰 `hooks/merge-todo`、`hooks/install-merge-driver` 或 `merge.taskflow-todo` 配置，而全量 `smoke-test` 中的并行 intake 合并段（`== Todo IDs are derived from the goal… ==`）已覆盖驱动路径并通过 | 通过（由 smoke 覆盖，未另做实验） |
 
-**未做的检查与限制**：CI 的三 host 矩阵由推送后的 CI 裁决（`CONTRIBUTING.md:66-71`）。**第一次运行结果（run 37801648319）**：`evals` / `release` / `todo-merge-audit` / `smoke (ubuntu-latest)` / `smoke (windows-latest)` 通过，**`smoke (macos-latest)` 失败**——`hooks/task: line 880: syntax error near unexpected token '<'`，即段 1 的 bash 3.2 解析检查。根因见下。
+**未做的检查与限制**：CI 的三 host 矩阵由 CI 裁决（`CONTRIBUTING.md:66-71`），本地不重跑。
+
+**CI 结果**（`Hooks` workflow）：
+
+| run | commit | 结果 |
+| --- | --- | --- |
+| [37804479152](https://github.com/hkwuks/TaskFlow/actions/runs/37804479152) | `3c9fb55` | **success** — `evals` / `release` / `todo-merge-audit` / `smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` 全部 pass |
+| [37801648319](https://github.com/hkwuks/TaskFlow/actions/runs/37801648319) | `22419f2` | failure — 仅 `smoke (macos-latest)`；根因见下，已在 `3c9fb55` 修复 |
+
+### CI 失败复现与修复（macos-latest，bash 3.2）
 
 ### CI 失败复现与修复（macos-latest，bash 3.2）
 
