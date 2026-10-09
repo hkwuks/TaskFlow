@@ -10,7 +10,7 @@ No spec required — small, self-contained task.
 - `TaskFlowDocs/repository-docs/index.md` — routing record; routes this task to
   `README.md`, `CONTRIBUTING.md`, `CODE_STYLE.md`, `RELEASE.md`, `CHANGELOG.md`.
 - `CONTRIBUTING.md` — branch/worktree rule (followed: `.worktrees/2026-10-09-trae-host`
-  on `docs/trae-host`) and the landing rule (a task's documents land inside its own
+  on `feat/trae-host`) and the landing rule (a task's documents land inside its own
   pull request).
 - `skills/taskflow/references/runtime.md` — the host/harness hook contract this
   change extends; its own rule is that a host contract is written from a
@@ -44,7 +44,7 @@ No spec required — small, self-contained task.
 
 ## Preconditions
 
-- On `docs/trae-host` in `.worktrees/2026-10-09-trae-host` (done).
+- On `feat/trae-host` in `.worktrees/2026-10-09-trae-host` (done).
 - Todo item `TF-20261009-369e77` promoted and linked (done).
 - No live Trae host available (accepted in the PRD: the wiring ships unmeasured and
   says so).
@@ -221,4 +221,6 @@ No spec required — small, self-contained task.
 
 ## Version History
 
-- v1 — planning.
+- v1 — implemented and verified locally: `bash smoke-test` green including the new
+  Trae section, `bash hooks/release-check .` pass, `git diff --check` clean. Not
+  run on a live Trae host, and CI has not seen this branch — follow-ups, not claims.
