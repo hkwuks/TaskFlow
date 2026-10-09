@@ -112,12 +112,49 @@ None. `### 3. Design — Spec decision` 的判定：改动面虽含一个新增�
 
 - 2026-10-09 Step 1: phase table phase-1 row and concept_class_re changed; git diff shows only the intended lines (phase 2-7 rows and phase-table header untouched); unaided PRD --considered 'divergent exploration' -> 0, off-vocabulary -> 2; capability-gate byte-identical
 
-待执行（Step 3）。
+逐条记录命令与结果。区分：**既有失败**（改动前就存在）/ **新引入失败** / **环境失败**。
+
+| 检查 | 结果 | 分类 |
+| --- | --- | --- |
+| `bash hooks/smoke-test`（全量，Step 3 后） | exit 0，`ALL SMOKE PASSED`；新增两段各自 `ok`（对账断言、孤立 fixture 上的类记录断言） | 通过 |
+| **变异验证 1**：临时从 phase 表 phase 1 行的概念类列删掉 `divergent exploration` | `FAIL the phase table and the concept class vocabulary disagree: vocabulary names a class no phase offers: divergent exploration` | 断言有效（表缺 → 报警） |
+| **变异验证 2**：改回表、临时从 `concept_class_re` 删掉 `|divergent exploration` | `FAIL … phase table offers a class the vocabulary rejects: divergent exploration` | 断言有效（注册表缺 → 报警） |
+| 恢复两处后重跑全量 | `ALL SMOKE PASSED`，工作树 `git status` 无残留 | 通过 |
+| `hooks/task` 的 phase 表外副本一致性 | `git diff -U0` 证明只动了 phase 1 行、`### 1. Define — PRD` 段、`concept_class_re` 一行；表头行与 phase 2–7 行逐字未变（A1） | 通过 |
+| `hooks/capability-gate` | 本任务未触及，`git diff` 无该文件（A5） | 通过（不变量成立） |
+| `unaided PRD --considered "divergent exploration"` / `--considered "随便什么"` | exit `0` / exit `2`（A2） | 通过 |
+| `bash -n hooks/task` | 无输出 | 通过 |
+| `docker run --rm -v "$PWD:/w" -w /w bash:3.2 bash -c 'bash -n hooks/task'` | `bash 3.2 OK`——本轮新增代码全程避开「撇号嵌在 `$( )` 的 heredoc 中」（Task A 的 CI 失败根因） | 通过 |
+| `git diff --check` | `CLEAN`（Task A 那处 `intake` 尾空格缺陷已在 Task A 内修掉） | 通过 |
+| `bash hooks/release-check .` | `STATUS: pass` | 通过 |
+| `quick_validate.py skills/taskflow` | `Skill is valid!`（exit 0），用 `/home/hk/miniconda3/envs/torch/bin/python`（yaml 6.0.2）；系统 `python3` 与 base conda 无 PyYAML。未安装任何依赖，只换执行解释器 | 通过 |
+
+**未做的检查与限制**：CI 的三 host 矩阵由推送后的 CI 裁决（`CONTRIBUTING.md:66-71`），本地不重跑。`bash:3.2` 镜像基于 Alpine，无 `git` 也无包管理器，容器内只能做 `bash -n` 解析检查，跑不了完整 `smoke-test`（其合并驱动段需要 `git`）——完整矩阵仍由 macOS CI 裁定。
+
+**CI 结果**（`Hooks` workflow）：待推送后填入。
+
+### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
+
+模板路径已核对（25 行、4 节）。每个字段的映射：
+
+| 模板字段 | 落点 | 状态 |
+| --- | --- | --- |
+| Summary | PR 正文首节——"发散"没有独立概念类因而被 phase 1 顺带跳过，以及方案 A 的改法 | 待推送时写 |
+| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-08-capability-concept-classes/`（归档后为 `TaskFlowDocs/achieved/…`） | 已确定 |
+| TaskFlow traceability: Scope | PRD 的 In Scope：`SKILL.md`（phase 1 行 + `### 1. Define — PRD` 段）、`hooks/task`（`concept_class_re`）、`hooks/smoke-test`、本任务文档 | 已确定 |
+| TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从含 Task A 合并的 `e471857` 起 | 已验证 |
+| TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
+| Verification: Hooks workflow pass | 推送后由 CI 裁决，链接写进 PR 正文 | 待推送 |
+| Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
+| Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`（conda torch 解释器）、`release-check` `STATUS: pass` | 已记录 |
+| Verification: Results recorded in the Plan | 本节 | 已完成 |
+| Review boundaries（4 条） | 无凭据写入；`git status` 仅本任务 4 个文件 + 任务目录；`origin`/`main` 已核对；见 `## Follow-ups` | 已完成 |
 
 ## Change Log
 
 - 2026-10-08 work revision — 任务由 `TF-20261008-5b5635` promote 创建；用户裁定方案 A（新增独立概念类，记录可区分），写入 PRD 与 `Skills / Tools Used`；affects `prd.md`, `plan.md`, `TaskFlowDocs/todo.md`。
 - 2026-10-08 work revision — 调研落地：核出概念类有三个位置（phase 表 / `hooks/task:606` / `capability-gate:stage_class`）且**没有对账断言**，据此把"三处同批改"升级为 R4 的可执行断言，并确认 `stage_class` 不必改（A5）；另记录 `concept_class_re` 子串匹配过宽的既有缺陷为 follow-up；affects `prd.md`, `plan.md`。
+- 2026-10-09 work revision — Step 3 收尾：`## Verification / Review` 由 stub 换成逐条命令结果表（含两个方向的变异验证）、未做检查的限制说明与 PR 模板逐字段映射；affects `plan.md`, `sessions.md`。
 
 ## Follow-ups
 
