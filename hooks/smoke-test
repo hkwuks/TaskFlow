@@ -3068,6 +3068,99 @@ printf '%s' "$dsh_out" | grep -q '"hookEventName": *"SessionStart"' || {
 }
 echo ok
 
+echo "== the Trae wiring runs the hooks Trae would run =="
+# Trae has no plugin root. hooks/hooks-trae.json is Trae's own hooks.json format,
+# written into <project>/.trae/hooks.json with this checkout's path in place of
+# the <TASKFLOW_ROOT> token, and Trae runs it in the system shell (Bash on
+# macOS/Linux, PowerShell on Windows). What the section pins:
+#   * every command resolves the checkout from <TASKFLOW_ROOT>, substituted at
+#     install time, since Trae substitutes nothing into a hook command;
+#   * session-start's command sets CLAUDE_PLUGIN_ROOT itself. Trae injects
+#     CLAUDE_PROJECT_DIR and never the plugin root, and that variable alone
+#     decides the hook's output shape: without it the hook emits a top-level
+#     additionalContext and Trae discards the context silently -- the same
+#     failure mode the dsh section above exists to catch, by a different route;
+#   * the gate's own tool names are in the file (Trae's matcher is a regex on the
+#     normalized tool name), so an edit that drops one cannot disable the gate
+#     silently.
+# The two gate hooks are run here as well, not assumed to behave like the
+# SessionStart one: what they read is the same CLAUDE_PROJECT_DIR.
+trae_json="$HERE/hooks-trae.json"
+[ -f "$trae_json" ] || { echo "FAIL hooks/hooks-trae.json is missing"; exit 1; }
+trae_root="$(cd "$HERE/.." && pwd)"
+# The command strings are read out of the JSON, so the JSON escaping comes off
+# them: left in, `\"path\"` reaches the shell as a word whose characters include
+# two quote marks, and sh reports "not found" for a path that exists.
+trae_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$trae_json" | sed 's/\\"/"/g')"
+[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 4 ] \
+  || { echo "FAIL hooks/hooks-trae.json should wire four hook commands (SessionStart, PreToolUse, Skill, MCP):"; printf '%s\n' "$trae_cmds"; exit 1; }
+printf '%s\n' "$trae_cmds" | grep -q "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>'" \
+  || { echo "FAIL hooks/hooks-trae.json does not set CLAUDE_PLUGIN_ROOT: Trae would discard the SessionStart context silently"; exit 1; }
+# Trae's matcher is a regex on the normalized tool name, so the gate's own names
+# have to be in the file; a later edit that drops one disables the gate on Trae
+# with nothing else to notice it.
+for trae_pat in '"SessionStart"' '"matcher": "startup"' '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill"' '"matcher": "mcp__.*"'; do
+  grep -q -F -- "$trae_pat" "$trae_json" \
+    || { echo "FAIL hooks/hooks-trae.json is missing $trae_pat"; exit 1; }
+done
+trae_run() {  # trae_run <script-name> <event-json> <cwd> -> the hook's stdout
+  trae_cmd="$(printf '%s\n' "$trae_cmds" | grep -F -- "$1" | head -1)"
+  case "$trae_cmd" in
+    *'<TASKFLOW_ROOT>'*) ;;
+    *) echo "FAIL the $1 command does not name <TASKFLOW_ROOT>, so a copied .trae/hooks.json points nowhere" >&2; return 1 ;;
+  esac
+  trae_resolved="$(printf '%s' "$trae_cmd" | sed "s#<TASKFLOW_ROOT>#$trae_root#g")"
+  printf '%s' "$2" | ( cd "$3" && CLAUDE_PROJECT_DIR="$3" sh -c "$trae_resolved" )
+}
+
+trae_repo="$tmp/trae-wiring"
+mkdir -p "$trae_repo/TaskFlowDocs/2026-01-01-demo"
+git -C "$trae_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$trae_repo/TaskFlowDocs/2026-01-01-demo/plan.md"
+printf '## Items\n' > "$trae_repo/TaskFlowDocs/todo.md"
+
+trae_out="$(trae_run session-start \
+  "{\"hook_event_name\":\"SessionStart\",\"cwd\":\"$trae_repo\",\"session_id\":\"smoke\",\"source\":\"startup\"}" \
+  "$trae_repo")" || { echo "FAIL the Trae SessionStart command did not run"; exit 1; }
+[ -n "$trae_out" ] || { echo "FAIL the Trae SessionStart command printed nothing"; exit 1; }
+printf '%s' "$trae_out" | grep -q '"hookSpecificOutput"' || {
+  echo "FAIL the Trae wiring produced a top-level context Trae would discard:"
+  printf '%s\n' "$trae_out"; exit 1
+}
+printf '%s' "$trae_out" | grep -q '"hookEventName": *"SessionStart"' || {
+  echo "FAIL the Trae wiring output carries no matching hookEventName:"
+  printf '%s\n' "$trae_out"; exit 1
+}
+
+# The gate denies the first body write with no evidence, exactly as on Claude
+# Code: the wiring reuses the script, so what is proven here is that Trae's event
+# shape reaches it -- tool_input.file_path and a PreToolUse event name.
+trae_deny="$(trae_run capability-gate \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
+  "$trae_repo")" || { echo "FAIL the Trae PreToolUse command did not run"; exit 1; }
+printf '%s' "$trae_deny" | grep -q '"permissionDecision":"deny"' || {
+  echo "FAIL the Trae wiring's gate did not deny an ungated stage document:"
+  printf '%s\n' "$trae_deny"; exit 1
+}
+
+# And a Skill call records evidence, which is what releases that deny.
+trae_ev="$(git -C "$trae_repo" rev-parse --absolute-git-dir)/taskflow/evidence"
+trae_run capability-evidence \
+  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"skill\":\"trae:smoke\"}}" \
+  "$trae_repo" >/dev/null || { echo "FAIL the Trae PostToolUse command did not run"; exit 1; }
+[ -f "$trae_ev" ] || { echo "FAIL the Trae wiring recorded no capability evidence"; exit 1; }
+grep -qx 'invoke|trae:smoke' "$trae_ev" || {
+  echo "FAIL the Trae wiring recorded the wrong evidence:"; cat "$trae_ev"; exit 1
+}
+trae_allow="$(trae_run capability-gate \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
+  "$trae_repo")" || { echo "FAIL the Trae PreToolUse command did not run"; exit 1; }
+printf '%s' "$trae_allow" | grep -q 'deny' && {
+  echo "FAIL the Trae wiring's gate denied a stage an invocation had released:"
+  printf '%s\n' "$trae_allow"; exit 1
+}
+echo ok
+
 echo "== the hook launcher executes the way the harness executes it =="
 # Claude Code runs the plugin `command` verbatim through the platform shell, so
 # the first token has to be an executable file. Both halves matter and neither is
