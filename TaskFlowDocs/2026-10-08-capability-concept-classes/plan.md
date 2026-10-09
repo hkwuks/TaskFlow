@@ -131,7 +131,7 @@ None. `### 3. Design — Spec decision` 的判定：改动面虽含一个新增�
 
 **未做的检查与限制**：CI 的三 host 矩阵由推送后的 CI 裁决（`CONTRIBUTING.md:66-71`），本地不重跑。`bash:3.2` 镜像基于 Alpine，无 `git` 也无包管理器，容器内只能做 `bash -n` 解析检查，跑不了完整 `smoke-test`（其合并驱动段需要 `git`）——完整矩阵仍由 macOS CI 裁定。
 
-**CI 结果**（`Hooks` workflow）：待推送后填入。
+**CI 结果**（`Hooks` workflow）：[run 37955222114](https://github.com/hkwuks/TaskFlow/actions/runs/37955222114)，commit `28e7051` — **success**，`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `evals` / `todo-merge-audit` 全部通过。无失败，故无根因与修复可记。
 
 ### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
 
@@ -139,12 +139,12 @@ None. `### 3. Design — Spec decision` 的判定：改动面虽含一个新增�
 
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
-| Summary | PR 正文首节——"发散"没有独立概念类因而被 phase 1 顺带跳过，以及方案 A 的改法 | 待推送时写 |
+| Summary | PR [#69](https://github.com/hkwuks/TaskFlow/pull/69) 正文首节——"发散"没有独立概念类因而被 phase 1 顺带跳过、且该失败是静默的，以及方案 A 的改法 | 已完成 |
 | TaskFlow traceability: Task | `TaskFlowDocs/2026-10-08-capability-concept-classes/`（归档后为 `TaskFlowDocs/achieved/…`） | 已确定 |
 | TaskFlow traceability: Scope | PRD 的 In Scope：`SKILL.md`（phase 1 行 + `### 1. Define — PRD` 段）、`hooks/task`（`concept_class_re`）、`hooks/smoke-test`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从含 Task A 合并的 `e471857` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
-| Verification: Hooks workflow pass | 推送后由 CI 裁决，链接写进 PR 正文 | 待推送 |
+| Verification: Hooks workflow pass | [run 37955222114](https://github.com/hkwuks/TaskFlow/actions/runs/37955222114)，commit `28e7051`，三 host 矩阵 + `release` / `evals` / `todo-merge-audit` 全绿；已写入 PR 正文 | 已完成 |
 | Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
 | Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`（conda torch 解释器）、`release-check` `STATUS: pass` | 已记录 |
 | Verification: Results recorded in the Plan | 本节 | 已完成 |
