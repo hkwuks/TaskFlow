@@ -1,6 +1,6 @@
 # 让「发散与想法精炼」成为 phase 表里的独立概念类
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

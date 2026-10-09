@@ -1,6 +1,6 @@
 # Plan — 让「发散与想法精炼」成为 phase 表里的独立概念类
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 改动是三处文本的一处数据点（phase 表一行、`concept_class_re` 一行、`SKILL.md` 一段）加一个校验段；无跨层契约、无数据结构变更、无兼容性决策。唯一有设计成分的是 R4 的对账断言，其面与备选方案已界定在 PRD 的 Risks 与 Step 2 的 checklist 内。
 
