@@ -1184,3 +1184,30 @@ Every direct request or imported requireme
 - Task: `TaskFlowDocs/achieved/2026-09-15-hook-integrity/` (v2)
 - Next action: None — completed and archived.
 
+## Make the artifact-language rule actually bind: the trae-host PRD and Plan were w
+
+- ID: TF-20261009-887511
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09, recurrence found while writing the trae-host documents
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Make the artifact-language rule actually bind: the trae-host PRD and Plan were written entirely in English even though the rule and its prior ruling (TF-20261001-51d9c8) are in force, because the phase capability supplied an English skeleton and nothing makes the drafter translate its own prose or flags it when it does not. Decide the mechanism and the detection
+- Task: Not promoted.
+- Next action: Decide the wording or mechanism that makes the drafter translate its own prose, and add a detection the next silent English run trips
+- Notes: Recurrence of TF-20261001-51d9c8 with the same root cause recorded there: the phase capability brought an English skeleton and nothing carried the rule onto the prose underneath it.
+
+## Stop hand-writing a bespoke manual install section per host in the host-facing d
+
+- ID: TF-20261009-99045e
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Stop hand-writing a bespoke manual install section per host in the host-facing docs: for each host state whether a real plugin or marketplace install command exists and use it where one does, and define one shared manual-install procedure (copy the skill directory plus write the host hooks file) that each host section instantiates, instead of a per-host copy/paste block with no stated reason why an install command is absent
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
