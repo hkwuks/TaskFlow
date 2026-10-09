@@ -1,7 +1,7 @@
 # Plan — Adapt TaskFlow to Trae IDE as a fifth host
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -190,7 +190,7 @@ No spec required — small, self-contained task.
 | Whitespace | `git diff --check` | clean |
 | JSON | `python3 -c "json.load(...)"` over `hooks/hooks-trae.json` | parses |
 | Host lists | `grep -rn "CodeBuddy"` over the tree | every enumeration now names Trae; `CHANGELOG.md` and `TaskFlowDocs/achieved/**` left untouched as historical records |
-| CI | the `Hooks` workflow on the pushed branch | **not run** — no push from this session |
+| CI | the `Hooks` workflow on the pushed branch | **pass** — [run 37955445883](https://github.com/hkwuks/TaskFlow/actions/runs/37955445883): `smoke` on ubuntu, macos, and windows, plus `release`, `todo-merge-audit`, `evals` |
 
 ## Change Log
 
@@ -221,6 +221,7 @@ No spec required — small, self-contained task.
 
 ## Version History
 
-- v1 — implemented and verified locally: `bash smoke-test` green including the new
-  Trae section, `bash hooks/release-check .` pass, `git diff --check` clean. Not
-  run on a live Trae host, and CI has not seen this branch — follow-ups, not claims.
+- v1 — implemented and verified: `bash smoke-test` green including the new Trae
+  section, `bash hooks/release-check .` pass, `git diff --check` clean, and CI
+  green on all six jobs of [run 37955445883](https://github.com/hkwuks/TaskFlow/actions/runs/37955445883).
+  Not run on a live Trae host — that stays a follow-up, not a claim.

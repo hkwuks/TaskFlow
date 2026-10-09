@@ -26,15 +26,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
 
 - ID: TF-20261009-369e77
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-09: adapt TaskFlow to Trae
 - Added: 2026-10-09
 - Updated: 2026-10-09
 - Goal: Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a documented .trae/hooks.json export, with no Trae plugin mechanism to install through (Trae hooks are user-scoped .trae/hooks.json only; Trae also reads Claude Code hook configs)
-- Task: `TaskFlowDocs/2026-10-09-trae-host/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-09-trae-host/`
+- Next action: None — completed and archived.
 
 ## Define how work already committed in the main checkout moves into the task workt
 

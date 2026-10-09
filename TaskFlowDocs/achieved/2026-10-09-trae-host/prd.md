@@ -1,7 +1,7 @@
 # PRD — Adapt TaskFlow to Trae IDE as a fifth host
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
