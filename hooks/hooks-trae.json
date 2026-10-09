@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "description": "TaskFlow lifecycle hooks for Trae IDE: SessionStart state summary, pre-write capability gate, and capability-call capture. Copy to <project>/.trae/hooks.json, replacing <TASKFLOW_ROOT> with this checkout's absolute path. The commands below are the macOS/Linux spelling; see hooks/README.md for the PowerShell equivalent Trae needs on Windows.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>' bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' session-start",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' capability-gate",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' capability-evidence",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' capability-evidence",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

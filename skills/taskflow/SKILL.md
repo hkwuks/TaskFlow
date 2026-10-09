@@ -15,7 +15,7 @@ Apply TaskFlow automatically only when the request asks to modify a repository o
 
 Decide this applicability before Todo intake. If TaskFlow does not apply, answer or investigate directly and stop reading this workflow.
 
-TaskFlow may coordinate with host/harness hooks (Claude Code and Codex CLI) for bounded bookkeeping and context. Host hooks are optional optimization, not a prerequisite: an environment without hooks runs the same flow. See [references/runtime.md](references/runtime.md) for what hooks may and may not do.
+TaskFlow may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for bounded bookkeeping and context. Host hooks are optional optimization, not a prerequisite: an environment without hooks runs the same flow. See [references/runtime.md](references/runtime.md) for what hooks may and may not do.
 
 ## Source of truth
 

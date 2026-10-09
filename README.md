@@ -17,7 +17,7 @@
 </div>
 
 > [!IMPORTANT]
-> **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, and dsh) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
+> **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
 
 <br />
 
@@ -121,9 +121,9 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
-Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until a capability really was invoked for that stage — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
+Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code and Trae the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until a capability really was invoked for that stage — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
 
-TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, and dsh) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code it may also record a capability invocation and refuse a stage document's first body write until that stage has one. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
+TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code and Trae it may also record a capability invocation and refuse a stage document's first body write until that stage has one. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 
 ## The one rule that prevents lost designs
 
@@ -184,7 +184,7 @@ stateDiagram-v2
 
 ## Get started
 
-TaskFlow ships as a Claude Code / Codex / CodeBuddy / dsh plugin: the `hooks/`, skill, and install wiring are all in one marketplace. No copying files or editing `settings.json` by hand.
+TaskFlow ships as a Claude Code / Codex / CodeBuddy / dsh plugin: the `hooks/`, skill, and install wiring are all in one marketplace. No copying files or editing `settings.json` by hand. Trae has no such marketplace, so it is the one host whose install is a documented copy — see [Install with Trae](#install-with-trae).
 
 ### Install with Claude Code
 
@@ -306,6 +306,42 @@ is no `fork`, so the dsh matcher omits it.
 dsh has no plugin marketplace, and `dsh plugin add` resolves through pnpm, so a
 release is picked up with `dsh plugin --profile web update`.
 
+### Install with Trae
+
+Trae has no plugin marketplace a third-party repository can publish to, so there
+is no `trae plugin …` command. Its own surfaces are project-scoped files, and
+TaskFlow ships a wiring file in Trae's own `hooks.json` format for exactly that:
+
+```bash
+# from your project, with <taskflow> the TaskFlow checkout
+mkdir -p .trae/skills
+cp -r <taskflow>/skills/taskflow .trae/skills/taskflow
+sed 's#<TASKFLOW_ROOT>#<taskflow>#g' <taskflow>/hooks/hooks-trae.json > .trae/hooks.json
+```
+
+Use an absolute path for `<taskflow>`; Trae substitutes nothing into a hook
+command, so the path in `.trae/hooks.json` must already be resolved. On Windows,
+rewrite the four commands for PowerShell — `bash '<path>' <script>` becomes
+`& '<path>\hooks\run-hook.cmd' <script>`, and the `CLAUDE_PLUGIN_ROOT='<path>'`
+prefix becomes `$env:CLAUDE_PLUGIN_ROOT='<path>';` in front of it. The launcher
+locates Git for Windows Bash there (it exits nonzero and says so when it cannot).
+The skill copy is a snapshot: re-run the `cp` after a TaskFlow update.
+
+Trae writes the same `hooks/session-start` summary the other hosts get, and wires
+the same pre-write capability gate through Trae's `PreToolUse`/`PostToolUse`.
+`hooks/hooks-trae.json` sets `CLAUDE_PLUGIN_ROOT` on the SessionStart command
+because Trae injects no plugin root, and that variable is what makes
+`session-start` emit the nested context field Trae reads.
+
+Trae also reads Claude Code hook configs if you turn on **设置 → Hooks → 导入
+CLAUDE 中的 Hooks 配置**, which merges `~/.claude/settings.json` and the project
+`.claude/settings.json` files with any `.trae/hooks.json`. The install above is the
+path this repository documents.
+
+> Trae's support is documented from `docs.trae.cn` (read 2026-10-09), not measured
+> on a live host; expect the first run on Trae to be the one that confirms or
+> corrects it.
+
 ### Prefer a local copy?
 
 For development or source inspection, point the marketplace at your checked-out
@@ -371,7 +407,7 @@ TaskFlow is not trying to replace specification-driven development, role-based m
 | **Primary concern** | Task state and semantic history | Spec-driven workflow | Configurable spec/change workflow | Role-based Agent methodology | Ownership and coordination |
 | **Core unit** | Local TaskFlowDocs directory | Specs and workflow artifacts | Specs and changes | Agents, roles, workflows | Tickets, cards, issues |
 | **Design recovery** | Explicit `old/vN/` archive | Adoption/repository dependent | Project/Git practice dependent | Workflow/repository dependent | Usually activity history only |
-| **Agent interaction** | Skill instructions + bounded host-hook coordination (Claude Code, Codex, CodeBuddy, dsh) | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
+| **Agent interaction** | Skill instructions + bounded host-hook coordination (Claude Code, Codex, CodeBuddy, dsh, Trae) | Tool/workflow conventions | Configurable workflow conventions | Role and orchestration patterns | Usually outside Agent context |
 | **Infrastructure** | Markdown + filesystem + Git | Adopted repository tooling | Adopted repository tooling | Method assets + adopted tooling | Usually a hosted service |
 | **Use it with TaskFlow?** | — | Generate specs, then route reviewed task facts into TaskFlow | Route reviewed specs/changes into TaskFlow | Keep role outputs as reviewed task references | Link a ticket to its task directory |
 
@@ -412,6 +448,8 @@ skills/taskflow/                     # the workflow itself
 
 hooks/                               # optional host/harness hooks — see hooks/README.md
 ├── session-start                    # SessionStart entry point
+├── capability-gate                  # pre-write gate on a stage document
+├── capability-evidence              # records real capability invocations
 ├── session-record                   # records the host session id in sessions.md
 ├── summarize-state                  # derives the state summary (shared logic)
 ├── repository-docs-context          # syncs index metadata and derives routes
@@ -419,7 +457,7 @@ hooks/                               # optional host/harness hooks — see hooks
 ├── merge-todo                       # the driver: merges todo.md by entry
 ├── task / archive / version / reopen # explicit lifecycle commands
 ├── release-check / todo-check       # release literals; dropped Todo entries
-├── hooks{,-codex,-codebuddy,-dsh}.json   # one wiring file per host
+├── hooks{,-codex,-codebuddy,-dsh,-trae}.json   # one wiring file per host
 └── run-hook.cmd                     # cross-platform launcher
 
 evals/                               # offline routing evals (runner.py + cases/, fixtures/)

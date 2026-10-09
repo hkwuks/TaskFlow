@@ -8,14 +8,14 @@ The approval gate comes with the procedure instead of with a Plan's `## Approval
 
 ## Release scope
 
-TaskFlow ships as a repository plugin for Claude Code, Codex CLI, CodeBuddy, and dsh. Keep these artifacts aligned:
+TaskFlow ships as a repository plugin for Claude Code, Codex CLI, CodeBuddy, and dsh, and as a copy-in hooks file for Trae. Keep these artifacts aligned:
 
 - `.codex-plugin/plugin.json` — Codex manifest and development cachebuster;
 - `.claude-plugin/plugin.json` — Claude Code manifest version;
 - `.codebuddy-plugin/plugin.json` — CodeBuddy manifest and development cachebuster;
 - `package.json` — the dsh bundle manifest (its `dsh.bundle.patch` is what makes the repository root installable as a dsh plugin);
 - `.claude-plugin/marketplace.json` and `.codebuddy-plugin/marketplace.json` — catalog entries pinned to the stable release tag and full commit SHA;
-- `skills/taskflow/` and `hooks/` — plugin contents;
+- `skills/taskflow/` and `hooks/` — plugin contents (Trae carries no version literal: it copies `hooks/hooks-trae.json` and the skill directory, so there is nothing to bump and nothing to pin);
 - README, governance documents, and release notes.
 
 Six of those files carry a version literal, eight in all: the four manifests, and

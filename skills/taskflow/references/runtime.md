@@ -1,6 +1,6 @@
 # Host / harness hooks and single-command transitions
 
-Read this reference when configuring TaskFlow on a host that supports lifecycle hooks (Claude Code, Codex CLI, CodeBuddy), or when running a TaskFlow transition as one command.
+Read this reference when configuring TaskFlow on a host that supports lifecycle hooks (Claude Code, Codex CLI, CodeBuddy, dsh, Trae), or when running a TaskFlow transition as one command.
 
 ## What a host/harness hook is
 
@@ -18,13 +18,17 @@ TaskFlow ships reference hook configs for:
 | Codex CLI | `.codex-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codex.json`), or `<repo>/.codex/hooks.json` for a manual install | `hooks/hooks-codex.json` |
 | CodeBuddy | `.codebuddy-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codebuddy.json`), or `.codebuddy/settings.json` for a manual install | `hooks/hooks-codebuddy.json` |
 | dsh | the plugin package's `dsh/index.js` mounts `hooks-dsh.json` through dsh's Claude Code hook bridge; the bundle patch is what pulls the package in | `hooks/hooks-dsh.json` |
+| Trae | `hooks/hooks-trae.json` is Trae's own `hooks.json` format, copied to `<project>/.trae/hooks.json` at install time (or `~/.trae-cn/hooks.json` for a global install). Trae has no plugin marketplace a repository can publish to | `hooks/hooks-trae.json` |
 
 Install every host by command from the repository marketplace — no file copying:
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
 `codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`;
 `codebuddy plugin marketplace add hkwuks/TaskFlow && codebuddy plugin install taskflow@taskflow`
 (a local directory path works in place of the GitHub owner/repo). dsh has no marketplace:
-its command is `dsh plugin --profile <name> add <package-or-directory>`.
+its command is `dsh plugin --profile <name> add <package-or-directory>`. Trae has neither a
+marketplace nor a plugin command: its install is the copy above, described in
+`hooks/README.md`, and Trae also reads Claude Code hook configs when the user turns on
+**导入 CLAUDE 中的 Hooks 配置**.
 
 The three marketplace hosts expose plugin management as shell subcommands of their own CLI. CodeBuddy
 Code is a separate binary from the CodeBuddy IDE client; the IDE client does not implement
@@ -34,21 +38,24 @@ An environment running any other agent host needs no hooks: it continues with th
 
 ## Event map
 
-| TaskFlow need | Claude Code | Codex CLI | CodeBuddy | dsh |
-| --- | --- | --- | --- | --- |
-| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` | `agent/session-start` → `hookSpecificOutput.additionalContext` |
-| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly | `run-hook.cmd`, reached through dsh's `bash -c` seam |
-| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` | `tools/post-execute` |
-| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` |
-| Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) |
-| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` |
-| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired | not wired | not wired |
+| TaskFlow need | Claude Code | Codex CLI | CodeBuddy | dsh | Trae |
+| --- | --- | --- | --- | --- | --- |
+| Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` | `agent/session-start` → `hookSpecificOutput.additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` |
+| Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly | `run-hook.cmd`, reached through dsh's `bash -c` seam | `run-hook.cmd` behind an explicit `bash`; no `commandWindows` equivalent, so Windows uses `& '<path>\hooks\run-hook.cmd'` |
+| Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` | `tools/post-execute` | `PostToolUse` |
+| End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` | `Stop` (with `loop_limit`); no subagent tool event |
+| Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) | none (Trae's SessionStart source is only `startup`) |
+| Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
+| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired | not wired | not wired | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
+| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | not wired | not wired | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
 
-Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured.
+Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below.
 
 ## Pre-write capability gate
 
-Claude Code only, and defined together with the event map above: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
+Claude Code and Trae, and defined together with the event map above: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
+
+The gate is wired wherever the host exposes a tool-call hook whose tool names match the ones both scripts branch on. On Trae that is `Write`/`Edit` for the gate and `Skill`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only on Claude Code.
 
 Four properties are worth stating because each one is load-bearing:
 
@@ -90,6 +97,52 @@ CodeBuddy follows the Claude Code hook contract closely enough that `session-sta
 - **Context field.** CodeBuddy reads `hookSpecificOutput.additionalContext` and falls back to raw stdout. Both branches were exercised directly: with only `CODEBUDDY_PLUGIN_ROOT` set the script emits the bare `additionalContext` object, and with `CLAUDE_PLUGIN_ROOT` also set — which is what CodeBuddy injects — it emits the `hookSpecificOutput` envelope. The same output works unmodified.
 
 `.codebuddy-plugin/` names the host's own manifest and catalog explicitly, so the two entry points are visible in the tree rather than inferred from `.claude-plugin/`.
+
+### Trae specifics
+
+**Nothing in this subsection has been run on a live Trae host.** Every statement is
+from `docs.trae.cn` as read on 2026-10-09, which is a different standing from the
+CodeBuddy and dsh notes above and from the Claude Code 2.1.282 measurement — those
+were executed, this was read. It is written down anyway because the wiring ships,
+and shipping it unlabelled would be worse than shipping it labelled. The first run
+on Trae either confirms it or corrects it.
+
+- **No plugin mechanism.** Trae's marketplace is a curated in-app catalog with no
+  documented way for a repository to publish an entry, and there is no
+  `trae plugin …` command. What a project gets is `$PROJECT_FOLDER/.trae/skills/`
+  and `$PROJECT_FOLDER/.trae/hooks.json`; the global pair is `~/.trae-cn/hooks.json`
+  and `~/.trae-cn/skills/`. TaskFlow's install is therefore a copy
+  (`hooks/README.md` has the commands), which is also what the other Trae
+  integrations do — `mnemon` and ARIS both deploy by copying into `.trae/`.
+- **Identifier.** Trae substitutes nothing into a hook command, so the file must
+  carry a resolved path. `<TASKFLOW_ROOT>` is TaskFlow's own placeholder, replaced
+  at install time, not a Trae variable.
+- **Plugin root.** Trae injects `TRAE_PROJECT_DIR` and `CLAUDE_PROJECT_DIR`, and no
+  plugin-root variable — it has no plugin root to inject. `session-start` picks its
+  output shape from the environment, so `hooks-trae.json` sets `CLAUDE_PLUGIN_ROOT`
+  on the SessionStart command line, the way `hooks-dsh.json` does; without it the
+  hook emits a top-level `additionalContext` that Trae discards, silently.
+- **SessionStart source.** Trae runs SessionStart with `source` fixed to `startup`
+  and supports no other value. There is no `fork` and no resume/clear/compact
+  source, so the file's matcher is `startup` alone. The shared script does not read
+  `source` at all, so only the matcher depends on this.
+- **Shell.** Bash on macOS/Linux, PowerShell on Windows. That is why the commands
+  spell `bash` explicitly, and why a Windows user replaces them with
+  `& '<path>\hooks\run-hook.cmd' <script>` rather than relying on one spelling
+  working everywhere.
+- **Tool names.** `Write`, `Edit`, `Skill`, and `mcp__<server>__<tool>` are the ones
+  the gate and the recorder read, and Trae's normalized tool list contains all four.
+  It has no `Agent`/`Task`. What has **not** been confirmed is the interior of
+  `tool_input` on Trae's `PreToolUse`/`PostToolUse` events: the field names
+  `json-field` reads (`file_path`, `skill`) are documented for Claude Code, not for
+  Trae, and both hooks fail open — a denial that never fires and an evidence line
+  that never records look exactly like a phase where nothing happened. That is the
+  first thing to check when someone runs this on Trae.
+- **Claude Code config import.** Trae can read `~/.claude/settings.json` and the
+  project `.claude/settings.json` files instead, behind the
+  **导入 CLAUDE 中的 Hooks 配置** switch, merging them with any Trae hooks. It is
+  opt-in and host-side, so it cannot be shipped from here; the `.trae/` path is the
+  one this repository documents.
 
 ## Must / may-not
 
@@ -181,6 +234,7 @@ repo-root/
     ├── .claude-plugin/plugin.json       # Claude Code manifest (skills: ./skills/)
     ├── .codex-plugin/plugin.json        # Codex CLI manifest (skills: ./skills/)
     ├── .codebuddy-plugin/plugin.json    # CodeBuddy manifest (skills: ./skills/taskflow)
+    # Trae has no manifest directory: its hooks.json is copied, not installed
     ├── package.json                     # dsh plugin package (dsh.bundle.patch)
     ├── dsh/
     │   ├── index.js                     # mounts the skill provider and the hook bridge
@@ -195,6 +249,7 @@ repo-root/
         ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
         ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart)
         ├── hooks-dsh.json               # dsh wiring (SessionStart)
+        ├── hooks-trae.json              # Trae wiring (SessionStart + the gate pair)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── session-record               # records the host session id in the task index
@@ -217,4 +272,4 @@ repo-root/
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.
 
-`hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. Every other host points at its file some other way — a manifest `hooks` entry for Codex and CodeBuddy, `dsh/index.js` for dsh — so only Claude Code depends on the name.
+`hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. Every other host points at its file some other way — a manifest `hooks` entry for Codex and CodeBuddy, `dsh/index.js` for dsh, a copy to `.trae/hooks.json` for Trae — so only Claude Code depends on the name.

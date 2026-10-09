@@ -10,6 +10,32 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Decouple stage capability selection from the host tool-call stream: the PreToolU
+
+- ID: TF-20261009-8abbd6
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09, found while writing the trae-host PRD
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Decouple stage capability selection from the host tool-call stream: the PreToolUse gate refuses the first write of prd/spec/plan unless a Skill/Agent/MCP call already matched, so a host that has no such call, or a session driven from a different cwd than the task worktree, forces either a throwaway invocation like skill(sxng) for a PRD already researched, or the unaided declaration for a phase that really did use a capability. Give the phase a way to record its selection that is not a tool-call artifact
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
+
+- ID: TF-20261009-369e77
+- Status: done
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09: adapt TaskFlow to Trae
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a documented .trae/hooks.json export, with no Trae plugin mechanism to install through (Trae hooks are user-scoped .trae/hooks.json only; Trae also reads Claude Code hook configs)
+- Task: `TaskFlowDocs/achieved/2026-10-09-trae-host/`
+- Next action: None — completed and archived.
+
 ## Define how work already committed in the main checkout moves into the task workt
 
 - ID: TF-20261008-84a0ce
