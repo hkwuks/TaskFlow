@@ -603,7 +603,7 @@ command="$1"; shift
 # and `approve` reconciles a recorded stage against evidence instead of
 # re-reading the prose. Product-neutral by construction — the list names
 # concepts, never a tool.
-concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision'
+concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision|divergent exploration'
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
 split_root() {

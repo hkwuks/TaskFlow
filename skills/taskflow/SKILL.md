@@ -145,7 +145,7 @@ A phase's artifact has an equivalent outside TaskFlow. TaskFlow names these itse
 
 | Phase | Artifact | Equivalent concept class | Consider a capability for |
 | --- | --- | --- | --- |
-| 1. Define — PRD | `prd.md` | requirements elicitation and framing | interviewing the user, refining a vague idea into testable requirements, writing a requirements document |
+| 1. Define — PRD | `prd.md` | requirements elicitation and framing; divergent exploration | expanding a vague goal into several directions before converging on one, interviewing the user, refining a vague idea into testable requirements, writing a requirements document |
 | 2. Research — Reference | `reference/` | literature and evidence review | searching external sources, assessing evidence quality, annotating findings |
 | 3. Design — Spec decision | `spec.md`, or the recorded `No spec required` | architecture and design specification | methodology or architecture design, interface/contract definition |
 | 4. Plan — execution contract | `plan.md` | work breakdown and task decomposition | decomposing work into verifiable steps, sequencing dependencies, estimating |
@@ -191,6 +191,8 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
+
+**When the goal or the approach is not yet settled, diverge before you converge.** Writing requirements is a converging act: it picks one reading of the request and turns it into criteria, which quietly discards the readings not yet on the table. So when the request leaves the target or the way to reach it undetermined, or more than one workable direction exists, this phase opens with the class above — `divergent exploration` — before `prd.md` is drafted. The condition is the state of the request, so it is answerable from what you have: a request whose goal and approach are both fixed converges directly, and one that is still an idea does not. What the class produces is candidate directions and the trade-offs between them, for the user to choose from; only the chosen ones become requirements, and the rest are recorded as out-of-scope or deferred so the discarded ground is visible rather than lost. As with every class in the table, this names what to look for and never what to use — availability, fit, and the decision to proceed unaided remain yours, and an unaided PRD is a legitimate outcome recorded as one.
 
 ### 2. Research — Reference (optional)
 

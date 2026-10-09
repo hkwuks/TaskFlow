@@ -65,15 +65,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Add a brainstorming and idea-refinement concept class to the phase-to-capability
 
 - ID: TF-20261008-5b5635
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-08, 8-item doc/tooling batch
 - Added: 2026-10-08
-- Updated: 2026-10-08
+- Updated: 2026-10-09
 - Goal: Add a brainstorming and idea-refinement concept class to the phase-to-capability table: phase 1 bundles refining a vague idea with writing the requirements document, so ideation capabilities are never considered
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-10-08-capability-concept-classes/`
+- Next action: None — completed and archived.
 
 ## sessions.md needs a trigger condition, or should be demoted to a hook-only artif
 

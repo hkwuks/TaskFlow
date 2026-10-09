@@ -1458,6 +1458,47 @@ concept_table=$(sed -n '/^| Phase | Artifact | Equivalent concept class/,/^$/p' 
 if printf '%s' "$concept_table" | grep -qiE 'taskflow|claude|codex|agent-skills|openai|anthropic|mcp'; then
   echo "FAIL concept table names a product instead of a concept"; exit 1
 fi
+
+# The phase table and the vocabulary `hooks/task` validates against are two
+# hand-kept copies of one list, and nothing compared them: a class added to the
+# table alone is unreachable by `unaided`, and one added to the regex alone is a
+# class no phase offers. One awk compares them in both directions -- each table
+# class must match some vocabulary entry, and every vocabulary entry must appear in
+# some table class -- because a class may be offered under a variant name, the
+# convention the table already uses for "requirements elicitation and framing"
+# against the regex entry "requirements elicitation".
+concept_vocab=$(sed -n "s/^concept_class_re='\(.*\)'$/\1/p" "$HERE/task")
+[ -n "$concept_vocab" ] || { echo "FAIL could not read concept_class_re from hooks/task"; exit 1; }
+if ! awk -v vocab="$concept_vocab" '
+BEGIN { FS = "|" }
+/^\| Phase \| Artifact \| Equivalent concept class/ { intable = 1; next }
+intable && /^\| [0-9]\./ {
+  n = split($4, parts, ";")
+  for (i = 1; i <= n; i++) { gsub(/^[ \t]+|[ \t]+$/, "", parts[i]); if (parts[i] != "") tbl[++nt] = parts[i] }
+  next
+}
+intable && !/^\|/ { intable = 0 }
+END {
+  if (nt == 0) { print "the phase table yielded no concept classes"; bad = 1 }
+  nv = split(vocab, v, "|")
+  if (nv < 1) { print "the vocabulary is empty"; bad = 1 }
+  for (i = 1; i <= nt; i++) {
+    hit = 0
+    for (j = 1; j <= nv; j++) if (tbl[i] ~ v[j]) hit = 1
+    if (!hit) { print "phase table offers a class the vocabulary rejects: " tbl[i]; bad = 1 }
+  }
+  for (j = 1; j <= nv; j++) {
+    hit = 0
+    for (i = 1; i <= nt; i++) if (index(tbl[i], v[j]) > 0) hit = 1
+    if (!hit) { print "vocabulary names a class no phase offers: " v[j]; bad = 1 }
+  }
+  exit bad
+}
+' "$skill/SKILL.md" > "$tmp/concept.reconcile"; then
+  echo "FAIL the phase table and the concept class vocabulary disagree:"
+  cat "$tmp/concept.reconcile"
+  exit 1
+fi
 # The pre-write gate replaced the old advice to append a stage line *before*
 # drafting the document — that ordering was unenforceable prose, which is the
 # whole reason the gate exists. What replaces it is a fact plus a report: SKILL.md
@@ -1627,6 +1668,29 @@ cg_unaided() {  # cg_unaided <stage> <class> -> exit code of the command
 [ "$(cg_unaided XXX 'work breakdown')" = "2" ] || { echo "FAIL unaided accepted an invalid stage"; exit 1; }
 [ "$(cg_unaided Plan 'work breakdown and task decomposition')" = "0" ] || { echo "FAIL unaided rejected a valid class"; exit 1; }
 cg_verdict "$cg_task/plan.md" allow
+
+# A phase may offer more than one class, and the record has to tell them apart.
+# Phase 1 converged straight to requirements for months because "refining a vague
+# idea" sat inside the requirements wording, so an ideation capability had nothing
+# to match and the phase ran unaided without anyone noticing — an unspent record
+# written for a stage that is already released still exits 0, so a rejected class
+# would pass unnoticed. This asserts the command against the vocabulary itself.
+# It gets its own repository on purpose: `unaided` writes an evidence record, and
+# every store above is asserted on a release count.
+cvc="$tmp/concept-vocabulary"
+mkdir -p "$cvc/repo/TaskFlowDocs/2026-01-01-classes"
+git -C "$cvc/repo" init -q
+printf '# Plan\n> Task version: v1\n' > "$cvc/repo/TaskFlowDocs/2026-01-01-classes/plan.md"
+cvc_unaided() {  # cvc_unaided <stage> <class> -> exit code
+  bash "$HERE/task" unaided "$1" --considered "$2" --root "$cvc/repo" >/dev/null 2>&1
+  printf '%s' "$?"
+}
+[ "$(cvc_unaided PRD 'divergent exploration')" = "0" ] || { echo "FAIL unaided rejected the ideation class"; exit 1; }
+[ "$(cvc_unaided PRD 'requirements elicitation and framing')" = "0" ] || { echo "FAIL unaided rejected the framing class"; exit 1; }
+[ "$(cvc_unaided Plan 'work breakdown and task decomposition')" = "0" ] || { echo "FAIL unaided rejected a variant class name"; exit 1; }
+[ "$(cvc_unaided PRD 'just vibes')" = "2" ] || { echo "FAIL unaided accepted an off-vocabulary class"; exit 1; }
+[ "$(cvc_unaided XXX 'work breakdown')" = "2" ] || { echo "FAIL unaided accepted an invalid stage"; exit 1; }
+echo ok
 
 # A path's spelling must not decide the verdict. The host sends backslashes on
 # Windows (claude-code #83877, #64432), and v1 shipped a gate that assumed the
