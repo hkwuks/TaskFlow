@@ -36,32 +36,6 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Task: `TaskFlowDocs/achieved/2026-10-09-trae-host/`
 - Next action: None — completed and archived.
 
-## Define how work already committed in the main checkout moves into the task workt
-
-- ID: TF-20261008-84a0ce
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-08, 8-item doc/tooling batch
-- Added: 2026-10-08
-- Updated: 2026-10-08
-- Goal: Define how work already committed in the main checkout moves into the task worktree: SKILL.md:244 says move the work there with no procedure, and nothing warns about pre-existing dirty state outside TaskFlowDocs
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-
-## Name hooks/version at the SKILL.md update points and add a cheap assertion that
-
-- ID: TF-20261008-4d37b2
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-08, 8-item doc/tooling batch
-- Added: 2026-10-08
-- Updated: 2026-10-08
-- Goal: Name hooks/version at the SKILL.md update points and add a cheap assertion that detects a core document edited without a version transition: SKILL.md never mentions the command, and nothing detects an edit without a bump
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-
 ## Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real h
 
 - ID: TF-20261008-a4454d
@@ -70,10 +44,11 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Claude
 - Source: user request 2026-10-08, 8-item doc/tooling batch
 - Added: 2026-10-08
-- Updated: 2026-10-08
+- Updated: 2026-10-10
 - Goal: Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real hooks directory: smoke-test pins clauses in SKILL.md and artifacts.md but never validates these two documents against the hooks that exist
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Clarify the two assertions together, then promote: document-vs-hooks reconciliation and the version-transition assertion.
+- Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-4d37b2（点名 hooks/version + 版本跃迁的便宜断言）。理由：两条都要在 SKILL.md 的更新点旁加引导、都要在 hooks/smoke-test 里加断言，且「文档点名的命令或文件必须真实存在」本就是同一个断言家族——拆开会在同一批文件上重复撞车。
 
 ## Define TaskFlow compatibility with loop and long-running tasks: repeated externa
 
@@ -122,10 +97,11 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Claude
 - Source: audit follow-up 2026-10-01, found while implementing 2026-10-01-artifact-language
 - Added: 2026-10-01
-- Updated: 2026-10-01
+- Updated: 2026-10-10
 - Goal: The capability-evidence hook and the capability-gate anchor on different things, so a stage invocation can go unrecorded: capability-evidence locates the store and the active task from the event cwd, capability-gate locates them from the written file's path, and the two agree only when the session cwd is the task worktree - otherwise the invocation records nothing and the gate then refuses the write
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Clarify the unified anchor and the move procedure together, then promote.
+- Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-84a0ce（主检出的工作怎么进 worktree）。两条是同一失败模式「干活的落点不是以为的落点」的两半——efbc51 是 hook 侧（事件 cwd 与文件路径两个锚点不一致，记录静默落空），84a0ce 是文档侧（SKILL.md 只写「move the work there」而不给可执行步骤，也不警告隔离外的脏状态）；合并后一个任务同时改 hook 与 SKILL.md，且 84a0ce 不必等 efbc51 的锚点语义定下来才能写步骤。
 
 ## hooks/reopen does not rewrite the Todo Task: path back to the active root, so ta
 
@@ -234,12 +210,13 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-29
-- Updated: 2026-10-01
+- Updated: 2026-10-10
 - Goal: Verify the released pre-write gate end-to-end in a live session: install the released plugin and run the archived task Plan's 5-step recipe (deny before an invocation, allow after, deny the next stage on spent evidence, escape hatch releases) — prefer CI for anything CI can cover, hand-run only the install-and-observe steps
 - Task: Not promoted.
-- Next action: Core observation obtained 2026-10-01 on 1.1.2; confirm the remaining recipe steps against the archived Plan and close.
+- Next action: Narrow to one pass: re-confirm install-and-observe on the current release, then close.
 - Notes: **2026-09-29 用户要求：优先采用 CI 进行测试。** 理由来自 2026-09-27-capability-pre-write-gate 的实测：本机是 Windows + MSYS，整段 `hooks/smoke-test` 跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，用未修改的 `origin/main` 在同一处同样失败），所以本地跑既不可靠也不完整；而 CI 的 smoke 矩阵（ubuntu/macos/windows）一次就给出权威结论，其中 `macos-latest` 正是 bash 3.2 + BSD userland 的判定环境。因此凡是 CI 结构上能覆盖的（接线、门矩阵、approve 对账、无解释器下限、Windows 套件）一律不要手工跑，缺什么就往 CI 里补；人手只跑 CI 覆盖不到的——即「装上发出去的插件后，真实会话里门是否真的拦下来」。
 - 2026-10-01 实测（本机 Windows，插件已升到 1.1.2 = commit `5d4fccf`）：门对宿主真实投递的路径**拦下了**。在 `TaskFlowDocs/achieved/2026-09-30-release-ci-test-policy/` 写 `prd.md` 正文被拒，消息完整且含可复制的逃生舱命令：`TaskFlow pre-write gate blocked stage [PRD]: no capability invocation is recorded for this task version. Invoke a capability first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided PRD --considered "requirements elicitation and framing"`。随后调用 `agent-skills:spec-driven-development` 记录证据，重试即放行；`plan.md` 同理需要**另一次**能力调用（逐阶段新鲜度），v2 时改用 `task unaided` 亦放行（逃生舱有效）。同日 `hooks/task approve` 成功，说明 `released` 记录确实被写下——1.1.1 上卡死的正是这一步。**判据即行为差**：同一个 `prd.md` 在 1.1.1 上静默放行、在 1.1.2 上被拒。
+- 2026-10-10 收窄（用户裁定）：原配方五步里，第 1 步（发版）、第 3–5 步的门矩阵与**反斜杠路径回归**现已被 CI 结构覆盖——`hooks/smoke-test` 已断言「宿主投递的反斜杠路径与正斜杠路径必须得到同一判定」（见 smoke-test 的 `A path's spelling must not decide the verdict` 段，引用 claude-code #83877 / #64432），三 host 矩阵每次 PR 与 main 推送都跑；evals 亦入 CI。**剩下的增量只有「装上已发布插件后，真实会话里门是否真的拦下来」这一条 CI 结构上覆盖不到的观察**（2026-10-01 已在 1.1.2 上观测到：不调能力写 prd.md 被拒、消息含 stage 与可复制的 task unaided 命令、调用后放行、写 spec.md 又被拒）。故收窄为：在当前已发布版本上复核一次安装与那三类观察，完成即关；未实测的 matcher 语义（Agent / mcp__.* 是否按宿主语义命中）一并作为该次复核的观测项。
 
 配方见归档后的 `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/plan.md` Verification / Review。第 1 步发版已完成（1.1.1，tag `v1.1.1` = `6df863d`，pin `bf8dc96`）；第 2 步是全局安装，属项目路径之外，需用户许可或由用户执行；第 3–5 步为观察项：不调用任何能力直接写 `prd.md` 正文应被拒（消息含 stage、概念类、可复制的 `task unaided` 命令），`task unaided PRD --considered "requirements elicitation and framing"` 后重试应放行，紧接着写 `spec.md` 应被拒（逐阶段新鲜度）。
 
@@ -253,11 +230,12 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-28
-- Updated: 2026-09-30
+- Updated: 2026-10-10
 - Goal: Release process: make the manual three-host catalog validation conditional and add an automated $schema assertion, since that step is never exercised by CI and its only failure mode is already covered by release-check
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Keep the $schema assertion; re-scope the manual three-host catalog validation after release-flow-exception, then promote.
 - Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
+- 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
 
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
@@ -1170,6 +1148,8 @@ Every direct request or imported requireme
 - ID: TF-20261008-ee2c27 (removed 2026-10-08: Absorbed into TaskFlowDocs/2026-10-08-task-open-and-continuation/ (R2): the same SKILL.md triage paragraph carries the overlap-report obligation, so a separate task would re-edit the same files)
 - ID: TF-20261008-73facd (removed 2026-10-08: Absorbed into TaskFlowDocs/2026-10-08-task-open-and-continuation/ (R3): parent-child coordination edits the same SKILL.md section and artifacts.md Related Tasks block)
 - ID: TF-20261008-6b6ecf (removed 2026-10-08: probe entry created while verifying the intake exit-code contract; not a real request)
+- ID: TF-20261008-4d37b2 (removed 2026-10-10: Absorbed into TF-20261008-a4454d: both add guidance beside the same SKILL.md update points and assertions over the same document-vs-hooks reconciliation surface, so a separate task would re-edit the same files)
+- ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
 
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
@@ -1183,4 +1163,45 @@ Every direct request or imported requireme
 - Goal: 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 - Task: `TaskFlowDocs/achieved/2026-09-15-hook-integrity/` (v2)
 - Next action: None — completed and archived.
+
+## Make the artifact-language rule actually bind: the trae-host PRD and Plan were w
+
+- ID: TF-20261009-887511
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09, recurrence found while writing the trae-host documents
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Make the artifact-language rule actually bind: the trae-host PRD and Plan were written entirely in English even though the rule and its prior ruling (TF-20261001-51d9c8) are in force, because the phase capability supplied an English skeleton and nothing makes the drafter translate its own prose or flags it when it does not. Decide the mechanism and the detection
+- Task: Not promoted.
+- Next action: Decide the wording or mechanism that makes the drafter translate its own prose, and add a detection the next silent English run trips
+- Notes: Recurrence of TF-20261001-51d9c8 with the same root cause recorded there: the phase capability brought an English skeleton and nothing carried the rule onto the prose underneath it.
+
+## Stop hand-writing a bespoke manual install section per host in the host-facing d
+
+- ID: TF-20261009-99045e
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Stop hand-writing a bespoke manual install section per host in the host-facing docs: for each host state whether a real plugin or marketplace install command exists and use it where one does, and define one shared manual-install procedure (copy the skill directory plus write the host hooks file) that each host section instantiates, instead of a per-host copy/paste block with no stated reason why an install command is absent
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Make one order binding: entering work enters TaskFlow first, and capabilities ar
+
+- ID: TF-20261009-cc463b
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09, found while writing the trae-host PRD
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Make one order binding: entering work enters TaskFlow first, and capabilities are selected and used inside the phase. Today the applicability gate and the phase-to-capability step are separate rules with no stated order, so a session can research before TaskFlow and then have no stage to attribute that research to, which is what forces a throwaway invocation when the document is finally written; or skip TaskFlow entirely; or never consider a phase's capability class because no available capability advertises the phase name. A phase's selection must also be able to record work already done for it, instead of requiring a fresh call the gate can find
+- Task: Not promoted.
+- Next action: Decide the mechanism, then land it
+- Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
 
