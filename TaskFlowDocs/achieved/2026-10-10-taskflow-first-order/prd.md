@@ -1,7 +1,7 @@
 # 进入顺序：先 TaskFlow，再阶段，然后才是能力
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
