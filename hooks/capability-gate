@@ -162,4 +162,4 @@ if [ "$consumed" -gt 0 ]; then
 else
   detail="no capability invocation is recorded for this task version"
 fi
-deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. Invoke a capability first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'"
+deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'"

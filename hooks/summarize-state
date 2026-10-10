@@ -37,6 +37,38 @@ todo="$docs/todo.md"
 verbose="${TASKFLOW_VERBOSE:-0}"
 task_id="${TASKFLOW_TASK_ID:-}"
 
+# A repository that HAS the directory but has never recorded anything in it is
+# the one state where every other signal here is absent at once: no task list to
+# print, no Todo entry to print, and no branch report to raise if the work
+# happens on a base branch or before a branch exists. Nothing then mentions
+# TaskFlow for the whole session — the same silence the no-docs branch above was
+# fixed for, one directory over. The condition is read from the tree rather than
+# inferred from an empty output, so a repository whose Todo has been emptied on
+# purpose gets the same sentence and is not left to wonder.
+#
+# It is only correct for a repository that has taken no decision yet. `todo.md`
+# present means intake ran at least once, so the obligation has been seen and
+# this says nothing. `repository-docs/` is excluded because the SessionStart
+# routing hook creates it itself, so its presence is no evidence of use — while
+# anything else under here, an `achieved/` directory included, is.
+if [ ! -f "$todo" ]; then
+  entries=0
+  for dir in "$docs"/*/; do
+    name="${dir%/}"
+    name="${name##*/}"
+    case "$name" in repository-docs) continue ;; esac
+    entries=1
+    break
+  done
+  if [ "$entries" -eq 0 ]; then
+    cat <<'ENTRY'
+# TaskFlow (nothing recorded yet)
+- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md. Read-only work does not, and an explicit $taskflow request opts it in.
+ENTRY
+    exit 0
+  fi
+fi
+
 # Registration is by slug, not by status. A branch is named <type>/<slug> and a
 # task directory <date>-<slug>, so a branch belongs to a task when some task
 # directory is named "<something>-<that slug>" — the suffix match, not a prefix,
