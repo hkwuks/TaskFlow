@@ -1,7 +1,7 @@
 # 入口不静默：让「该走 TaskFlow 的工作」在会话开始时被说出来
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

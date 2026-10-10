@@ -1,7 +1,7 @@
 # Plan — 入口不静默：SessionStart 说出「这份工作该不该进 TaskFlow」
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 改动是 `hooks/summarize-state` 里的两段判定加一串输出，无跨层契约、无数据结构变更、无兼容性决策；唯一有设计成分的是 R2 的分支判定，其上限与备选已界定在 PRD 的 Risks 与 Step 1 的 checklist 内。
 
@@ -145,7 +145,7 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
 | Summary | PR [#73](https://github.com/hkwuks/TaskFlow/pull/73) 正文首节——两个静默形态与「一层说清」的改法 | 已完成 |
-| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-10-entry-point-silence/`（归档后为 `TaskFlowDocs/achieved/…`） | 已确定 |
+| TaskFlow traceability: Task | `TaskFlowDocs/achieved/2026-10-10-entry-point-silence/` | 已确定 |
 | TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/summarize-state`、`hooks/smoke-test`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `9ca6654` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
