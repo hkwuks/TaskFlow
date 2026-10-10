@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.1.4] — 2026-10-10
+
+### Added
+
+- **Trae IDE is a fifth host (PR #70).** Trae has no plugin marketplace a third-party repository can publish to, so its install is a documented copy rather than a plugin command: `hooks/hooks-trae.json` is written in Trae's own `hooks.json` format and copied to `<project>/.trae/hooks.json`, and `skills/taskflow` is copied to `.trae/skills/taskflow`. The wiring runs the same three events the Claude Code file runs — `SessionStart`, the pre-write gate on `Write|Edit`, and the capability recorder on `Skill` and `mcp__*` — reusing `session-start`, `capability-gate`, and `capability-evidence` unchanged; no hook script gains a host branch. One thing had to be discovered by running it: Trae injects `CLAUDE_PROJECT_DIR` and **no** plugin root, and `CLAUDE_PLUGIN_ROOT` alone decides `session-start`'s output shape, so unset it emits a top-level `additionalContext` that Trae discards silently. `hooks-trae.json` therefore sets it on the command line, exactly as `hooks-dsh.json` does.
+- **Phase 1 gains `divergent exploration` as its own concept class (PR #69).** The class was `requirements elicitation and framing`, and its capability column read as *producing a document*, so an ideation capability had nothing in the phase table to match and the phase converged straight to `prd.md`. That failure was silent by construction: `unaided` writes an evidence record, and a record written for a stage that is already released still exits `0`, so a class the vocabulary rejects leaves no trace to notice. The class is now `requirements elicitation and framing; divergent exploration`, `hooks/task`'s `concept_class_re` is widened, and a smoke assertion compares the phase table's class column against the regex **in both directions** — a class added to either copy alone fails. `SKILL.md` states a decidable diverge-before-converge condition; it remains a naming of what to look for, not a mandate.
+- **The session entry point states the TaskFlow obligation instead of going silent (PR #73).** `hooks/summarize-state` already worked out whether the repository has a task and a Todo, and when the answer was no it said nothing at all. A repository that had never used TaskFlow got no SessionStart output — the hook exited on the first missing directory, so the session began with no sign that an entry path exists. It now states the boundary there (applicable work is recorded first in `TaskFlowDocs/todo.md`; read-only work is not; an explicit `$taskflow` request opts research in) using the wording `SKILL.md` already carries, and creates nothing: no directory, no Todo, no intake. Separately, taking over a workstream that was never registered triggered nothing — a continuation reads as a continuation, and a new session or a changed implementation detail is never by itself a new-task trigger, so unregistered work could be carried a long way with nothing ever asking whether it should have been recorded. A branch no task directory matches is now reported, `achieved/` included, because work that was registered and then archived is registered work.
+
+### Changed
+
+- **A resume entry is a condition, not a judgement (PR #68).** `sessions.md` was optional and its trigger was "when cross-session or cross-agent continuation is useful" — undecidable from the state at hand, so nothing ever required an entry. Two of 88 task directories had the file, both written by the SessionStart hook, and neither carried the Agent-owned `Last completed` or `Next step` the handoff depends on. The trigger is now the task's own phase: a session that ends while its task is not `completed` writes the entry.
+- **Parent and child tasks have a coordination rule (PR #68).** `## Related Tasks` gains direction (`Parent`/`Children`, with `Related` kept as the symmetric link) and a child records the parent Task version it planned against. A child that finds a parent requirement wrong reports it in its own `plan.md` and never edits the parent's documents; the parent's requirements change only through its own User-change trigger, in its own working tree, by whoever owns that task.
+- **A re-worded Todo no longer lands silently beside the item it duplicates (PR #68).** `hooks/task intake` refused only byte-identical goals. It now reports word-overlap candidates for live entries on **standard error** — never stdout, whose contract is the single `intake OK: <id>` line whose last field callers read the ID out of — capped at three and carrying no verdict. The judgement stays with the Agent, and `SKILL.md` now requires it: compare item against item and request against task before planning, tell the user, and never merge, close, or re-scope another entry alone.
+
+### Fixed
+
+- **`hooks/task intake` no longer writes a trailing space into the Todo heading it creates (PR #68).** When the 80-byte cut landed inside a run of spaces, the `## ` heading kept one — the one line in `todo.md` reviewers diff, where `git diff --check` reported it on every review.
+
+### Compatibility
+
+- **Trae carries no version literal, no manifest, and no catalog pin.** It copies `hooks/hooks-trae.json` and the skill directory, so there is nothing to bump and nothing to pin; the six files that carry a version literal and the two marketplace catalogs are unchanged in shape.
+- **Existing installs need no action.** The four manifests that already existed keep their shape, `hooks.json` and the Codex, CodeBuddy, and dsh wiring files are untouched, and the new file is additive. Trae's install is opt-in and is a copy, not an upgrade path — re-copy `skills/taskflow` after a TaskFlow update.
+- **The entry-point change is user-visible and is the one to expect noise from.** A repository with no `TaskFlowDocs/` now prints a three-line block every session, and a branch matching no task directory prints a two-line report. Both are suppressed where the question is not meaningful — a base branch, a detached HEAD, a non-repository directory, a task worktree — and the slug match is a suffix heuristic that prefers under-reporting, because over-reporting would put a line in every session.
+- **`sessions.md` and the related-task direction are discipline, not mechanism.** No hook refuses a Plan that skips the entry or omits `Parent`/`Children`; the conditions are read, not enforced.
+- **The concept-class vocabulary is wider, not narrower.** Every class accepted before is still accepted; `divergent exploration` is added. `hooks/capability-gate` is byte-identical — per-stage display classes do not change.
+- **No hook gains an interpreter dependency.** The smoke job still installs no language runtime, and the new code uses `git`, `case`, and POSIX shell builtins only.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/repository-check .` — exits `2` (`needs-user-input`) on the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement`, which no Todo `- Task:` line names. Recorded rather than repaired here: it is pre-existing, it was recorded the same way in 1.1.3, and repairing it is a bookkeeping change a release does not carry.
+- `bash hooks/smoke-test` — **not run locally, and recorded as skipped**, per the CI-first policy. The release commit's difference from `95d3552` — the last commit on `main` before this release began, CI run `38061030542` on `main`, `success` — is the four manifests, the two README version samples, and this section, which the suite does not exercise; the commit after it moves only the two marketplace catalogs. The suite ran on all three hosts for each change this release ships, while each was a pull request: PR #68 run `37804479152`, PR #69 run `37955222114`, PR #70 run `37955445883`, PR #73 runs `38058859275` and `38058995475`.
+- Each change carries its own local evidence in the task Plan that landed with it: mutation directions for the concept-class reconciler and the entry-point assertions, byte-for-byte `intake` stdout comparison against the unmodified hook, and the Trae install exercised in a scratch project.
+
+### Known limitations
+
+- **The Trae wiring has never run on a live Trae host.** Every Trae statement is from `docs.trae.cn` as read on 2026-10-09 — a different standing from the CodeBuddy and dsh notes, and from the Claude Code 2.1.282 measurement. `tool_input`'s field names are the weak point: both hooks fail open, so a denial that never fires and an evidence line that never records look exactly like a phase where nothing happened. It is labelled read-not-measured at the wiring site in `runtime.md`, in `hooks/README.md`, in both READMEs, and in the Plan.
+- **The entry-point branch test is a suffix heuristic.** The base-branch check is by literal `main`/`master` name and does not resolve the remote default branch, so a repository whose default branch is named otherwise gets one extra line; and a branch `fix/foo` matches a task `2026-01-01-foo-extra`. Under-reporting is the deliberate side.
+- **The wider "registered work that has no Todo" case still has no signal.** The obligation is stated only where `TaskFlowDocs/` is absent; a repository that created the directory and never recorded anything is unchanged. Tracked as `TF-20261009-cc463b`.
+- **The overlap report is a wording heuristic.** Its threshold was tuned against this repository's own `todo.md`, with a containment term deliberately dropped because it made every entry naming a common file look related.
+- **The child's "parent moved to a new version" rule has no executable check** — it needs to read two task directories, and one task's directory is not visible from another task's worktree — so it is stated and pinned but not enforced.
+- **The landing rule's draft boundary remains a convention**, not a mechanism: no CI job fails if a pull request is merged before its documents are in it.
+- Unchanged from 1.1.3: `Agent` and `mcp__.*` matching is inferred from the tool-call lifecycle rather than measured; a leading UTF-8 BOM makes both gate hooks no-op; `Bash` can still write the evidence store and `reference/index.md` is not gated; the newer hooks are recorded `100644`.
+- Pre-existing: `bash hooks/repository-check .` still reports the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`; it does so on 1.1.3 as well.
+
 ## [1.1.3] — 2026-10-01
 
 ### Fixed
