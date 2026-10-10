@@ -130,11 +130,24 @@ No spec required — 改动是 SKILL.md 里两段声明、`capability-gate` 的�
 
 **未做的检查与限制**：CI 三 host 矩阵由推送后的 CI 裁决，本地不重跑。
 
-**CI 结果**（`Hooks` workflow）：（推送后补记）
+**CI 结果**（`Hooks` workflow）：[run 38065948429](https://github.com/hkwuks/TaskFlow/actions/runs/38065948429)，commit `75a1479` — **success**，`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `evals` / `todo-merge-audit` 全部通过。无失败，故无根因与修复可记。
 
 ### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
 
-（推送后补记）
+模板路径已核对（25 行、4 节）。每个字段的映射：
+
+| 模板字段 | 落点 | 状态 |
+| --- | --- | --- |
+| Summary | PR [#76](https://github.com/hkwuks/TaskFlow/pull/76) 正文首节——三条失败模式、顺序而非第二道闸门、以及第三个静默入口 | 已完成 |
+| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-10-taskflow-first-order/` | 已确定 |
+| TaskFlow traceability: Scope | PRD 的 In Scope：`SKILL.md`、`hooks/capability-gate`、`hooks/summarize-state`、`hooks/smoke-test`、`references/runtime.md`、本任务文档 | 已确定 |
+| TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `85ba7c7` 起 | 已验证 |
+| TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
+| Verification: Hooks workflow pass | [run 38065948429](https://github.com/hkwuks/TaskFlow/actions/runs/38065948429)，commit `75a1479`，三 host 矩阵 + `release` / `evals` / `todo-merge-audit` 全绿；已写入 PR 正文 | 已完成 |
+| Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
+| Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`、`release-check` `STATUS: pass` | 已记录 |
+| Verification: Results recorded in the Plan | 本节 | 已完成 |
+| Review boundaries（4 条） | 无凭据写入；`git status` 仅本轮 5 个文件 + 任务目录；`origin`/`main` 已核对；见 `## Follow-ups` | 已完成 |
 
 ## Change Log
 
