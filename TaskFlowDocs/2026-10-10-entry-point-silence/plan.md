@@ -1,7 +1,7 @@
 # Plan — 入口不静默：SessionStart 说出「这份工作该不该进 TaskFlow」
 
 > Task version: v1
-> Status: ready
+> Status: checking
 
 No spec required — 改动是 `hooks/summarize-state` 里的两段判定加一串输出，无跨层契约、无数据结构变更、无兼容性决策；唯一有设计成分的是 R2 的分支判定，其上限与备选已界定在 PRD 的 Risks 与 Step 1 的 checklist 内。
 
@@ -28,7 +28,7 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 ## Skills / Tools Used
 
 - [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing, divergent exploration
-- [Plan] Unaided — no capability applied to this phase; considered: work breakdown
+- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition
 
 两阶段都用 `hooks/task unaided` 声明。本阶段的工作是读本仓库自己的 hook 与 smoke 断言（`summarize-state:18`、`session-start:175-184`、`smoke-test:48`），核对其间的约束；方案三选一已由用户裁定，没有外部能力可补充这些文档未承载的信息。
 
@@ -43,11 +43,11 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-10-10 22:11 +0800
+- Approved version: v1
+- Approved scope: PRD / Plan
 
 ## Steps
 
@@ -111,7 +111,49 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 
 ## Verification / Review
 
-待执行（Step 3）。
+- 2026-10-10 Step 3: smoke full green; both mutation directions red then restored; diff --check CLEAN; bash 3.2 parse OK; release-check pass; quick_validate 'Skill is valid!'; verification table and PR-template mapping written
+
+- 2026-10-10 Step 2: full smoke green; mutation 1 (silence restored) -> FAIL no-docs output does not name the first record; mutation 2 (slug match removed) -> FAIL branch report raised for fix/one; restored -> ALL SMOKE PASSED
+
+- 2026-10-10 Step 1: three fixtures hand-run (no docs / unregistered branch / task worktree) match A1-A3; no TaskFlowDocs created
+
+逐条记录命令与结果。区分：**既有失败**（改动前就存在）/ **新引入失败** / **环境失败**。
+
+| 检查 | 结果 | 分类 |
+| --- | --- | --- |
+| `bash hooks/smoke-test`（全量，Step 3 后） | exit 0，`ALL SMOKE PASSED`；改写的那节与新增的分支报告节各自 `ok` | 通过 |
+| **变异验证 1**：把无 docs 时的入口提示改回 `exit 0` 静默 | `FAIL no-docs output does not name the first record` | 断言有效（R1 被断言咬住） |
+| **变异验证 2**：删掉 `case "$name" in *-"$branch_slug")` 这一行匹配 | `FAIL branch report raised for fix/one` | 断言有效（R2 反向被咬住） |
+| 恢复两处后重跑全量 | `ALL SMOKE PASSED`，`git status` 仅两个预期文件 | 通过 |
+| R1 的三种形态手跑 | 无 docs：输出入口提示、exit 0、`TaskFlowDocs/` 仍不存在；基分支/分离 HEAD/非 Git 目录：不输出该行 | 通过（PRD A1、A3） |
+| R2 的四种形态手跑 | 未登记分支 → 报告；活跃任务 slug 匹配 → 静默；`achieved/` 下 slug 匹配 → 静默；`main` → 静默 | 通过（PRD A2、A3） |
+| 无解释器不变量 | `smoke-test` 的 no-interpreter 一节仍通过；新增代码只用 `git`、`case` 与 POSIX sh 内建，未新增任何解释器 | 通过（PRD A5、R4） |
+| `bash -n hooks/summarize-state` 与 `hooks/smoke-test` | 无输出 | 通过 |
+| `docker run --rm -v "$PWD:/w" -w /w bash:3.2 bash -c 'bash -n …'` | 两个文件都 `bash 3.2 OK`——本轮的 heredoc 未嵌在 `$( )` 中，避开 Task A 的 CI 失败根因 | 通过 |
+| `git diff --check` | `CLEAN` | 通过 |
+| `bash hooks/release-check .` | `STATUS: pass` | 通过 |
+| `quick_validate.py skills/taskflow` | `Skill is valid!`，用 `/home/hk/miniconda3/envs/torch/bin/python` | 通过 |
+
+**未做的检查与限制**：CI 三 host 矩阵由推送后的 CI 裁决，本地不重跑。`session-start` 的 JSON 形状断言在既有段落里，本轮未改动该文件，未单独重测其形状。
+
+**CI 结果**（`Hooks` workflow）：待推送后填入。
+
+### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
+
+模板路径已核对（25 行、4 节）。每个字段的映射：
+
+| 模板字段 | 落点 | 状态 |
+| --- | --- | --- |
+| Summary | PR 正文首节——入口静默的两个形态与「一层说清」的改法 | 待推送时写 |
+| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-10-entry-point-silence/`（归档后为 `TaskFlowDocs/achieved/…`） | 已确定 |
+| TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/summarize-state`、`hooks/smoke-test`、本任务文档 | 已确定 |
+| TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `9ca6654` 起 | 已验证 |
+| TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
+| Verification: Hooks workflow pass | 推送后由 CI 裁决，链接写进 PR 正文 | 待推送 |
+| Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
+| Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`、`release-check` `STATUS: pass` | 已记录 |
+| Verification: Results recorded in the Plan | 本节 | 已完成 |
+| Review boundaries（4 条） | 无凭据写入；`git status` 仅本轮 2 个文件 + 任务目录；`origin`/`main` 已核对；见 `## Follow-ups` | 已完成 |
 
 ## Change Log
 

@@ -13,7 +13,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Taking over work that never entered TaskFlow triggers nothing: the applicability
 
 - ID: TF-20261010-82ec77
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-10, found while reviewing the 1.1.3 entry-point bugs

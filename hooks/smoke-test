@@ -45,10 +45,65 @@ for hook in "$HERE"/*; do
 done
 echo ok
 
-echo "== summarize-state with no TaskFlowDocs prints nothing =="
+echo "== summarize-state without TaskFlowDocs states the obligation instead of going silent =="
+# This replaced an assertion that the output was empty. Silence was the defect,
+# not the contract: a repository that has never used TaskFlow is exactly where
+# the obligation is hardest to notice, and this hook is the only TaskFlow output
+# a session gets before an Agent has read anything. What is asserted now is that
+# the line is said, that it names where the record goes, and that saying it is
+# inert — the message must not bring TaskFlowDocs into existence by itself.
 empty="$(mktemp -d)"; rm -rf "$empty"; mkdir -p "$empty"
-out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) && [ -z "$out" ] && echo ok
+out=$(cd "$empty" && bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed without TaskFlowDocs"; exit 1; }
+printf '%s' "$out" | grep -q 'TaskFlowDocs/todo.md' || { echo "FAIL no-docs output does not name the first record"; exit 1; }
+printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL no-docs output does not state the obligation"; exit 1; }
+[ -e "$empty/TaskFlowDocs" ] && { echo "FAIL the no-docs message created TaskFlowDocs"; exit 1; }
 rm -rf "$empty"
+echo ok
+
+echo "== a branch that no task matches is reported, and only that branch =="
+# Taking over a workstream reads as a continuation, and SKILL.md rules a new
+# session is never by itself a new-task trigger, so unregistered work can be
+# carried a long way with nothing asking whether it should have been recorded.
+# The report is raised only where the question is meaningful: a base branch, a
+# detached HEAD, a non-repository directory, and a registered branch (active or
+# archived) must all stay silent, or the line becomes noise that hides the case
+# it exists for.
+br="$tmp/branch-report"
+mkdir -p "$br/TaskFlowDocs/2026-09-13-one" "$br/TaskFlowDocs/achieved/2026-09-01-old-thing"
+printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n' > "$br/TaskFlowDocs/2026-09-13-one/plan.md"
+git -C "$br" init -q
+git -C "$br" add -A
+git -C "$br" -c user.email=smoke@example.invalid -c user.name=smoke commit -qm init
+branch_says() {  # branch_says <branch-or-empty> <expected: reports|silent>
+  case "$1" in
+    "") git -C "$br" checkout -q --detach ;;
+    *)  git -C "$br" checkout -q -B "$1" ;;
+  esac
+  out=$(TASKFLOW_REPO_ROOT="$br" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on $1"; exit 1; }
+  case "$2" in
+    reports)
+      if ! printf '%s' "$out" | grep -q "No task for branch '$1'"; then
+        echo "FAIL unregistered branch not reported: $1"; exit 1
+      fi
+      ;;
+    silent)
+      if printf '%s' "$out" | grep -q 'No task for branch'; then
+        echo "FAIL branch report raised for $1"; exit 1
+      fi
+      ;;
+  esac
+  return 0
+}
+branch_says master silent
+branch_says fix/never-registered reports
+branch_says fix/one silent
+branch_says fix/old-thing silent
+branch_says "" silent
+nogit="$(mktemp -d)"; mkdir -p "$nogit/TaskFlowDocs"
+out=$(TASKFLOW_REPO_ROOT="$nogit" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed outside a repository"; exit 1; }
+printf '%s' "$out" | grep -q 'No task for branch' && { echo "FAIL branch report raised outside a repository"; exit 1; }
+rm -rf "$nogit" "$br"
+echo ok
 
 echo "== hooks run with no interpreter available =="
 # The whole point of the change: every hook must work on a host with no Python at
