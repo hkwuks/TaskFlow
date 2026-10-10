@@ -15,6 +15,10 @@ Apply TaskFlow automatically only when the request asks to modify a repository o
 
 Decide this applicability before Todo intake. If TaskFlow does not apply, answer or investigate directly and stop reading this workflow.
 
+**The order is TaskFlow first, then the phase, then the capability.** When the applicability gate applies, the work enters TaskFlow before any of it is done, and every capability is selected and invoked inside a phase, not before one exists. Three failures follow from getting this backwards, and all three are ordinary rather than exotic. Research done before the record exists has no phase to belong to, so the record written afterwards cannot describe where that work came from and the reader cannot tell it happened. Work carried far enough to have findings before anyone asks whether it should be recorded is work whose registration is now a formality performed after the fact. And a capability that helps is easiest to notice while the phase is being done, so a phase entered without one tends not to acquire one.
+
+This is an order, not a second gate: an applicability decision that is wrong is still correctable, and a task entered early is cheaper to re-scope than work whose origin cannot be reconstructed. It does not make every request a task either — the applicability gate above still decides whether a task exists at all, and a request that fails it is answered directly. Where it does apply, this is what "before" means: the Todo record exists before implementation, and the capability for a phase is chosen when that phase starts, which is what makes it recordable as that phase's rather than as an unattributed call.
+
 TaskFlow may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for bounded bookkeeping and context. Host hooks are optional optimization, not a prerequisite: an environment without hooks runs the same flow. See [references/runtime.md](references/runtime.md) for what hooks may and may not do.
 
 ## Source of truth

@@ -58,6 +58,32 @@ printf '%s' "$out" | grep -q 'TaskFlowDocs/todo.md' || { echo "FAIL no-docs outp
 printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL no-docs output does not state the obligation"; exit 1; }
 [ -e "$empty/TaskFlowDocs" ] && { echo "FAIL the no-docs message created TaskFlowDocs"; exit 1; }
 rm -rf "$empty"
+
+# The same silence one directory over: the directory exists, nothing was ever
+# recorded in it, and the work is happening on a base branch — so the task list,
+# the Todo, and the branch report are all empty at once. This is the case the
+# `todo.md`-absent branch above does not reach, and it is the state a repository
+# is in for the whole first session that starts after `TaskFlowDocs/` is created.
+bare="$(mktemp -d)"; mkdir -p "$bare/TaskFlowDocs/repository-docs"
+printf '# Routing\n' > "$bare/TaskFlowDocs/repository-docs/index.md"
+out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on an unrecorded TaskFlowDocs"; exit 1; }
+printf '%s' "$out" | grep -q 'TaskFlowDocs/todo.md' || { echo "FAIL unrecorded-repo output does not name the first record"; exit 1; }
+printf '%s' "$out" | grep -q 'nothing recorded yet' || { echo "FAIL unrecorded-repo output does not name the state"; exit 1; }
+
+# And it stops the moment intake has run, because from there the Todo is the
+# signal. An empty `todo.md` is a recorded decision, not an absent one.
+printf '# Todo inbox\n' > "$bare/TaskFlowDocs/todo.md"
+out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed with an empty todo.md"; exit 1; }
+printf '%s' "$out" | grep -q 'nothing recorded yet' && { echo "FAIL the entry-point line survived an existing todo.md"; exit 1; }
+
+# A directory with no todo and no task but an archived task is a repository that
+# has used TaskFlow, and must not be told it has recorded nothing.
+mv "$bare/TaskFlowDocs/todo.md" "$bare/TaskFlowDocs/todo.md.off"
+mkdir -p "$bare/TaskFlowDocs/achieved/2026-01-01-old"
+printf '# Plan\n' > "$bare/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
+out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on an archived-only repository"; exit 1; }
+printf '%s' "$out" | grep -q 'nothing recorded yet' && { echo "FAIL archived work reported as nothing recorded"; exit 1; }
+rm -rf "$bare"
 echo ok
 
 echo "== a branch that no task matches is reported, and only that branch =="
@@ -1376,6 +1402,27 @@ if grep -q -F -- 'only when cross-session or cross-agent continuation is useful'
 fi
 grep -q -F -- 'a session that ends while its task is not `completed` writes one' "$skill/references/artifacts.md" \
   || { echo "FAIL artifacts.md does not cite the resume-entry condition"; exit 1; }
+echo ok
+
+echo "== the entry order is stated where the gate is decided =="
+# Nothing here can read a rule out of prose, so this pins the sentences instead.
+# It is not ceremony: the applicability gate and the phase-to-capability step are
+# two rules with no stated order between them, and without one the failures are
+# ordinary — research done before a record exists belongs to no phase, and a
+# capability that helps is noticed while the phase is being done, so a phase
+# entered without one tends not to acquire one. The heading is asserted too,
+# because a paragraph is cheaper to delete than a heading is.
+grep -q -F -- '**The order is TaskFlow first, then the phase, then the capability.**' "$skill/SKILL.md" \
+  || { echo "FAIL the entry order is not stated"; exit 1; }
+grep -q -F -- 'the work enters TaskFlow before any of it is done' "$skill/SKILL.md" \
+  || { echo "FAIL the entry order does not say what comes first"; exit 1; }
+grep -q -F -- 'every capability is selected and invoked inside a phase, not before one exists' "$skill/SKILL.md" \
+  || { echo "FAIL the entry order does not place the capability"; exit 1; }
+# The order binds where the gate is decided, and the gate's own deny message is
+# the one place it reaches an agent at the moment it matters. Both spellings are
+# required to agree, or the document and the refusal describe two different rules.
+grep -q -F -- 'TaskFlow is entered before the work' "$repo/hooks/capability-gate" \
+  || { echo "FAIL the gate denial does not state the order"; exit 1; }
 echo ok
 
 echo "== artifact language rule is documented without contradicting the parsers =="
