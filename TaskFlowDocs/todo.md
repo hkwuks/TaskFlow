@@ -1211,3 +1211,17 @@ Every direct request or imported requireme
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
+## Make one order binding: entering work enters TaskFlow first, and capabilities ar
+
+- ID: TF-20261009-cc463b
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-09, found while writing the trae-host PRD
+- Added: 2026-10-09
+- Updated: 2026-10-09
+- Goal: Make one order binding: entering work enters TaskFlow first, and capabilities are selected and used inside the phase. Today the applicability gate and the phase-to-capability step are separate rules with no stated order, so a session can research before TaskFlow and then have no stage to attribute that research to, which is what forces a throwaway invocation when the document is finally written; or skip TaskFlow entirely; or never consider a phase's capability class because no available capability advertises the phase name. A phase's selection must also be able to record work already done for it, instead of requiring a fresh call the gate can find
+- Task: Not promoted.
+- Next action: Decide the mechanism, then land it
+- Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
+
