@@ -1208,15 +1208,15 @@ Every direct request or imported requireme
 ## Make one order binding: entering work enters TaskFlow first, and capabilities ar
 
 - ID: TF-20261009-cc463b
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-09, found while writing the trae-host PRD
 - Added: 2026-10-09
 - Updated: 2026-10-10
 - Goal: Make one order binding: entering work enters TaskFlow first, and capabilities are selected and used inside the phase. Today the applicability gate and the phase-to-capability step are separate rules with no stated order, so a session can research before TaskFlow and then have no stage to attribute that research to, which is what forces a throwaway invocation when the document is finally written; or skip TaskFlow entirely; or never consider a phase's capability class because no available capability advertises the phase name. A phase's selection must also be able to record work already done for it, instead of requiring a fresh call the gate can find
-- Task: `TaskFlowDocs/2026-10-10-taskflow-first-order/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-10-taskflow-first-order/`
+- Next action: None — completed and archived.
 - Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
 - 2026-10-10 第四个失败模式（用户裁定并入本条，不新建）：**未登记的工作在场时入口完全静默**。(1) 目标仓库从未用过 TaskFlow 时，`hooks/summarize-state` 第 18 行 `[ -d "$docs" ] || exit 0` 直接退出，SessionStart 不产生任何输出——插件在整个会话里等于不存在；(2) 即使有 TaskFlowDocs，`summarize-state` 打印的也只有**已存在**的 inbox 条目与活跃任务，一份从没进过 TaskFlow 的工作在它里面是空的，于是「这份工作该不该登记」没有任何信号可依；(3) `hooks/hooks.json` 只有 SessionStart / PreToolUse / PostToolUse，没有 UserPromptSubmit，且 `references/runtime.md:185` 明写写入命令永不绑它。**注意：`UserPromptSubmit` 已被否决过**——`achieved/2026-09-10-audit-hook-opportunities/reference/hook-audit.md:81` 记录「Todo creation from every UserPromptSubmit：多数 prompt 是提问或跟进，matcher 无法可靠分类，除非再加一个模型」。所以本条的机制候选须在此约束下重新给：要么让静默本身可被观测（SessionStart 在无 TaskFlowDocs / 有未登记工作时输出一句），要么改 Applicability gate 的措辞，而不是加 prompt hook。
 - 2026-10-10 第五个失败模式（本次实现中发现，无独立 todo）：**不可上报的未登记状态**。summarize-state 的分支报告要求当前分支名含 slug 且该 slug 不匹配任何任务目录；但「在 base 检出上尚未建分支就开始改仓库」与「分支名本就不含 slug（如 user/foo）」两种情况下，前四类信号（活跃任务、inbox、入口提示、分支报告）全为空——这与第四个失败模式同源，都是「静默」，差别只在触发条件落在分支命名而不是目录存在性。本条不修（需要与 efbc51 的锚点语义一起定），在此记录。

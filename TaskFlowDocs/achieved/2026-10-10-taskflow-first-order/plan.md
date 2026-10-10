@@ -1,7 +1,7 @@
 # Plan — 进入顺序：先 TaskFlow，再阶段，然后才是能力
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 改动是 SKILL.md 里两段声明、`capability-gate` 的一句 deny 文案、`summarize-state` 的一个入口分支，加两组 smoke 断言。无跨层契约、无数据结构变更、无兼容性决策；有设计成分的只有 R4/R5 的触发条件，其边界已界定在 PRD 的 Risks 内。
 
@@ -139,7 +139,7 @@ No spec required — 改动是 SKILL.md 里两段声明、`capability-gate` 的�
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
 | Summary | PR [#76](https://github.com/hkwuks/TaskFlow/pull/76) 正文首节——三条失败模式、顺序而非第二道闸门、以及第三个静默入口 | 已完成 |
-| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-10-taskflow-first-order/` | 已确定 |
+| TaskFlow traceability: Task | `TaskFlowDocs/achieved/2026-10-10-taskflow-first-order/` | 已确定 |
 | TaskFlow traceability: Scope | PRD 的 In Scope：`SKILL.md`、`hooks/capability-gate`、`hooks/summarize-state`、`hooks/smoke-test`、`references/runtime.md`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `85ba7c7` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
