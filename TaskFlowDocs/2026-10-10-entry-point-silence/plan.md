@@ -136,7 +136,7 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 
 **未做的检查与限制**：CI 三 host 矩阵由推送后的 CI 裁决，本地不重跑。`session-start` 的 JSON 形状断言在既有段落里，本轮未改动该文件，未单独重测其形状。
 
-**CI 结果**（`Hooks` workflow）：待推送后填入。
+**CI 结果**（`Hooks` workflow）：[run 38058859275](https://github.com/hkwuks/TaskFlow/actions/runs/38058859275)，commit `b3927b0` — **success**，`smoke (ubuntu-latest)` / `smoke (macos-latest)` / `smoke (windows-latest)` / `release` / `evals` / `todo-merge-audit` 全部通过。无失败，故无根因与修复可记。
 
 ### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
 
@@ -144,12 +144,12 @@ None. `### 3. Design — Spec decision` 的判定：新增的是一个只读判�
 
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
-| Summary | PR 正文首节——入口静默的两个形态与「一层说清」的改法 | 待推送时写 |
+| Summary | PR [#73](https://github.com/hkwuks/TaskFlow/pull/73) 正文首节——两个静默形态与「一层说清」的改法 | 已完成 |
 | TaskFlow traceability: Task | `TaskFlowDocs/2026-10-10-entry-point-silence/`（归档后为 `TaskFlowDocs/achieved/…`） | 已确定 |
 | TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/summarize-state`、`hooks/smoke-test`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `9ca6654` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
-| Verification: Hooks workflow pass | 推送后由 CI 裁决，链接写进 PR 正文 | 待推送 |
+| Verification: Hooks workflow pass | [run 38058859275](https://github.com/hkwuks/TaskFlow/actions/runs/38058859275)，commit `b3927b0`，三 host 矩阵 + `release` / `evals` / `todo-merge-audit` 全绿；已写入 PR 正文 | 已完成 |
 | Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
 | Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`、`release-check` `STATUS: pass` | 已记录 |
 | Verification: Results recorded in the Plan | 本节 | 已完成 |
