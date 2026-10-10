@@ -10,6 +10,20 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Taking over work that never entered TaskFlow triggers nothing: the applicability
+
+- ID: TF-20261010-82ec77
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-10, found while reviewing the 1.1.3 entry-point bugs
+- Added: 2026-10-10
+- Updated: 2026-10-10
+- Goal: Taking over work that never entered TaskFlow triggers nothing: the applicability gate fires on a request that asks to modify the repository, while continuing or inheriting an existing unlogged workstream reads as a continuation, and SKILL.md:75 then rules a new session or changed implementation detail is never by itself a new-task trigger, so nothing ever asks whether the work should have been registered
+- Task: Not promoted.
+- Next action: Clarify how unregistered work becomes visible, then promote.
+- Notes: 2026-10-10 查证（1.1.3 上确认复现）：(1) `SKILL.md:10` 的适用闸门只在「请求要求**修改仓库**」时自动生效，而「接着做这个分支 / 接手这个任务」读起来是**延续**，不构成请求；(2) `SKILL.md:75` 明确反向——「A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger」，本意是防误建任务，但同时给「继续未登记的工作」发了许可；(3) 没有任何东西会留下「这份工作没登记」的痕迹：`hooks/summarize-state` 打印的是**已存在**的 inbox 条目与活跃任务，一份从未进过 TaskFlow 的工作在它里面是空的。**与 TF-20261001-efbc51 的区别**（那一条本周刚吸收 TF-20261008-84a0ce）：efbc51 管的是「**已提交**的工作怎么搬进 worktree」，本条管的是「接手一份从未登记的工作流时该发生什么」——相邻但不同，且本条的触发面是「延续型工作」而非「新请求」。**宿主相关性**：五个宿主的钩子接线都已核对，只有 Claude Code 与 Trae 带 PreToolUse 写入门（Trae 的 SessionStart 只绑 `startup`）；本条与入口静默同属宿主无关的规则缺口，不是某个宿主特有的接线问题。相关：TF-20261009-cc463b。
+
 ## Decouple stage capability selection from the host tool-call stream: the PreToolU
 
 - ID: TF-20261009-8abbd6
@@ -1199,9 +1213,10 @@ Every direct request or imported requireme
 - Owner: Claude
 - Source: user request 2026-10-09, found while writing the trae-host PRD
 - Added: 2026-10-09
-- Updated: 2026-10-09
+- Updated: 2026-10-10
 - Goal: Make one order binding: entering work enters TaskFlow first, and capabilities are selected and used inside the phase. Today the applicability gate and the phase-to-capability step are separate rules with no stated order, so a session can research before TaskFlow and then have no stage to attribute that research to, which is what forces a throwaway invocation when the document is finally written; or skip TaskFlow entirely; or never consider a phase's capability class because no available capability advertises the phase name. A phase's selection must also be able to record work already done for it, instead of requiring a fresh call the gate can find
 - Task: Not promoted.
-- Next action: Decide the mechanism, then land it
+- Next action: Settle the mechanism for one order and for a visible entry, then land it.
 - Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
+- 2026-10-10 第四个失败模式（用户裁定并入本条，不新建）：**未登记的工作在场时入口完全静默**。(1) 目标仓库从未用过 TaskFlow 时，`hooks/summarize-state` 第 18 行 `[ -d "$docs" ] || exit 0` 直接退出，SessionStart 不产生任何输出——插件在整个会话里等于不存在；(2) 即使有 TaskFlowDocs，`summarize-state` 打印的也只有**已存在**的 inbox 条目与活跃任务，一份从没进过 TaskFlow 的工作在它里面是空的，于是「这份工作该不该登记」没有任何信号可依；(3) `hooks/hooks.json` 只有 SessionStart / PreToolUse / PostToolUse，没有 UserPromptSubmit，且 `references/runtime.md:185` 明写写入命令永不绑它。**注意：`UserPromptSubmit` 已被否决过**——`achieved/2026-09-10-audit-hook-opportunities/reference/hook-audit.md:81` 记录「Todo creation from every UserPromptSubmit：多数 prompt 是提问或跟进，matcher 无法可靠分类，除非再加一个模型」。所以本条的机制候选须在此约束下重新给：要么让静默本身可被观测（SessionStart 在无 TaskFlowDocs / 有未登记工作时输出一句），要么改 Applicability gate 的措辞，而不是加 prompt hook。
 
