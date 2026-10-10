@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # summarize-state — derive a short, non-authoritative TaskFlow state summary.
-# Prints nothing when no TaskFlowDocs exists. Runs from the repo root.
-# Cross-platform: invoked via run-hook.cmd (Git-bash on Windows).
+# Runs from the repo root, and says nothing at all only where there is nothing
+# to say. Cross-platform: invoked via run-hook.cmd (Git-bash on Windows).
 # POSIX shell + awk only: the plugin must run with no language runtime available.
 set -euo pipefail
 shopt -s nullglob
@@ -15,11 +15,53 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
 [ -n "$repo_root" ] || repo_root="$PLUGIN_ROOT"
 docs="$repo_root/TaskFlowDocs"
-[ -d "$docs" ] || exit 0
+
+# A repository that has never used TaskFlow is the case where the obligation is
+# hardest to notice: there is no todo.md to find and no active task to continue,
+# so this hook used to exit in silence and the session began with no sign that a
+# requests-to-TaskFlow path exists at all. The gate itself is stated in SKILL.md
+# ("Applicability gate"), and repeating it here is the one thing this hook can do
+# without writing: it is the only TaskFlow output a session gets before an Agent
+# has read anything. This states the boundary; it does not act on it — no
+# directory, no Todo, no intake.
+if [ ! -d "$docs" ]; then
+  cat <<'GATE'
+# TaskFlow (not started in this repository)
+- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md.
+- Read-only work (explanation, translation, status, research, review, diagnosis) does not, and an explicit $taskflow request opts it in.
+GATE
+  exit 0
+fi
 
 todo="$docs/todo.md"
 verbose="${TASKFLOW_VERBOSE:-0}"
 task_id="${TASKFLOW_TASK_ID:-}"
+
+# Registration is by slug, not by status. A branch is named <type>/<slug> and a
+# task directory <date>-<slug>, so a branch belongs to a task when some task
+# directory is named "<something>-<that slug>" — the suffix match, not a prefix,
+# because the date is dropped from the branch name. `achieved` is included on
+# purpose: work that was registered and then archived is registered work, and
+# reporting it would put a line in every session of every repository whose task
+# set is fully archived.
+#
+# `report` starts at 0 and is raised only where the question is meaningful. A
+# base branch, a detached HEAD, and a directory that is not a repository are all
+# situations with no branch to register, and saying so every session would be
+# noise that hides the one case this exists for.
+report=0
+current_branch="$(git -C "$repo_root" branch --show-current 2>/dev/null || true)"
+branch_slug="${current_branch##*/}"
+case "$current_branch" in ""|main|master) ;; *)
+  report=1
+  for dir in "$docs"/*/ "$docs"/achieved/*/; do
+    name="${dir%/}"
+    name="${name##*/}"
+    case "$name" in achieved|repository-docs) continue ;; esac
+    case "$name" in *-"$branch_slug") report=0; break ;; esac
+  done
+  ;;
+esac
 
 active=()
 for dir in "$docs"/*/; do
@@ -152,5 +194,16 @@ elif [ "${#active[@]}" -gt 1 ]; then
   else
     echo "- Multiple active tasks (${#active[@]}); set TASKFLOW_TASK_ID to select one."
   fi
+fi
+
+# Last, so it reads as a classification of what is above rather than a preamble
+# to it. Taking over a workstream reads as a continuation, and `SKILL.md` rules
+# that a new session or a changed implementation detail is never by itself a new
+# task trigger — so work that was never registered can be picked up and carried
+# a long way with nothing ever asking whether it should have been. Locating the
+# branch is all this does; whether the work belongs here stays the Agent's call.
+if [ "$report" = "1" ]; then
+  echo "# No task for branch '$current_branch'"
+  echo "- Work on this branch is not registered: no TaskFlowDocs/<task>/ matches it. If it should be, record it before continuing."
 fi
 exit 0

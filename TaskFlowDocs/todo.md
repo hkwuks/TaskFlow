@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Taking over work that never entered TaskFlow triggers nothing: the applicability
 
 - ID: TF-20261010-82ec77
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-10, found while reviewing the 1.1.3 entry-point bugs
 - Added: 2026-10-10
 - Updated: 2026-10-10
 - Goal: Taking over work that never entered TaskFlow triggers nothing: the applicability gate fires on a request that asks to modify the repository, while continuing or inheriting an existing unlogged workstream reads as a continuation, and SKILL.md:75 then rules a new session or changed implementation detail is never by itself a new-task trigger, so nothing ever asks whether the work should have been registered
-- Task: Not promoted.
-- Next action: Clarify how unregistered work becomes visible, then promote.
+- Task: `TaskFlowDocs/2026-10-10-entry-point-silence/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 2026-10-10 查证（1.1.3 上确认复现）：(1) `SKILL.md:10` 的适用闸门只在「请求要求**修改仓库**」时自动生效，而「接着做这个分支 / 接手这个任务」读起来是**延续**，不构成请求；(2) `SKILL.md:75` 明确反向——「A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger」，本意是防误建任务，但同时给「继续未登记的工作」发了许可；(3) 没有任何东西会留下「这份工作没登记」的痕迹：`hooks/summarize-state` 打印的是**已存在**的 inbox 条目与活跃任务，一份从未进过 TaskFlow 的工作在它里面是空的。**与 TF-20261001-efbc51 的区别**（那一条本周刚吸收 TF-20261008-84a0ce）：efbc51 管的是「**已提交**的工作怎么搬进 worktree」，本条管的是「接手一份从未登记的工作流时该发生什么」——相邻但不同，且本条的触发面是「延续型工作」而非「新请求」。**宿主相关性**：五个宿主的钩子接线都已核对，只有 Claude Code 与 Trae 带 PreToolUse 写入门（Trae 的 SessionStart 只绑 `startup`）；本条与入口静默同属宿主无关的规则缺口，不是某个宿主特有的接线问题。相关：TF-20261009-cc463b。
 
 ## Decouple stage capability selection from the host tool-call stream: the PreToolU
