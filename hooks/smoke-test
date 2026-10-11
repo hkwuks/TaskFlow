@@ -1387,6 +1387,26 @@ grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$s
 grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
 echo ok
 
+echo "== the move into a task working tree is a procedure, not an instruction =="
+# `SKILL.md` said isolation had to come first and then, for the case where it had
+# not, only "then move the work there" — with no steps and no statement of what a
+# dirty base checkout means. Both halves matter: the steps are what makes the
+# instruction executable, and the origin sentence is what stops a reader from
+# treating the base checkout as a staging area for work that belongs on a branch.
+grep -q -F -- 'Know which working tree you are in, and move the work rather than the rule.' "$skill/SKILL.md" \
+  || { echo "FAIL the working-tree check is not stated"; exit 1; }
+grep -q -F -- 'git stash push -u -m "<slug>"' "$skill/SKILL.md" \
+  || { echo "FAIL the move procedure does not carry uncommitted work"; exit 1; }
+grep -q -F -- 'git stash pop                        # the work arrives as uncommitted changes here' "$skill/SKILL.md" \
+  || { echo "FAIL the move procedure does not land the work in the worktree"; exit 1; }
+grep -q -F -- 'Tracked files that are unmodified in the base tree are already on' "$skill/SKILL.md" \
+  || { echo "FAIL the move procedure does not say what does not need carrying"; exit 1; }
+# Phase 5 must point at that procedure rather than restating a bare instruction:
+# two copies of a rule drift, and the second one is the one nobody updates.
+grep -q -F -- 'following the move procedure under **Isolate before the first document**' "$skill/SKILL.md" \
+  || { echo "FAIL Phase 5 does not point at the move procedure"; exit 1; }
+echo ok
+
 echo "== a resume entry is required, not a judgement about usefulness =="
 # `sessions.md` existed in 2 of 88 task directories because nothing made the Agent
 # write an entry: the only trigger was "when continuation is useful", which cannot
@@ -1821,6 +1841,89 @@ printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","cwd":"%s","tool_inpu
   "$(cg_json "$(cg_flip "$cg_task")")" 'spec.md' | bash "$cg" > "$tmp/cg.rel"
 grep -q '"deny"' "$tmp/cg.rel" \
   || { echo "FAIL a backslash cwd + relative path was not judged as a task document"; cat "$tmp/cg.rel"; exit 1; }
+echo ok
+
+echo "== a stage denied in one working tree names where its records actually went =="
+# One task, one working tree, one store — and the two hooks reach that store by
+# different routes: capability-evidence from the event cwd, capability-gate from
+# the written file's path. They agree only while the session's cwd IS the task
+# worktree. When they disagree the invocation is still recorded, in the other
+# tree's store, and the gate denies saying no invocation exists — a true
+# statement naming the wrong cause.
+#
+# The sections above cannot see this: their fixture is a single repository, so
+# both routes always land on the same directory. The fixture here is the shape
+# where they differ, which is what a session that starts in the base checkout and
+# then adopts a worktree is in.
+#
+# The stores stay separate. Reading across to *allow* would let parallel tasks
+# spend each other's invocations, so this section asserts the denying direction
+# and the store boundary, not a cross-tree release.
+wk_fixture() {  # wk_fixture <dir> — a base checkout plus one linked worktree
+  local d="$1"
+  mkdir -p "$d/repo/TaskFlowDocs/2026-09-27-base"
+  printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$d/repo/TaskFlowDocs/2026-09-27-base/plan.md"
+  git -C "$d/repo" init -q
+  git -C "$d/repo" add -A
+  git -C "$d/repo" -c user.email=smoke@example.invalid -c user.name=smoke commit -qm init
+  git -C "$d/repo" worktree add -q "$d/wt" -b "smoke/$(basename "$d")"
+  mkdir -p "$d/wt/TaskFlowDocs/2026-09-27-wt"
+  printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$d/wt/TaskFlowDocs/2026-09-27-wt/plan.md"
+}
+wk_tell() {  # wk_tell <cwd> <file-path> — run the gate on a synthetic event
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$1\",\"tool_input\":{\"file_path\":\"$2\"}}" | bash "$cg"
+}
+wb_skill() {  # wb_skill <cwd> <capability> — record one invocation from that cwd
+  printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$1\",\"tool_input\":{\"skill\":\"$2\"}}" | bash "$HERE/capability-evidence"
+}
+
+# Two fixtures, one per direction, because each needs the *other* tree's store
+# empty: a record in the worktree makes the worktree's document legitimately
+# releasable, so one fixture driving both directions would assert the wrong thing
+# while staying green.
+#
+# Direction one, the one the defect was found in: the session records from the
+# base checkout while the document being written is the worktree's task.
+wk="$tmp/capability-worktree-base"
+wk_fixture "$wk"
+wb_skill "$wk/repo" probe:base
+[ -f "$wk/repo/.git/taskflow/evidence" ] || { echo "FAIL evidence did not land in the base checkout store"; exit 1; }
+wk_out="$(wk_tell "$wk/repo" "$wk/wt/TaskFlowDocs/2026-09-27-wt/prd.md")"
+case "$wk_out" in *'"deny"'*) ;; *) echo "FAIL the worktree document was released by the base checkout's record"; exit 1 ;; esac
+printf '%s' "$wk_out" | grep -q 'different working tree' || { echo "FAIL the denial does not say the records are elsewhere"; exit 1; }
+printf '%s' "$wk_out" | grep -q -F "$wk/repo/.git " || { echo "FAIL the denial does not name the store holding them"; exit 1; }
+printf '%s' "$wk_out" | grep -q 'task unaided PRD --considered' || { echo "FAIL the longer denial dropped the escape command"; exit 1; }
+
+# Direction two, the mirror: recording from the worktree while the document being
+# written is the base checkout's task.
+wk2="$tmp/capability-worktree-linked"
+wk_fixture "$wk2"
+wb_skill "$wk2/wt" probe:wt
+[ -f "$wk2/repo/.git/worktrees/wt/taskflow/evidence" ] || { echo "FAIL evidence did not land in the worktree store"; exit 1; }
+wk_out="$(wk_tell "$wk2/repo" "$wk2/repo/TaskFlowDocs/2026-09-27-base/prd.md")"
+case "$wk_out" in *'"deny"'*) ;; *) echo "FAIL the base document was released by the worktree's record"; exit 1 ;; esac
+printf '%s' "$wk_out" | grep -q 'a linked worktree' || { echo "FAIL the denial does not name the linked worktree"; exit 1; }
+
+# Same tree through both routes, both ways round: the ordinary path must still
+# release, or the change has traded one silent failure for another. This is also
+# the positive control for the store boundary — each store releases only its own
+# tree's document, which is what the denial above claimed and nothing more.
+wk_out="$(wk_tell "$wk2/wt" "$wk2/wt/TaskFlowDocs/2026-09-27-wt/prd.md")"
+[ -z "$wk_out" ] || { echo "FAIL the gate denied inside the worktree that holds the record: $wk_out"; exit 1; }
+wb_skill "$wk2/repo" probe:base
+wk_out="$(wk_tell "$wk2/repo" "$wk2/repo/TaskFlowDocs/2026-09-27-base/prd.md")"
+[ -z "$wk_out" ] || { echo "FAIL the gate denied inside the base checkout that holds the record: $wk_out"; exit 1; }
+
+# Degradation, which is all the reader is promised when the search comes up
+# empty: a store with nothing in it anywhere keeps the original wording, with no
+# sentence about another working tree.
+wk_none="$tmp/capability-worktree-none"
+mkdir -p "$wk_none/TaskFlowDocs/2026-09-27-alone"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$wk_none/TaskFlowDocs/2026-09-27-alone/plan.md"
+wk_out="$(wk_tell "$wk_none" "$wk_none/TaskFlowDocs/2026-09-27-alone/prd.md")"
+case "$wk_out" in *'"deny"'*) ;; *) echo "FAIL a document with no evidence anywhere was allowed"; exit 1 ;; esac
+printf '%s' "$wk_out" | grep -q 'different working tree' && { echo "FAIL an empty repository got a sentence about another working tree"; exit 1; }
+rm -rf "$wk" "$wk2"
 echo ok
 
 echo "== the capability record is required, not optional =="
