@@ -143,7 +143,8 @@
 
 | 检查 | 结果 | 分类 |
 | --- | --- | --- |
-| `bash hooks/smoke-test`（全量） | exit 0，`ALL SMOKE PASSED`，72 个 `ok` 节（改动前 68） | 通过 |
+| **CI 三宿主矩阵**（`Hooks`，run [`38149885979`](https://github.com/hkwuks/TaskFlow/actions/runs/38149885979)） | `success`；六个 job 全绿：`smoke (ubuntu-latest)`、`smoke (macos-latest)`、`smoke (windows-latest)`、`release`、`evals`、`todo-merge-audit` | 通过（A7） |
+| `bash hooks/smoke-test`（全量，本地） | exit 0，`ALL SMOKE PASSED`，72 个 `ok` 节（改动前 68） | 通过 |
 | **变异验证 1**：删掉 `hooks/task:1043` 写 `released` 的那一行 | `FAIL unaided did not write the release record` | 断言有效（A1 被咬住） |
 | **变异验证 2**：从 `hooks-codebuddy.json` 删掉 `PreToolUse` | `FAIL hooks/hooks-codebuddy.json is missing "PreToolUse"` | 断言有效（A3 被咬住） |
 | 两处变异恢复后重跑全量 | `ALL SMOKE PASSED`，`FAIL` 计数 0 | 通过 |
