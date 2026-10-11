@@ -45,10 +45,17 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Claude
 - Source: user request 2026-10-09, found while writing the trae-host PRD
 - Added: 2026-10-09
-- Updated: 2026-10-09
+- Updated: 2026-10-11
 - Goal: Decouple stage capability selection from the host tool-call stream: the PreToolUse gate refuses the first write of prd/spec/plan unless a Skill/Agent/MCP call already matched, so a host that has no such call, or a session driven from a different cwd than the task worktree, forces either a throwaway invocation like skill(sxng) for a PRD already researched, or the unaided declaration for a phase that really did use a capability. Give the phase a way to record its selection that is not a tool-call artifact
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Clarify and promote when ready; fold in the two 2026-10-11 findings recorded in Notes (gate stage_class vs phase table mismatch; schema-leads-capability)
+- Notes: **2026-10-11 用户裁定并入本条（不新建）**：用户指出「头脑风暴类的引导，按理应由引导工具 lead 调研和编写文档的方向，TaskFlow 只规定流程」，要查是否如此。查到两处，都属本条的能力表示层。
+
+**(1) 门在正确时机投递的概念类，是 phase 表的一个子集 —— 可复现的机械缺陷。** `hooks/capability-gate` 的 `stage_class()` 是手抄的第二份表，PRD 只写 `requirements elicitation and framing`；而 `SKILL.md:167` phase 1 的类是 `requirements elicitation and framing; divergent exploration`（`divergent` 在 SKILL.md 出现 2 次，在 gate 里 0 次）。`divergent exploration` 在 `hooks/task:606` 的词表里、`unaided` 接受它，但**门的拒绝消息从不提它**。这是唯一「在正要写文档那一刻、无法忽略」的投递渠道（R7 的原始动机，见 `achieved/2026-09-27-capability-pre-write-gate/prd.md`），而它在 PRD 这一格只广播 converge 一个方向。`smoke-test:1740-1742` 只断言消息含 stage/类/逃生舱三要素，**没有任何断言比较 stage_class 与 phase 表**——而 phase 表与 `concept_class_re` 之间是有双向断言钉住的（`smoke-test:1596-1621`），两份手抄表只钉了一份。`achieved/2026-10-08-capability-concept-classes/prd.md` A5 明确要求 `stage_class()` 逐字不变，所以那次改动**故意**没碰它。
+
+**(2) 交付物 schema 先于能力定死，能力只能「折进」（设计层观测）。** `prd.md` 必备小节、Plan 每 Step 的 acceptance/verification/rollback、`task approve` 的 stage 对账（`hooks/task:1055-1092`）、change-log 只能进 `plan.md`（`SKILL.md:252`）——这些在咨询任何引导工具之前就已经固定。引导工具的产出按类被折入（`SKILL.md:177`：requirements → prd.md，design → spec.md，breakdown → plan.md Steps）。设计声明是「能力供专业、TaskFlow 供流程」（`SKILL.md:8`、`159`、`163` 都写了），但强制预算全在流程侧，能力侧只有无预算的散文。历史旁证：`idea-refine` / `brainstorming` 真被用过（`achieved/2026-09-23-capability-invoke-gate/plan.md:22`），`2026-10-08-capability-concept-classes/prd.md:27` 却记录它们「没有回流成引导」。
+
+**(1) 是可独立修的小缺陷**，修法与既有约定一致：要么让门的显示类从 phase 表派生，要么加一条和 `concept_class_re` 同风格的双向断言。用户 2026-10-09 对 (3) 的裁定（把硬 deny 降为 approve 时对账）如落地，(1) 会随之消解。相关：TF-20261008-5b5635（已 done，即上述能力类改动）
 
 ## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
 
@@ -1034,11 +1041,18 @@ Every direct request or imported requireme
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-19
-- Updated: 2026-09-19
+- Updated: 2026-10-11
 - Goal: Measure whether delegating exploration to subagents actually reduces main-thread context, before adopting it as guidance.
 - Task: Not promoted.
-- Next action: Design the measurement, then run it on one real exploration.
+- Next action: Assess whether TaskFlow lowers an Agent's tendency to search external sources, and fix the Reference Pointers slot if it does: all 72 achieved tasks put internal repo paths in Reference Pointers (253 bullets, 0 URLs), while external hosts total 4 across the whole archive. Add a control (same task, with and without the injected TaskFlow context) alongside the existing delegation measurement.
 - Notes: **2026-09-19 用户提出**：subagent 委派能不能省 token，要**实测**才知道，别先写进指引。
+- **2026-10-11 用户提出**：用户观察「用了 TaskFlow 之后 Agent 似乎变得不喜欢做网络搜索」，并要求先查是不是真的。用户明确此条**不是**要强制规定调用网络搜索，只是这条倾向值得被测量。
+
+**查到的可测痕证**：72 个 achieved 任务里 63 个 `plan.md` 的 `## Reference Pointers` 非空，共 **253 条 bullet，含 URL 的 0 条**；其中 70 条是反引号包起的仓库内路径。放宽到整个任务目录，只有 17/72 出现过任何 URL，主机分布 github.com 39、docs.anthropic.com 2、developers.openai.com 2 —— 第三方外部来源合计 4 条。也就是说名为「参考指针」的槽位已经退化成「我读了哪些仓库文件」。
+
+**指向该退化的三处机制**（推断，非因果）：(1) `SKILL.md:54` 澄清阶段唯一的动作指令 `inspect` 枚举八项全在仓库内或 Agent 自身状态里，没有任何一项指向仓库外；(2) 没有任何阶段拥有「取外部事实」这个动作——`SKILL.md:168` 的 `searching external sources` 挂在 phase 2，而 phase 2 有 `reference/` 产物要写，模型里它是**写**的阶段，不先有「我要写 reference 笔记」的决定就不会触发去外部取事实；(3) 会话开场 `summarize-state` 注入的全是内部结论，`SKILL.md:32` 又说 routing record 先读。附带：`WebSearch`/`WebFetch` 被 R12（`achieved/2026-09-27-capability-pre-write-gate/prd.md:61`）排除在能力谓词外，于是搜索在 TaskFlow 里既不拦也不奖。
+
+**边界**：这是机制推断 + 行为统计，不是因果证明。本仓库自足，多数任务本就不需要外部来源，0/253 里有多大比例由此解释无法从数据分开——要用对照（同一任务，加/不加这套注入各跑一次）才能分开，与 [[TF-20260919-90797c]] 原有的委派测量同源。相关：TF-20261009-8abbd6（能力选择的记录位）
 
   **为什么值得测而不是直接采纳**：我给的论证是「读 `todo.md` 22k、整读 `SKILL.md`、反复读 `plan.md` 都在主线里做，丢给 subagent 就只回结论」。这条论证**在我这个会话里是空的**——我一次 subagent 都没用，所以那是推断不是观测。
 
@@ -1233,4 +1247,17 @@ Every direct request or imported requireme
 - Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
 - 2026-10-10 第四个失败模式（用户裁定并入本条，不新建）：**未登记的工作在场时入口完全静默**。(1) 目标仓库从未用过 TaskFlow 时，`hooks/summarize-state` 第 18 行 `[ -d "$docs" ] || exit 0` 直接退出，SessionStart 不产生任何输出——插件在整个会话里等于不存在；(2) 即使有 TaskFlowDocs，`summarize-state` 打印的也只有**已存在**的 inbox 条目与活跃任务，一份从没进过 TaskFlow 的工作在它里面是空的，于是「这份工作该不该登记」没有任何信号可依；(3) `hooks/hooks.json` 只有 SessionStart / PreToolUse / PostToolUse，没有 UserPromptSubmit，且 `references/runtime.md:185` 明写写入命令永不绑它。**注意：`UserPromptSubmit` 已被否决过**——`achieved/2026-09-10-audit-hook-opportunities/reference/hook-audit.md:81` 记录「Todo creation from every UserPromptSubmit：多数 prompt 是提问或跟进，matcher 无法可靠分类，除非再加一个模型」。所以本条的机制候选须在此约束下重新给：要么让静默本身可被观测（SessionStart 在无 TaskFlowDocs / 有未登记工作时输出一句），要么改 Applicability gate 的措辞，而不是加 prompt hook。
 - 2026-10-10 第五个失败模式（本次实现中发现，无独立 todo）：**不可上报的未登记状态**。summarize-state 的分支报告要求当前分支名含 slug 且该 slug 不匹配任何任务目录；但「在 base 检出上尚未建分支就开始改仓库」与「分支名本就不含 slug（如 user/foo）」两种情况下，前四类信号（活跃任务、inbox、入口提示、分支报告）全为空——这与第四个失败模式同源，都是「静默」，差别只在触发条件落在分支命名而不是目录存在性。本条不修（需要与 efbc51 的锚点语义一起定），在此记录。
+
+## Stop duplicating changelog/history content across prd.md, plan.md and spec.md: e
+
+- ID: TF-20261011-e27329
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: direct user request
+- Added: 2026-10-11
+- Updated: 2026-10-11
+- Goal: Stop duplicating changelog/history content across prd.md, plan.md and spec.md: each document repeats the same change-log or history narrative, which is pure token waste. Assign the history/changelog a single owning document and have the others reference it instead of restating it.
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
 
