@@ -156,10 +156,70 @@ if [ "$total" -gt "$consumed" ]; then
   exit 0
 fi
 
+# Where did the record actually go? Only asked on the deny path below, and only
+# ever to name it.
+#
+# This gate locates the store from the written file's path; capability-evidence
+# locates it from the event cwd. The two agree only while the session's cwd is
+# the task worktree, and `--absolute-git-dir` differs between a base checkout
+# (`<common>/.git`) and a linked worktree (`<common>/.git/worktrees/<name>`), so
+# when they disagree the invocation is recorded — in the other tree's store —
+# and this gate denies saying no invocation exists. Measured 2026-10-11: a Skill
+# call made with the base checkout as cwd wrote `invoke|...` into the base
+# checkout's store, and the gate refused the same task's document in the
+# worktree with "no capability invocation is recorded".
+#
+# The stores stay per working tree. That separation is what keeps parallel tasks
+# from spending each other's invocations, and reading across it to *allow* would
+# trade a loud failure for a quiet one. So this reads across it only to explain.
+#
+# Enumeration is by layout rather than by `git worktree list`: that output would
+# have to be parsed for paths containing spaces and backslashes, while
+# `<common>/worktrees/*` and `<common>/taskflow` are fixed by Git. A repository
+# using a non-default layout simply finds nothing and keeps the old wording.
+#
+# The common directory is read back out of `--absolute-git-dir` rather than asked
+# for again: that command is already absolute everywhere, whereas
+# `--git-common-dir` answers `.git` in a worktree — relative to the worktree
+# root, not to the task directory it was run in — and `--path-format=absolute`
+# would raise the Git floor for a hook that runs on other people's machines.
+#
+# Emits one sentence, or nothing. The path is separator-normalized because the
+# caller embeds the result in JSON without an escaping step, and a Windows path
+# carries backslashes.
+stray_evidence() {  # stray_evidence <task-dir> <this-store's-git-dir>
+  local task_dir="$1" git_dir="$2" own common cand rest count where
+  own="$git_dir/taskflow/evidence"
+  case "$git_dir" in
+    */worktrees/*) common="${git_dir%/worktrees/*}" ;;
+    *) common="$git_dir" ;;
+  esac
+  [ -n "$common" ] || return 0
+  for cand in "$common/taskflow/evidence" "$common"/worktrees/*/taskflow/evidence; do
+    [ -f "$cand" ] || continue
+    [ "$cand" != "$own" ] || continue
+    count="$(awk 'END { print NR }' "$cand")"
+    [ "$count" -gt 0 ] || continue
+    if [ "$cand" = "$common/taskflow/evidence" ]; then
+      where="$common (the base checkout)"
+    else
+      rest="${cand#"$common"/worktrees/}"
+      where="${rest%%/*} (a linked worktree under $common/worktrees)"
+    fi
+    where="$(printf '%s' "$where" | tr '\134' '/')"
+    printf 'Records for this repository exist in a different working tree: %s holds %s capability record(s). This session records evidence where its cwd points, while this document is in %s, so the two disagree.' \
+      "$where" "$count" "$task_dir"
+    return 0
+  done
+  return 0
+}
+
 class="$(stage_class "$stage")"
 if [ "$consumed" -gt 0 ]; then
   detail="the most recent invocation was already spent by an earlier document"
 else
   detail="no capability invocation is recorded for this task version"
 fi
+stray="$(stray_evidence "$task_dir" "$git_dir")"
+[ -n "$stray" ] && detail="$detail. $stray Confirm with git branch --show-current and pwd, then re-run the invocation from this working tree or move the work here — see SKILL.md, Isolate before the first document"
 deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'"

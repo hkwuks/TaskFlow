@@ -128,6 +128,21 @@ cd .worktrees/<slug>
 
 One task, one working tree — not only when several tasks run at once. The base checkout then stays on `<base>` and clean, which is what makes the next task's branch startable at all: `git checkout` refuses to move while a shared file like `TaskFlowDocs/todo.md` carries uncommitted work from a task that belonged elsewhere. `<type>` follows the repository's branch prefixes (`CONTRIBUTING.md`); `.worktrees/` is ignored, so the worktrees themselves never appear as changes. `hooks/task promote` refuses to run outside a task working tree for this reason, and `hooks/task intake` warns when it has written `todo.md` in a shared one.
 
+**Know which working tree you are in, and move the work rather than the rule.** Isolation is a fact about where you are standing, not a promise, and the two are easiest to confuse exactly when work has already started. The base checkout and a task working tree are different directories with different branches, and a file exists in whichever one you are in — an edit made in the base checkout is not "uncommitted work on the task branch", it is work on `<base>` that the task's branch cannot see. So establish it before the first edit rather than discovering it after: `git branch --show-current` names the branch, and `pwd` against the worktree you created names the directory.
+
+If work has already started in the base checkout, move it before continuing:
+
+```bash
+cd <base-root>
+git status --short                   # what is actually uncommitted here
+git stash push -u -m "<slug>"        # -u carries new files; named so it is findable
+git worktree add .worktrees/<slug> -b <type>/<slug> <base>
+cd .worktrees/<slug>
+git stash pop                        # the work arrives as uncommitted changes here
+```
+
+Two things that version-control the honest version of this: a dirty base checkout is not a staging area, and a move is not always a copy. Tracked files that are unmodified in the base tree are already on `<base>` — `git stash push` leaves them alone, correctly, because they will be there in the worktree too. What the stash carries is what is genuinely uncommitted, and a stash pop that conflicts is telling you the two trees had diverged, which is a fact to resolve rather than to work around. If the base checkout carries work for a *different* task, that task belongs in its own worktree, and moving it into this one is the wrong repair.
+
 A worktree isolates the work; it does not decide where the commits land. `CONTRIBUTING.md` states that separately, and it is not one question but two independent ones — where a task's own documents go, and where the bookkeeping that belongs to no task goes. Read it there, including the checkable facts that decide it, rather than from a summary here.
 
 Use `TaskFlowDocs/todo.md` as the single intake for every idea, request, and imported requirement, whether or not it is ready for planning. Maintain each item with an ID, status, priority, owner, source, external identifier/link when available, one-sentence goal, task link, next action, and update date. Move it through `inbox → clarified → promoted → in_progress → done/cancelled`.
@@ -253,7 +268,7 @@ After the user has approved, write those five fields with `task approve <task-id
 
 ### 5. Build — implement by Plan
 
-Before the first edit, confirm the task's working tree is still the one you are in — isolation was established in Phase 1, before the first document, and this phase only carries it forward. If it was skipped, do it now before editing: `git worktree add .worktrees/<slug> -b <type>/<slug> <base>`, then move the work there. Read the applicable repository guidance first — `CONTRIBUTING.md` names the branch prefixes and the base-branch rule; follow it when the repository states one, and otherwise branch as `<type>/<description>` off the intended base. Record the branch and worktree in `plan.md` when they are not obvious from the task directory.
+Before the first edit, confirm the task's working tree is still the one you are in — isolation was established in Phase 1, before the first document, and this phase only carries it forward. If it was skipped, do it now before editing, following the move procedure under **Isolate before the first document**: `git worktree add .worktrees/<slug> -b <type>/<slug> <base>`, then carry the uncommitted work across rather than re-doing it. Read the applicable repository guidance first — `CONTRIBUTING.md` names the branch prefixes and the base-branch rule; follow it when the repository states one, and otherwise branch as `<type>/<description>` off the intended base. Record the branch and worktree in `plan.md` when they are not obvious from the task directory.
 
 Every task appends to the one `TaskFlowDocs/todo.md`, so merging parallel branches touches that file even when the branches share nothing else. TaskFlow installs a per-entry Git merge driver for it (see [runtime.md](references/runtime.md)); merge the branches locally so it runs, and expect an ordinary content conflict when a pull request is merged in a hosting web UI.
 
