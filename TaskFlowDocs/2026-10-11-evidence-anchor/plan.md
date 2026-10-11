@@ -132,7 +132,51 @@
 
 ## Verification / Review
 
-（待 Step 4 写入。）
+逐条记录命令与结果。区分：**既有失败**（改动前就存在）/ **新引入失败** / **环境失败**。
+
+| 检查 | 结果 | 分类 |
+| --- | --- | --- |
+| `bash hooks/smoke-test`（全量） | exit 0，`ALL SMOKE PASSED`，68 个 `ok` 节；新增两节各自 `ok` | 通过 |
+| **变异验证 1**：`stray=""`（关掉诊断查找） | `FAIL the denial does not say the records are elsewhere` | 断言有效（A1 被咬住） |
+| **变异验证 2**：删掉 `SKILL.md` 的 `git stash pop` 行 | `FAIL the move procedure does not land the work in the worktree` | 断言有效（A4 被咬住） |
+| 恢复两处后重跑全量 | `ALL SMOKE PASSED`，`git status` 仅本轮 4 个文件 + 任务目录 | 通过 |
+| 失配的两个方向（断言内，各自独立夹具） | 方向一：记录在基础检出、检查 worktree 文档 → 拒绝且点名基础检出库；方向二：镜像 → 拒绝且点名 linked worktree | 通过（PRD A1） |
+| 同树不回归（断言内） | worktree 与基础检出各自在自己的库里放行自己树内的文档 | 通过（PRD A2） |
+| 空库降级（断言内） | 无任何记录时不出现「another working tree」那句，文案回到原状 | 通过（R4） |
+| 无解释器不变量 | no-interpreter 一节仍通过；诊断只用 `git`、内建 glob、`case`、`printf` | 通过（PRD R8、I5） |
+| `bash -n hooks/capability-gate`、`hooks/smoke-test` | 无输出 | 通过 |
+| `docker run --rm -v "$PWD:/w" -w /w bash:3.2 bash -c 'bash -n …'` | 两个文件都 `bash 3.2 OK` | 通过 |
+| `git diff --check` | `CLEAN` | 通过 |
+| `bash hooks/release-check .` | `STATUS: pass` | 通过 |
+| `quick_validate.py skills/taskflow` | `Skill is valid!`，用 `/home/hk/miniconda3/envs/torch/bin/python` | 通过 |
+
+### 实现期修正（两处，均由实测咬出）
+
+1. **common dir 的来源改了。** `spec.md` 第一稿写 `git rev-parse --git-common-dir`。实测（git 2.43）：基础检出返回 `.git`（相对），linked worktree 返回 `/abs/repo/.git`（绝对）——归一化时无从判断基准。改用 `--path-format=absolute` 需 git ≥ 2.31，而这个 hook 在别人机器上运行，不该抬高下限；最终从**已经绝对化的** `--absolute-git-dir` 反推。已写入 `spec.md` 的 Implementation Note。
+2. **`own` 的取值错了。** 第一版把 `git_dir` 直接当作 `own` 比较，而实际路径是 `$git_dir/taskflow/evidence`——于是本库永不被排除，诊断在最该触发的场景里静默。是断言先红（`FAIL the worktree document was released by the base checkout's record` 之后的一连串）咬出来的。
+
+### 断言自身的一次修正
+
+新增节的第一版把两个方向放在**同一个夹具**上，而两者要求「另一棵树的库为空」这一互斥状态：先记录 base 再测方向一，base 的记录会让 worktree 的文档真的被放行，断言就以错误理由变红。改成**每个方向一个夹具**（`wk` 与 `wk2`），并在节内注明为什么不能合并。这条过程留在本节，因为「一个夹具同时问两个互斥的问题」是同类断言最容易重犯的错。
+
+**CI 结果**（`Hooks` workflow）：[run 38107432916](https://github.com/hkwuks/TaskFlow/actions/runs/38107432916)，commit `3bc7a34` — **success**，三 host 矩阵 + `release` / `evals` / `todo-merge-audit` 全部通过。
+
+### PR 模板映射（`.github/pull_request_template.md`，phase `pr` 的适用文档）
+
+模板路径已核对（25 行、4 节）。每个字段的映射：
+
+| 模板字段 | 落点 | 状态 |
+| --- | --- | --- |
+| Summary | PR [#78](https://github.com/hkwuks/TaskFlow/pull/78) 正文首节——两个锚点的实测复现、gate 的诊断、以及库边界不变 | 已完成 |
+| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-11-evidence-anchor/` | 已确定 |
+| TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/capability-gate`、`hooks/smoke-test`、`SKILL.md`、`references/runtime.md`、本任务文档 | 已确定 |
+| TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `52fc3e4` 起 | 已验证 |
+| TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
+| Verification: Hooks workflow pass | [run 38107432916](https://github.com/hkwuks/TaskFlow/actions/runs/38107432916)，commit `3bc7a34`，全绿；已写入 PR 正文 | 已完成 |
+| Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
+| Verification: Skill/plugin validation | `quick_validate` `Skill is valid!`、`release-check` `STATUS: pass` | 已记录 |
+| Verification: Results recorded in the Plan | 本节 | 已完成 |
+| Review boundaries（4 条） | 无凭据写入；`git status` 仅本轮 4 个文件 + 任务目录；`origin`/`main` 已核对；见 `## Follow-ups` | 已完成 |
 
 ## Change Log
 
