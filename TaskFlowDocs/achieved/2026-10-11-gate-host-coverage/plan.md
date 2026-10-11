@@ -1,7 +1,7 @@
 # Plan — 前置能力门的宿主覆盖与 approve 的解耦
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Spec Pointers
 
@@ -52,11 +52,11 @@
 
 ## Approval
 
-- Status: requested
-- Approved by: pending
-- Approved at: pending
-- Approved version: pending
-- Approved scope: pending
+- Status: approved
+- Approved by: user
+- Approved at: 2026-10-11 23:15 +0800
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan
 
 ## Steps
 
@@ -122,13 +122,13 @@
   - [x] 安装说明写清宿主侧的信任/复核步骤（Codex `/hooks` 审查、CodeBuddy 面板与不热加载）。
   - [x] 写明 `unaided` 的语义变化：声明即放行。
   - [x] 断言钉住文档不再含反向断言、且接线形状与文档一致。
-  - [ ] `bash hooks/smoke-test` 全量；`git diff --check`；`release-check`；`quick_validate`；
+  - [x] `bash hooks/smoke-test` 全量；`git diff --check`；`release-check`；`quick_validate`；
         `bash -n` 与 `docker run --rm -v "$PWD:/w" -w /w bash:3.2 bash -c 'bash -n …'`。
-  - [ ] 记录 PR 模板逐字段映射；推送后记录 CI 三 host 矩阵。
+  - [x] 记录 PR 模板逐字段映射；推送后记录 CI 三 host 矩阵。
 - Acceptance: PRD A6、A7、A8。
 - Verification: 上述命令输出逐条记录在 `## Verification / Review`。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: completed
 
 ## Checkpoints
 

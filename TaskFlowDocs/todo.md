@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## The pre-write capability gate is wired only on Claude Code and Trae, so on the o
 
 - ID: TF-20261011-39bda8
-- Status: promoted
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: audit follow-up 2026-10-11
 - Added: 2026-10-11
 - Updated: 2026-10-11
 - Goal: The pre-write capability gate is wired only on Claude Code and Trae, so on the other three supported hosts task approve can never succeed: hooks/task approve requires a taskflow/released record, capability-gate is the only writer of that file, and the Codex, CodeBuddy, and dsh hook wiring files subscribe to no tool-call event at all - only SessionStart. Measured 2026-10-11 in a fixture: with the gate wired the unaided declaration releases the stage and approve reconciles it; with the gate absent the same command reports unaided OK and exits 0 while released is never created, so approve returns 'stage [PRD] was never released by the pre-write gate' permanently, and its suggested remedy is that same unaided command, which cannot work. Approve is the only sanctioned writer of the Approval block, so in_progress, complete, and archive are all unreachable and the user is forced to hand-write the approval record. The three hosts' own deny-capable events are already recorded in the event map (Codex and CodeBuddy PermissionRequest/PreToolUse, dsh tools/pre-execute); Trae was wired by contract match without modifying either hook script. Wire the gate where the host's contract matches, and decide what an approve on a genuinely hookless host must do now that the docs say such a host needs no hooks.
-- Task: `TaskFlowDocs/2026-10-11-gate-host-coverage/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-11-gate-host-coverage/`
+- Next action: None — completed and archived.
 
 ## Taking over work that never entered TaskFlow triggers nothing: the applicability
 

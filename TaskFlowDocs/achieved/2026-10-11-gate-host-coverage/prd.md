@@ -1,7 +1,7 @@
 # 前置能力门的宿主覆盖：让未接线的宿主上的 approve 不再是死路
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 
