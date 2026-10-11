@@ -170,7 +170,7 @@ claude plugin install taskflow@taskflow
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.1.4    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.1.5    Status: ✔ enabled
 ```
 
 更新已有安装：
@@ -227,7 +227,7 @@ CodeBuddy 读取 `.codebuddy-plugin/marketplace.json` 这份目录，其中带�
 ```bash
 codebuddy plugin list
 #   > taskflow@taskflow
-#     Version: 1.1.4
+#     Version: 1.1.5
 #     Scope: user
 #     Status: enabled
 ```

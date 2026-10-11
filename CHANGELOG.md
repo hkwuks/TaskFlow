@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.1.5] — 2026-10-11
+
+### Fixed
+
+- **A stage can now be released on a host that has no pre-write gate (PR #80).** `hooks/task approve` reconciles every required stage against `<absolute-git-dir>/taskflow/released`, and the pre-write gate was the only writer of that file. Three of the five supported hosts wired no tool-call event at all, so on those the gate never ran, `released` was never created, and `approve` refused forever — printing, as its remedy, the very `hooks/task unaided` command that could not work. Since `approve` is the only sanctioned writer of the Approval block, `in_progress`, `complete`, and the archive were all unreachable there, and the only way forward was to hand-write an approval the gate would then accept. `hooks/task unaided` now writes the release record itself, so a declaration releases its stage on any host, with or without a gate. Both lines are always written together and in that order — the gate releases a stage when the evidence holds more lines than the highest sequence already released, so a release without its matching `evidence` line would put `consumed` above the evidence and deny every stage from then on. The write is idempotent per version and stage, it never overwrites a line the gate wrote, and `approve` is unchanged.
+
+### Added
+
+- **CodeBuddy is a gated host (PR #80).** `hooks/hooks-codebuddy.json` gains `PreToolUse` (`Write|Edit`) and `PostToolUse` (`Skill|Agent|Task`, `mcp__.*`), running `capability-gate` and `capability-evidence` unchanged — no hook script gains a host branch, the same contract-match discipline Trae was wired under. The contract was read out of the packaged CLI (`@tencent-ai/codebuddy-code@2.137.0`) because CodeBuddy's own two documentation surfaces disagree: its CLI hooks reference names the write tools `Write`/`Edit` and reads `tool_input.file_path`, while a second, older surface names them `write_to_file`/`replace_in_file` with a camelCase `filePath`. The shipped bundle settles it — the tool-name enum carries `WRITE="Write"` and `EDIT="Edit"`, `PermissionUtils` reads `file_path` for both, and MCP tools are built as `mcp__<server>__<tool>`; the lowercase spellings reach the bundle only as telemetry aliases that collapse to the same metric key, never as an event's `tool_name`.
+
+### Changed
+
+- **`hooks/task unaided` changes meaning on every host, not only on gate-less ones.** Previously a declaration registered the phase but the gate released it, at document-write time; now the declaration releases it immediately. The user-visible result is the same — the stage is released and the document is writable — but a declaration now leaves a release record even when no document follows, which is exactly the record `approve` reconciles against. `hooks/task unaided` still records an explicit declaration, never a disguised invocation, so the gate's boundary is unchanged: it still refuses every write with no record behind it.
+- **The gate's host set is stated from the wiring rather than from prose.** `skills/taskflow/references/runtime.md`, `hooks/README.md`, and both READMEs now say the gate is wired on Claude Code, CodeBuddy, and Trae, and each project states **two** conditions for wiring a new host rather than one: a tool-call event, and a tool name the scripts already match carrying the written file's path. The sentence that previously claimed nothing else in TaskFlow depended on a gate — the claim the deadlock rested on — is gone, replaced by what `approve` actually requires.
+
+### Compatibility
+
+- **Two hosts are deliberately left ungated, and both are now pinned as such.** Codex emits `PreToolUse` and can deny, but its `apply_patch` tool carries the patch text under `tool_input.command` and no file path, so the gate would read nothing and allow every write. dsh delivers `tool_input.file_path` correctly, but its Claude Code bridge forwards `tool_name: exec.name` with no translation table and its file tools register as `write`/`edit`, while both the matchers and the hooks' own `case` arms are case-sensitive — so a `Write|Edit` matcher fires on nothing and the script is never even reached. Wiring either would produce a gate that silently allows every write while the repository and the docs both claimed one was present. The smoke suite now fails if `PreToolUse` reappears in `hooks-dsh.json` or `apply_patch` in `hooks-codex.json`.
+- **No install needs to change, but CodeBuddy installs need one confirmation step.** `hooks-dsh.json` and `hooks-codex.json` are untouched, and no hook gains an interpreter dependency. On CodeBuddy, hooks the user has not confirmed in the `/hooks` panel do not take effect — the panel is the host's authoritative entry point — so a CodeBuddy install that has not confirmed the new gate and recorder hooks will run the same flow it ran before, with stages released by `hooks/task unaided` instead of by a gate.
+- **`hooks/task` gains no new failure mode.** Its refusals are unchanged: an invalid stage, a missing `--considered`, or a concept class outside the vocabulary still exits `2` and writes nothing; a Plan with no readable `> Task version` now fails before the first write rather than after it.
+
+### Verification
+
+- The `Hooks` workflow reports `success` for this branch — PR #80, run [`38149885979`](https://github.com/hkwuks/TaskFlow/actions/runs/38149885979): `smoke (ubuntu-latest)`, `smoke (macos-latest)`, `smoke (windows-latest)`, `release`, `evals`, and `todo-merge-audit`.
+- `bash hooks/smoke-test` — exit `0`, `ALL SMOKE PASSED`, 72 `ok` sections (68 before).
+- Two mutation directions, each red under its own assertion and each reverted afterwards with the files byte-identical to their pre-mutation state: removing the `released` write in `hooks/task` → `FAIL unaided did not write the release record`; removing `PreToolUse` from `hooks/hooks-codebuddy.json` → `FAIL hooks/hooks-codebuddy.json is missing "PreToolUse"`.
+- New coverage: a fixture that runs **no hook at all** and declares both stages, then requires `approve` to reconcile and write the Approval block; a fixture proving a declaration never overwrites the gate's own release line; and a section pinning that the unwired hosts stay unwired.
+- `bash hooks/release-check .`, `bash hooks/repository-check .`, `quick_validate.py skills/taskflow` (`Skill is valid!`), `git diff --check`, `bash -n` on every hook script, and `bash:3.2` parsing in Docker for the three scripts under the compatibility floor — all recorded in the task Plan, which landed with the change in PR #80.
+
+### Known limitations
+
+- **The CodeBuddy wiring has never run on a live CodeBuddy host.** Its contract is read out of the packaged CLI's shipped bundle, not observed in a session. The bundle is authoritative about its own tool names and payload fields, but it says nothing about the transport: if the event does not reach the script with these names on a real install, the gate would be a silent no-op. `runtime.md`, the smoke section, and the PR body all say *packaged CLI*, not *measured*, for that reason. A first run on CodeBuddy either confirms it or corrects it.
+- **Codex would need the gate's path resolution changed, not just a wiring file.** Making it gated means parsing `apply_patch`'s patch text for the `*** Update File: ` / `*** Add File: ` / `*** Delete File: ` directives, looping because one call may touch several files, and resolving each relative path against `cwd` — Codex states that file references can only be relative. That is a new failure surface, so it is left to a separate task.
+- **dsh would need lowercase arms inside both hooks.** The tool-name mismatch is not fixable from the wiring file, and adding the arms widens what `capability-gate` and `capability-evidence` accept, so it is also left to a separate task. On dsh (and on Codex) a stage is released with `hooks/task unaided`.
+- Unchanged from 1.1.4, and still unmeasured: the Trae wiring has never run on a live Trae host; `Agent` and `mcp__.*` reaching `PostToolUse` is inferred from the tool-call lifecycle rather than measured on Claude Code; a leading UTF-8 BOM makes both gate hooks no-op; and `Bash` can still write the evidence store directly.
+- Pre-existing: `bash hooks/repository-check .` still reports the orphan `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`, as it did on 1.1.3 and 1.1.4.
+
 ## [1.1.4] — 2026-10-10
 
 ### Added
