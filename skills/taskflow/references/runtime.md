@@ -46,32 +46,38 @@ An environment running any other agent host needs no hooks: it continues with th
 | End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` | `Stop` (with `loop_limit`); no subagent tool event |
 | Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) | none (Trae's SessionStart source is only `startup`) |
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
-| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired | not wired | not wired | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
-| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | not wired | not wired | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
+| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `apply_patch` carries no file path | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `write`/`edit` are lowercase and the case arms are not | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
+| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired — `skill` is lowercase too | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
 
-Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below.
+Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh exclusions from measured payloads — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
+
+The gate is wired wherever the host delivers a tool-call event carrying **the written file's path in the field the gate reads, under a tool name the scripts already match**. Both halves bind: `capability-gate` decides entirely from `tool_input.file_path`, so a host that reports an edit some other way must not be wired at all — the hook would find no path, exit 0, and allow every write, while the repository and this document both claimed a gate was present. A silent no-op gate is worse than an absent one, which is why Codex is left unwired rather than wired and hoped for. The same applies to a host whose tool names miss the `Write|Edit` arm: the matcher never fires, so the script is not even reached. dsh is that second case, and **dsh specifics** below states it.
+
+The recorder's predicate is the tool class (`Skill`, `Agent`/`Task`, `mcp__*`), so it travels to any host that reports those names. Trae has no `Agent`/`Task` tool, so that one evidence path exists only where the host does.
 
 ## Pre-write capability gate
 
-Claude Code and Trae, and defined together with the event map above: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
+Defined together with the event map above, and wired for the hosts whose tool contract matches: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
 
-The gate is wired wherever the host exposes a tool-call hook whose tool names match the ones both scripts branch on. On Trae that is `Write`/`Edit` for the gate and `Skill`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only on Claude Code.
+Two things write that release record, and the second one is what keeps a host without a gate usable. `hooks/task unaided <stage> --considered "<concept class>"` appends its own `released` line as well as its `evidence` line, so the declaration releases the stage on the host that made it — no gate required. Both lines are always written together and the sequence is taken from the record: the gate releases a stage when the evidence holds more lines than the highest sequence already released, so a release without its matching evidence line would put the two out of step and deny every stage from then on. The gate skips a version and stage it has already released, and `unaided` skips the same key, so declaring a stage twice is idempotent and neither writer overwrites the other's line.
+
+The gate is wired wherever the host exposes a tool-call hook whose tool names match the ones both scripts branch on. On Claude Code, CodeBuddy, and Trae that is `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does.
 
 Four properties are worth stating because each one is load-bearing:
 
 - **Path-only.** The gate resolves everything from `tool_input.file_path` and never from a "current task", because hooks installed in `~/.claude/settings.json` are machine-global and fire in every concurrent session and every unrelated repository. Outside an active task directory both hooks are complete no-ops.
 - **Separators never assumed.** Claude Code on Windows delivers `tool_input.file_path` with backslashes (claude-code #83877, #64432), so the gate normalizes `\` → `/` — and the event `cwd` with it, since a relative path is joined onto that — before any path test. Measured on 1.1.1: one file was denied under forward slashes and silently allowed under backslashes, in the same repository. A path this hook fails to spell correctly is indistinguishable from "nothing here to gate", which is why the Windows suite feeds the native spelling.
 - **Deny only.** A release is a `permissionDecision: deny` withheld, never a grant; every other permission surface keeps its own say, and a hook still never approves.
-- **One invocation per stage.** The evidence file is one timeline and a release spends a line from it, so writing `prd.md` and then `spec.md` needs two invocations. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`, the single place a concept class is validated.
+- **One invocation per stage, or one declaration.** The evidence file is one timeline and a release spends a line from it, so writing `prd.md` and then `spec.md` needs two invocations. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`, the single place a concept class is validated — and, since it writes the release too, it is also what releases the stage where no gate is running.
 - **A denial says where the records went.** The two hooks reach the store by different routes — the recorder from the event `cwd`, the gate from the written file's path — and those agree only while the session's cwd *is* the task worktree. Measured 2026-10-11 in a base checkout plus one linked worktree: a call recorded with the base checkout as cwd wrote into that tree's store, and the gate then refused the same task's document in the worktree with "no capability invocation is recorded" — true, and naming the wrong cause. When the gate is about to deny and its own store is empty, it now looks at the sibling stores under the same git directory and names the one holding records. This is reporting only: the stores stay per working tree, nothing is released across them, and parallel tasks still cannot spend each other's invocations. `SKILL.md`'s **Isolate before the first document** carries the procedure for moving work that started in the wrong tree.
 
-A host without a tool-call hook has no gate at all — and nothing else in TaskFlow depends on one. The flow is unchanged there; the gate is an enforcement, not a step.
+A host without a tool-call hook has no gate at all, and the flow is otherwise unchanged there — the gate is an enforcement, not a step. But one thing does depend on the release record it would have written, and it is not optional: `task approve` reconciles each required stage against `released`, and `approve` is the only sanctioned writer of the Approval block, so `in_progress`, `complete`, and the archive all sit behind it. On such a host the declaration is what supplies the record, which is why `hooks/task unaided` writes `released` itself rather than leaving that to the gate. Before that was true, this paragraph said nothing else depended on a gate and every state beyond approval was unreachable on a host without one — with `approve` recommending, as its remedy, a command that could not help.
 
 ### dsh specifics
 
 dsh runs the hook through its own first-party Claude Code bridge
 (`@deepseek-ai/dsh-hooks-claude-code`), which translates each Claude Code event
-onto a dsh interception seam. Three details differ, and each was measured against
+onto a dsh interception seam. Four details differ, and each was measured against
 an installed dsh rather than assumed:
 
 - **Plugin root is not exported.** The bridge substitutes `${CLAUDE_PLUGIN_ROOT}`
@@ -88,14 +94,34 @@ an installed dsh rather than assumed:
   is the plugin package, and `dsh/index.js` mounts `hooks-dsh.json` on the bridge
   at load time. The file name is therefore a TaskFlow choice, not a host
   convention, and nothing outside `dsh/index.js` reads it.
+- **Tool names are lowercase, and the bridge does not translate them.** This is
+  why dsh wires no tool-call event. The bridge builds its payload as
+  `tool_name: exec.name` with no mapping table, and dsh's own file tools register
+  as `write`/`edit` (`dsh-tool-fs`), its skill tool as `skill`. Every matcher in
+  this repository and both hooks' `case "$tool_name"` arms are the PascalCase
+  Claude Code spelling, so on dsh the matcher never fires at all: the hook is not
+  reached, nothing is denied, and a stage document is written ungated on a host
+  the wiring would appear to cover. Measured on **dsh 0.2.0-rc.2** (2026-10-11)
+  against the installed bridge source and its own matcher — `matchesMatcher`
+  compares case-sensitively, so `Write|Edit` against `write` is false while
+  `write|edit` against it is true. Wiring dsh therefore means lowercase arms
+  inside `capability-gate` and `capability-evidence`, not a wiring-file edit;
+  until that exists, `hooks-dsh.json` carries SessionStart only and `hooks/task
+  unaided` is how a stage is released there.
 
 ### CodeBuddy specifics
 
-CodeBuddy follows the Claude Code hook contract closely enough that `session-start` needs no host branch, but three details differ from the table above. Each was run against the host rather than assumed:
+CodeBuddy follows the Claude Code hook contract closely enough that `session-start` needs no host branch, but three details differ from the table above. The first two were executed against the packaged CLI, on 2026-10-11, by unpacking `@tencent-ai/codebuddy-code@2.137.0` and reading the shipped bundle; the third is from the docs alone, and is labelled as such below:
 
-- **Plugin root.** CodeBuddy substitutes both `${CODEBUDDY_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}`, and injects both into the hook environment with the same value. `hooks-codebuddy.json` uses the `CODEBUDDY_` spelling, which is what every bundled plugin in the official marketplace writes.
+- **Tool names are the PascalCase ones.** The hook manager filters a tool's descriptors with `ToolNames.SKILL`, and the tool-name enum carries `READ="Read"`, `WRITE="Write"`, `EDIT="Edit"`, `MULTI_EDIT="MultiEdit"`, so `Write`/`Edit` are the names `PreToolUse` sees and the `Write|Edit` matcher is a correct pattern. The lowercase vocabulary that appears in a second, older documentation surface (`write_to_file`, `replace_in_file`, `execute_command`) is a different family's naming: those strings reach the bundle only as **telemetry aliases** (`case "Write": case "write-to-file": case "WriteToFile":` all collapse to the same metric key), never as an event's `tool_name`. A build that emitted them would have to send a name the host itself never matches against a tool.
+- **The write path is `tool_input.file_path`.** `PermissionUtils` reads `ed.file_path` for `Read`, `Write`, `Edit` and `MultiEdit`, and the code that builds a file event does `el.file_path && (ec["file.path"] = el.file_path)` for both `Write` and the aliases above. The camelCase `filePath` in the SDK page is likewise a parameter name inside a hook callback, not a wire field.
+- **Plugin root.** CodeBuddy injects both `${CODEBUDDY_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` with the same value, and substitutes both spellings in a hook command. `hooks-codebuddy.json` uses the `CODEBUDDY_` spelling, which is what every bundled plugin in the official marketplace writes.
+- **Context field.** `session-start` chooses its output shape from the environment: with `CLAUDE_PLUGIN_ROOT` set it emits the `hookSpecificOutput` envelope, and without it the bare `additionalContext` object. That branch is this repository's own code and either arm can be run locally; since CodeBuddy injects both root variables, the plugin takes the envelope arm.
+
+Two further facts about this host belong here because they change what "installed" means, and both are documented rather than measured:
+
 - **SessionStart source.** CodeBuddy runs SessionStart with `source` fixed to `startup`. The shared `startup|resume|clear|compact` matcher lists `startup` among its alternatives, so it matches a host that only ever sends that one value.
-- **Context field.** CodeBuddy reads `hookSpecificOutput.additionalContext` and falls back to raw stdout. Both branches were exercised directly: with only `CODEBUDDY_PLUGIN_ROOT` set the script emits the bare `additionalContext` object, and with `CLAUDE_PLUGIN_ROOT` also set — which is what CodeBuddy injects — it emits the `hookSpecificOutput` envelope. The same output works unmodified.
+- **The panel is the gate.** Hooks the user did not register through `/hooks` are not trusted — the docs call the panel "the authoritative entry point" and say external file edits need confirming there before taking effect. A plugin's `hooks/hooks.json` is exempt from the frontmatter gate that guards Agent/Skill-declared hooks, but not from that review. So wiring the gate pair here does not mean it runs: the install notes carry the confirmation step.
 
 `.codebuddy-plugin/` names the host's own manifest and catalog explicitly, so the two entry points are visible in the tree rather than inferred from `.claude-plugin/`.
 
@@ -103,10 +129,10 @@ CodeBuddy follows the Claude Code hook contract closely enough that `session-sta
 
 **Nothing in this subsection has been run on a live Trae host.** Every statement is
 from `docs.trae.cn` as read on 2026-10-09, which is a different standing from the
-CodeBuddy and dsh notes above and from the Claude Code 2.1.282 measurement — those
-were executed, this was read. It is written down anyway because the wiring ships,
-and shipping it unlabelled would be worse than shipping it labelled. The first run
-on Trae either confirms it or corrects it.
+Claude Code 2.1.282 measurement and the dsh notes above — those were executed
+against an installed host, this was read. It is written down anyway because the
+wiring ships, and shipping it unlabelled would be worse than shipping it labelled.
+The first run on Trae either confirms it or corrects it.
 
 - **No plugin mechanism.** Trae's marketplace is a curated in-app catalog with no
   documented way for a repository to publish an entry, and there is no

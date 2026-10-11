@@ -1066,9 +1066,10 @@ ap="$ap_base/.worktrees/approve"
 ap_large_root="$ap_base/.worktrees/approve-large"
 ap_store="$(git -C "$ap" rev-parse --absolute-git-dir)/taskflow"
 mkdir -p "$ap_store"
-# The release record is written by the pre-write gate and by nothing else, so the
-# fixture plants it directly: what is under test here is approve's reconciliation
-# against the record, and the gate's own section covers how it gets there.
+# A release record is normally written by the pre-write gate. The fixture plants
+# it directly because what is under test here is approve's reconciliation against
+# the record, and the gate's own section covers how it gets there. `task unaided`
+# is the other writer, and its own section covers that path.
 ap_release() {  # ap_release <store> <version> <stage> <line-no> <kind> <capability>
   printf '%s|%s|%s|%s|%s\n' "$2" "$3" "$4" "$5" "$6" >> "$1/released"
 }
@@ -1945,6 +1946,98 @@ grep -q '`Unaided — …` line' "$skill/SKILL.md" \
   || { echo "FAIL SKILL.md duplicates the fill pattern instead of pointing at artifacts.md"; exit 1; }
 grep -q 'is required, not optional' "$skill/references/artifacts.md" \
   || { echo "FAIL artifacts.md does not state the section is required"; exit 1; }
+echo ok
+
+echo "== an unaided declaration releases its stage with no gate on the host =="
+# Measured 2026-10-11: the release record had exactly one writer, the pre-write
+# gate, while `approve` requires one. Three of the five supported hosts wire no
+# tool-call event at all, so on those the gate never ran, `released` was never
+# created, and approve refused forever — printing, as its remedy, the very
+# `unaided` command that could not work. Approve is the only sanctioned writer of
+# the Approval block, so in_progress, complete and archive were unreachable.
+#
+# This fixture therefore runs NO hook at all and declares the stages itself,
+# which is the only shape that catches the defect. A fixture that fired the gate
+# would pass either way.
+ug="$tmp/unaided-gate"
+mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
+git -C "$ug" init -q
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
+printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
+ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
+[ -e "$ug_store/released" ] || echo "  (no release record before the declaration, as on a gate-less host)"
+bash "$HERE/task" unaided PRD  --considered "requirements elicitation and framing" --root "$ug" >/dev/null \
+  || { echo "FAIL unaided PRD"; exit 1; }
+bash "$HERE/task" unaided Plan --considered "work breakdown and task decomposition" --root "$ug" >/dev/null \
+  || { echo "FAIL unaided Plan"; exit 1; }
+[ -f "$ug_store/released" ] \
+  || { echo "FAIL unaided did not write the release record"; exit 1; }
+# Both files get a line. The gate releases a stage when evidence has more lines
+# than the highest sequence in released, so a released line without its evidence
+# line would put consumed above the evidence and deny every stage from then on.
+[ "$(wc -l < "$ug_store/evidence" | tr -d ' ')" -eq 2 ] \
+  || { echo "FAIL unaided did not record two evidence lines"; cat "$ug_store/evidence"; exit 1; }
+[ "$(wc -l < "$ug_store/released" | tr -d ' ')" -eq 2 ] \
+  || { echo "FAIL unaided did not release two stages"; cat "$ug_store/released"; exit 1; }
+grep -qxF 'v1|PRD|1|unaided|requirements elicitation and framing' "$ug_store/released" \
+  || { echo "FAIL PRD release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
+grep -qxF 'v1|Plan|2|unaided|work breakdown and task decomposition' "$ug_store/released" \
+  || { echo "FAIL Plan release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
+# The point of the whole section: approve can now reconcile and write the block.
+bash "$HERE/task" approve 2026-09-27-declared --root "$ug" >/dev/null 2>"$ug/approve.err" \
+  || { echo "FAIL approve refused a stage the declaration released"; cat "$ug/approve.err"; exit 1; }
+grep -qx -- '- Status: approved' "$ug/TaskFlowDocs/2026-09-27-declared/plan.md" \
+  || { echo "FAIL approve did not write the block"; exit 1; }
+# Idempotent per version and stage: re-declaring must not append a second pair.
+ug_before="$(digest "$ug_store/evidence")$(digest "$ug_store/released")"
+bash "$HERE/task" unaided PRD --considered "requirements elicitation and framing" --root "$ug" >/dev/null \
+  || { echo "FAIL re-declaring an already-released stage failed"; exit 1; }
+[ "$ug_before" = "$(digest "$ug_store/evidence")$(digest "$ug_store/released")" ] \
+  || { echo "FAIL re-declaring appended a second record"; cat "$ug_store/released"; exit 1; }
+# A rejected class and a missing Task version both refuse before any write.
+ug_before="$(digest "$ug_store/evidence")$(digest "$ug_store/released")"
+if bash "$HERE/task" unaided Spec --considered "not a phase class" --root "$ug" >/dev/null 2>&1; then
+  echo "FAIL unaided accepted a class outside the vocabulary"; exit 1
+fi
+[ "$ug_before" = "$(digest "$ug_store/evidence")$(digest "$ug_store/released")" ] \
+  || { echo "FAIL a rejected class wrote to the store"; exit 1; }
+sed '/^> Task version:/d' "$ug/TaskFlowDocs/2026-09-27-declared/plan.md" > "$ug/p.tmp"
+mv "$ug/p.tmp" "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
+if bash "$HERE/task" unaided Spec --considered "architecture and design specification" --root "$ug" >/dev/null 2>&1; then
+  echo "FAIL unaided declared a stage whose version it could not read"; exit 1
+fi
+[ "$ug_before" = "$(digest "$ug_store/evidence")$(digest "$ug_store/released")" ] \
+  || { echo "FAIL a version-less declaration wrote to the store"; exit 1; }
+echo ok
+
+echo "== an unaided declaration never overwrites the gate's own release =="
+# The two writers share one file, so the overlap has to be defined rather than
+# left to whoever runs last. A stage the gate released against a real invocation
+# already has its line: re-declaring it must leave that line alone, and approve
+# must still refuse the mismatch between the record and the Plan's prose.
+uc="$tmp/unaided-conflict"
+mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
+git -C "$uc" init -q
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
+printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
+uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
+printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$uc\",\"tool_input\":{\"skill\":\"some:cap\"}}" | bash "$HERE/capability-evidence"
+printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$uc\",\"tool_input\":{\"file_path\":\"$uc/TaskFlowDocs/2026-09-27-conflict/prd.md\"}}" | bash "$HERE/capability-gate" >/dev/null
+grep -qxF 'v1|PRD|1|invoke|some:cap' "$uc_store/released" \
+  || { echo "FAIL the gate did not release the stage against a real invocation"; cat "$uc_store/released"; exit 1; }
+bash "$HERE/task" unaided PRD --considered "requirements elicitation and framing" --root "$uc" >/dev/null \
+  || { echo "FAIL declaring an already-released stage failed"; exit 1; }
+grep -qxF 'v1|PRD|1|invoke|some:cap' "$uc_store/released" \
+  || { echo "FAIL unaided overwrote the gate's own release line"; cat "$uc_store/released"; exit 1; }
+[ "$(wc -l < "$uc_store/released" | tr -d ' ')" -eq 1 ] \
+  || { echo "FAIL unaided appended beside the gate's line"; cat "$uc_store/released"; exit 1; }
+if bash "$HERE/task" approve 2026-09-27-conflict --root "$uc" >/dev/null 2>"$uc/approve.err"; then
+  echo "FAIL approve accepted a Plan reporting Unaided against an invoke record"; exit 1
+fi
+grep -q 'is reported Unaided but was recorded as an invocation' "$uc/approve.err" \
+  || { echo "FAIL approve refused for the wrong reason"; cat "$uc/approve.err"; exit 1; }
 echo ok
 
 echo "== repository-check is read-only and reports actionable status =="
@@ -3335,6 +3428,123 @@ printf '%s' "$dsh_out" | grep -q '"hookEventName": *"SessionStart"' || {
   echo "FAIL the dsh wiring output carries no matching hookEventName:"
   printf '%s\n' "$dsh_out"; exit 1
 }
+# dsh is deliberately NOT wired for the gate, and -- unlike the Codex exclusion
+# below -- the reason is its tool *names* rather than the shape of its input.
+# Measured 2026-10-11 against an installed dsh 0.2.0-rc.2: its Claude Code bridge
+# forwards `tool_name: exec.name` with no translation, and its file tools register
+# as `write`/`edit` (lowercase). Both matchers and the gate's own `case` are
+# case-sensitive, so a `Write|Edit` matcher fires on nothing, the gate never runs,
+# and every stage document is written ungated on a host the repository claims is
+# gated. Wiring dsh therefore needs lowercase arms inside both hooks, not a
+# wiring-file edit, so the wiring stays SessionStart-only until that lands.
+if grep -q -F -- '"PreToolUse"' "$HERE/hooks-dsh.json"; then
+  echo "FAIL hooks-dsh.json wires PreToolUse: dsh's lowercase tool names never match the gate's case, so the gate would never run"; exit 1
+fi
+grep -q -F -- 'Write|Edit) ;;' "$HERE/capability-gate" \
+  || { echo "FAIL capability-gate no longer matches the PascalCase tool names the dsh exclusion above is written against"; exit 1; }
+echo ok
+
+echo "== the docs do not claim a gate the wiring does not have =="
+# `approve` reconciles against `released`, so a host without a gate still needs
+# the record `unaided` now writes. Two sentences said the opposite and both are
+# load-bearing: a reader who believes "nothing depends on a gate" will not know
+# why a stage must be declared, and a reader who believes a host is gated will
+# not look for the missing denial. Pinning the absence of the old wording keeps
+# the correction from being reverted by a doc edit that looks harmless.
+for doc in "$HERE/README.md" "$HERE/../skills/taskflow/references/runtime.md"; do
+  [ -f "$doc" ] || { echo "FAIL $doc is missing"; exit 1; }
+  if grep -q -F -- 'no other part of TaskFlow needs one' "$doc"; then
+    echo "FAIL $doc still claims nothing depends on the gate's release record"; exit 1
+  fi
+  if grep -q -F -- 'nothing else in TaskFlow depends on one' "$doc"; then
+    echo "FAIL $doc still claims nothing depends on the gate's release record"; exit 1
+  fi
+done
+# The gate pair is named in prose, and prose drifts. `capability-gate` and
+# `capability-evidence` are pinned as the scripts' own names rather than as a
+# phrase: a rewrite that renames the hook in the docs while the file keeps its
+# name is exactly the drift this section is for.
+grep -q -F -- 'capability-gate' "$HERE/../hooks/README.md" \
+  || { echo "FAIL hooks/README.md does not name capability-gate"; exit 1; }
+grep -q -F -- 'capability-evidence' "$HERE/../hooks/README.md" \
+  || { echo "FAIL hooks/README.md does not name capability-evidence"; exit 1; }
+# And the two hosts that are deliberately unwired must stay named as such, so a
+# later wiring edit cannot land without this section being revisited.
+grep -q -F -- 'Codex' "$HERE/../skills/taskflow/references/runtime.md" \
+  || { echo "FAIL runtime.md no longer names Codex; the exclusion note is missing"; exit 1; }
+grep -q -F -- 'lowercase' "$HERE/../skills/taskflow/references/runtime.md" \
+  || { echo "FAIL runtime.md no longer states the dsh tool-name reason"; exit 1; }
+echo ok
+
+echo "== every host whose contract matches the gate actually wires it =="
+# Measured 2026-10-11: `task approve` requires a release record, and the gate was
+# its only writer. A host wiring no tool-call event therefore had no gate, no
+# record, and an approve that could never succeed -- permanently, with the
+# command it recommended as the remedy being one that could not work. So wiring
+# the gate is not a nicety on these hosts; it is what keeps the lifecycle open.
+#
+# The condition is the tool input, not the presence of a deny-capable event. The
+# gate reads `tool_input.file_path` and nothing else, so a host that delivers a
+# different shape must NOT be wired: the hook would find no path, exit 0, and
+# allow every write while the repository and the docs both claim a gate is there.
+# Codex is that case and is asserted as such below.
+cb_json="$HERE/hooks-codebuddy.json"
+[ -f "$cb_json" ] || { echo "FAIL hooks/hooks-codebuddy.json is missing"; exit 1; }
+for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill|Agent|Task"' '"matcher": "mcp__.*"'; do
+  grep -q -F -- "$cb_pat" "$cb_json" \
+    || { echo "FAIL hooks/hooks-codebuddy.json is missing $cb_pat"; exit 1; }
+done
+cb_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$cb_json" | sed 's/\\"/"/g')"
+[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 4 ] \
+  || { echo "FAIL hooks/hooks-codebuddy.json should wire four hook commands (SessionStart, PreToolUse, Skill, MCP):"; printf '%s\n' "$cb_cmds"; exit 1; }
+cb_root="$(cd "$HERE/.." && pwd)"
+cb_run() {  # cb_run <script-name> <event-json>
+  cb_cmd="$(printf '%s\n' "$cb_cmds" | grep -F -- "$1" | head -1)"
+  [ -n "$cb_cmd" ] || { echo "FAIL hooks-codebuddy.json wires no $1 command" >&2; return 1; }
+  cb_resolved="$(printf '%s' "$cb_cmd" | sed "s|\${CODEBUDDY_PLUGIN_ROOT}|$cb_root|g; s|\${CLAUDE_PLUGIN_ROOT}|$cb_root|g")"
+  printf '%s' "$2" | sh -c "$cb_resolved"
+}
+# The event shape is CodeBuddy's own (`tool_input.file_path` under `PreToolUse`,
+# `tool_name` of `Write`/`Edit`), read out of the packaged CLI on 2026-10-11 --
+# @tencent-ai/codebuddy-code@2.137.0 -- rather than from its docs, because the
+# docs disagree with themselves: a second, older surface names the write tools
+# `write_to_file`/`replace_in_file`. The bundle settles it, and settles it the
+# other way: those lowercase strings are telemetry aliases and never an event's
+# tool_name, while `PermissionUtils` reads `file_path` for `Write`/`Edit`. What
+# is not covered by that reading is the live round trip -- a real CodeBuddy
+# session has not run this wiring, so a break in the transport would still show
+# up as a silent no-op on a user's machine.
+cb_repo="$tmp/codebuddy-wiring"
+mkdir -p "$cb_repo/TaskFlowDocs/2026-01-01-demo"
+git -C "$cb_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$cb_repo/TaskFlowDocs/2026-01-01-demo/plan.md"
+cb_deny="$(cb_run capability-gate \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
+  || { echo "FAIL the CodeBuddy PreToolUse command did not run"; exit 1; }
+printf '%s' "$cb_deny" | grep -q '"permissionDecision":"deny"' || {
+  echo "FAIL the CodeBuddy wiring's gate did not deny an ungated stage document:"
+  printf '%s\n' "$cb_deny"; exit 1
+}
+cb_run capability-evidence \
+  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"skill\":\"codebuddy:smoke\"}}" >/dev/null \
+  || { echo "FAIL the CodeBuddy PostToolUse command did not run"; exit 1; }
+cb_ev="$(git -C "$cb_repo" rev-parse --absolute-git-dir)/taskflow/evidence"
+[ "$(sed -n '1p' "$cb_ev")" = 'invoke|codebuddy:smoke' ] \
+  || { echo "FAIL the CodeBuddy PostToolUse command recorded nothing"; cat "$cb_ev" 2>/dev/null; exit 1; }
+cb_allow="$(cb_run capability-gate \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
+  || { echo "FAIL the CodeBuddy PreToolUse command did not run the second time"; exit 1; }
+[ -z "$cb_allow" ] || { echo "FAIL the CodeBuddy wiring did not release the stage that call recorded:"; printf '%s\n' "$cb_allow"; exit 1; }
+# Codex is deliberately unwired, and the reason is the input shape rather than a
+# judgement call: its edit tool is `apply_patch`, whose `tool_input` carries the
+# patch text under `command` and no file path at all, so capability-gate would
+# read no path and allow every write. The gate's own guard is what makes that
+# silent, so the assertion is on the cause, not the wiring file alone.
+if grep -q -F -- '"apply_patch"' "$HERE/hooks-codex.json"; then
+  echo "FAIL hooks/codex is wired for apply_patch, whose tool_input carries no file path"; exit 1
+fi
+grep -q -F -- 'tool_input.file_path' "$HERE/capability-gate" \
+  || { echo "FAIL capability-gate no longer reads tool_input.file_path: the Codex exclusion above is now wrong"; exit 1; }
 echo ok
 
 echo "== the Trae wiring runs the hooks Trae would run =="

@@ -121,9 +121,9 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
-Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code and Trae the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until a capability really was invoked for that stage — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
+Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code, CodeBuddy, and Trae the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until a capability really was invoked for that stage — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
 
-TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code and Trae it may also record a capability invocation and refuse a stage document's first body write until that stage has one. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
+TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code, CodeBuddy, and Trae it may also record a capability invocation and refuse a stage document's first body write until that stage has one. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 
 ## The one rule that prevents lost designs
 
@@ -226,6 +226,8 @@ codex plugin add taskflow@taskflow
 
 Codex uses the same fixed release entry as Claude Code. The manifest version, Git tag, and pinned commit identify the installed stable build.
 
+Review the plugin's hooks in Codex's `/hooks` before relying on them: Codex runs only hooks the user has reviewed and trusted, so an unreviewed install reports the plugin as enabled while its hooks stay inactive. TaskFlow's Codex wiring is SessionStart only — the pre-write gate cannot be wired there until it can read `apply_patch`'s patch text (see the runtime reference's **Codex specifics**), and `hooks/task unaided` releases a stage on that host.
+
 Verify it loaded:
 
 ```bash
@@ -251,7 +253,9 @@ codebuddy plugin marketplace add hkwuks/TaskFlow
 codebuddy plugin install taskflow@taskflow
 ```
 
-CodeBuddy reads the catalog at `.codebuddy-plugin/marketplace.json`, which carries the same fixed release pin as the other hosts. The manifest wires the SessionStart hook through the `CODEBUDDY_PLUGIN_ROOT` variable its own bundled plugins use.
+CodeBuddy reads the catalog at `.codebuddy-plugin/marketplace.json`, which carries the same fixed release pin as the other hosts. The manifest wires the SessionStart hook plus the pre-write capability gate and its recorder, through the `CODEBUDDY_PLUGIN_ROOT` variable its own bundled plugins use.
+
+Confirm the hooks in CodeBuddy's `/hooks` panel before relying on them: the panel is the host's authoritative entry point, and hooks it has not confirmed do not take effect.
 
 Verify it loaded:
 
