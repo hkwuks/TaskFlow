@@ -88,9 +88,9 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 | 状态、批准、交接、回滚和恢复记录 | 替换编辑器、Git、测试工具或其他 Skills |
 | 重大决策的语义版本边界 | 强制 Agent 模型、编程语言、框架或工具链 |
 
-在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。在 Claude Code 上，`prd.md`、`spec.md`、`plan.md` 的首次正文写入会被拒绝，直到该阶段确实调用过某项能力——记录来自工具调用本身而不是文档，因此没有任何措辞可以替代一次并未发生的调用。确实没有值得调用的能力时，改用显式声明：`hooks/task unaided <stage> --considered "<概念类别>"`。
+在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。在 Claude Code、CodeBuddy 与 Trae 上，`prd.md`、`spec.md`、`plan.md` 的首次正文写入会被拒绝，直到该阶段确实调用过某项能力——记录来自工具调用本身而不是文档，因此没有任何措辞可以替代一次并未发生的调用。确实没有值得调用的能力时，改用显式声明：`hooks/task unaided <stage> --considered "<概念类别>"`。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy、dsh 与 Trae）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。在 Claude Code 与 Trae 上，hook 还会记录真实的能力调用，并在该阶段尚无调用时拒绝阶段文档的首次正文写入。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态——写前门只能拒绝，不能批准。
+TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy、dsh 与 Trae）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。在 Claude Code、CodeBuddy 与 Trae 上，hook 还会记录真实的能力调用，并在该阶段尚无调用时拒绝阶段文档的首次正文写入。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态——写前门只能拒绝，不能批准。
 
 ## 防止设计丢失的一条规则
 
@@ -192,6 +192,8 @@ codex plugin add taskflow@taskflow
 
 Codex 与 Claude Code 使用同一个固定版本条目；manifest 版本、Git tag 和固定 commit 共同标识已安装的稳定构建。
 
+依赖这些 hook 之前，先在 Codex 的 `/hooks` 里复核并信任该插件的 hook：Codex 只运行用户已复核并信任的 hook，未复核的安装会显示为 enabled 而 hook 实际不生效。TaskFlow 在 Codex 上只接 SessionStart——写前门要等到它能解析 `apply_patch` 的补丁文本才谈得上接线（见 runtime 参考的 **Codex specifics**），在该宿主上放行阶段用 `hooks/task unaided`。
+
 验证是否加载成功：
 
 ```bash
@@ -216,7 +218,9 @@ codebuddy plugin marketplace add hkwuks/TaskFlow
 codebuddy plugin install taskflow@taskflow
 ```
 
-CodeBuddy 读取 `.codebuddy-plugin/marketplace.json` 这份目录，其中带有与其它宿主一致的固定版本条目。manifest 通过 CodeBuddy 自家插件使用的 `CODEBUDDY_PLUGIN_ROOT` 变量接入 SessionStart hook。
+CodeBuddy 读取 `.codebuddy-plugin/marketplace.json` 这份目录，其中带有与其它宿主一致的固定版本条目。manifest 接入 SessionStart hook，以及写前能力门和它的记录钩子，通过 CodeBuddy 自家插件使用的 `CODEBUDDY_PLUGIN_ROOT` 变量。
+
+依赖这些 hook 之前，先在 CodeBuddy 的 `/hooks` 面板里确认它们：该面板是宿主的权威入口，未经确认的 hook 不会生效。
 
 确认已加载：
 

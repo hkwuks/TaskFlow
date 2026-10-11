@@ -1008,9 +1008,39 @@ case "$command" in
     [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; run unaided from the task worktree"
     git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
       || fail "cannot locate the git directory for $root"
-    mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
+    # The declaration has to release the stage itself, because `approve` reads
+    # the release record and capability-gate is not the only host that might
+    # never run. Measured 2026-10-11: on a host whose hook wiring subscribes to
+    # no tool-call event the gate never fires, so `released` was never created —
+    # `unaided` printed OK and exited 0, `approve` refused forever, and the
+    # remedy `approve` printed was this same command. Approve is the only
+    # sanctioned writer of the Approval block, so in_progress, complete and
+    # archive were all unreachable and the user was left hand-writing approvals.
+    #
+    # Both files get a line, in this order and never one without the other. The
+    # gate's own release condition is `evidence lines > consumed`, and consumed
+    # is the highest sequence in `released`: writing only `released` would make
+    # consumed exceed the evidence, and every stage would deny from then on.
+    dir="$root/TaskFlowDocs/$active"
+    unaided_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$dir/plan.md" | sed -n '1p')"
+    [ -n "$unaided_version" ] \
+      || fail "cannot read the Plan task version for $active; the stage was not declared"
+    released="$git_dir/taskflow/released"
+    # Idempotent per version and stage, the same key the gate uses when it skips
+    # a document whose stage it already released.
+    if [ -f "$released" ] \
+       && awk -F'|' -v v="$unaided_version" -v s="$stage" '$1 == v && $2 == s { found = 1 } END { exit !found }' "$released"; then
+      printf 'unaided OK: %s in %s -> %s (already released)\n' "$stage" "$active" "$considered"
+      exit 0
+    fi
+    consumed=0
+    if [ -f "$released" ]; then
+      consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+    fi
     considered="$(printf '%s' "$considered" | tr -d '|\r\n')"
+    mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
     printf 'unaided|%s\n' "$considered" >> "$git_dir/taskflow/evidence"
+    printf '%s|%s|%s|unaided|%s\n' "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
     ;;
 

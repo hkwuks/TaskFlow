@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary (CodeBuddy plugin form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, pre-write capability gate, and capability-call capture (CodeBuddy plugin form).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,40 @@
           {
             "type": "command",
             "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/capability-gate\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/capability-evidence\"",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/capability-evidence\"",
             "timeout": 15
           }
         ]

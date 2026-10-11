@@ -193,17 +193,26 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
 - `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
-  for Claude Code and Trae. The first appends one `kind|capability` line per real
-  `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`; the
-  second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
+  for Claude Code, CodeBuddy, and Trae. The first appends one `kind|capability`
+  line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;
+  the second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
   active task directory until that stage can be released against such a line,
   and then records the release in `.../taskflow/released`. Both stores live in
   the git directory, so they are per worktree, invisible to `git status`, and
   left alone by `version`. Both hooks are complete no-ops outside an active task
   directory — they must be, because `~/.claude/settings.json` hooks are
   machine-global and fire in unrelated repositories and concurrent sessions.
-  Neither writes a core document; the gate can only deny, never approve. A host
-  without a tool-call hook has no gate, and no other part of TaskFlow needs one.
+  Neither writes a core document; the gate can only deny, never approve.
+- The gate needs **two** things from a host, and a deny-capable event is only the
+  first: the event must carry the written file's path in the field the gate reads,
+  under a tool name the scripts already match. Codex has the event but not the
+  path (`apply_patch` sends the patch text), and dsh has both but names its tools
+  `write`/`edit` while every `case` arm is case-sensitive. Neither is wired, because
+  a hook that matches nothing allows every write while the docs claim a gate.
+  What does not depend on a gate is `hooks/task unaided`: it
+  writes its own `released` line, so a stage can be declared on any host. Several
+  things *do* depend on that record, because `hooks/task approve` reconciles
+  against it and `approve` is the only sanctioned writer of the Approval block.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
 - `install-merge-driver` writes only repository-local, untracked Git state:
   `merge.taskflow-todo.driver` in the repository's own config and a
