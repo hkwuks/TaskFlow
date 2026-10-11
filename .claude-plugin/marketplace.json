@@ -12,8 +12,8 @@
       "source": {
         "source": "url",
         "url": "https://github.com/hkwuks/TaskFlow.git",
-        "ref": "v1.1.4",
-        "sha": "4a9c809fb8e49c126f746b315494f3f6c222f37f"
+        "ref": "v1.1.5",
+        "sha": "93dcec3d555f8178918a76cba05656154bec5df4"
       },
       "author": {
         "name": "TaskFlow"
