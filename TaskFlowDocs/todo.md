@@ -106,15 +106,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## The capability-evidence hook and the capability-gate anchor on different things,
 
 - ID: TF-20261001-efbc51
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: audit follow-up 2026-10-01, found while implementing 2026-10-01-artifact-language
 - Added: 2026-10-01
 - Updated: 2026-10-11
 - Goal: The capability-evidence hook and the capability-gate anchor on different things, so a stage invocation can go unrecorded: capability-evidence locates the store and the active task from the event cwd, capability-gate locates them from the written file's path, and the two agree only when the session cwd is the task worktree - otherwise the invocation records nothing and the gate then refuses the write
-- Task: `TaskFlowDocs/2026-10-11-evidence-anchor/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-11-evidence-anchor/`
+- Next action: None — completed and archived.
 - Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-84a0ce（主检出的工作怎么进 worktree）。两条是同一失败模式「干活的落点不是以为的落点」的两半——efbc51 是 hook 侧（事件 cwd 与文件路径两个锚点不一致，记录静默落空），84a0ce 是文档侧（SKILL.md 只写「move the work there」而不给可执行步骤，也不警告隔离外的脏状态）；合并后一个任务同时改 hook 与 SKILL.md，且 84a0ce 不必等 efbc51 的锚点语义定下来才能写步骤。
 
 ## hooks/reopen does not rewrite the Todo Task: path back to the active root, so ta

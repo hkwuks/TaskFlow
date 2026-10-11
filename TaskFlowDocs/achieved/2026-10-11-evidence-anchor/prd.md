@@ -1,7 +1,7 @@
 # 证据锚点：让一次能力调用落在它真正归属的那个工作树
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
