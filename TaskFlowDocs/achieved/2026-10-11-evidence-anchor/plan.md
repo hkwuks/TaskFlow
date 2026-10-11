@@ -1,7 +1,7 @@
 # Plan — 证据锚点：让拒绝点名记录真正的落点
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -68,7 +68,7 @@
 - Acceptance: PRD A1–A3（A1 由 Step 2 的夹具裁决）。
 - Verification: 用 PRD B2 的一次性夹具手跑四种形态（失配 / 同树 / 无记录 / 无 git）；`bash -n` 与 bash 3.2 解析。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: done
 
 ### Step 2 — 用 main+worktree 夹具把它钉住
 
@@ -85,7 +85,7 @@
 - Acceptance: PRD A1、A2、A5。
 - Verification: `bash hooks/smoke-test` 全量；变异验证一次一个，做完确认工作树干净。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: done
 
 ### Step 3 — 文档侧：把「搬进去」写成可执行步骤
 
@@ -101,7 +101,7 @@
 - Acceptance: PRD A4。
 - Verification: `bash hooks/smoke-test`；变异——删掉 `git stash pop` 一行 → A4 红。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: done
 
 ### Step 4 — 全量验证与收尾
 
@@ -121,7 +121,7 @@
 - Acceptance: PRD A6。
 - Verification: 上述命令输出逐条记录在 `## Verification / Review`。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -168,7 +168,7 @@
 | 模板字段 | 落点 | 状态 |
 | --- | --- | --- |
 | Summary | PR [#78](https://github.com/hkwuks/TaskFlow/pull/78) 正文首节——两个锚点的实测复现、gate 的诊断、以及库边界不变 | 已完成 |
-| TaskFlow traceability: Task | `TaskFlowDocs/2026-10-11-evidence-anchor/` | 已确定 |
+| TaskFlow traceability: Task | `TaskFlowDocs/achieved/2026-10-11-evidence-anchor/` | 已确定 |
 | TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/capability-gate`、`hooks/smoke-test`、`SKILL.md`、`references/runtime.md`、本任务文档 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `52fc3e4` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
