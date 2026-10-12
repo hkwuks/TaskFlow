@@ -213,6 +213,22 @@ Expose assumptions and turn vague requests into testable criteria using the appr
 
 **When the goal or the approach is not yet settled, diverge before you converge.** Writing requirements is a converging act: it picks one reading of the request and turns it into criteria, which quietly discards the readings not yet on the table. So when the request leaves the target or the way to reach it undetermined, or more than one workable direction exists, this phase opens with the class above — `divergent exploration` — before `prd.md` is drafted. The condition is the state of the request, so it is answerable from what you have: a request whose goal and approach are both fixed converges directly, and one that is still an idea does not. What the class produces is candidate directions and the trade-offs between them, for the user to choose from; only the chosen ones become requirements, and the rest are recorded as out-of-scope or deferred so the discarded ground is visible rather than lost. As with every class in the table, this names what to look for and never what to use — availability, fit, and the decision to proceed unaided remain yours, and an unaided PRD is a legitimate outcome recorded as one.
 
+Record the product forks in `prd.md` under `## Product Decisions` before
+writing requirements. A product question has no reasonable default: target
+platform, interaction model, naming, visual identity, and any default a user
+would notice are preferences, not assumptions. Give two to four concrete options
+with their consequence and let the user choose; mark `Decided by: agent` only
+for a reversible default that keeps work moving, and state the reason. A
+preference filed under `### Non-blocking` as an assumption hides the decision
+instead of surfacing it.
+
+Separate the two kinds explicitly:
+
+- **Technical assumptions** — reversible, no user-visible consequence. Choose,
+  record the assumption, move on. `### Non-blocking` is for these.
+- **Product decisions** — the user can tell the difference between the options.
+  They go in `## Product Decisions` and are not assumed away.
+
 ### 2. Research — Reference (optional)
 
 Use `reference/` only when external evidence, codebase investigation, experiments, or papers materially affect the decision. Preserve external originals; write conclusions, source status, and links in team-maintained notes. If `reference/index.md` exists, treat it as navigation, not a second requirements source.
@@ -234,12 +250,13 @@ No spec required — <brief reason>
 
 For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
 
-Two sections earn their place only when the task changes what something *means* rather than how it is built, and omitting them is a decision to state in `plan.md`:
+Three sections earn their place only when the task changes what something *means* rather than how it is built, and omitting them is a decision to state in `plan.md`:
 
 - `## Concepts and Terminology` — required when the task introduces a noun the codebase does not already define, or when two words could describe one thing. Name each concept once, mark it `existing` or `introduced`, and list deliberately rejected vocabulary under `Rejected`. An unmentioned word is undefined, not forbidden, and undefined vocabulary is where invented synonyms come from.
 - `## User Journey` — required when the task adds, removes, or transitions any state an actor observes: list states, then transitions with their trigger and guard, plus the recovery path for each blocking state. Skip it when no actor-visible state changes.
+- `## Interaction and Interface` — required when the task has a surface a person looks at: a screen, a CLI, a message, a document layout. Fix the layout, draw each observable state separately, and list every input with its effect. A plain-text diagram at the real size is enough; a decorative one is not, because the picture settles decisions that code would otherwise re-decide. Skip it for tasks with no surface, such as a library or a migration.
 
-Record `No concept or journey sections required — <brief reason>` in `plan.md` when both are skipped, so the omission is reviewed rather than silent.
+Record `No concept, journey, or interface sections required — <brief reason>` in `plan.md` when they are skipped, so the omission is reviewed rather than silent.
 
 ### 4. Plan — execution contract
 
@@ -253,6 +270,24 @@ Create or update `plan.md`. Route generic planning outputs such as `TaskFlowDocs
 - focused verification command or manual check;
 - rollback point;
 - status: `pending | in_progress | done | blocked`.
+
+Write those as the exact lines the hook parses, matching
+[references/artifacts.md](references/artifacts.md):
+
+```text
+### Step N — <name>
+- Goal: ...
+- Dependencies: ...
+- Files: ...
+- Acceptance: ...
+- Verification: ...
+- Rollback: ...
+- Status: pending | in_progress | done | blocked
+- Implementation checklist:
+  - [ ] <item>
+```
+
+`hooks/task progress` reads `- Status:` verbatim and reports `Step N missing Status` when it is absent, so a descriptive phrase such as `- Status: done after the tests passed` does not count. Field *values* are otherwise free prose, in the document's language.
 
 The `Implementation checklist` is a checkbox list, not prose. A Step cannot be marked `done` until every required checkbox is checked and focused verification passes.
 

@@ -55,6 +55,7 @@ TaskFlowDocs/
 
 ## Goal
 ## Background / Confirmed Facts
+## Product Decisions
 ## Requirements
 ## Acceptance Criteria
 ## In Scope
@@ -65,6 +66,46 @@ TaskFlowDocs/
 ### Non-blocking
 ## Version History
 ```
+
+`## Product Decisions` exists because a product question has no reasonable
+default. A technical question does: use ES modules or CommonJS, store the score
+or recompute it — either answer keeps the work moving. A product question asks
+what the thing should be like for whoever uses it, and the Agent cannot answer
+it. Choosing one silently is worse than guessing, because the choice then
+survives into the artifact as a fact the user never made.
+
+Record each fork as options and a decision, and attribute the decision:
+
+```markdown
+## Product Decisions
+| # | Decision | Options | Choice | Decided by |
+|---|---|---|---|---|
+| D1 | Target platform | web page / desktop / both | web page | user |
+| D2 | Speed feel | fixed / accelerating / selectable | selectable | user |
+| D3 | Visual style | dark / pixel / minimal | dark | agent, pending user confirmation |
+```
+
+Rules for this section:
+
+- **Offer options, do not open-endedly ask.** Give two to four concrete choices
+  with their consequence. "What style do you want?" makes the user do the design
+  work; "A dark theme, B pixel, or C minimal?" asks for a decision.
+- **`user` means the user actually chose.** Recording `user` without asking is
+  the failure this section exists to prevent.
+- **`agent` requires a stated reason and stays pending.** A default chosen to
+  keep work moving is fine; presenting it as settled is not.
+- **Only mark `agent` with a reason when the choice is reversible.** A
+  reversible technical default is not a product decision, so it belongs under
+  `### Non-blocking` with its assumption instead.
+- **A product question does not belong under `### Non-blocking`.** Speed that
+  rises with the score is a preference, not an assumption. Putting it there
+  hides a decision inside a technical default.
+
+When a task changes what the product *is* rather than how it is built — target
+platform, interaction model, naming, visual identity, default behavior a user
+would notice — this section is where those forks live. Record the option set even
+when the user has already chosen, because the rejected options are what a later
+reader needs to see were considered.
 
 An open question is **blocking** when two answers would produce different work:
 different requirements, a different scope, a different contract, or a different
@@ -106,6 +147,7 @@ unanswered blocking question with extra steps.
 ## Objective and Success Criteria
 ## Concepts and Terminology
 ## User Journey
+## Interaction and Interface
 ## Architecture Boundaries and Responsibilities
 ## Project Structure / Affected Files
 ## Interfaces, Data Flow, and Contracts
@@ -162,6 +204,39 @@ Every transition that can strand a user in an inconsistent state belongs here.
   and give each role its own journey or state subset.
 - Where a state lives in the persisted data, name that field. A visible state
   that no field can represent will be re-invented in code per screen.
+
+### Interaction and Interface
+
+Required when the task has a surface a person looks at: a screen, a command, a
+message, a document layout. It fixes what they see before code fixes what
+functions do.
+
+Cover, in this order:
+
+- **Layout.** The regions and their order. A plain-text diagram is enough, and
+  it must show real proportions rather than a decorative box.
+- **Each observable state of the surface**, drawn separately. If a banner says
+  one thing while idle and something else while running, that is two surfaces,
+  not one with a footnote.
+- **Input.** Every key, control, or gesture, and what each one does when it is
+  not applicable.
+- **Feedback.** What changes visibly in response, and how long it stays.
+
+Two rules that decide whether the diagram is worth writing:
+
+- **Draw it at the real size.** A 20-column grid drawn as 12 cells is a wrong
+  specification, not a rough sketch. Check the rows line up.
+- **A diagram is specification.** It fixes decisions that otherwise surface after
+  implementation: whether an element is removed or padded when its state
+  changes, whether a board freezes or clears on game over, whether a view opens
+  still or already active. Anything the picture settles must not be re-decided
+  in code.
+
+When the surface is a CLI or a notification, "diagram" means the output shape:
+the columns, the order of lines, and what appears per state.
+
+Skip the section only when the task produces no surface — a library, a data
+transform, a migration. Then say so in `plan.md`.
 
 ## Plan outline
 

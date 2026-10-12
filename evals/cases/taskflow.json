@@ -83,6 +83,10 @@
         {
           "path": "TaskFlowDocs/2026-01-01-example/spec.md",
           "contains": "## User Journey"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/prd.md",
+          "contains": "## Product Decisions"
         }
       ]
     },

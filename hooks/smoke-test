@@ -2038,6 +2038,65 @@ if bash "$HERE/task" approve 2026-09-27-conflict --root "$uc" >/dev/null 2>"$uc/
 fi
 grep -q 'is reported Unaided but was recorded as an invocation' "$uc/approve.err" \
   || { echo "FAIL approve refused for the wrong reason"; cat "$uc/approve.err"; exit 1; }
+echo "== ready waits for Blocking answers, and acts only on the current version =="
+gate_root="$tmp/state-gate"
+mkdir -p "$gate_root/.git" "$gate_root/TaskFlowDocs"
+git -C "$gate_root" init -q
+cat > "$gate_root/TaskFlowDocs/todo.md" <<'GATE_TODO'
+# Todo
+
+## Status flow
+
+inbox -> clarified -> promoted -> in_progress -> done/cancelled
+
+## Entries
+GATE_TODO
+gate_id=$(bash "$HERE/task" intake --goal "gate check" --root "$gate_root" 2>&1 | sed -n 's/^intake OK: \(TF-[0-9A-Za-z-]*\)$/\1/p')
+[ -n "$gate_id" ] || { echo "FAIL could not intake gate-check task"; exit 1; }
+bash "$HERE/task" promote "$gate_id" 2026-01-01-gate large --root "$gate_root" >/dev/null
+gate_prd="$gate_root/TaskFlowDocs/2026-01-01-gate/prd.md"
+gate_plan="$gate_root/TaskFlowDocs/2026-01-01-gate/plan.md"
+
+# ready is reachable while Blocking is empty and no approval exists yet.
+bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" >/dev/null \
+  || { echo "FAIL ready rejected with an empty Blocking section"; exit 1; }
+
+# An unanswered Blocking question contradicts the claim that the documents are complete.
+bash "$HERE/task" state 2026-01-01-gate planning --root "$gate_root" >/dev/null
+sed -i.bak 's/^### Blocking$/### Blocking\n- [ ] Q1 - an unanswered question/' "$gate_prd" 2>/dev/null \
+  || perl -0pi -e 's/^### Blocking$/### Blocking\n- [ ] Q1 - an unanswered question/m' "$gate_prd"
+rm -f "$gate_prd.bak"
+set +e
+gate_out=$(bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL ready accepted an unanswered Blocking question"; exit 1; }
+echo "$gate_out" | grep -q 'Blocking question' || { echo "FAIL Blocking diagnostic missing: $gate_out"; exit 1; }
+
+# Answering it restores the transition.
+perl -0pi -e 's/^- \[ \] Q1/- [x] Q1/m' "$gate_prd"
+bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" >/dev/null \
+  || { echo "FAIL ready rejected after the Blocking question was answered"; exit 1; }
+
+# Approving v1, then bumping the document version, must not carry the old approval
+# into checking or completion. Rewrite the template's pending fields in place:
+# adding a second `Approved version` line would leave the template's own pending
+# value behind and test the wrong thing.
+perl -0pi -e 's/^- Status: requested$/- Status: approved/m; s/^- Approved by: pending$/- Approved by: user/m; s/^- Approved version: pending$/- Approved version: v1/m' "$gate_plan"
+bash "$HERE/task" state 2026-01-01-gate in_progress --root "$gate_root" >/dev/null \
+  || { echo "FAIL in_progress rejected an approved version"; exit 1; }
+perl -0pi -e 's/^> Task version: v1$/> Task version: v2/m' "$gate_plan"
+set +e
+gate_out=$(bash "$HERE/task" state 2026-01-01-gate checking --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL checking accepted a stale approval"; exit 1; }
+echo "$gate_out" | grep -q 'not approved' || { echo "FAIL stale-approval diagnostic missing: $gate_out"; exit 1; }
+set +e
+gate_out=$(bash "$HERE/task" complete 2026-01-01-gate --user-accepted --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL complete accepted a stale approval"; exit 1; }
 echo ok
 
 echo "== repository-check is read-only and reports actionable status =="
