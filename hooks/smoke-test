@@ -555,18 +555,26 @@ grep -q '^# Repository document routes (unclassified)$' "$multi/ambiguous-routes
 }
 echo ok
 
-echo "== SessionStart context is compact by default and verbose on request =="
+echo "== SessionStart lists every active task and flags what is unfinished =="
 compact="$tmp/context-compact"
 mkdir -p "$compact/TaskFlowDocs/2026-09-13-one" "$compact/TaskFlowDocs/2026-09-13-two"
-printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n\n## Approval\n- Status: approved\n\n### Step 1 — Work\n- Status: pending\n' > "$compact/TaskFlowDocs/2026-09-13-one/plan.md"
+printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n\n## Approval\n- Status: approved\n\n### Step 1 — Work\n- Status: pending\n- Implementation checklist:\n  - [x] done\n  - [ ] open\n' > "$compact/TaskFlowDocs/2026-09-13-one/plan.md"
 printf '# Plan — Two\n> Task version: v1\n> Status: in_progress\n' > "$compact/TaskFlowDocs/2026-09-13-two/plan.md"
+printf '# Prd\n> Task version: v1\n> Status: in_progress\n\n## Open Questions\n### Blocking\n- [ ] Q1 — open question\n### Non-blocking\n' > "$compact/TaskFlowDocs/2026-09-13-one/prd.md"
 printf '# Todo inbox\n' > "$compact/TaskFlowDocs/todo.md"
+# The default lists every active task rather than reporting a bare count. A
+# count plus "set TASKFLOW_TASK_ID" is an instruction the reader cannot act on:
+# nothing said which task to pick or what those IDs were. Two lines per task is
+# cheaper than a stalled resume.
 default=$(TASKFLOW_REPO_ROOT="$compact" bash "$HERE/summarize-state")
-echo "$default" | grep -q 'Multiple active tasks' || { echo "FAIL ambiguous default context"; exit 1; }
-verbose_out=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_VERBOSE=1 bash "$HERE/summarize-state")
-echo "$verbose_out" | grep -q '2026-09-13-one' || { echo "FAIL verbose context missing task"; exit 1; }
+echo "$default" | grep -q '2026-09-13-one' || { echo "FAIL default context omits task one"; exit 1; }
+echo "$default" | grep -q '2026-09-13-two' || { echo "FAIL default context omits task two"; exit 1; }
+# Unfinished work must be visible without opening the documents.
+echo "$default" | grep -q 'BLOCKING: 1 unanswered' || { echo "FAIL unanswered Blocking question is not surfaced"; exit 1; }
+echo "$default" | grep -q 'checklist: 1 open' || { echo "FAIL open checklist item is not surfaced"; exit 1; }
 selected=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=2026-09-13-one bash "$HERE/summarize-state")
 echo "$selected" | grep -q '2026-09-13-one' || { echo "FAIL explicit task context"; exit 1; }
+echo "$selected" | grep -q '2026-09-13-two' && { echo "FAIL explicit selection should narrow the list"; exit 1; }
 invalid=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=missing bash "$HERE/summarize-state")
 echo "$invalid" | grep -q 'Requested task unavailable' || { echo "FAIL invalid task diagnostic"; exit 1; }
 echo ok
@@ -2039,19 +2047,23 @@ fi
 grep -q 'is reported Unaided but was recorded as an invocation' "$uc/approve.err" \
   || { echo "FAIL approve refused for the wrong reason"; cat "$uc/approve.err"; exit 1; }
 echo "== ready waits for Blocking answers, and acts only on the current version =="
-gate_root="$tmp/state-gate"
-mkdir -p "$gate_root/.git" "$gate_root/TaskFlowDocs"
-git -C "$gate_root" init -q
-cat > "$gate_root/TaskFlowDocs/todo.md" <<'GATE_TODO'
-# Todo
-
-## Status flow
-
-inbox -> clarified -> promoted -> in_progress -> done/cancelled
-
-## Entries
-GATE_TODO
-gate_id=$(bash "$HERE/task" intake --goal "gate check" --root "$gate_root" 2>&1 | sed -n 's/^intake OK: \(TF-[0-9A-Za-z-]*\)$/\1/p')
+# promote refuses the base working tree, so the task documents are created in a
+# task worktree the way the isolation fixture does it.
+gate_base="$tmp/state-gate"
+mkdir -p "$gate_base"
+(
+  cd "$gate_base" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  mkdir -p TaskFlowDocs
+  printf '# Todo\n\n## Status flow\n\ninbox -> clarified -> promoted -> in_progress -> done/cancelled\n\n## Entries\n' > TaskFlowDocs/todo.md
+  git add -A && git commit -qm base
+  git worktree add -q .worktrees/gate -b chore/gate
+) || { echo "FAIL gate fixture repository"; exit 1; }
+gate_root="$gate_base/.worktrees/gate"
+bash "$HERE/task" intake "Gate smoke goal." "local fixture" --root "$gate_root" >/dev/null
+gate_id=$(awk '/^- ID: TF-/{print $3; exit}' "$gate_root/TaskFlowDocs/todo.md")
 [ -n "$gate_id" ] || { echo "FAIL could not intake gate-check task"; exit 1; }
 bash "$HERE/task" promote "$gate_id" 2026-01-01-gate large --root "$gate_root" >/dev/null
 gate_prd="$gate_root/TaskFlowDocs/2026-01-01-gate/prd.md"
