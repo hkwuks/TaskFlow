@@ -775,6 +775,10 @@ case "$command" in
 
 ## Open Questions
 
+### Blocking
+
+### Non-blocking
+
 ## Version History
 
 - v1 — planning.
@@ -844,6 +848,10 @@ case "$command" in
       {
         printf '%s\n' "# Spec — $title" '> Task version: v1' ''
         printf '%s' '## Objective and Success Criteria
+
+## Concepts and Terminology
+
+## User Journey
 
 ## Architecture Boundaries and Responsibilities
 

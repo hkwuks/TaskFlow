@@ -61,7 +61,40 @@ TaskFlowDocs/
 ## Out of Scope
 ## Risks / Deferred Items
 ## Open Questions
+### Blocking
+### Non-blocking
 ## Version History
+```
+
+An open question is **blocking** when two answers would produce different work:
+different requirements, a different scope, a different contract, or a different
+validation. Everything else is **non-blocking** and moves forward with its
+assumption written down.
+
+Classifying by consequence rather than by importance is deliberate: an important
+question is often non-blocking, and a small-sounding one can invalidate the whole
+design. When an answer would change what is built, it blocks regardless of how
+easy it seems.
+
+A blocking question answers one of:
+
+- Which concept is being used, when two readings give different behavior
+- Which of two valid states the actor starts in
+- What the boundary is, when the scope depends on it
+- Which requirement wins, when two requirements conflict
+
+Record the assumed answer and where it is verified when a question is
+non-blocking. A non-blocking question without a recorded assumption is an
+unanswered blocking question with extra steps.
+
+```markdown
+## Open Questions
+### Blocking
+- [ ] Q1 — Is "current session" a property of the Session, or the sidebar's
+      selected row? The two give different behavior when a session is removed.
+### Non-blocking
+- [Q2] Does title generation use a small model? Assumption: yes, derived from
+      the first message; verified in Step 3.
 ```
 
 ## Spec outline for large tasks
@@ -71,6 +104,8 @@ TaskFlowDocs/
 > Task version: v1
 
 ## Objective and Success Criteria
+## Concepts and Terminology
+## User Journey
 ## Architecture Boundaries and Responsibilities
 ## Project Structure / Affected Files
 ## Interfaces, Data Flow, and Contracts
@@ -80,6 +115,53 @@ TaskFlowDocs/
 ## Design Decisions and Alternatives
 ## Open Questions
 ```
+
+### Concepts and Terminology
+
+Name what exists before describing what it does. An implementation cannot be
+correct against a term nobody defined.
+
+- One entry per noun the task introduces or reuses. Give each exactly one
+  definition, then use that word unchanged in every later section, code
+  comment, and UI string for this task.
+- State what the concept is *not*, when a neighboring concept would fit. A
+  definition that only says what it includes leaves room for a second word to
+  claim the same meaning.
+- Mark provenance: `existing` (the codebase already uses this word) or
+  `introduced` (this task adds it). `introduced` terms must be adopted verbatim
+  in code and UI; do not paraphrase them per screen or per language.
+- **Record rejected vocabulary explicitly.** When a plausible term was
+  considered and deliberately not adopted, list it under `Rejected` with the
+  reason. This is not padding: an unmentioned word is treated as undefined
+  rather than forbidden, and is the main source of invented synonymous concepts.
+- Mixed-language products pick one term per concept here and forbid the
+  alternates. Write down which forms are allowed, because per-surface translation
+  is how one concept ends up with two names.
+
+```markdown
+## Concepts and Terminology
+- Session — one continuous conversation between a user and the Agent. `existing`
+- active session — the Session currently accepting input. A property of the
+  Session, not the sidebar's selected row. `introduced`
+- Archive — `rejected`: the product has no such state. Removing a Session is
+  `delete`; no reversible hiding state exists in this version.
+
+### User Journey
+
+Model the path the actor takes before modelling the code that runs beside it.
+Every transition that can strand a user in an inconsistent state belongs here.
+
+- List the states an actor can observe, then the transitions between them. Mark
+  each transition with its trigger and its guard — the condition that must hold
+  for the transition to be legal.
+- Name the initial and terminal state. A state an actor can reach but cannot
+  leave is a defect, and so is a transition with no reachable trigger.
+- Include the recovery path for each blocking or error state. A journey that
+  only covers the happy path does not describe the product.
+- When an actor has multiple roles or the actor is not always the user, say so
+  and give each role its own journey or state subset.
+- Where a state lives in the persisted data, name that field. A visible state
+  that no field can represent will be re-invented in code per screen.
 
 ## Plan outline
 

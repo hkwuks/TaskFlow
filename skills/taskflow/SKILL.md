@@ -185,7 +185,7 @@ planning → ready → in_progress → checking → completed
 ```
 
 - `planning`: requirements, evidence, design, or applicable repository documents are still being clarified.
-- `ready`: PRD, required Spec, and Plan are complete and awaiting user approval.
+- `ready`: PRD, required Spec, and Plan are complete and awaiting user approval. A `Blocking` open question still listed under `### Blocking` keeps the task in `planning`; classify by consequence — a question blocks when two answers would change the requirements, scope, contract, or validation — and give every non-blocking question a recorded assumption.
 - `in_progress`: the user approved the current Task version; implementation is allowed.
 - `checking`: implementation is done and acceptance/quality verification is running.
 - `blocked`: a concrete blocker is recorded with reproduction, attempts, and needed input; resume the prior phase when cleared.
@@ -204,7 +204,7 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - requirements;
 - observable acceptance criteria;
 - in-scope and out-of-scope work;
-- risks, deferred items, and only blocking open questions;
+- risks, deferred items, and open questions split into `### Blocking` and `### Non-blocking`, where a blocking question is one whose two answers would change the requirements, scope, contract, or validation, and each non-blocking question carries a recorded assumption;
 - current Task version and version history.
 
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
@@ -233,6 +233,13 @@ No spec required — <brief reason>
 ```
 
 For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
+
+Two sections earn their place only when the task changes what something *means* rather than how it is built, and omitting them is a decision to state in `plan.md`:
+
+- `## Concepts and Terminology` — required when the task introduces a noun the codebase does not already define, or when two words could describe one thing. Name each concept once, mark it `existing` or `introduced`, and list deliberately rejected vocabulary under `Rejected`. An unmentioned word is undefined, not forbidden, and undefined vocabulary is where invented synonyms come from.
+- `## User Journey` — required when the task adds, removes, or transitions any state an actor observes: list states, then transitions with their trigger and guard, plus the recovery path for each blocking state. Skip it when no actor-visible state changes.
+
+Record `No concept or journey sections required — <brief reason>` in `plan.md` when both are skipped, so the omission is reviewed rather than silent.
 
 ### 4. Plan — execution contract
 
@@ -333,7 +340,7 @@ Read these only when needed:
 
 - [artifacts.md](references/artifacts.md) for compact templates and output routing.
 - [versioning-and-recovery.md](references/versioning-and-recovery.md) for Task versions, `old/`, Git/file archives, and safe restoration.
-- [runtime.md](references/runtime.md) for host/harness hooks (Claude Code, Codex), single-command transitions, and `hooks/` layout.
+- [runtime.md](references/runtime.md) for host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae), single-command transitions, and `hooks/` layout.
 
 ## Verification
 
