@@ -10,6 +10,56 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Bookkeeping the stage ledger by a globally monotonic evidence queue turns a Task
+
+- ID: TF-20261012-c66ad3
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user report 2026-10-12: a v13 approval could not be written because the evidence queue was exhausted
+- Added: 2026-10-12
+- Updated: 2026-10-12
+- Goal: Bookkeeping the stage ledger by a globally monotonic evidence queue turns a Task version bump into a dead end: hooks/task approve requires every stage to appear in <absolute-git-dir>/taskflow/released, the gate and hooks/task unaided release a stage only while evidence lines > max(seq), and seq never resets, so once consumed reaches the line count no later version can be released without a fresh tool call in a host that has a gate
+- Task: Not promoted.
+- Next action: Clarify scope, then decide whether the fix is in the release record key, the approve reconciliation, or the queue discipline
+- Notes: 2026-10-12 用户报告：某任务的 v13 已获批准，但 `hooks/task approve` 写不进文件。
+
+**用户给的现场**：approve 拒了，理由是 pre-write 门的证据账本**全局单调**——已消费到第 34 条，v12 把可用证据用尽，第 35 条之后再没产生过；`approve` 与 `unaided` 两条路都试过；失败原因已写进该任务的 `plan.md`；用户给的恢复路径是「新会话里做一次 MCP/Skill 调用 + 用 Write/Edit 碰一次 plan.md，门就会释放 v13 的三个阶段」。
+
+**我的判断与用户现场在一点上不一致，记录在此以免下一轮照抄**：用户说「新会话里……门就会释放 v13 的三个阶段」。按 1.1.5 的码读，**做不到**。门释放一个阶段的条件是 `evidence 行数 > max(seq)`（`hooks/capability-gate:136-157`），`unaided` 用的是同一个条件（`hooks/task:1036-1043`），而 `seq` 只增不减。用户那 34 条之后的第 35 条会出现——**但这条是全局单调队列的下一条**，不是「v13 的」：一条证据只够释放**一个**阶段，v13（spec.md 存在 → `cap_size=large`）要 PRD、Spec、Plan **三个**，所以需要**三条**新证据（`hooks/task:1067-1068, 1121-1125`）。若第 35 条已被早先某个阶段花掉，还需要再补。**门的反手也会触发**：三次新调用会先释放 `v13|PRD` 等行，在那之前任何对 v13 三个文档的 Edit 仍会被拒（这正是门该做的），所以恢复路径必须是「先补足够的新调用、再动文档」，顺序反了会被门拦下。
+
+**本条的真正缺陷（与「证据用尽」这个现场分开记）**：`seq` 是**全局**计数器，而 `release` 的幂等键是 **(version, stage)**（`capability-gate:126-131`）。两个键不同源，于是任何一次 Task 版本提升都会**要求新证据**，无论旧证据是否还能证明「这个阶段确实调用过能力」。用户现场里 v12→v13 只是把版本号从 12 提到 13，需求、阶段、可用能力都没变，却要重新走一遍能力选择——这正是 `TF-20261009-8abbd6`「把阶段的能力选择与宿主工具流解耦」想要消除的那件事，现在多了一个机械版本：**版本提升与证据消耗被同一个全局队列绑死**。
+
+**在「全局单调」这一条上我不认为是缺陷**：它买的是「一个已花掉的调用不能被第二个文档再花一次」（`capability-gate:133-135` 的注释），以及「版本提升不能拿旧版本用剩的证据来满足」。这两件都是真的、且值得。问题只在**它没有与版本提升的语义对齐**——`approve` 对账的是「本版本每个阶段都有 release 行」，而 release 行的**供给**是全仓库一条队列。
+
+**可核验的机械事实（本次实测 1.1.5，仓库根）**：`git rev-parse --absolute-git-dir` = `.git`，**本仓库根没有证据库**（`.git/taskflow/` 不存在）；六个链接工作树各有自己的库，`evidence`/`consumed` 分别为 4/2、3/2、3/2、2/2、2/2、3/3，即**每一个都处于或接近耗尽**（`evidence > consumed` 才算可释放）。这符合设计（库随工作树分开，见 `capability-gate:160-178`），但也说明「耗尽」在本仓库不是偶发：六个工作树里四个耗尽、两个各只剩 1 条。
+
+**为什么值得单记而不是并入 `TF-20261009-8abbd6`**：8abbd6 要解决的是「宿主没有工具流 / cwd 不在任务工作树」造成的假拒绝，方向是**让阶段选择不必是工具调用的产物**；本条是**记账方式**本身使版本提升变死路，即使宿主有门、cwd 也对，一样会发生。两条的修复面不同（8abbd6 动能力表示层，本条动 `released`/`evidence` 的键或 `approve` 的对账口径）。相关：`TF-20261009-8abbd6`、`TF-20261011-39bda8`（已 done，`unaided` 现在自己写 release 行）。
+
+## The entry signal for unregistered work never fires in the state a session actual
+
+- ID: TF-20261012-50164f
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-12: analyse why the session-start entry signal is silent, then record the finding
+- Added: 2026-10-12
+- Updated: 2026-10-12
+- Goal: The entry signal for unregistered work never fires in the state a session actually opens in: hooks/summarize-state closes three silences (no TaskFlowDocs; TaskFlowDocs with nothing recorded; a branch no task directory matches) but the second is unreachable wherever TaskFlowDocs/todo.md is tracked, and the third excludes main and master by literal name rather than resolving the base branch, so the base checkout, which is where a session most often starts, is the one state that prints neither line
+- Task: Not promoted.
+- Next action: Clarify and promote; the fix spans the first-entry wording and the branch-report condition, and overlaps TF-20261009-cc463b
+- Notes: 2026-10-12 用户要求：先分析「任务开始的信号为什么是静默的」，再把结论记成一条 todo。本条是那次分析的落点。
+
+**要求「分析」的那个问题，本身就是从一块被截断的上下文里读出来的，而我照抄了它。** 本次会话开场的 `summarize-state` 输出把 inbox 条目的 goal 切在 120 字节（`g = substr(g,1,120)`），而 `substr` 是**字节**操作、切在词中间**不留任何标记**。本次实测：当前 `todo.md` 里 12 条 goal 被这样切过，全部断在词中——`hooks/tas`+`k`（`hooks/task`）、`state close`+`s`（`closes`）、`asks to mo`+`d`（`modify`）。我据此把两个断句当成真实需求，写了「定义准入自动认领」和「user/… intake 的意图门」两条 goal；**两条都不存在**：`grep -rn 'Auto-claim\|Intent gate' .` 零命中，与 `todo.md` 里任何真实条目的 goal 文本也不重叠。我**无法再复核原句**——那两段只出现在当次会话输出里，没有落到任何文件上；可复核的是机制本身与上列 12 条现成实例。中文条目按 UTF-8 至少 3 字节／字，所以在中文仓库里它切得更碎，看起来更像「一个内容更少的真实条目」。`smoke-test` 只断言前缀能被解析，没有任何断言要求截断后带省略号或不被误读。**记录这条是为了让下一个读到同样碎片的会话不去追这两个幽灵需求。** 相关：本条同一次分析的机制结论见下；`TF-20260919-6b4e21`（todo.md 无界增长）是「读 1000+ 行 todo 才可能发现前提是假的」这一前提的扩大源。
+
+**机制结论（本次实测，1.1.5）**：`hooks/summarize-state` 现在已经有三段「不静默」的输出——无 `TaskFlowDocs/`（第 27-34 行）、有目录但一条都没记过（第 54-70 行）、分支不匹配任何任务目录（第 84-96 + 237-240 行）。但改完之后，会话最常打开的那个目录（仓库根的基检出）仍然**两行都不打印**，因为：(1) 第一段要求整个 `TaskFlowDocs/` 不存在，而基检出里 `TaskFlowDocs/repository-docs/` 由路由钩子自己创建、且 `todo.md` 是本仓库的跟踪文件，两者同时在场就把它变成死代码；(2) 第三段把 `main`/`master` 按**字面名**排除，而不是解析远程默认分支/上级分支，注释里写的理由是「基分支上说的每一句都是噪声」——可「这个仓库要不要进 TaskFlow」这件事，恰恰在基分支上最需要说；同时 `case "$current_branch" in ""|main|master)` 也意味着默认分支叫别的名字的仓库（本地常见 `develop`）在基检出上会**误报**那一行。两处同源：判据落在「目录/分支叫什么名字」，而不是「这份工作有没有登记」。
+
+**另一条同源缺口（本次实测）**：分支名叫 `user/foo` 时，`branch_slug="${current_branch##*/}"` 得到 `foo`，`achieved/` 的扫描会把它和某个旧任务目录名做结尾匹配，**只要撞上就静默**。所以不存在任何分支命名可以覆盖的「未登记」信号——这一段的存在理由是「分支是登记信号」（`achieved/2026-10-10-entry-point-silence/prd.md` B5），而它同时又是两处误判和一处漏判的来源。
+
+**为什么要先说这个**：用户原话是「这个适用性门禁在会话最开始就该触发（这是修改仓库的开发请求），我没走」。GATE 那段文字本身在第 27-34 行就写着义务，但它被 (1) 挡在门外；而第三段的分支报告在 `main` 上被 (2) 挡在门外。也就是说**义务的措辞早就在文件里，只是恰好在一个登录到这个仓库的会话里永远不会被执行到**。
+
+**边界**：以上为读码 + 一次实跑（`bash hooks/summarize-state` 在本仓库根，输出仅有 inbox 与 `# Active tasks`）。没有在别的仓库形态上跑，没有做对照。相关：`TF-20261009-cc463b`（入口不静默的母条目，其第四、第五失败模式即本条 (2) 与 (3) 的前身）、`TF-20260919-6b4e21`。
+
 ## The pre-write capability gate is wired only on Claude Code and Trae, so on the o
 
 - ID: TF-20261011-39bda8
