@@ -1064,6 +1064,37 @@ case "$command" in
     # is its single entry point, so re-reading the same text at approve would
     # only re-validate something the record already guarantees.
     #
+    # The two branches reconcile against different domains, on purpose.
+    #
+    # `Unaided` keeps the exact match: the class was typed into `task unaided`
+    # and written to the record by that same command, so "the recorded class" and
+    # "the class that was declared" are one fact, and requiring the line to carry
+    # it verbatim is a real constraint.
+    #
+    # An invocation line is checked against the version's *invoke pool* — every
+    # capability released as `invoke` under this Task version — and not against
+    # this stage's own record. The wider domain is not a relaxation of the rule
+    # for convenience; the narrower one could not be met honestly. The store
+    # carries no stage: `capability-evidence` records a call without knowing
+    # which phase is running (`the event does not say`), and the gate attaches a
+    # stage afterwards by consuming the oldest unreleased line. So the stage on a
+    # record is assigned by queue position, and which capability a phase is
+    # credited with depends on the order its document happened to be written.
+    # Measured 2026-10-17 on 1.1.5: with plan.md written before prd.md, an honest
+    # section was refused ("does not name the recorded capability") while the
+    # same two names swapped passed. The section is specified as a report of what
+    # happened, so the check has to admit a truthful report; it still refuses a
+    # name no invocation in this version produced.
+    #
+    # The pool is read from `released`, not from `evidence`, so a call still
+    # sitting unconsumed in the queue backs nothing. A declaration writes both
+    # its own line and its release, so a declared capability is always in the
+    # pool; a real call enters it when its stage is released.
+    #
+    # Neither branch is the stronger one in general, and they must not be
+    # "unified": widening the Unaided side would accept a class the command never
+    # recorded. Both fail closed before any Approval field is written.
+    #
     # Required stages: always [PRD] and [Plan]; [Spec] when spec.md exists
     # (promote large writes it). Untagged bullets do not satisfy a stage.
     # Fail closed before any Approval field is written.
@@ -1083,7 +1114,7 @@ case "$command" in
     cap_invoked=0
     cap_unaided=0
     require_stage() {
-      local stage="$1" stage_lines line record kind capability
+      local stage="$1" stage_lines line record kind capability cap_pool cap_hit c
       stage_lines="$(printf '%s\n' "$cap_skills" | grep -E "^- \\[${stage}\\] " || true)"
       if [ -z "$(printf '%s' "$stage_lines" | tr -d '[:space:]')" ]; then
         fail "approve blocked: missing stage [$stage]"
@@ -1112,8 +1143,16 @@ case "$command" in
         *)
           [ "$kind" = "invoke" ] \
             || fail "approve blocked: stage [$stage] is reported as an invocation but was recorded as an unaided decision"
-          printf '%s\n' "$line" | grep -qF -- "$capability" \
-            || fail "approve blocked: stage [$stage] does not name the recorded capability ($capability)"
+          cap_hit=0
+          cap_pool="$(awk -F'|' -v v="$approved_version" '$1 == v && $4 == "invoke" { print $5 }' "$cap_released")"
+          while IFS= read -r c; do
+            [ -n "$c" ] || continue
+            case "$line" in *"$c"*) cap_hit=1; break ;; esac
+          done <<CAP_POOL
+$cap_pool
+CAP_POOL
+          [ "$cap_hit" = "1" ] \
+            || fail "approve blocked: stage [$stage] does not name a capability invoked in this Task version ($capability)"
           cap_invoked=$((cap_invoked + 1))
           ;;
       esac
