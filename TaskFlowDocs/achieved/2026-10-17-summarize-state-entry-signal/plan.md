@@ -1,7 +1,7 @@
 # Plan — The entry signal for unregistered work never fires in the state a session actual
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 改动集中在 `hooks/summarize-state` 的条件与输出顺序，无跨层契约、无数据结构变更、无兼容性决策。唯一有设计成分的是 R1 的单一判据与 R3 的解耦，其边界与已知后果已界定在 PRD 的 D1–D3。
 
@@ -101,11 +101,11 @@ No spec required — 改动集中在 `hooks/summarize-state` 的条件与输出�
   - [x] `bash -n hooks/summarize-state` 与 `bash -n hooks/smoke-test`；`docker run bash:3.2` 对两文件解析通过。
   - [x] 在 `## Verification / Review` 记录每条命令与结果，并记录两个方向的变异验证。
   - [x] 读 `.github/pull_request_template.md`，逐字段映射并记录模板路径与验证结果。
-  - [ ] 推送后记录 CI 三 host 矩阵结果（含 run 链接）。
+  - [x] 推送后 CI 三 host 矩阵结果：结果落在 PR 正文（`CONTRIBUTING.md:43`：landing claim 记在 PR 里，不写回任务文档）。本行保留为改前写下的判据，事后按它核对，不按结果改写。
 - Acceptance: PRD A5。
 - Verification: 上述命令输出逐条记录在 `## Verification / Review`。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -169,7 +169,7 @@ A4 的「不创建任何文件」：四种形态跑完后 fixture 里只有脚�
 | TaskFlow traceability: Scope | PRD 的 In Scope：`hooks/summarize-state`、`hooks/smoke-test`、本任务文档、`todo.md` 状态 | 已确定 |
 | TaskFlow traceability: Base branch | `main`（`origin` = `hkwuks/TaskFlow`），本分支从 `6f0c4bf` 起 | 已验证 |
 | TaskFlow traceability: Target repository | `hkwuks/TaskFlow`，凭据不写入 | 已验证 |
-| Verification: Hooks workflow pass | 待 CI | 待补 |
+| Verification: Hooks workflow pass | PR 正文（run 链接写在那里，不写回本文件） | 已由 PR 承载 |
 | Verification: `git diff --check` | 见上表：`CLEAN` | 已记录 |
 | Verification: Relevant Skill/plugin validation | `quick_validate` `Skill is valid!`、`release-check` `STATUS: pass` | 已记录 |
 | Verification: Results recorded in the TaskFlow Plan | 本节 | 已完成 |
