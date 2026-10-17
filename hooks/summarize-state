@@ -16,58 +16,9 @@ repo_root="${TASKFLOW_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || 
 [ -n "$repo_root" ] || repo_root="$PLUGIN_ROOT"
 docs="$repo_root/TaskFlowDocs"
 
-# A repository that has never used TaskFlow is the case where the obligation is
-# hardest to notice: there is no todo.md to find and no active task to continue,
-# so this hook used to exit in silence and the session began with no sign that a
-# requests-to-TaskFlow path exists at all. The gate itself is stated in SKILL.md
-# ("Applicability gate"), and repeating it here is the one thing this hook can do
-# without writing: it is the only TaskFlow output a session gets before an Agent
-# has read anything. This states the boundary; it does not act on it — no
-# directory, no Todo, no intake.
-if [ ! -d "$docs" ]; then
-  cat <<'GATE'
-# TaskFlow (not started in this repository)
-- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md.
-- Read-only work (explanation, translation, status, research, review, diagnosis) does not, and an explicit $taskflow request opts it in.
-GATE
-  exit 0
-fi
-
 todo="$docs/todo.md"
 verbose="${TASKFLOW_VERBOSE:-0}"
 task_id="${TASKFLOW_TASK_ID:-}"
-
-# A repository that HAS the directory but has never recorded anything in it is
-# the one state where every other signal here is absent at once: no task list to
-# print, no Todo entry to print, and no branch report to raise if the work
-# happens on a base branch or before a branch exists. Nothing then mentions
-# TaskFlow for the whole session — the same silence the no-docs branch above was
-# fixed for, one directory over. The condition is read from the tree rather than
-# inferred from an empty output, so a repository whose Todo has been emptied on
-# purpose gets the same sentence and is not left to wonder.
-#
-# It is only correct for a repository that has taken no decision yet. `todo.md`
-# present means intake ran at least once, so the obligation has been seen and
-# this says nothing. `repository-docs/` is excluded because the SessionStart
-# routing hook creates it itself, so its presence is no evidence of use — while
-# anything else under here, an `achieved/` directory included, is.
-if [ ! -f "$todo" ]; then
-  entries=0
-  for dir in "$docs"/*/; do
-    name="${dir%/}"
-    name="${name##*/}"
-    case "$name" in repository-docs) continue ;; esac
-    entries=1
-    break
-  done
-  if [ "$entries" -eq 0 ]; then
-    cat <<'ENTRY'
-# TaskFlow (nothing recorded yet)
-- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md. Read-only work does not, and an explicit $taskflow request opts it in.
-ENTRY
-    exit 0
-  fi
-fi
 
 # Registration is by slug, not by status. A branch is named <type>/<slug> and a
 # task directory <date>-<slug>, so a branch belongs to a task when some task
@@ -103,6 +54,52 @@ for dir in "$docs"/*/; do
   [ -f "$dir/plan.md" ] || continue
   active+=("$name")
 done
+
+# The obligation line is printed in the states where no active task exists — and
+# it is keyed on exactly that, not on whether `TaskFlowDocs/` is there.
+#
+# It used to be keyed on the directory being absent. That condition cannot hold
+# in a repository that has ever used TaskFlow: the SessionStart routing hook
+# creates `TaskFlowDocs/repository-docs/` itself, and `todo.md` is a tracked
+# file, so both are present from the repository's first recorded request onward.
+# The line was therefore dead code in every repository that had anything to
+# record it for, and the state it went missing in is the one a session most often
+# opens in: the base checkout. Measured 2026-10-12 on 1.1.5 — same commit, same
+# todo.md, base branch printed nothing while `fix/something` printed the branch
+# report. The obligation's delivery condition and its own applicability were
+# exactly inverted, since the harder a repository has used TaskFlow, the less it
+# could ever be told how.
+#
+# The branch report is deliberately not part of this condition. The two answer
+# different questions — "should this work have been recorded?" applies on every
+# branch including the base one, while "is this branch's work unregistered?" has
+# no meaning on a base branch — so a base checkout says the first and never the
+# second.
+#
+# `repository-docs/` is excluded from the "recorded" evidence because the routing
+# hook creates it itself, so its presence proves nothing; anything else under
+# here, an `achieved/` directory included, is evidence of use.
+if [ "${#active[@]}" -eq 0 ]; then
+  recorded=0
+  [ -f "$todo" ] && recorded=1
+  if [ "$recorded" -eq 0 ]; then
+    for dir in "$docs"/*/; do
+      name="${dir%/}"
+      name="${name##*/}"
+      case "$name" in repository-docs) continue ;; esac
+      recorded=1
+      break
+    done
+  fi
+  if [ "$recorded" -eq 1 ]; then
+    echo "# TaskFlow (no active task)"
+    echo "- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md."
+  else
+    echo "# TaskFlow (not started in this repository)"
+    echo "- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md."
+  fi
+  echo "- Read-only work (explanation, translation, status, research, review, diagnosis) does not, and an explicit \$taskflow request opts it in."
+fi
 
 # The Todo inbox is only worth printing when there is no active task to report,
 # or on request: the active-task list is the more useful default.
