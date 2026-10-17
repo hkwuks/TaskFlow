@@ -72,15 +72,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## The entry signal for unregistered work never fires in the state a session actual
 
 - ID: TF-20261012-50164f
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-12: analyse why the session-start entry signal is silent, then record the finding
 - Added: 2026-10-12
-- Updated: 2026-10-12
+- Updated: 2026-10-17
 - Goal: The entry signal for unregistered work never fires in the state a session actually opens in: hooks/summarize-state closes three silences (no TaskFlowDocs; TaskFlowDocs with nothing recorded; a branch no task directory matches) but the second is unreachable wherever TaskFlowDocs/todo.md is tracked, and the third excludes main and master by literal name rather than resolving the base branch, so the base checkout, which is where a session most often starts, is the one state that prints neither line
-- Task: Not promoted.
-- Next action: Clarify and promote; the fix spans the first-entry wording and the branch-report condition, and overlaps TF-20261009-cc463b
+- Task: `TaskFlowDocs/2026-10-17-summarize-state-entry-signal/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 2026-10-12 用户要求：先分析「任务开始的信号为什么是静默的」，再把结论记成一条 todo。本条是那次分析的落点。
 
 **要求「分析」的那个问题，本身就是从一块被截断的上下文里读出来的，而我照抄了它。** 本次会话开场的 `summarize-state` 输出把 inbox 条目的 goal 切在 120 字节（`g = substr(g,1,120)`），而 `substr` 是**字节**操作、切在词中间**不留任何标记**。本次实测：当前 `todo.md` 里 12 条 goal 被这样切过，全部断在词中——`hooks/tas`+`k`（`hooks/task`）、`state close`+`s`（`closes`）、`asks to mo`+`d`（`modify`）。我据此把两个断句当成真实需求，写了「定义准入自动认领」和「user/… intake 的意图门」两条 goal；**两条都不存在**：`grep -rn 'Auto-claim\|Intent gate' .` 零命中，与 `todo.md` 里任何真实条目的 goal 文本也不重叠。我**无法再复核原句**——那两段只出现在当次会话输出里，没有落到任何文件上；可复核的是机制本身与上列 12 条现成实例。中文条目按 UTF-8 至少 3 字节／字，所以在中文仓库里它切得更碎，看起来更像「一个内容更少的真实条目」。`smoke-test` 只断言前缀能被解析，没有任何断言要求截断后带省略号或不被误读。**记录这条是为了让下一个读到同样碎片的会话不去追这两个幽灵需求。** 相关：本条同一次分析的机制结论见下；`TF-20260919-6b4e21`（todo.md 无界增长）是「读 1000+ 行 todo 才可能发现前提是假的」这一前提的扩大源。
