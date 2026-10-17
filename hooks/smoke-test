@@ -59,22 +59,30 @@ printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL n
 [ -e "$empty/TaskFlowDocs" ] && { echo "FAIL the no-docs message created TaskFlowDocs"; exit 1; }
 rm -rf "$empty"
 
-# The same silence one directory over: the directory exists, nothing was ever
-# recorded in it, and the work is happening on a base branch — so the task list,
-# the Todo, and the branch report are all empty at once. This is the case the
-# `todo.md`-absent branch above does not reach, and it is the state a repository
-# is in for the whole first session that starts after `TaskFlowDocs/` is created.
+# The obligation line is keyed on there being no active task, not on whether
+# `TaskFlowDocs/` exists. The old condition could not hold in a repository that
+# had ever used TaskFlow — the SessionStart routing hook creates
+# `repository-docs/` itself and `todo.md` is a tracked file — so the line was
+# dead code exactly where it was needed, and the base checkout a session most
+# often opens in printed nothing at all. Measured 2026-10-12 on 1.1.5: same
+# commit, same `todo.md`, the base branch silent while `fix/something` printed
+# the branch report. This section pins all four states and, most importantly,
+# pins the one where the line must stay away.
 bare="$(mktemp -d)"; mkdir -p "$bare/TaskFlowDocs/repository-docs"
 printf '# Routing\n' > "$bare/TaskFlowDocs/repository-docs/index.md"
 out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on an unrecorded TaskFlowDocs"; exit 1; }
 printf '%s' "$out" | grep -q 'TaskFlowDocs/todo.md' || { echo "FAIL unrecorded-repo output does not name the first record"; exit 1; }
-printf '%s' "$out" | grep -q 'nothing recorded yet' || { echo "FAIL unrecorded-repo output does not name the state"; exit 1; }
+printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL unrecorded-repo output does not state the obligation"; exit 1; }
+printf '%s' "$out" | grep -q 'not started in this repository' || { echo "FAIL unrecorded-repo output does not name the state"; exit 1; }
 
-# And it stops the moment intake has run, because from there the Todo is the
-# signal. An empty `todo.md` is a recorded decision, not an absent one.
+# Having recorded something before is not a reason to stop asking whether new
+# work belongs here, so the obligation survives an existing `todo.md`. What
+# changes is the heading, and it must not claim the repository recorded nothing.
 printf '# Todo inbox\n' > "$bare/TaskFlowDocs/todo.md"
-out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed with an empty todo.md"; exit 1; }
-printf '%s' "$out" | grep -q 'nothing recorded yet' && { echo "FAIL the entry-point line survived an existing todo.md"; exit 1; }
+out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed with an existing todo.md"; exit 1; }
+printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL the obligation vanished once todo.md existed"; exit 1; }
+printf '%s' "$out" | grep -q 'no active task' || { echo "FAIL used-repo output does not name the state"; exit 1; }
+printf '%s' "$out" | grep -q 'not started in this repository' && { echo "FAIL a repository with a todo.md was reported as never started"; exit 1; }
 
 # A directory with no todo and no task but an archived task is a repository that
 # has used TaskFlow, and must not be told it has recorded nothing.
@@ -82,7 +90,16 @@ mv "$bare/TaskFlowDocs/todo.md" "$bare/TaskFlowDocs/todo.md.off"
 mkdir -p "$bare/TaskFlowDocs/achieved/2026-01-01-old"
 printf '# Plan\n' > "$bare/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
 out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on an archived-only repository"; exit 1; }
-printf '%s' "$out" | grep -q 'nothing recorded yet' && { echo "FAIL archived work reported as nothing recorded"; exit 1; }
+printf '%s' "$out" | grep -q 'not started in this repository' && { echo "FAIL archived work reported as a repository that never started"; exit 1; }
+printf '%s' "$out" | grep -q 'no active task' || { echo "FAIL archived-only repository lost the state line"; exit 1; }
+
+# An active task means the session is already inside TaskFlow, and repeating the
+# obligation there is the noise that would train a reader to skip the line — the
+# failure this whole section exists to prevent, one branch over.
+mkdir -p "$bare/TaskFlowDocs/2026-01-01-live"
+printf '# Plan — Live\n> Task version: v1\n> Status: in_progress\n' > "$bare/TaskFlowDocs/2026-01-01-live/plan.md"
+out=$(TASKFLOW_REPO_ROOT="$bare" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed with an active task"; exit 1; }
+printf '%s' "$out" | grep -q 'Applicable work enters TaskFlow' && { echo "FAIL the obligation line survived an active task"; exit 1; }
 rm -rf "$bare"
 echo ok
 
@@ -93,7 +110,10 @@ echo "== a branch that no task matches is reported, and only that branch =="
 # The report is raised only where the question is meaningful: a base branch, a
 # detached HEAD, a non-repository directory, and a registered branch (active or
 # archived) must all stay silent, or the line becomes noise that hides the case
-# it exists for.
+# it exists for. This is about the *branch report* only — the obligation line
+# above answers a different question and does belong on a base branch. The
+# fixture has an active task, so the two never appear together here and each
+# assertion below is about one thing.
 br="$tmp/branch-report"
 mkdir -p "$br/TaskFlowDocs/2026-09-13-one" "$br/TaskFlowDocs/achieved/2026-09-01-old-thing"
 printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n' > "$br/TaskFlowDocs/2026-09-13-one/plan.md"
@@ -125,6 +145,26 @@ branch_says fix/never-registered reports
 branch_says fix/one silent
 branch_says fix/old-thing silent
 branch_says "" silent
+
+# The obligation and the branch report are independent, and the base branch is
+# where the difference shows: it says the first and must never say the second.
+# This is the regression the whole change exists for, so it is asserted on the
+# exact pair of states that used to differ — `main` and an unregistered branch
+# of the same repository at the same commit.
+br2="$tmp/base-entry"; mkdir -p "$br2/TaskFlowDocs"
+printf '# Todo inbox\n\n## Some item\n\n- ID: TF-20260101-abcdef\n- Status: inbox\n- Goal: something\n' > "$br2/TaskFlowDocs/todo.md"
+git -C "$br2" init -q
+git -C "$br2" add -A
+git -C "$br2" -c user.email=smoke@example.invalid -c user.name=smoke commit -qm init
+base_out=$(TASKFLOW_REPO_ROOT="$br2" git -C "$br2" checkout -q -B main && TASKFLOW_REPO_ROOT="$br2" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on the base checkout"; exit 1; }
+printf '%s' "$base_out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL the base checkout did not state the obligation"; exit 1; }
+printf '%s' "$base_out" | grep -q 'No task for branch' && { echo "FAIL a branch report was raised on a base branch"; exit 1; }
+git -C "$br2" checkout -q -B fix/never-registered
+unreg_out=$(TASKFLOW_REPO_ROOT="$br2" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed on an unregistered branch"; exit 1; }
+printf '%s' "$unreg_out" | grep -q 'Applicable work enters TaskFlow' || { echo "FAIL an unregistered branch lost the obligation"; exit 1; }
+printf '%s' "$unreg_out" | grep -q "No task for branch 'fix/never-registered'" || { echo "FAIL an unregistered branch was not reported"; exit 1; }
+rm -rf "$br2"
+
 nogit="$(mktemp -d)"; mkdir -p "$nogit/TaskFlowDocs"
 out=$(TASKFLOW_REPO_ROOT="$nogit" bash "$HERE/summarize-state" 2>&1) || { echo "FAIL summarize-state failed outside a repository"; exit 1; }
 printf '%s' "$out" | grep -q 'No task for branch' && { echo "FAIL branch report raised outside a repository"; exit 1; }
