@@ -1,7 +1,7 @@
 # The entry signal for unregistered work never fires in the state a session actual
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
