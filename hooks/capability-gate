@@ -141,6 +141,11 @@ fi
 # would strand every invocation banked before the first document — and banking
 # one is a normal way to work: read the task, invoke once for the framing, then
 # start writing. Either way each document still spends a distinct invocation.
+# The consequence, and it is a real one: this pairing is by queue position, not
+# by stage. The line below attaches `$stage` to whichever record is next, so
+# which stage a call's record lands on follows the order the documents are
+# written. A stage that invokes twice leaves its extra record to the next stage,
+# and the store carries no way to recover which phase really made the call.
 total=0
 if [ -f "$evidence" ]; then
   total="$(awk 'END { print NR }' "$evidence")"

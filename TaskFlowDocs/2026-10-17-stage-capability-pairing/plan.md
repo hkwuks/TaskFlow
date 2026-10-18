@@ -109,35 +109,91 @@
 - Dependencies: Step 1, Step 2.
 - Files: `skills/taskflow/SKILL.md`、`skills/taskflow/references/artifacts.md`、`hooks/README.md`、`README.md`、`hooks/capability-gate`（注释）、`TaskFlowDocs/todo.md`、本任务 `plan.md`。
 - Implementation checklist:
-  - [ ] R5：`SKILL.md:177` 的「an invoke line must name the capability that really was invoked」「one invocation is spent by one stage」改为版本域说法，并点明「记录的阶段归属取决于文档写作顺序」。
-  - [ ] R5：`references/artifacts.md:127` 的「one invocation is spent by one stage」与 `:129` 的对账描述同步；保留「report of what happened」这一定性（放宽**是**为了让它成真）。
-  - [ ] R5：`hooks/README.md:197-201` 的 store 段补上「哪个阶段拿到哪条记录由写作顺序决定」。
-  - [ ] R5：`README.md:124` 的「refused until a capability really was invoked for that stage」同样按版本域改写（门的判据从来不是「该阶段调用过」，写清了才不会让读者据此推断归因）。
-  - [ ] R5：`hooks/capability-gate` 队列消费处与 `hooks/task` 的 approve 注释各补一句（只改注释，行为不动）。
-  - [ ] 更正 `TF-20261012-c66ad3`：goal 改为「版本提升需重走 N 次能力声明或调用（N = 所需阶段数）；按门的已扣减计数算，仅无门宿主需要真调用」；Notes 记下本次实测（34/34 耗尽、零工具调用、`unaided` 三阶段、`approve OK`）与哪一句站不住；状态留 `inbox`、优先级 `normal`。
-  - [ ] R6：`smoke-test` 里钉住旧措辞的断言（`is a report of what happened` 等）核对是否需要同步；若改写措辞则一并更新。
-  - [ ] `bash hooks/smoke-test </dev/null` 全量；`git diff --check`；`bash hooks/release-check .`；`quick_validate.py skills/taskflow`；`bash -n`；`docker run bash:3.2` 解析。
-  - [ ] 读 `.github/pull_request_template.md`，逐字段映射并记录模板路径与验证结果。
-  - [ ] 在 `## Verification / Review` 记录每条命令与结果，含两个方向的变异验证。
-  - [ ] 推送后按 `CONTRIBUTING.md:43` 把 landing claim 写进 PR 正文（不写回本文件）。
+  - [x] R5：`SKILL.md:177` 的「an invoke line must name the capability that really was invoked」「one invocation is spent by one stage」改为版本域说法，并点明「记录的阶段归属取决于文档写作顺序」。改后该段仍逐字保留 `The first body write of each stage document is gated` 与 `is a report of what happened`（`smoke-test:1716-1719` 钉这两句，实测不改即绿）。
+  - [x] R5：`references/artifacts.md:127` 的「one invocation is spent by one stage」与 `:129` 的对账描述同步；保留「report of what happened」这一定性（放宽**是**为了让它成真）。同时写明「判据域是版本不是阶段」的原因与「`N invoked` 是阶段数、不是不同能力数」。
+  - [x] R5：`hooks/README.md:197-201` 的 store 段补上「哪个阶段拿到哪条记录由写作顺序决定」。
+  - [x] R5：`README.md:124` 的「refused until a capability really was invoked for that stage」同样按版本域改写（门的判据从来不是「该阶段调用过」，写清了才不会让读者据此推断归因）。**保留「a capability really was invoked for that stage」这半句**：门的**释放**条件确实是「该阶段能对着一条证据被释放」，改的是 `approve` 的对账域，不是门的语义。
+  - [x] R5：`hooks/capability-gate:142-152` 队列消费处与 `hooks/task:1056-1092` 的 approve 注释各补一句（只改注释，行为不动）。`capability-gate` 的改动逐字核对为注释块内新增，无代码行变动。
+  - [x] 更正 `TF-20261012-c66ad3`：goal 改为「版本提升需重走 N 次能力声明或调用（N = 所需阶段数）；仅无门宿主需要真调用」；小节标题同步（原标题以「turns a Task version bump into a dead end」收尾，与更正后的 goal 相反，不改会让索引与 goal 自相矛盾）；`Next action`、`Updated`、Notes 三段更正一并落盘；状态留 `inbox`、优先级 `normal`。
+  - [x] R6：`smoke-test` 里钉住旧措辞的断言核对完毕——`is a report of what happened`（`:1718`）仍成立故不动；`append a \[PRD\] line` 的反向断言（`:1720-1722`）仍成立；`smoke-test` 里没有任何断言钉 `one invocation is spent by one stage` / `name the capability that really was invoked`，故无需同步。全量套件 73 节 `ok`、`ALL SMOKE PASSED`。
+  - [x] `bash hooks/smoke-test </dev/null` 全量；`git diff --check`；`bash hooks/release-check .`；`quick_validate.py skills/taskflow`；`bash -n`；`docker run bash:3.2` 解析。逐条见 `## Verification / Review`。
+  - [x] 读 `.github/pull_request_template.md`，逐字段映射并记录模板路径与验证结果（见下表）。
+  - [x] 在 `## Verification / Review` 记录每条命令与结果，含两个方向的变异验证。
+  - [ ] 推送后按 `CONTRIBUTING.md:43` 把 landing claim 写进 PR 正文（不写回本文件）。**待用户授权推送与开 PR**。
 - Acceptance: PRD A5、A6、A7。
 - Verification: 上述命令输出逐条记录在 `## Verification / Review`。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: pending
+- Status: in_progress
+
+### `.github/pull_request_template.md` 逐字段映射（模板路径 `.github/pull_request_template.md`）
+
+| 模板字段 | 本任务的落点 | 验证 |
+| --- | --- | --- |
+| `## Summary` | 一句：approve 对 invoke 行的对账从「该阶段那条记录」放宽到「本版本记录过的调用」，因为账本不携带阶段；同时把这件事写进文档并更正 `c66ad3` | 已写进 PR 正文 |
+| `Task` | `TaskFlowDocs/2026-10-17-stage-capability-pairing/` | 目录在场（随 PR 落地） |
+| `Scope` | `hooks/task`（approve 判据 + 注释）、`hooks/smoke-test`（该节 1 改 5 增）、`skills/taskflow/SKILL.md`、`skills/taskflow/references/artifacts.md`、`hooks/README.md`、`README.md`、`hooks/capability-gate`（仅注释）、`TaskFlowDocs/todo.md` | `git diff --stat` |
+| `Base branch` | `main`（`origin/main` = `447eea4`，本分支从它起） | `git merge-base` / `git log` |
+| `Target repository` | `hkwuks/TaskFlow` | `git remote -v` |
+| `Hooks workflow reports pass` | PR 正文里的 run 链接 | **待推送后填** |
+| `git diff --check` | 通过（无空白错误） | `git diff --check` 退出 0 |
+| `Relevant Skill/plugin validation` | `quick_validate.py skills/taskflow` → `Skill is valid!`；`hooks/release-check .` → `STATUS: pass` | 两条命令输出见下 |
+| `Results recorded in the TaskFlow Plan` | 本文件 `## Verification / Review` | 在场 |
+| `No secrets or opaque remote payloads` | 无——改动全部是仓库内文本 | `git diff` 复核 |
+| `No unrelated task or user files changed` | 只动了上述 Scope 列出的文件 + 本任务目录 | `git status --short` |
+| `Remote/base assumptions are stated` | `origin` = `hkwuks/TaskFlow`，base = `main`，本分支从 `447eea4` 起 | Plan Preconditions |
+| `Known limitations and follow-ups are documented` | PRD `## Risks / Deferred Items`（两条实测强度边界 + 四条有意弱化）、Plan `## Follow-ups` | 在场 |
 
 ## Checkpoints
 
 - CP1（Step 1 后）：如实错配的夹具从「被拒」变为「通过」；本版本未记录的能力名仍被拒；Unaided 一侧逐字节未变。
-- CP2（Step 2 后）：两个变异方向各红一次；Unaided 一族的既有断言全绿；`no interpreter` 一节未被新代码破坏。
+- CP2（Step 2 后）：三个变异方向各红一次（A/B/C，红的落点各不相同）；Unaided 一族的既有断言全绿；`no interpreter` 一节未被新代码破坏。
 - CP3（Step 3 收尾）：文档如实陈述账本不归因；`c66ad3` 的 goal 与实测一致；全套命令通过、验证记录与 PR 模板映射写入本文件、CI 绿。
 
 ## Verification / Review
 
-记录格式：逐条命令与结果。区分 **既有失败** / **新引入失败** / **环境失败**。待实现后填写。
+- 2026-10-18 Step 3: 全量套件 73 节 ok / ALL SMOKE PASSED；三个变异方向（A 恢复按阶段相等、B 池 pattern 置空、C 统一 Unaided 分支）各红在不同断言；git diff --check、release-check STATUS: pass、quick_validate Skill is valid!、bash -n、docker bash:3.2 解析全通过。
+
+记录格式：逐条命令与结果。区分 **既有失败** / **新引入失败** / **环境失败**。全部在 worktree `/mnt/f/WorkSpace/Agent/TaskFlow/.worktrees/2026-10-17-stage-capability-pairing`（分支 `fix/stage-capability-pairing`，起于 `447eea4`）上执行。
+
+### 通过项
+
+| # | 命令 | 结果 |
+| --- | --- | --- |
+| 1 | `bash hooks/smoke-test < /dev/null` | 退出 0，73 节 `ok`，`ALL SMOKE PASSED` |
+| 2 | `git diff --check` | 退出 0，无输出（无空白错误 / 冲突标记） |
+| 3 | `bash -n hooks/task hooks/capability-gate hooks/smoke-test` | 三个文件均退出 0 |
+| 4 | `docker run --rm -v "$PWD":/w -w /w bash:3.2 bash -c 'for f in …; do bash -n "$f"; done'` | `bash 3.2 parse ok`（POSIX 下限不被 bashism 破坏） |
+| 5 | `bash hooks/release-check .` | `STATUS: pass`（五个版本字面量一致 1.1.5，两处 marketplace pin 指向 `93dcec3d`） |
+| 6 | `python3 -I …/skill-creator/scripts/quick_validate.py skills/taskflow` | `Skill is valid!` |
+| 7 | `.github/pull_request_template.md` 逐字段映射 | 见 Step 3 下表；模板路径与每字段落点均记录在案 |
+
+第 1 条的**对照口径**（避免把「节数没变」误读成「断言没生效」）：
+
+- `git checkout 447eea4 -- hooks/task hooks/smoke-test`（本任务之前的实现 + 本任务之前的套件）→ 73 节 `ok`、`ALL SMOKE PASSED`。新断言写在既有节内、不新增节标题，所以节数不变是正确的。
+- 只回退 `hooks/smoke-test` 而保留新 `hooks/task` → 在后半段 `FAIL capability-mismatch message` 处退出 1（`ok=28`）。这证明新套件确实依赖新实现，不是被旧实现顺带满足。
+- 改前草稿里写的「72 节」是预演副本 `/tmp/tf-relax-repo` 上的旧计数，已按本次实测更正为 73。
+
+### 变异验证（每条都在 `/tmp` 的整树副本上做，真实 worktree 未被改动；跑前 `pkill -9 -f hooks/smoke-test`）
+
+| # | 变异 | 期望 | 实测 |
+| --- | --- | --- | --- |
+| A | `hooks/task:1152` 的 heredoc 体由 `$cap_pool` 改回 `$capability`（即恢复「等于本阶段那条记录」的旧判据） | 新夹具必须红 | **红**：退出 1，`== task approve records the five-field block ==` → `FAIL approve refused a stage naming a capability this version released`。**证明 R1 的修复点是新夹具专属的**：这条夹具在旧判据下必被拒（这正是本条任务要消除的那个病）。 |
+| B | `hooks/task:1150` 的匹配 pattern 置空（`case "$line" in *""*)`，空 pattern 匹配任意行 = 池判据静默失效） | 既有 `smoke-test:1187` 附近必须红 | **红**：退出 1，`FAIL capability-mismatch message`；被静默放行的是 `:1193` 的 `grep -q '…(some:requirements-skill)'`（`mismatch.err` 为空，因为不出错就不落盘）。**证明本体断言仍咬得住放宽后的代码**——若只放宽不加断言，这类「静默失效」编辑将无人发现。 |
+| C | 把池判据**也**贴到 Unaided 分支（`hooks/task:1139-1140` 的 `grep -qF -- "$capability"` 换成同一段池匹配 = 两侧「统一」） | I3 必须被咬住 | **红**：退出 1，`FAIL approve refused a stage naming a capability this version released`，`approve blocked: stage [Plan] reports a different considered class than the recorded one (work breakdown)`。**证明「两侧强度不同」不是注释里的说法而是可执行的约束**（Spec D3 / Code and Test Constraints）。 |
+
+三条变异各自红了**不同的地方**，恢复后全绿（上表第 1 条）。变异方向一（改前实现必红）与方向二（改回按阶段相等必红）在本实现下是同一件事——判据域只有一个开关，`$cap_pool` 与 `$capability` 就是它的两个值——故合并为 A。
+
+### 未做 / 边界
+
+- **未在真实 CI 上跑过**：本次所有验证都在本机；三 host 矩阵结果待 PR 推送后由其承载（按 `CONTRIBUTING.md:43`，不写回本文件）。
+- **未在 CodeBuddy / Trae 上实跑**：改动只落在共享的 `hooks/task` 与文档上，没有碰宿主接线 JSON，故没有新增宿主面；`smoke-test` 的接线断言全绿是能给出的最强证据。
+- **既有失败**：无。**新引入失败**：无（第 1 条 73 节全绿）。**环境失败**：无（`docker run bash:3.2` 正常返回）。
 
 ## Change Log
 
 - 2026-10-17 work revision — 任务由 `TF-20261012-c79e31` promote 创建；用户裁定 D1（放宽判据域）、D2（接受溢出并写入文档）与范围含 `c66ad3` 更正；affects `prd.md`, `spec.md`, `plan.md`, `TaskFlowDocs/todo.md`。
+- 2026-10-18 work revision — Step 1（`hooks/task` 判据域 + 注释）与 Step 2（`hooks/smoke-test` 1 改 5 增）落地；实测更正两处计数：`ok` 节数 72 → 73（对照 `447eea4` 同为 73 节，故「节数不变」是正确口径），`spec.md`/`prd.md` 里「新增 2 条」→ 3 条夹具；facts 无变，affects `hooks/task`, `hooks/smoke-test`, `spec.md`, `prd.md`, `plan.md`。
+- 2026-10-18 work revision — Step 3 文档层（`skills/taskflow/SKILL.md`、`skills/taskflow/references/artifacts.md`、`hooks/README.md`、`README.md`、`hooks/capability-gate` 注释）、`TF-20261012-c66ad3` 更正、全量验证与 PR 模板映射；affects 上述文件与 `TaskFlowDocs/todo.md`。
 
 ## Follow-ups
 
