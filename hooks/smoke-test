@@ -1175,7 +1175,7 @@ grep -q 'task unaided PRD --considered' "$ap/norec.err" \
 grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased reject wrote Approval"; exit 1; }
 # Now the records exist. Two ways a stage line can still fail to reconcile: it
 # reports an invocation where a deliberate unaided decision was recorded, or it
-# names a capability other than the one actually invoked.
+# names a capability this Task version never released as an invocation.
 ap_release "$ap_store" v1 PRD 1 invoke some:requirements-skill
 ap_release "$ap_store" v1 Plan 2 unaided 'work breakdown'
 set_skills_body "$ap_task/plan.md" \
@@ -1184,7 +1184,13 @@ set_skills_body "$ap_task/plan.md" \
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/mismatch.err"; then
   echo "FAIL approve accepted a stage naming a capability that was not invoked"; exit 1
 fi
-grep -q 'stage \[PRD\] does not name the recorded capability (some:requirements-skill)' "$ap/mismatch.err" \
+# The name is refused because the version's invoke pool is exactly
+# `{some:requirements-skill}` and this bullet carries neither. The message moved
+# from "the recorded capability" to "a capability invoked in this Task version"
+# on 2026-10-18, when the check was widened from this stage's own record to the
+# version: the store has no stage, so the narrower wording was describing an
+# attribution the record cannot carry. The refusal itself is the same refusal.
+grep -q 'stage \[PRD\] does not name a capability invoked in this Task version (some:requirements-skill)' "$ap/mismatch.err" \
   || { echo "FAIL capability-mismatch message"; cat "$ap/mismatch.err"; exit 1; }
 set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/kind.err"; then
@@ -1192,6 +1198,46 @@ if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>
 fi
 grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unaided decision' "$ap/kind.err" \
   || { echo "FAIL kind-mismatch message"; cat "$ap/kind.err"; exit 1; }
+# The defect this section now guards against, in the shape it really takes. The
+# store carries no stage: the gate attaches one by consuming the oldest
+# unreleased line, so the stage on a record is decided by which document was
+# written first. Here the PRD bullet names a capability recorded under another
+# stage of the same version — exactly what a mispairable queue produces. Before
+# 2026-10-18 this was refused and the same two names swapped passed, so a
+# required section could only pass by misreporting itself. It must pass now.
+# `Spec` carries it because no `spec.md` exists here, so that record is in the
+# version's pool without being any required stage's own record.
+ap_release "$ap_store" v1 Spec 3 invoke 'later:plan-skill'
+ap_line_prd_mispaired='- [PRD] `later:plan-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
+set_skills_body "$ap_task/plan.md" "$ap_line_prd_mispaired" \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if ! bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >"$ap/pool.out" 2>"$ap/pool.err"; then
+  echo "FAIL approve refused a stage naming a capability this version released"; cat "$ap/pool.err"; exit 1
+fi
+grep -q 'stages released by the gate: 1 invoked, 1 unaided' "$ap/pool.out" \
+  || { echo "FAIL pooled approve did not report the released stages"; cat "$ap/pool.out"; exit 1; }
+# The pool is read from `released`, not from `evidence`: a call still sitting
+# unconsumed in the queue backs nothing. Stated as its own assertion because the
+# difference is invisible in every other fixture — an implementation that read
+# `evidence` would pass everything above and quietly widen the check.
+printf 'invoke|queued:never-released\n' >> "$ap_store/evidence"
+set_skills_body "$ap_task/plan.md" \
+  '- [PRD] `queued:never-released` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/queued.err"; then
+  echo "FAIL approve counted an unreleased invocation"; exit 1
+fi
+grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' "$ap/queued.err" \
+  || { echo "FAIL unreleased-invocation message"; cat "$ap/queued.err"; exit 1; }
+# And a name in no record for the version is still refused, pool or not.
+set_skills_body "$ap_task/plan.md" \
+  '- [PRD] `never:invoked` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/never.err"; then
+  echo "FAIL approve accepted a capability no record names"; exit 1
+fi
+grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' "$ap/never.err" \
+  || { echo "FAIL never-invoked message"; cat "$ap/never.err"; exit 1; }
 # Reconciled: the invoke line names the invoked capability, the unaided line
 # carries the recorded class. The counts line is what makes a task that declared
 # every phase unaided visible instead of silent.

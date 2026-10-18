@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## The stage ledger pairs each release to a capability record by queue position rat
 
 - ID: TF-20261012-c79e31
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user report 2026-10-12: the approval roundabout, where the bullets had to be reordered into the shape the gate wanted
 - Added: 2026-10-12
-- Updated: 2026-10-12
+- Updated: 2026-10-18
 - Goal: The stage ledger pairs each release to a capability record by queue position rather than by stage, so which capability a phase is credited with depends on the order its document happened to be written, and hooks/task approve then requires the Skills / Tools Used bullet to name that exact capability: a phase that really invokes several capabilities overflows into the next phase, writing plan.md first credits the Plan stage with the PRD stage call, and an honest Skills / Tools Used section is refused while a reordered one passes, so the section becomes a value back-filled to satisfy the gate rather than a report of what happened
-- Task: Not promoted.
-- Next action: Clarify, then decide the pairing model together with TF-20261012-c66ad3: both are the same one-evidence-one-stage rule seen from two sides
+- Task: `TaskFlowDocs/achieved/2026-10-17-stage-capability-pairing/`
+- Next action: None — completed and archived.
 - Notes: 2026-10-12 用户报告：approve 过程绕，原因是「门要求 bullet 里的能力名等于它那条记录的」，用户把顶部 v14 的三条调成门要的形状才过，并在文件里写明「记录按位点配对，类名不等于该阶段的语义分类」。
 
 **机制：配对靠队列位点，不靠阶段。** `hooks/capability-gate:144-155` 释放一个阶段时取的是 `awk -v n="$next" "NR == n"`——即 evidence 的**第 next 行**，`next = consumed + 1`；它不问这条属于哪个阶段。所以**哪个阶段拿到哪条记录，取决于文档被写的先后**。本次在临时 fixture 里复现（已删）：按 `ctx_search, ctx_execute, ctx_execute` 记录三条调用，再按 **Plan → PRD → Spec** 的顺序写文档，`released` 得到 `v1|Plan|1|invoke|ctx_search` / `v1|PRD|2|invoke|ctx_execute` / `v1|Spec|3|invoke|ctx_execute`。写 `plan.md` 在前（这在真实会话里是常态，因为 Plan 是当前正在推进的阶段），Plan 就必然被记成 PRD 那次调用的能力。
@@ -43,7 +43,7 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 **边界**：复现在临时 fixture（`/tmp/tf-eq`）上完成并已删除；用户提到的 v14 那份 `plan.md` 不在本 clone（全仓 `grep 'Task version: v14'` 零命中）。未在真实会话上跑对照。相关：`TF-20261012-c66ad3`、`TF-20261009-8abbd6`、`TF-20261011-39bda8`。
 
-## Bookkeeping the stage ledger by a globally monotonic evidence queue turns a Task
+## Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task
 
 - ID: TF-20261012-c66ad3
 - Status: inbox
@@ -51,19 +51,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Owner: Claude
 - Source: user report 2026-10-12: a v13 approval could not be written because the evidence queue was exhausted
 - Added: 2026-10-12
-- Updated: 2026-10-12
-- Goal: Bookkeeping the stage ledger by a globally monotonic evidence queue turns a Task version bump into a dead end: hooks/task approve requires every stage to appear in <absolute-git-dir>/taskflow/released, the gate and hooks/task unaided release a stage only while evidence lines > max(seq), and seq never resets, so once consumed reaches the line count no later version can be released without a fresh tool call in a host that has a gate
+- Updated: 2026-10-18
+- Goal: Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task version bump repeat the capability bookkeeping: hooks/task approve requires every stage to appear in <absolute-git-dir>/taskflow/released, and a stage is released only while evidence lines > max(seq), so each new Task version needs one fresh release per stage it writes and seq never resets. Corrected 2026-10-18: this is repeated work, not a dead end — the earlier claim that once consumed reaches the line count no later version can be released is false, because hooks/task unaided appends its own evidence line and then its own release line (hooks/task:1042-1043), so a host with a gate is never blocked by an exhausted queue. What remains true is that every version bump repeats N declarations or calls (N = stages to write); only a host without a gate actually needs real invocations
 - Task: Not promoted.
-- Next action: Clarify scope, then decide whether the fix is in the release record key, the approve reconciliation, or the queue discipline
+- Next action: Clarify whether to remove the repeated per-version bookkeeping (the remaining half), by reusing the previous version's kind and capability name per (version, stage) rather than changing seq.
 - Notes: 2026-10-12 用户报告：某任务的 v13 已获批准，但 `hooks/task approve` 写不进文件。
 
 **用户给的现场**：approve 拒了，理由是 pre-write 门的证据账本**全局单调**——已消费到第 34 条，v12 把可用证据用尽，第 35 条之后再没产生过；`approve` 与 `unaided` 两条路都试过；失败原因已写进该任务的 `plan.md`；用户给的恢复路径是「新会话里做一次 MCP/Skill 调用 + 用 Write/Edit 碰一次 plan.md，门就会释放 v13 的三个阶段」。
 
-**我的判断与用户现场在一点上不一致，记录在此以免下一轮照抄**：用户说「新会话里……门就会释放 v13 的三个阶段」。按 1.1.5 的码读，**做不到**。门释放一个阶段的条件是 `evidence 行数 > max(seq)`（`hooks/capability-gate:136-157`），`unaided` 用的是同一个条件（`hooks/task:1036-1043`），而 `seq` 只增不减。用户那 34 条之后的第 35 条会出现——**但这条是全局单调队列的下一条**，不是「v13 的」：一条证据只够释放**一个**阶段，v13（spec.md 存在 → `cap_size=large`）要 PRD、Spec、Plan **三个**，所以需要**三条**新证据（`hooks/task:1067-1068, 1121-1125`）。若第 35 条已被早先某个阶段花掉，还需要再补。**门的反手也会触发**：三次新调用会先释放 `v13|PRD` 等行，在那之前任何对 v13 三个文档的 Edit 仍会被拒（这正是门该做的），所以恢复路径必须是「先补足够的新调用、再动文档」，顺序反了会被门拦下。
+**2026-10-18 更正：我在这一点上判错了，用户是对的。** 原文写「按 1.1.5 的码读，做不到」。实测（干净探针：34 条证据全部消费，`evidence > consumed` 为假，门自己已无法释放任何阶段）：连续三次 `hooks/task unaided PRD|Spec|Plan` → `stages released by the gate: 0 invoked, 3 unaided` → `approve OK (user, v13)`。**零工具调用就能恢复**，因为 `hooks/task unaided` 在版本提升后会往 `evidence` **自己追加一行**再写 release 行（`hooks/task:1042-1043`，由 `2026-10-11-gate-host-coverage` 加入）。我漏掉了这条路径，只按门的供给条件（`evidence 行数 > max(seq)`）推，而 `unaided` 不受它限制。用户给的恢复路径（新会话做一次 MCP/Skill 调用）也能用，但**不需要三次真实调用**：一次真实调用释放一个阶段，剩下两个用 `unaided` 声明即可。顺序那半句仍然成立：先补证据再动文档，反了会被门拦下。
 
-**本条的真正缺陷（与「证据用尽」这个现场分开记）**：`seq` 是**全局**计数器，而 `release` 的幂等键是 **(version, stage)**（`capability-gate:126-131`）。两个键不同源，于是任何一次 Task 版本提升都会**要求新证据**，无论旧证据是否还能证明「这个阶段确实调用过能力」。用户现场里 v12→v13 只是把版本号从 12 提到 13，需求、阶段、可用能力都没变，却要重新走一遍能力选择——这正是 `TF-20261009-8abbd6`「把阶段的能力选择与宿主工具流解耦」想要消除的那件事，现在多了一个机械版本：**版本提升与证据消耗被同一个全局队列绑死**。
+**本条的真正缺陷（与「证据用尽」这个现场分开记）**：`seq` 是**全局**计数器，而 `release` 的幂等键是 **(version, stage)**（`capability-gate:126-131`）。两个键不同源，于是任何一次 Task 版本提升都会**要求重新走一遍**，无论旧证据是否还能证明「这个阶段确实调用过能力」——代价是**重复劳动**（每次重走 N 次声明或调用，N = 所需阶段数），不是死锁。用户现场里 v12→v13 只是把版本号从 12 提到 13，需求、阶段、可用能力都没变，却要重新走一遍能力选择——这正是 `TF-20261009-8abbd6`「把阶段的能力选择与宿主工具流解耦」想要消除的那件事，现在多了一个机械版本：**版本提升与证据消耗被同一个全局队列绑死**。
 
-**在「全局单调」这一条上我不认为是缺陷**：它买的是「一个已花掉的调用不能被第二个文档再花一次」（`capability-gate:133-135` 的注释），以及「版本提升不能拿旧版本用剩的证据来满足」。这两件都是真的、且值得。问题只在**它没有与版本提升的语义对齐**——`approve` 对账的是「本版本每个阶段都有 release 行」，而 release 行的**供给**是全仓库一条队列。
+**在「全局单调」这一条上我不认为是缺陷**：它买的是「一个已花掉的调用不能被第二个文档再花一次」（`capability-gate:133-135` 的注释），以及「版本提升不能拿旧版本用剩的证据来满足」。这两件都是真的、且值得。问题只在**它没有与版本提升的语义对齐**（2026-10-18 更正：对齐的缺口的代价是重复劳动，不是「版本提升变死路」——`unaided` 自写 release 行使零调用恢复成为可能）——`approve` 对账的是「本版本每个阶段都有 release 行」，而 release 行的**供给**是全仓库一条队列。
 
 **可核验的机械事实（本次实测 1.1.5，仓库根）**：`git rev-parse --absolute-git-dir` = `.git`，**本仓库根没有证据库**（`.git/taskflow/` 不存在）；六个链接工作树各有自己的库，`evidence`/`consumed` 分别为 4/2、3/2、3/2、2/2、2/2、3/3，即**每一个都处于或接近耗尽**（`evidence > consumed` 才算可释放）。这符合设计（库随工作树分开，见 `capability-gate:160-178`），但也说明「耗尽」在本仓库不是偶发：六个工作树里四个耗尽、两个各只剩 1 条。
 

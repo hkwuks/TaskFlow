@@ -197,7 +197,13 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;
   the second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
   active task directory until that stage can be released against such a line,
-  and then records the release in `.../taskflow/released`. Both stores live in
+  and then records the release in `.../taskflow/released`. The evidence file is
+  one queue consumed oldest first, and the stage is attached by the gate at the
+  moment of release — `capability-evidence` does not know which phase is running,
+  so **which record a stage spends follows the order the documents are written,
+  not the order the calls were made**; a stage that invokes twice leaves its
+  extra record to the next stage, and a Task version spends one record per stage
+  it writes. Both stores live in
   the git directory, so they are per worktree, invisible to `git status`, and
   left alone by `version`. Both hooks are complete no-ops outside an active task
   directory — they must be, because `~/.claude/settings.json` hooks are
