@@ -976,6 +976,16 @@ bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --root "$l
 active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
 [ -f "$active/prd.md" ] && [ -f "$active/plan.md" ] && [ ! -e "$active/spec.md" ] || { echo "FAIL small promotion artifacts"; exit 1; }
 grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
+# The version history is the Plan's, kept once. Pinning the promoted product
+# rather than the hook source: the scaffold is built at runtime, so grepping
+# `hooks/task` for the heading would pass even if `$goal` or the literal
+# reintroduced it. Measured 2026-10-18: both documents carried it, and nothing
+# appends on a bump, so the PRD's copy went stale on the first `hooks/version`.
+[ "$(grep -c '^## Version History$' "$active/prd.md")" -eq 0 ] || { echo "FAIL promotion wrote a PRD Version History section"; exit 1; }
+[ "$(grep -c '^## Version History$' "$active/plan.md")" -eq 1 ] || { echo "FAIL promotion did not write the Plan Version History section"; exit 1; }
+# The PRD keeps the version line itself: `hooks/version` requires it in every
+# existing core document (`hooks/version:31-35,134-137`).
+grep -q '^> Task version: v1$' "$active/prd.md" || { echo "FAIL promotion dropped the PRD Task version"; exit 1; }
 if bash "$HERE/task" state 2026-09-10-lifecycle-smoke in_progress --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL unapproved state accepted"; exit 1; fi
 grep -q '> Status: planning' "$active/plan.md" || { echo "FAIL rejected state mutated Plan"; exit 1; }
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' "$active/plan.md" > "$active/plan.md.tmp"

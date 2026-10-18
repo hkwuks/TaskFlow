@@ -61,7 +61,6 @@ TaskFlowDocs/
 ## Out of Scope
 ## Risks / Deferred Items
 ## Open Questions
-## Version History
 ```
 
 ## Spec outline for large tasks
