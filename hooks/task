@@ -774,10 +774,6 @@ case "$command" in
 ## Risks / Deferred Items
 
 ## Open Questions
-
-## Version History
-
-- v1 — planning.
 '
     } | write_file "$prd"
 

@@ -32,6 +32,19 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## Stop stating the Task version history twice: prd.md and plan.md each keep their
+
+- ID: TF-20261018-0f2f6a
+- Status: done
+- Priority: normal
+- Owner: Claude
+- Source: direct user request
+- Added: 2026-10-18
+- Updated: 2026-10-18
+- Goal: Stop stating the Task version history twice: prd.md and plan.md each keep their own Version History, and the two hand-maintained statements drift
+- Task: `TaskFlowDocs/achieved/2026-10-18-single-history-owner/`
+- Next action: None — completed and archived.
+
 ## Repair the todo.md template block and the leftover headings: the Item template s
 
 - ID: TF-20261018-3f6686

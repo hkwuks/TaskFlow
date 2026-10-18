@@ -204,8 +204,7 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - requirements;
 - observable acceptance criteria;
 - in-scope and out-of-scope work;
-- risks, deferred items, and only blocking open questions;
-- current Task version and version history.
+- risks, deferred items, and only blocking open questions.
 
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 
