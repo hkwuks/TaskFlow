@@ -1484,6 +1484,42 @@ grep -q 'Create `ROADMAP.md` only after the user confirms product direction' "$s
 grep -q 'never committed' "$skill/SKILL.md" && grep -q 'never committed' "$skill/references/artifacts.md" || { echo "FAIL personal supplement git boundary"; exit 1; }
 echo ok
 
+echo "== the Todo template lists the fields intake actually writes =="
+# The template sat between live entries and listed fields no hook writes
+# (`- Next:` for `- Next action:`, `- External:` that intake never emits, and no
+# `- ID:`/`- Added:` at all), so copying it produced an entry the hooks could not
+# read. Nothing pinned it: the two hooks that could see it — `summarize-state`
+# and `task remove` — happened to be safe only because the skeleton carried no
+# `- ID:` line. The sample is now indented, which keeps every field out of the
+# column-0 range those hooks scan, and this pins the field set itself so the two
+# cannot drift apart again. Measured 2026-10-18: the sample's fields and the
+# writer's fields had diverged by three.
+tmpl_fields="$(sed -n 's/^    - \([A-Za-z][A-Za-z ]*\):.*/\1/p' "$repo/TaskFlowDocs/todo.md" | sort -u)"
+write_fields="$(sed -n 's/^    nb++; blk\[nb\] = "- \([A-Za-z][A-Za-z ]*\):.*/\1/p' "$HERE/task" | sort -u)"
+[ -n "$tmpl_fields" ] || { echo "FAIL the Todo template sample declares no fields"; exit 1; }
+[ -n "$write_fields" ] || { echo "FAIL could not read the fields intake writes"; exit 1; }
+# `intake` writes its section heading and blank lines through the same array, so
+# the writer side carries the title line and the separators as well; the sample
+# lists fields only. Compare the fields the template claims against the fields
+# that are written, direction by direction, so a missing one is named.
+missing="$(printf '%s\n' "$write_fields" | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  printf '%s\n' "$tmpl_fields" | grep -qx -- "$f" || printf 'template lacks: %s\n' "$f"
+done)"
+[ -z "$missing" ] || { echo "FAIL the Todo template is out of step with intake:"; printf '%s\n' "$missing"; exit 1; }
+extra="$(printf '%s\n' "$tmpl_fields" | while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  printf '%s\n' "$write_fields" | grep -qx -- "$f" || printf 'template invents: %s\n' "$f"
+done)"
+[ -z "$extra" ] || { echo "FAIL the Todo template lists fields intake does not write:"; printf '%s\n' "$extra"; exit 1; }
+# The sample must stay indented: at column 0 its fields would be read as a real
+# entry, and an `- ID:` line there would take the tombstone `task remove` writes.
+# The status is carried by a flag into END, because a bare `exit 1` inside the
+# rule would be overwritten by an `END` that runs afterwards.
+awk '/^## Item template$/{f=1; next} f && /^## /{exit} f && /^- /{bad=1} END{exit bad+0}' "$repo/TaskFlowDocs/todo.md" \
+  || { echo "FAIL the Todo template sample has a column-0 field line"; exit 1; }
+echo ok
+
 echo "== the move into a task working tree is a procedure, not an instruction =="
 # `SKILL.md` said isolation had to come first and then, for the case where it had
 # not, only "then move the work there" — with no steps and no statement of what a
