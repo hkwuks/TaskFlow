@@ -2,6 +2,28 @@
 
 This is the repository's single lightweight intake list. It stores triage metadata only. After promotion, the linked TaskFlow directory is the sole source of requirements, design, plan, and verification facts.
 
+Every direct request or imported requirement that passes the Skill's applicability gate enters this list — a repository development request, a GitHub Issue or other development import, or an explicit `$taskflow` request.
+
+## Item template
+
+An entry is written by `hooks/task intake` in this shape. The sample is indented so the hooks that parse this file do not read it as an entry — every field a hook matches sits at column 0 in a real entry:
+
+    ## <goal, cut to 80 bytes>
+
+    - ID: TF-yyyymmdd-xxxxxx
+    - Status: inbox
+    - Priority: normal
+    - Owner: <person or Agent>
+    - Source: <user / review / issue / remote>
+    - Added: YYYY-MM-DD
+    - Updated: YYYY-MM-DD
+    - Goal: <one sentence>
+    - Task: Not promoted.
+    - Next action: <single next clarification or implementation action>
+
+`- External:` is not written by `intake`; add it by hand only for a source that
+has an issue number or URL.
+
 ## Status flow
 
 `inbox → clarified → promoted → in_progress → done/cancelled`
@@ -9,6 +31,19 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+
+## Repair the todo.md template block and the leftover headings: the Item template s
+
+- ID: TF-20261018-3f6686
+- Status: in_progress
+- Priority: normal
+- Owner: Claude
+- Source: direct user request
+- Added: 2026-10-18
+- Updated: 2026-10-18
+- Goal: Repair the todo.md template block and the leftover headings: the Item template sits between entries with a truncated sentence, and its field names no longer match what intake writes
+- Task: `TaskFlowDocs/2026-10-18-todo-template-repair/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Backfill the missing Todo record for a task whose documents landed without one:
 
@@ -663,24 +698,6 @@ This is the repository's single lightweight intake list. It stores triage metada
 - Next: None — completed and archived.
 - Updated: 2026-09-08
 
-## Item template
-
-```markdown
-
-## T-YYYYMMDD-001 — Short title
-- Status: inbox | clarified | promoted | in_progress | done | cancelled
-- Priority: low | normal | high | urgent
-- Owner: <person or Agent>
-- Source: <user / review / issue / remote>
-- External: <issue number / URL / None>
-- Goal: <one sentence>
-- Task: <TaskFlowDocs/<task-id>/ or None>
-- Next: <single next clarification or implementation action>
-- Updated: YYYY-MM-DD
-```
-
-Every direct request or imported requireme
-
 ## Make repository-docs index the primary routing record and maintain/inject it thr
 
 - ID: TF-20260911-01
@@ -1226,8 +1243,6 @@ Every direct request or imported requireme
 - Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
 - Task: `TaskFlowDocs/achieved/2026-09-14-session-id-record/`
 - Next action: None — completed and archived.
-
-## State in the Skill that personal supplements are local-only
 
 ## Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines, 45%
 
