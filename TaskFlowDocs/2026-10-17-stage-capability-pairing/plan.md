@@ -119,11 +119,11 @@
   - [x] `bash hooks/smoke-test </dev/null` 全量；`git diff --check`；`bash hooks/release-check .`；`quick_validate.py skills/taskflow`；`bash -n`；`docker run bash:3.2` 解析。逐条见 `## Verification / Review`。
   - [x] 读 `.github/pull_request_template.md`，逐字段映射并记录模板路径与验证结果（见下表）。
   - [x] 在 `## Verification / Review` 记录每条命令与结果，含两个方向的变异验证。
-  - [ ] 推送后按 `CONTRIBUTING.md:43` 把 landing claim 写进 PR 正文（不写回本文件）。**待用户授权推送与开 PR**。
+  - [x] 推送后按 `CONTRIBUTING.md:43` 把 landing claim 写进 PR 正文（不写回本文件）。用户 2026-10-18 授权推送、开 PR 并合并；CI run 与合并方式记在 PR #84 正文，本文件不留回写。
 - Acceptance: PRD A5、A6、A7。
 - Verification: 上述命令输出逐条记录在 `## Verification / Review`。
 - Rollback: revert 承载本 Step 的 commit。
-- Status: in_progress
+- Status: done
 
 ### `.github/pull_request_template.md` 逐字段映射（模板路径 `.github/pull_request_template.md`）
 
@@ -151,7 +151,7 @@
 
 ## Verification / Review
 
-- 2026-10-18 Step 3: 全量套件 73 节 ok / ALL SMOKE PASSED；三个变异方向（A 恢复按阶段相等、B 池 pattern 置空、C 统一 Unaided 分支）各红在不同断言；git diff --check、release-check STATUS: pass、quick_validate Skill is valid!、bash -n、docker bash:3.2 解析全通过。
+- 2026-10-18 Step 3: 全量套件 73 节 `ok` / `ALL SMOKE PASSED`（exit 0）；三个变异方向（A 恢复按阶段相等、B 池 pattern 置空、C 统一 Unaided 分支）各红在**不同**断言；`git diff --check` 干净；`release-check` `STATUS: pass`；`quick_validate` `Skill is valid!`；`bash -n` 与 `docker bash:3.2` 解析通过。PR #84 以 draft 打开，CI run 39093315276 六个 job 全 pass（run 链接按 `CONTRIBUTING.md:43` 留在 PR 正文，不写回本文件）。
 
 记录格式：逐条命令与结果。区分 **既有失败** / **新引入失败** / **环境失败**。全部在 worktree `/mnt/f/WorkSpace/Agent/TaskFlow/.worktrees/2026-10-17-stage-capability-pairing`（分支 `fix/stage-capability-pairing`，起于 `447eea4`）上执行。
 
