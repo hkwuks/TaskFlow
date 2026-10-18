@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## Stop stating the Task version history twice: prd.md and plan.md each keep their
 
 - ID: TF-20261018-0f2f6a
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request
 - Added: 2026-10-18
 - Updated: 2026-10-18
 - Goal: Stop stating the Task version history twice: prd.md and plan.md each keep their own Version History, and the two hand-maintained statements drift
-- Task: `TaskFlowDocs/2026-10-18-single-history-owner/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-18-single-history-owner/`
+- Next action: None — completed and archived.
 
 ## Backfill the missing Todo record for a task whose documents landed without one:
 

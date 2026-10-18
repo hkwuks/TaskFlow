@@ -1,7 +1,7 @@
 # Plan — 让 Task 版本史只有一个归属文档
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
