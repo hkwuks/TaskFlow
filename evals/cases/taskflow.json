@@ -7,21 +7,31 @@
       "kind": "trigger",
       "prompt": "Add a retry policy to the API and write tests.",
       "expected": true,
-      "keywords": ["api", "tests"]
+      "keywords": [
+        "api",
+        "tests"
+      ]
     },
     {
       "id": "positive-release",
       "kind": "trigger",
       "prompt": "Prepare the repository for a release and update the CI configuration.",
       "expected": true,
-      "keywords": ["repository", "release", "ci"]
+      "keywords": [
+        "repository",
+        "release",
+        "ci"
+      ]
     },
     {
       "id": "positive-explicit",
       "kind": "trigger",
       "prompt": "Use $taskflow to plan this documentation change.",
       "expected": true,
-      "keywords": ["taskflow", "plan"]
+      "keywords": [
+        "taskflow",
+        "plan"
+      ]
     },
     {
       "id": "negative-explanation",
@@ -42,10 +52,71 @@
       "kind": "artifact",
       "fixture": "taskflow",
       "expectations": [
-        {"path": "TaskFlowDocs/todo.md", "contains": "Status flow"},
-        {"path": "TaskFlowDocs/todo.md", "contains": "Task:"},
-        {"path": "TaskFlowDocs/2026-01-01-example/prd.md", "contains": "Task version"},
-        {"path": "TaskFlowDocs/2026-01-01-example/plan.md", "contains": "Approval"}
+        {
+          "path": "TaskFlowDocs/todo.md",
+          "contains": "Status flow"
+        },
+        {
+          "path": "TaskFlowDocs/todo.md",
+          "contains": "Task:"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/prd.md",
+          "contains": "Task version"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/plan.md",
+          "contains": "Approval"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/prd.md",
+          "contains": "### Blocking"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/prd.md",
+          "contains": "### Non-blocking"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/spec.md",
+          "contains": "## Concepts and Terminology"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/spec.md",
+          "contains": "## User Journey"
+        },
+        {
+          "path": "TaskFlowDocs/2026-01-01-example/prd.md",
+          "contains": "## Product Decisions"
+        }
+      ]
+    },
+    {
+      "id": "positive-product-design",
+      "kind": "trigger",
+      "prompt": "Design the terminology and user journey for the session lifecycle, then implement the session switcher.",
+      "expected": true,
+      "keywords": [
+        "session",
+        "journey"
+      ]
+    },
+    {
+      "id": "positive-concept-definition",
+      "kind": "trigger",
+      "prompt": "Define the states and vocabulary for our session model before we build it.",
+      "expected": true,
+      "keywords": [
+        "states",
+        "session"
+      ]
+    },
+    {
+      "id": "negative-concept-explanation",
+      "kind": "trigger",
+      "prompt": "Explain what a state machine is in software design.",
+      "expected": false,
+      "keywords": [
+        "state machine"
       ]
     }
   ]

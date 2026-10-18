@@ -595,18 +595,26 @@ grep -q '^# Repository document routes (unclassified)$' "$multi/ambiguous-routes
 }
 echo ok
 
-echo "== SessionStart context is compact by default and verbose on request =="
+echo "== SessionStart lists every active task and flags what is unfinished =="
 compact="$tmp/context-compact"
 mkdir -p "$compact/TaskFlowDocs/2026-09-13-one" "$compact/TaskFlowDocs/2026-09-13-two"
-printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n\n## Approval\n- Status: approved\n\n### Step 1 — Work\n- Status: pending\n' > "$compact/TaskFlowDocs/2026-09-13-one/plan.md"
+printf '# Plan — One\n> Task version: v1\n> Status: in_progress\n\n## Approval\n- Status: approved\n\n### Step 1 — Work\n- Status: pending\n- Implementation checklist:\n  - [x] done\n  - [ ] open\n' > "$compact/TaskFlowDocs/2026-09-13-one/plan.md"
 printf '# Plan — Two\n> Task version: v1\n> Status: in_progress\n' > "$compact/TaskFlowDocs/2026-09-13-two/plan.md"
+printf '# Prd\n> Task version: v1\n> Status: in_progress\n\n## Open Questions\n### Blocking\n- [ ] Q1 — open question\n### Non-blocking\n' > "$compact/TaskFlowDocs/2026-09-13-one/prd.md"
 printf '# Todo inbox\n' > "$compact/TaskFlowDocs/todo.md"
+# The default lists every active task rather than reporting a bare count. A
+# count plus "set TASKFLOW_TASK_ID" is an instruction the reader cannot act on:
+# nothing said which task to pick or what those IDs were. Two lines per task is
+# cheaper than a stalled resume.
 default=$(TASKFLOW_REPO_ROOT="$compact" bash "$HERE/summarize-state")
-echo "$default" | grep -q 'Multiple active tasks' || { echo "FAIL ambiguous default context"; exit 1; }
-verbose_out=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_VERBOSE=1 bash "$HERE/summarize-state")
-echo "$verbose_out" | grep -q '2026-09-13-one' || { echo "FAIL verbose context missing task"; exit 1; }
+echo "$default" | grep -q '2026-09-13-one' || { echo "FAIL default context omits task one"; exit 1; }
+echo "$default" | grep -q '2026-09-13-two' || { echo "FAIL default context omits task two"; exit 1; }
+# Unfinished work must be visible without opening the documents.
+echo "$default" | grep -q 'BLOCKING: 1 unanswered' || { echo "FAIL unanswered Blocking question is not surfaced"; exit 1; }
+echo "$default" | grep -q 'checklist: 1 open' || { echo "FAIL open checklist item is not surfaced"; exit 1; }
 selected=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=2026-09-13-one bash "$HERE/summarize-state")
 echo "$selected" | grep -q '2026-09-13-one' || { echo "FAIL explicit task context"; exit 1; }
+echo "$selected" | grep -q '2026-09-13-two' && { echo "FAIL explicit selection should narrow the list"; exit 1; }
 invalid=$(TASKFLOW_REPO_ROOT="$compact" TASKFLOW_TASK_ID=missing bash "$HERE/summarize-state")
 echo "$invalid" | grep -q 'Requested task unavailable' || { echo "FAIL invalid task diagnostic"; exit 1; }
 echo ok
@@ -2124,6 +2132,69 @@ if bash "$HERE/task" approve 2026-09-27-conflict --root "$uc" >/dev/null 2>"$uc/
 fi
 grep -q 'is reported Unaided but was recorded as an invocation' "$uc/approve.err" \
   || { echo "FAIL approve refused for the wrong reason"; cat "$uc/approve.err"; exit 1; }
+echo "== ready waits for Blocking answers, and acts only on the current version =="
+# promote refuses the base working tree, so the task documents are created in a
+# task worktree the way the isolation fixture does it.
+gate_base="$tmp/state-gate"
+mkdir -p "$gate_base"
+(
+  cd "$gate_base" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  mkdir -p TaskFlowDocs
+  printf '# Todo\n\n## Status flow\n\ninbox -> clarified -> promoted -> in_progress -> done/cancelled\n\n## Entries\n' > TaskFlowDocs/todo.md
+  git add -A && git commit -qm base
+  git worktree add -q .worktrees/gate -b chore/gate
+) || { echo "FAIL gate fixture repository"; exit 1; }
+gate_root="$gate_base/.worktrees/gate"
+bash "$HERE/task" intake "Gate smoke goal." "local fixture" --root "$gate_root" >/dev/null
+gate_id=$(awk '/^- ID: TF-/{print $3; exit}' "$gate_root/TaskFlowDocs/todo.md")
+[ -n "$gate_id" ] || { echo "FAIL could not intake gate-check task"; exit 1; }
+bash "$HERE/task" promote "$gate_id" 2026-01-01-gate large --root "$gate_root" >/dev/null
+gate_prd="$gate_root/TaskFlowDocs/2026-01-01-gate/prd.md"
+gate_plan="$gate_root/TaskFlowDocs/2026-01-01-gate/plan.md"
+
+# ready is reachable while Blocking is empty and no approval exists yet.
+bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" >/dev/null \
+  || { echo "FAIL ready rejected with an empty Blocking section"; exit 1; }
+
+# An unanswered Blocking question contradicts the claim that the documents are complete.
+bash "$HERE/task" state 2026-01-01-gate planning --root "$gate_root" >/dev/null
+sed -i.bak 's/^### Blocking$/### Blocking\n- [ ] Q1 - an unanswered question/' "$gate_prd" 2>/dev/null \
+  || perl -0pi -e 's/^### Blocking$/### Blocking\n- [ ] Q1 - an unanswered question/m' "$gate_prd"
+rm -f "$gate_prd.bak"
+set +e
+gate_out=$(bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL ready accepted an unanswered Blocking question"; exit 1; }
+echo "$gate_out" | grep -q 'Blocking question' || { echo "FAIL Blocking diagnostic missing: $gate_out"; exit 1; }
+
+# Answering it restores the transition.
+perl -0pi -e 's/^- \[ \] Q1/- [x] Q1/m' "$gate_prd"
+bash "$HERE/task" state 2026-01-01-gate ready --root "$gate_root" >/dev/null \
+  || { echo "FAIL ready rejected after the Blocking question was answered"; exit 1; }
+
+# Approving v1, then bumping the document version, must not carry the old approval
+# into checking or completion. Rewrite the template's pending fields in place:
+# adding a second `Approved version` line would leave the template's own pending
+# value behind and test the wrong thing.
+perl -0pi -e 's/^- Status: requested$/- Status: approved/m; s/^- Approved by: pending$/- Approved by: user/m; s/^- Approved version: pending$/- Approved version: v1/m' "$gate_plan"
+bash "$HERE/task" state 2026-01-01-gate in_progress --root "$gate_root" >/dev/null \
+  || { echo "FAIL in_progress rejected an approved version"; exit 1; }
+perl -0pi -e 's/^> Task version: v1$/> Task version: v2/m' "$gate_plan"
+set +e
+gate_out=$(bash "$HERE/task" state 2026-01-01-gate checking --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL checking accepted a stale approval"; exit 1; }
+echo "$gate_out" | grep -q 'not approved' || { echo "FAIL stale-approval diagnostic missing: $gate_out"; exit 1; }
+set +e
+gate_out=$(bash "$HERE/task" complete 2026-01-01-gate --user-accepted --root "$gate_root" 2>&1)
+gate_status=$?
+set -e
+[ "$gate_status" -ne 0 ] || { echo "FAIL complete accepted a stale approval"; exit 1; }
 echo ok
 
 echo "== repository-check is read-only and reports actionable status =="

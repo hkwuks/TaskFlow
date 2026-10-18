@@ -55,13 +55,87 @@ TaskFlowDocs/
 
 ## Goal
 ## Background / Confirmed Facts
+## Product Decisions
 ## Requirements
 ## Acceptance Criteria
 ## In Scope
 ## Out of Scope
 ## Risks / Deferred Items
 ## Open Questions
+### Blocking
+### Non-blocking
 ## Version History
+```
+
+`## Product Decisions` exists because a product question has no reasonable
+default. A technical question does: use ES modules or CommonJS, store the score
+or recompute it — either answer keeps the work moving. A product question asks
+what the thing should be like for whoever uses it, and the Agent cannot answer
+it. Choosing one silently is worse than guessing, because the choice then
+survives into the artifact as a fact the user never made.
+
+Record each fork as options and a decision, and attribute the decision:
+
+```markdown
+## Product Decisions
+| # | Decision | Options | Choice | Decided by |
+|---|---|---|---|---|
+| D1 | Target platform | web page / desktop / both | web page | user |
+| D2 | Speed feel | fixed / accelerating / selectable | selectable | user |
+| D3 | Visual style | dark / pixel / minimal | dark | agent, pending user confirmation |
+```
+
+Rules for this section:
+
+- **Offer options, do not open-endedly ask.** Give two to four concrete choices
+  with their consequence. "What style do you want?" makes the user do the design
+  work; "A dark theme, B pixel, or C minimal?" asks for a decision.
+- **`user` means the user actually chose.** Recording `user` without asking is
+  the failure this section exists to prevent.
+- **`agent` requires a stated reason and stays pending.** A default chosen to
+  keep work moving is fine; presenting it as settled is not.
+- **Only mark `agent` with a reason when the choice is reversible.** A
+  reversible technical default is not a product decision, so it belongs under
+  `### Non-blocking` with its assumption instead.
+- **A product question does not belong under `### Non-blocking`.** Speed that
+  rises with the score is a preference, not an assumption. Putting it there
+  hides a decision inside a technical default.
+
+When a task changes what the product *is* rather than how it is built — target
+platform, interaction model, naming, visual identity, default behavior a user
+would notice — this section is where those forks live. Record the option set even
+when the user has already chosen, because the rejected options are what a later
+reader needs to see were considered.
+
+An open question is **blocking** when two answers would produce different work:
+different requirements, a different scope, a different contract, or a different
+validation. Everything else is **non-blocking** and moves forward with its
+assumption written down.
+
+Classifying by consequence rather than by importance is deliberate: an important
+question is often non-blocking, and a small-sounding one can invalidate the whole
+design. When an answer would change what is built, it blocks regardless of how
+easy it seems.
+
+A blocking question answers one of:
+
+- Which concept is being used, when two readings give different behavior
+- Which of two valid states the actor starts in
+- What the boundary is, when the scope depends on it
+- Which requirement wins, when two requirements conflict
+
+Record the assumed answer and where it is verified when a question is
+non-blocking. A non-blocking question without a recorded assumption is an
+unanswered blocking question with extra steps.
+
+```markdown
+## Open Questions
+### Blocking
+- [ ] Q1 — Is "current session" a property of the Session, or the sidebar's
+      selected row? The two give different behavior when a session is removed.
+### Non-blocking
+- [Q2] Does title generation use a small model? Assumption: yes, derived from
+      the first message; verified in Step 3.
 ```
 
 ## Spec outline for large tasks
@@ -71,6 +145,9 @@ TaskFlowDocs/
 > Task version: v1
 
 ## Objective and Success Criteria
+## Concepts and Terminology
+## User Journey
+## Interaction and Interface
 ## Architecture Boundaries and Responsibilities
 ## Project Structure / Affected Files
 ## Interfaces, Data Flow, and Contracts
@@ -80,6 +157,86 @@ TaskFlowDocs/
 ## Design Decisions and Alternatives
 ## Open Questions
 ```
+
+### Concepts and Terminology
+
+Name what exists before describing what it does. An implementation cannot be
+correct against a term nobody defined.
+
+- One entry per noun the task introduces or reuses. Give each exactly one
+  definition, then use that word unchanged in every later section, code
+  comment, and UI string for this task.
+- State what the concept is *not*, when a neighboring concept would fit. A
+  definition that only says what it includes leaves room for a second word to
+  claim the same meaning.
+- Mark provenance: `existing` (the codebase already uses this word) or
+  `introduced` (this task adds it). `introduced` terms must be adopted verbatim
+  in code and UI; do not paraphrase them per screen or per language.
+- **Record rejected vocabulary explicitly.** When a plausible term was
+  considered and deliberately not adopted, list it under `Rejected` with the
+  reason. This is not padding: an unmentioned word is treated as undefined
+  rather than forbidden, and is the main source of invented synonymous concepts.
+- Mixed-language products pick one term per concept here and forbid the
+  alternates. Write down which forms are allowed, because per-surface translation
+  is how one concept ends up with two names.
+
+```markdown
+## Concepts and Terminology
+- Session — one continuous conversation between a user and the Agent. `existing`
+- active session — the Session currently accepting input. A property of the
+  Session, not the sidebar's selected row. `introduced`
+- Archive — `rejected`: the product has no such state. Removing a Session is
+  `delete`; no reversible hiding state exists in this version.
+
+### User Journey
+
+Model the path the actor takes before modelling the code that runs beside it.
+Every transition that can strand a user in an inconsistent state belongs here.
+
+- List the states an actor can observe, then the transitions between them. Mark
+  each transition with its trigger and its guard — the condition that must hold
+  for the transition to be legal.
+- Name the initial and terminal state. A state an actor can reach but cannot
+  leave is a defect, and so is a transition with no reachable trigger.
+- Include the recovery path for each blocking or error state. A journey that
+  only covers the happy path does not describe the product.
+- When an actor has multiple roles or the actor is not always the user, say so
+  and give each role its own journey or state subset.
+- Where a state lives in the persisted data, name that field. A visible state
+  that no field can represent will be re-invented in code per screen.
+
+### Interaction and Interface
+
+Required when the task has a surface a person looks at: a screen, a command, a
+message, a document layout. It fixes what they see before code fixes what
+functions do.
+
+Cover, in this order:
+
+- **Layout.** The regions and their order. A plain-text diagram is enough, and
+  it must show real proportions rather than a decorative box.
+- **Each observable state of the surface**, drawn separately. If a banner says
+  one thing while idle and something else while running, that is two surfaces,
+  not one with a footnote.
+- **Input.** Every key, control, or gesture, and what each one does when it is
+  not applicable.
+- **Feedback.** What changes visibly in response, and how long it stays.
+
+Two rules that decide whether the diagram is worth writing:
+
+- **Draw it at the real size.** A 20-column grid drawn as 12 cells is a wrong
+  specification, not a rough sketch. Check the rows line up.
+- **A diagram is specification.** It fixes decisions that otherwise surface after
+  implementation: whether an element is removed or padded when its state
+  changes, whether a board freezes or clears on game over, whether a view opens
+  still or already active. Anything the picture settles must not be re-decided
+  in code.
+
+When the surface is a CLI or a notification, "diagram" means the output shape:
+the columns, the order of lines, and what appears per state.
+
+Skip the section only when the task produces no surface — a library, a data
+transform, a migration. Then say so in `plan.md`.
 
 ## Plan outline
 

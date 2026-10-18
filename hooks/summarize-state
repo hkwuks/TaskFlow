@@ -138,8 +138,15 @@ fi
 echo "# Active tasks"
 
 # One line per selected task: id, version, status, title, approval, next Step.
-summarize_plan() {  # summarize_plan <task-name> <plan-path>
-  awk -v dirname="$1" '
+summarize_plan() {  # summarize_plan <task-name> <plan-path> [prd-path]
+  # The PRD is read separately for unanswered Blocking questions: they are the
+  # one piece of state that can invalidate the whole Plan, and leaving them out of
+  # the summary meant a resumed session could carry on into work it should not.
+  blocking=0
+  if [ -n "${3:-}" ] && [ -f "$3" ]; then
+    blocking="$(awk '/^### Blocking$/{inb=1; next} inb && /^#{1,6} /{exit} inb && /^- \[ \]/{c++} END{print c+0}' "$3")"
+  fi
+  awk -v dirname="$1" -v blocking="$blocking" '
     function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
     function rtrim(s) { sub(/[[:space:]]+$/, "", s); return s }
     function trim(s) { return rtrim(ltrim(s)) }
@@ -202,6 +209,25 @@ summarize_plan() {  # summarize_plan <task-name> <plan-path>
       }
       suffix = " | approval: " approval
       if (ns != "") suffix = suffix " | next: " ns
+      # Count what the next Step still owes, so the summary says "2 open" rather
+      # than leaving the reader to open the Plan and count. Checklist items are
+      # indented under `- Implementation checklist:`, so match on the marker
+      # anywhere in the line rather than at column 0.
+      if (match(ns, /^Step [0-9]+/)) {
+        snum = ns; sub(/^Step /, "", snum); sub(/ .*/, "", snum)
+        pending_items = 0; found = 0
+        for (i = 1; i <= n; i++) {
+          if (at(line[i], "### Step " snum " ")) { found = i; break }
+        }
+        if (found > 0) {
+          for (j = found + 1; j <= n; j++) {
+            if (at(line[j], "### Step ") || at(line[j], "## ")) break
+            if (index(line[j], "- [ ]") > 0) pending_items++
+          }
+        }
+        if (pending_items > 0) suffix = suffix " | checklist: " pending_items " open"
+      }
+      if (blocking + 0 > 0) suffix = suffix " | BLOCKING: " blocking " unanswered"
       printf "- %s | %s | %s \xe2\x80\x94 %s%s\n", dirname, version, status, title, suffix
     }
   ' "$2"
@@ -211,18 +237,19 @@ if [ -n "$task_id" ]; then
   found=0
   for name in "${active[@]}"; do
     [ "$name" = "$task_id" ] || continue
-    summarize_plan "$name" "$docs/$name/plan.md"
+    summarize_plan "$name" "$docs/$name/plan.md" "$docs/$name/prd.md"
     found=1
   done
   [ "$found" = "1" ] || echo "- Requested task unavailable: $task_id"
 elif [ "${#active[@]}" -eq 1 ]; then
-  summarize_plan "${active[0]}" "$docs/${active[0]}/plan.md"
+  summarize_plan "${active[0]}" "$docs/${active[0]}/plan.md" "$docs/${active[0]}/prd.md"
 elif [ "${#active[@]}" -gt 1 ]; then
-  if [ "$verbose" = "1" ]; then
-    for name in "${active[@]}"; do summarize_plan "$name" "$docs/$name/plan.md"; done
-  else
-    echo "- Multiple active tasks (${#active[@]}); set TASKFLOW_TASK_ID to select one."
-  fi
+  # List every active task by default. The previous behaviour reported only a
+  # count and told the reader to set TASKFLOW_TASK_ID, which is an instruction
+  # they cannot act on: nothing in the summary said which task to pick or what
+  # those IDs were. Listing them all is a few more lines and needs no decision.
+  for name in "${active[@]}"; do summarize_plan "$name" "$docs/$name/plan.md" "$docs/$name/prd.md"; done
+  echo "- Set TASKFLOW_TASK_ID to narrow this to one task."
 fi
 
 # Last, so it reads as a classification of what is above rather than a preamble
