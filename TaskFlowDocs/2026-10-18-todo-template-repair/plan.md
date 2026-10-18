@@ -92,12 +92,15 @@ No spec required — small, self-contained task.
 
 | 检查 | 命令 | 结果 |
 | --- | --- | --- |
-| smoke 全套 | `bash hooks/smoke-test < /dev/null` | `ALL SMOKE PASSED`，73 个 `ok`（基线 72 + 新增 1 节），exit 0 |
+| **CI（权威）** | `Hooks` workflow，run [39136903763](https://github.com/hkwuks/TaskFlow/actions/runs/39136903763) @ `1ead9f4` | `success`，六个作业全绿（`evals`、`release`、`smoke` × ubuntu/macos/windows、`todo-merge-audit`） |
+| smoke 全套（本地） | `bash hooks/smoke-test < /dev/null` | `ALL SMOKE PASSED`，73 个 `ok`（基线 72 + 新增 1 节），exit 0 |
 | 条目丢失审计 | `bash hooks/todo-check .` | `STATUS: pass` |
 | 仓库检查 | `bash hooks/repository-check .` | `Orphan task directories: none` |
 | 空白/尾随 | `git diff --check` | clean |
 | shell 解析 | `bash -n hooks/smoke-test` | OK |
 | bash 3.2 解析 | `docker run --rm -i bash:3.2 bash -n < hooks/smoke-test` | `3.2 OK` |
+
+本地跑 smoke 的用途按 `CONTRIBUTING.md` 的 Checks 一节核对过：本次改动落在 CI 覆盖的面上，所以 CI 是权威判据；本地那一轮是为了在推送前拿到变异验证的红/绿，不是替代 CI。
 
 ### 四条损伤的处置
 
