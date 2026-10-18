@@ -1,7 +1,7 @@
 # Plan — Pair a release to the capability its phase reported, not to whatever record queue position handed it
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 

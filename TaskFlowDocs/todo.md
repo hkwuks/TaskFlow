@@ -13,15 +13,15 @@ This is the repository's single lightweight intake list. It stores triage metada
 ## The stage ledger pairs each release to a capability record by queue position rat
 
 - ID: TF-20261012-c79e31
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: user report 2026-10-12: the approval roundabout, where the bullets had to be reordered into the shape the gate wanted
 - Added: 2026-10-12
 - Updated: 2026-10-18
 - Goal: The stage ledger pairs each release to a capability record by queue position rather than by stage, so which capability a phase is credited with depends on the order its document happened to be written, and hooks/task approve then requires the Skills / Tools Used bullet to name that exact capability: a phase that really invokes several capabilities overflows into the next phase, writing plan.md first credits the Plan stage with the PRD stage call, and an honest Skills / Tools Used section is refused while a reordered one passes, so the section becomes a value back-filled to satisfy the gate rather than a report of what happened
-- Task: `TaskFlowDocs/2026-10-17-stage-capability-pairing/`
-- Next action: Push fix/stage-capability-pairing and open the PR as a draft; the PR body carries the CI run.
+- Task: `TaskFlowDocs/achieved/2026-10-17-stage-capability-pairing/`
+- Next action: None — completed and archived.
 - Notes: 2026-10-12 用户报告：approve 过程绕，原因是「门要求 bullet 里的能力名等于它那条记录的」，用户把顶部 v14 的三条调成门要的形状才过，并在文件里写明「记录按位点配对，类名不等于该阶段的语义分类」。
 
 **机制：配对靠队列位点，不靠阶段。** `hooks/capability-gate:144-155` 释放一个阶段时取的是 `awk -v n="$next" "NR == n"`——即 evidence 的**第 next 行**，`next = consumed + 1`；它不问这条属于哪个阶段。所以**哪个阶段拿到哪条记录，取决于文档被写的先后**。本次在临时 fixture 里复现（已删）：按 `ctx_search, ctx_execute, ctx_execute` 记录三条调用，再按 **Plan → PRD → Spec** 的顺序写文档，`released` 得到 `v1|Plan|1|invoke|ctx_search` / `v1|PRD|2|invoke|ctx_execute` / `v1|Spec|3|invoke|ctx_execute`。写 `plan.md` 在前（这在真实会话里是常态，因为 Plan 是当前正在推进的阶段），Plan 就必然被记成 PRD 那次调用的能力。
