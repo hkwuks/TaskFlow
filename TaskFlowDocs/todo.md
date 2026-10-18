@@ -10,6 +10,20 @@ This is the repository's single lightweight intake list. It stores triage metada
 
 <!-- Add new items at the top using the template below. -->
 
+## Backfill the missing Todo record for a task whose documents landed without one:
+
+- ID: TF-20261018-bfc718
+- Status: done
+- Priority: normal
+- Owner: Claude
+- Source: user decision 2026-10-18: option A — restore the record rather than delete the documents
+- Added: 2026-10-18
+- Updated: 2026-10-18
+- Goal: Backfill the missing Todo record for a task whose documents landed without one: TaskFlowDocs/achieved/2026-09-10-repository-document-placement entered the repository inside a release commit (660679a, release 1.0.2) instead of through a task branch, so it never had a Todo entry; the orphan-task-directory check added later by 2026-09-23-orphan-task-dirs has flagged it ever since. The directory and its documents are kept exactly as they are. Only the missing record is restored, so the check reports green again and its green carries information.
+- Task: `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`
+- Next action: None — record restored; the task itself was completed in 2026-09-10 and its documents are unchanged.
+- Notes: 用户 2026-10-18 选定 A 方案：补记录，不删文档。这次只动 `todo.md`——`TaskFlowDocs/achieved/2026-09-10-repository-document-placement/` 三个文件一字未改。该目录由 `660679a`（release 1.0.2）带入仓库，从未有过对应的 `- Task:` 行；`new_orphan` 检查（`2026-09-23-orphan-task-dirs`）上线后它一直是唯一命中项，使 `hooks/repository-check` 常驻 `STATUS: needs-user-input`（exit 2）。补记录后该检查转绿，其绿重新具有信息量。复核方式：`bash hooks/repository-check .`。
+
 ## Removing a task worktree is nobody's job: nothing in the lifecycle tells the Age
 
 - ID: TF-20261018-66f814
