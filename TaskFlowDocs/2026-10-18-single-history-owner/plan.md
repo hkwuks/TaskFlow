@@ -88,12 +88,15 @@ No spec required — small, self-contained task.
 
 | 检查 | 命令 | 结果 |
 | --- | --- | --- |
-| smoke 全套 | `bash hooks/smoke-test < /dev/null` | `ALL SMOKE PASSED`，72 个 `ok`，exit 0 |
+| **CI（权威）** | `Hooks` workflow，run [39136656335](https://github.com/hkwuks/TaskFlow/actions/runs/39136656335) @ `23e4a89` | `success`，六个作业全绿（`evals`、`release`、`smoke` × ubuntu/macos/windows、`todo-merge-audit`） |
+| smoke 全套（本地） | `bash hooks/smoke-test < /dev/null` | `ALL SMOKE PASSED`，72 个 `ok`，exit 0 |
 | 空白/尾随 | `git diff --check` | clean |
 | shell 解析 | `bash -n hooks/task hooks/smoke-test` | 两者 OK |
 | bash 3.2 解析 | `docker run --rm -i bash:3.2 bash -n < <file>` | 两者 `3.2 OK` |
 | Skill 包校验 | `python3 …/quick_validate.py skills/taskflow` | `Skill is valid!` |
 | 仓库检查 | `bash hooks/repository-check .` | `Orphan task directories: none`；`needs-user-input` 仅因本任务目录未提交（预期） |
+
+本地跑 smoke 的用途按 `CONTRIBUTING.md` 的 Checks 一节核对过：本次改动落在 CI 覆盖的面上，所以 CI 是权威判据；本地那一轮是为了在推送前拿到变异验证的红/绿，不是替代 CI。
 
 ### 骨架实测
 
