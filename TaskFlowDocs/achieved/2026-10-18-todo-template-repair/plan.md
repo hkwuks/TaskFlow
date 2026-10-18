@@ -1,7 +1,7 @@
 # Plan — 修复 todo.md 的模板块与残留标题
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 

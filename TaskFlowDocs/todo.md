@@ -35,15 +35,15 @@ has an issue number or URL.
 ## Repair the todo.md template block and the leftover headings: the Item template s
 
 - ID: TF-20261018-3f6686
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request
 - Added: 2026-10-18
 - Updated: 2026-10-18
 - Goal: Repair the todo.md template block and the leftover headings: the Item template sits between entries with a truncated sentence, and its field names no longer match what intake writes
-- Task: `TaskFlowDocs/2026-10-18-todo-template-repair/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-10-18-todo-template-repair/`
+- Next action: None — completed and archived.
 
 ## Backfill the missing Todo record for a task whose documents landed without one:
 
