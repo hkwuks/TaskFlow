@@ -1,7 +1,7 @@
 # Plan — Task worktree teardown
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 Small task, no spec.
 
