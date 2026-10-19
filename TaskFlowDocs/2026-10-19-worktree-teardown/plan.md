@@ -94,11 +94,13 @@ The smoke suite is run locally here because the change is exactly a surface it e
 
 ### CI, and the macOS failure it caught
 
-Run [`39259125010`](https://github.com/hkwuks/TaskFlow/actions/runs/39259125010) on `0e7eb86`, the first push: `evals`, `release`, `todo-merge-audit`, `smoke (ubuntu-latest)` and `smoke (windows-latest)` passed, and **`smoke (macos-latest)` failed** at `FAIL merged worktree not named with its branch`.
+Run [`39259125010`](https://github.com/hkwuks/TaskFlow/actions/runs/39259125010) on `0e7eb86`, the first push: `evals`, `release`, `todo-merge-audit`, `smoke (ubuntu-latest)` and `smoke (windows-latest)` passed, and **`smoke (macos-latest)` failed** at `FAIL merged worktree not named with its branch`. Run [`39259315368`](https://github.com/hkwuks/TaskFlow/actions/runs/39259315368) on `5bfa4c0` repeated it, unchanged.
 
 The cause is a host difference no local run on Linux could show. macOS sets `$TMPDIR` to `/var/folders/…`, and `/var` is a symlink to `/private/var`; `git worktree list --porcelain` reports **resolved** paths, so the fixture registered `/private/var/…/repository-check-worktrees/.worktrees/merged` while the assertion looked for `/var/…/…`. The fixture root is now put through `pwd -P` before any path is compared. That is an identity transform on Linux and Windows, and it is the same class of defect as `taskflow`'s earlier `--git-dir` drive-letter bug: a path that the tool and the test spell differently.
 
 Verified by reproducing it on Linux with a symlinked root: a fixture built through `/tmp/wtlink -> /tmp/wtreal` is registered by Git as `/tmp/wtreal/…`, and only the `pwd -P` form matches. Note that the full suite already fails from a symlinked root for an **unrelated, pre-existing** reason (`the denial does not name the store holding them`), confirmed against the tree at `HEAD` before this branch — so the reproduction for this fix is the section, not the whole suite.
+
+**Verdict: run [`39260080438`](https://github.com/hkwuks/TaskFlow/actions/runs/39260080438) on `ed609fb` — `success`, all six jobs green:** `evals`, `release`, `todo-merge-audit`, and `smoke` on `ubuntu-latest`, `macos-latest`, and `windows-latest`. The macOS job is the one that had failed, so it is also the one that confirms the fix.
 
 Mutation-checked on a copy of the tree under `/tmp`; the real worktree was never mutated, and each mutation was restored from a backup taken immediately before it.
 
