@@ -92,6 +92,14 @@ Local checks, run in this worktree on 2026-10-19 before the commit.
 
 The smoke suite is run locally here because the change is exactly a surface it exercises; `CONTRIBUTING.md` sanctions the local run for the pre-push, and CI is still the authority — its verdict is recorded below, not inferred.
 
+### CI, and the macOS failure it caught
+
+Run [`39259125010`](https://github.com/hkwuks/TaskFlow/actions/runs/39259125010) on `0e7eb86`, the first push: `evals`, `release`, `todo-merge-audit`, `smoke (ubuntu-latest)` and `smoke (windows-latest)` passed, and **`smoke (macos-latest)` failed** at `FAIL merged worktree not named with its branch`.
+
+The cause is a host difference no local run on Linux could show. macOS sets `$TMPDIR` to `/var/folders/…`, and `/var` is a symlink to `/private/var`; `git worktree list --porcelain` reports **resolved** paths, so the fixture registered `/private/var/…/repository-check-worktrees/.worktrees/merged` while the assertion looked for `/var/…/…`. The fixture root is now put through `pwd -P` before any path is compared. That is an identity transform on Linux and Windows, and it is the same class of defect as `taskflow`'s earlier `--git-dir` drive-letter bug: a path that the tool and the test spell differently.
+
+Verified by reproducing it on Linux with a symlinked root: a fixture built through `/tmp/wtlink -> /tmp/wtreal` is registered by Git as `/tmp/wtreal/…`, and only the `pwd -P` form matches. Note that the full suite already fails from a symlinked root for an **unrelated, pre-existing** reason (`the denial does not name the store holding them`), confirmed against the tree at `HEAD` before this branch — so the reproduction for this fix is the section, not the whole suite.
+
 Mutation-checked on a copy of the tree under `/tmp`; the real worktree was never mutated, and each mutation was restored from a backup taken immediately before it.
 
 | # | Mutation | Red at |

@@ -2392,6 +2392,11 @@ echo "== repository-check reports merged, clean task worktrees without changing 
 # keep meaning "something is wrong", not "something is untidy".
 wt_root="$tmp/repository-check-worktrees"
 mkdir -p "$wt_root/TaskFlowDocs/repository-docs"
+# `git worktree list` resolves the paths it reports, and on macOS `$TMPDIR` is
+# `/var/folders/…` while Git answers `/private/var/folders/…`. Every assertion
+# below compares a reported path, so the fixture's own root has to be the
+# resolved form or all of them miss on that host and only on that host.
+wt_root="$(cd "$wt_root" && pwd -P)"
 git -C "$wt_root" init -q
 git -C "$wt_root" config user.email smoke@example.invalid
 git -C "$wt_root" config user.name smoke
