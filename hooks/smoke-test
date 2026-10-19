@@ -657,6 +657,75 @@ grep -qi 'current branch' "$arch_out" \
   || { echo "FAIL archive did not state the current-branch rule"; cat "$arch_out"; exit 1; }
 grep -qi 'do not switch' "$arch_out" \
   || { echo "FAIL archive did not forbid switching branches for the commit"; cat "$arch_out"; exit 1; }
+# The base checkout has no worktree to tear down, so it prints none of that. This
+# is the byte-identical clause: a repository that never made a worktree must see
+# exactly what it saw before, and the condition is `commondir` in the absolute
+# git dir rather than a path that happens to contain `.worktrees`.
+grep -qi 'worktree remove' "$arch_out" \
+  && { echo "FAIL archive told a base checkout to remove a worktree"; cat "$arch_out"; exit 1; }
+echo ok
+
+echo "== archive names the worktree teardown only from a linked worktree =="
+# The teardown cannot be acted on when it is printed — `complete` runs before the
+# push and the merge — so the instruction carries its own condition and the
+# branch name, and it is printed only where there is a directory to remove.
+# Measured 2026-10-19: nine merged worktrees had accumulated because nothing said
+# this anywhere and nothing ever looked again.
+tear="$tmp/archive-teardown"
+mkdir -p "$tear/TaskFlowDocs/2026-09-08-tear" "$tear/TaskFlowDocs/achieved"
+cat > "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" <<'EOF'
+# Tear
+> Task version: v1
+> Status: completed
+EOF
+cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear/plan.md"
+cat > "$tear/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+## Tear
+- ID: T-20260908-tear
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-tear/`
+EOF
+(
+  cd "$tear" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  git add -A && git commit -qm base
+  git worktree add -q .worktrees/tear-task -b chore/tear-task
+) || { echo "FAIL teardown fixture worktree"; exit 1; }
+tear_out="$tmp/archive-teardown-out"
+bash "$HERE/archive" 2026-09-08-tear "$tear/.worktrees/tear-task" > "$tear_out" 2>&1 \
+  || { echo "FAIL archive in a linked worktree:"; cat "$tear_out"; exit 1; }
+grep -q "git worktree remove '$tear/.worktrees/tear-task'" "$tear_out" \
+  || { echo "FAIL archive did not name the worktree to remove"; cat "$tear_out"; exit 1; }
+grep -q 'chore/tear-task' "$tear_out" \
+  || { echo "FAIL teardown instruction did not name the branch that gates it"; cat "$tear_out"; exit 1; }
+grep -qi 'merged into the base' "$tear_out" \
+  || { echo "FAIL teardown instruction did not state its condition"; cat "$tear_out"; exit 1; }
+grep -qi 'branch survives' "$tear_out" \
+  || { echo "FAIL teardown did not say the branch outlives the directory"; cat "$tear_out"; exit 1; }
+# The same repository's main working tree is not a task tree, so archiving from
+# there prints none of it. This fixture is a real Git repository on purpose: the
+# plain archive fixture above is a bare directory, where the git-dir lookup
+# fails for a different reason and a mutation that dropped the linked-worktree
+# test would still pass.
+mkdir -p "$tear/TaskFlowDocs/2026-09-08-tear-base"
+# The first archive ran inside the linked worktree, so the original pair is
+# still active in the main working tree — that is where the documents come from.
+cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear-base/prd.md"
+cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear-base/plan.md"
+cat >> "$tear/TaskFlowDocs/todo.md" <<'EOF'
+## Tear base
+- ID: T-20260908-tearb
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-tear-base/`
+EOF
+tear_base_out="$tmp/archive-teardown-base-out"
+bash "$HERE/archive" 2026-09-08-tear-base "$tear" > "$tear_base_out" 2>&1 \
+  || { echo "FAIL archive from the main working tree:"; cat "$tear_base_out"; exit 1; }
+grep -qi 'worktree remove' "$tear_base_out" \
+  && { echo "FAIL archive told a main working tree to remove itself"; cat "$tear_base_out"; exit 1; }
 echo ok
 
 echo "== archive todo rewrite only touches Status/Task/Next action =="
@@ -2313,6 +2382,105 @@ set -e
 [ "$orphan_status" -eq 0 ] || { echo "FAIL clean-orphan fixture not pass: $orphan_status"; printf '%s\n' "$orphan_out"; exit 1; }
 echo "$orphan_out" | grep -q 'Orphan task directories: none' \
   || { echo "FAIL empty orphan set should report none"; printf '%s\n' "$orphan_out"; exit 1; }
+echo ok
+
+echo "== repository-check reports merged, clean task worktrees without changing its verdict =="
+# A worktree whose branch is already in the base and which has nothing
+# uncommitted has nothing left to protect. Nothing used to look for those, so
+# they accumulated: nine on one machine by 2026-10-18. The finding is
+# housekeeping, so it must not touch the exit code — `needs-user-input` has to
+# keep meaning "something is wrong", not "something is untidy".
+wt_root="$tmp/repository-check-worktrees"
+mkdir -p "$wt_root/TaskFlowDocs/repository-docs"
+# `git worktree list` resolves the paths it reports, and on macOS `$TMPDIR` is
+# `/var/folders/…` while Git answers `/private/var/folders/…`. Every assertion
+# below compares a reported path, so the fixture's own root has to be the
+# resolved form or all of them miss on that host and only on that host.
+wt_root="$(cd "$wt_root" && pwd -P)"
+git -C "$wt_root" init -q
+git -C "$wt_root" config user.email smoke@example.invalid
+git -C "$wt_root" config user.name smoke
+printf '# Catalog\n' > "$wt_root/TaskFlowDocs/repository-docs/index.md"
+printf '# Todo\n' > "$wt_root/TaskFlowDocs/todo.md"
+printf 'CONTRIBUTING\n' > "$wt_root/CONTRIBUTING.md"
+printf 'CODE_STYLE\n' > "$wt_root/CODE_STYLE.md"
+printf 'ROADMAP\n' > "$wt_root/ROADMAP.md"
+git -C "$wt_root" add -A && git -C "$wt_root" commit -qm base
+git -C "$wt_root" remote add origin "$wt_root"
+git -C "$wt_root" update-ref refs/remotes/origin/main HEAD
+git -C "$wt_root" branch -q -u origin/main
+wt_out="$tmp/repository-check-worktrees-out"
+# Everything clean → nothing to report, and the check stays green.
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+[ "$rc" -eq 0 ] || { echo "FAIL plain repository with no worktrees: $rc"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q 'Stale task worktrees: none' \
+  || { echo "FAIL a repository with no worktrees should report none"; printf '%s\n' "$out"; exit 1; }
+# One merged-and-clean task tree, one with an unmerged commit, one merged but
+# dirty. Only the first is removable, so only the first may be named.
+(
+  cd "$wt_root" || exit 1
+  git worktree add -q .worktrees/merged -b chore/merged
+  git worktree add -q .worktrees/ahead -b chore/ahead
+  git worktree add -q .worktrees/dirty -b chore/dirty
+  cd .worktrees/ahead || exit 1
+  printf 'ahead\n' > ahead.txt && git add -A && git commit -qm ahead
+  cd ../../.worktrees/dirty || exit 1
+  printf 'scratch\n' > scratch.txt
+) || { echo "FAIL worktree fixture setup"; exit 1; }
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+[ "$rc" -eq 0 ] || { echo "FAIL stale worktree changed the verdict: $rc"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q "^Stale task worktrees:" \
+  || { echo "FAIL the merged worktree was not reported"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/merged \[chore/merged\]" \
+  || { echo "FAIL merged worktree not named with its branch"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/ahead" \
+  && { echo "FAIL an unmerged branch was reported for removal"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/dirty" \
+  && { echo "FAIL a worktree with untracked work was reported for removal"; printf '%s\n' "$out"; exit 1; }
+# Merging the ahead branch clears that silence, and so does cleaning the third.
+# The base is the upstream ref, so the fixture moves it too — a real merge lands
+# on the remote, and a check that compared against a stale ref would never see
+# anything as merged.
+(
+  cd "$wt_root" || exit 1
+  git merge -q --no-ff -m merge chore/ahead
+  git update-ref refs/remotes/origin/main HEAD
+) || { echo "FAIL fixture merge"; exit 1; }
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/ahead" \
+  || { echo "FAIL a now-merged branch was still skipped"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/dirty" \
+  && { echo "FAIL a dirty worktree survived the merge in the report"; printf '%s\n' "$out"; exit 1; }
+# Run from inside one of them: the tree the check is run from is never named,
+# because removing it would delete the caller's own directory — while a sibling
+# that is merged and clean still is. Both halves matter: the exclusion alone
+# would also pass if the whole section went blind when run from a task worktree,
+# which is exactly where it is most useful, because there `@{upstream}` answers
+# for the task branch rather than for the base. The report line is anchored at
+# `- ` so the instruction text cannot make a silence assertion pass by accident.
+set +e
+out=$(cd "$wt_root/.worktrees/merged" && bash "$HERE/repository-check" "$wt_root/.worktrees/merged" 2>&1); rc=$?
+set -e
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/merged " \
+  && { echo "FAIL the current worktree was reported for removal"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/ahead " \
+  || { echo "FAIL the section went blind when run from a task worktree"; printf '%s\n' "$out"; exit 1; }
+# Detached worktrees have no branch to compare, so they are never reported.
+(
+  cd "$wt_root" || exit 1
+  git worktree add -q --detach .worktrees/detached
+) || { echo "FAIL detached fixture"; exit 1; }
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/detached" \
+  && { echo "FAIL a detached worktree was reported"; printf '%s\n' "$out"; exit 1; }
 echo ok
 
 echo "== todo merge driver keeps both branches' entries =="

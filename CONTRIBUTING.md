@@ -29,6 +29,7 @@ cd .worktrees/<slug>
 - `hooks/task promote` refuses to run outside a task working tree, and `hooks/task intake` warns when it has written `todo.md` in a shared one.
 - Confirm where you are before editing. `git branch --show-current` shows the branch; `bash hooks/repository-check .` reports the local branch and warns with `Base: ambiguous` when no upstream is set.
 - If a local `bash hooks/smoke-test` is warranted, run it in the worktree whose files changed, not in another checkout — the suite reads the tree it is run from.
+- **The working tree goes when the branch lands.** Removal waits for two checkable facts — the branch is merged into the base, and `git status --porcelain` in the tree is empty — because `hooks/task complete` runs before the push and the merge, so the teardown is the step after them rather than part of `complete`. Remove it from the base checkout with `git worktree remove <path>`; the branch survives, since removing a directory and deleting a branch are separate decisions. Nothing reports a leftover one by default — `.worktrees/` is ignored — so `bash hooks/repository-check .` names every worktree whose branch is already in the base and whose tree is clean. That report is informational and does not change the check's exit code.
 
 `skills/taskflow/SKILL.md` states the same rule where the phases are defined.
 
