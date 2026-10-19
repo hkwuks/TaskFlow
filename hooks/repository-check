@@ -119,6 +119,79 @@ else
   echo "  Restore or recreate the Todo entry, or archive/remove the directory deliberately."
 fi
 
+# A linked worktree whose branch is already in the base, and whose tree is
+# clean, has nothing left to protect: the branch holds every commit it had, and
+# nothing is uncommitted in the directory. `archive` states the teardown as the
+# step after the merge, and this is what notices when that step was skipped —
+# `complete` runs before the push, so the instruction cannot be acted on when it
+# is printed and nothing else ever looks again.
+#
+# Never sets `needs`. The check's exit code is a workflow verdict, and a
+# leftover directory is housekeeping: folding it in would make `STATUS:
+# needs-user-input` mean both "something is wrong" and "something is untidy",
+# and the light that is always on tells you nothing. Report only, never remove.
+#
+# Under-reports on purpose. Only ancestry is tested, so a squash- or
+# rebase-merged branch reads as unmerged — a false negative, which is the safe
+# direction: a false positive would invite deleting a directory that still holds
+# the only copy of a commit. A repository with no upstream has no base to compare
+# against and says so instead of guessing.
+#
+# The base is the main working tree's upstream, not this checkout's. Asked of
+# whatever tree the check runs from, a task worktree's branch would have no
+# upstream at all and the section would go blind exactly where it is useful.
+worktrees="$(git worktree list --porcelain 2>/dev/null || true)"
+main_wt="$(printf '%s\n' "$worktrees" | sed -n 's/^worktree //p' | head -1)"
+here="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+base_ref=""
+[ -z "$main_wt" ] || base_ref="$(git -C "$main_wt" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
+stale=""
+if [ -n "$base_ref" ]; then
+  # One record per worktree, as `<field> <value>` lines terminated by a blank
+  # line. Every value is collected into variables first and judged afterwards:
+  # `first` has to survive to the next record, and a condition that runs in a
+  # subshell would lose the assignment.
+  cur_path=""; cur_branch=""; cur_detached=0; first=1
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*) cur_path="${line#worktree }"; cur_branch=""; cur_detached=0 ;;
+      "branch "*) cur_branch="${line#branch }" ;;
+      "detached") cur_detached=1 ;;
+      # Everything else in a record — `HEAD <sha>`, `bare`, `locked`, `prunable`
+      # — says nothing this check needs, and must not end the record. Only the
+      # blank line does; the heredoc supplies a final one.
+      ?*) : ;;
+      *)
+        # End of a record. The first one is the main working tree, which is the
+        # base itself, and the one this check runs from is skipped because
+        # removing it would delete the caller's own directory.
+        path="$cur_path"; branch="$cur_branch"; detached="$cur_detached"
+        cur_path=""; cur_branch=""; cur_detached=0
+        if [ "$first" -eq 1 ]; then first=0; continue; fi
+        [ -n "$path" ] && [ "$detached" -eq 0 ] && [ -n "$branch" ] || continue
+        [ "$path" != "$here" ] || continue
+        git -C "$path" rev-parse --absolute-git-dir >/dev/null 2>&1 || continue
+        git -C "$path" merge-base --is-ancestor "$branch" "$base_ref" 2>/dev/null || continue
+        [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] || continue
+        stale="$stale- $path [${branch#refs/heads/}]
+"
+        ;;
+    esac
+  done <<EOF
+$worktrees
+
+EOF
+  if [ -z "$stale" ]; then
+    echo "Stale task worktrees: none"
+  else
+    printf 'Stale task worktrees:\n%s' "$stale"
+    echo "  Branch already in $base_ref and nothing uncommitted: the worktree has nothing left to protect."
+    echo "  Remove each with: git worktree remove <path>   (the branch survives)"
+  fi
+else
+  echo "Stale task worktrees: unknown (no upstream base to compare against)"
+fi
+
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"
   exit 2

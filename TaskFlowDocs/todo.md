@@ -75,15 +75,15 @@ has an issue number or URL.
 ## Removing a task worktree is nobody's job: nothing in the lifecycle tells the Age
 
 - ID: TF-20261018-66f814
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: audit 2026-10-17: nine stale worktrees on a merged, archived, done tasks
 - Added: 2026-10-18
-- Updated: 2026-10-18
+- Updated: 2026-10-19
 - Goal: Removing a task worktree is nobody's job: `complete` archives the directory and closes the Todo entry, but nothing in the lifecycle, in `CONTRIBUTING.md`, or in `SKILL.md` ever tells the Agent to tear the worktree down, and nothing checks whether it has gone. The result is that `.worktrees/` keeps every merged task forever and the local branch keeps pointing at its merge commit. Verified 2026-10-18: the word `worktree` appears in `CONTRIBUTING.md` only for creating one, and `grep -rn 'worktree remove\|worktree prune' hooks/` finds nothing, so `repository-check` reports stale worktrees only when their branch no longer exists — not when the task merged and was archived. Nine such worktrees had accumulated before this was noticed.
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-19-worktree-teardown/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## The stage ledger pairs each release to a capability record by queue position rat
 

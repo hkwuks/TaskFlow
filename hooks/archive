@@ -119,3 +119,20 @@ echo "archive OK: $task -> achieved, Todo done"
 printf '%s\n' \
   "Stage (commit on the current branch; do not switch to main for this commit):" \
   "  git add -A -- 'TaskFlowDocs/$task' 'TaskFlowDocs/achieved/$task' 'TaskFlowDocs/todo.md'"
+# Teardown, but not yet. The worktree is removable only once this branch is in
+# the base — an archive that has just run has not been committed, pushed, or
+# merged — so the step is stated with its condition rather than as an action
+# now, and the branch is named so the reader can check it. Printed only from a
+# linked worktree: `commondir` in the absolute git dir is Git's own answer, the
+# same test `hooks/task`'s `worktree_kind` uses, so a repository that never made
+# one sees byte-identical output. The branch outlives the directory on purpose —
+# `git worktree remove` deletes the tree and never the branch — so deleting the
+# branch stays a separate, deliberate act.
+git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null || true)"
+if [ -n "$git_dir" ] && [ -f "$git_dir/commondir" ]; then
+  branch="$(git -C "$root" branch --show-current 2>/dev/null || true)"
+  printf '%s\n' \
+    "Tear down the worktree once '${branch:-this branch}' is merged into the base and this tree is clean:" \
+    "  git worktree remove '$root'" \
+    "  (the branch survives; deleting it is a separate decision)"
+fi
