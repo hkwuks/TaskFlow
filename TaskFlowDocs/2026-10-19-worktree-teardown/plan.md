@@ -76,7 +76,9 @@ Small task, no spec.
 
 ## Verification / Review
 
-Run in this worktree on 2026-10-19, after the change and before the commit.
+Pushed as `0e7eb86` on `chore/worktree-teardown`, pull request #87 as a draft, per `CONTRIBUTING.md` — a task's documents land with the task inside its own pull request, and the PR body carries the landing claim.
+
+Local checks, run in this worktree on 2026-10-19 before the commit.
 
 | Check | Result |
 | --- | --- |
@@ -87,6 +89,8 @@ Run in this worktree on 2026-10-19, after the change and before the commit.
 | `docker run --rm -i bash:3.2 bash -n` on the three changed hooks | clean — the floor is real here: the `?*)` case arm and the heredoc parser must both survive 3.2 |
 | `git diff --check` | clean |
 | `quick_validate.py skills/taskflow` | `Skill is valid!` |
+
+The smoke suite is run locally here because the change is exactly a surface it exercises; `CONTRIBUTING.md` sanctions the local run for the pre-push, and CI is still the authority — its verdict is recorded below, not inferred.
 
 Mutation-checked on a copy of the tree under `/tmp`; the real worktree was never mutated, and each mutation was restored from a backup taken immediately before it.
 
