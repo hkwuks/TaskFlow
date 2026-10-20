@@ -144,3 +144,11 @@ Step 4 的验证（同一 worktree，2026-09-19 追加）：
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-09-19 用户确认**：发布彻底不走 TaskFlow（不创建任务目录与 Todo 条目），记录形态取「只在 CHANGELOG 段落 + GitHub Release 正文」，写入方式取「纯文档规则、Agent 手写」，分支取「豁免——发布不从 base 检出切分支」，批准门禁改为「用户授权先行、写入 RELEASE.md 与发布正文」。本条即该决定的规则改动，已落在 RELEASE.md、CONTRIBUTING.md、SKILL.md、references/artifacts.md 与两份 README（分支问题由用户当场追问确认：『发布要切分支吗？不需要吧』，结论是不切）。

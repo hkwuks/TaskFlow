@@ -115,3 +115,13 @@ No spec required — small, self-contained task.
 
 - v1 — planning.
 - v1 — approved (user, 2026-09-22); Steps 1–3 done; suite green.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-09-18 实测观测到（不是推测）**：在 `2026-09-18-todo-field-writes` 上跑 `hooks/task complete` 时，调用**失败**了，但失败发生在 mutation 之后——`hooks/task:589-590` 先把 prd.md 与 plan.md 置为 `completed`（两次 `docstatus`），再调用 `hooks/archive`；而后续报错时目录已被移动、Todo 已改。工作区于是停在「已归档 + 文档状态已改」的半完成态，没有回滚。
+  当天的实际触发：worktree 上跑 `complete` 成功落盘，但 base 检出落后 4 个提交；`git merge --ff-only origin/main` 把**合并进来的** `plan.md` 覆盖了工作区里已改好的那份，Approval 块回到 `pending`，于是第二次 `complete` 报 `current Task version is not approved`。也就是说事务的中间态被后续的合并撞了回去——纯属运气，不是设计。
+  与 `TF-20260918-172455`（archive 往 todo.md 插空行）、`TF-20260918-88e04c`（archive 的 stage 步骤与分支选择）同属一个事务；三者一起做才不用重复设计同一个失败边界。

@@ -124,3 +124,18 @@ No spec required — small, self-contained task.
 
 - v1 — planning.
 - v1 — approved (user, 2026-09-22); Steps 1–2 done; suite green.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-09-21 用户指定：单独开一条。**
+  **问题**：`hooks/task intake` 把新条目写进文件里的上一个 `## ` 节，而不是插到 `## Items` 下。新条目因此挂到别人的标题下——那次它挂在了「Stop `TaskFlowDocs/todo.md` from growing without bound…」节里，`promote` 又拿那行当标题生出 task 文档（本轮我用假标题「State in the Skill…」跑出了 plan/prd 的首行）。
+  **另一半**：`intake` 的插入点固定在文件末尾，所以它落在 `## Removed` 之后；如果 `## Removed` 不是最后一节，新条目会插进 `## Removed` 节内，`todo-check` 读 `## Removed` 时会把在途条目当成已删除记录（该节与 `TF-20260918-985164` 的删除语义直接冲突）。
+  **根因**：`hooks/task` 的 `intake` 分支（约 `:206-216`）是「rstrip 尾部空行 → 整文件原样输出 → 再追加 `## <title>` 块」，没有定位 `## Items` 边界，也没有插入点概念。
+  **违反的既有约定**：`TaskFlowDocs/todo.md` 自己的 `## Items` 节里写着 `<!-- Add new items at the top using the template below. -->`——实现与文档约定相反。
+  **判定依据**：`hooks/task get <todo-id>` 与 `hooks/task next <todo-id> … [notes]` 能只读/只改一条条目（`next` 的第三个位置参数就是 Notes），所以本次是「用 hook 写 Notes」而非手改——这正是 `task next` 存在的理由。
+  **验收**：新条目落在 `## Items` 节内、位于任何其他 `## ` 节之前；`## Removed` 之后插入新条目不再可能污染删除记录；`todo-check` 的 removed 判定不受影响；smoke 增加一条断言（新条目不得出现在 `## Removed` 与文件末尾之间）。相关：本轮 PR #45 里我被这个 bug 误导，绕过后才 promote 成功。
+  **同因的另一现象**：`## ` 标题与 Goal 对不齐是既有习惯，不是个别错误——本文件的 `## ` 节数比 `- ID:` 行数多 23，多出来的全是模板块（`## T-YYYYMMDD-001` 等），另有约 30 条已交付条目的标题是手写摘要、与 Goal 前缀不一致。`hooks/task get` 按 ID、`findsec` 按 `TaskFlowDocs/<task>/` 解析条目，都不看标题，所以目前只是可读性问题；唯一出错的是 `promote`——它用标题去派生任务目录名。口径待定：标题由 Goal 派生（与 intake 一致、可校验），还是保留人写标题但 `promote` 一并更新它。

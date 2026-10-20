@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+# migrate-done-entries — one-time compaction of the done entries in todo.md.
+#
+# Usage: migrate-done-entries <repository-root>          (dry run: prints only)
+#        migrate-done-entries <repository-root> --apply
+#
+# The same three rules `hooks/archive` applies to a live archive, in the same
+# order: backfill `- ID:` from the heading, move the entry's prose into the
+# achieved Plan under `## Todo Record`, compact the entry to its five fields.
+# `migrate-done-entries.md` beside this file says why, and what it refuses.
+#
+# Committed with the task that ran it, so the transformation is reviewable rather
+# than living in a shell history.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+root="${1:-}"
+apply=0
+[ "${2:-}" = "--apply" ] && apply=1
+[ -n "$root" ] && [ -d "$root/TaskFlowDocs" ] || { echo "usage: migrate-done-entries <repository-root> [--apply]"; exit 2; }
+docs="$root/TaskFlowDocs"
+todo="$docs/todo.md"
+[ -f "$todo" ] || { echo "todo.md missing"; exit 2; }
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/plans"
+
+# One pass. For every `## ` section:
+#   * not `- Status: done`          -> emitted unchanged
+#   * done with an achieved Plan    -> prose to $work/plans/<slug>, entry compacted
+#   * done with no achieved Plan    -> entry left untouched (there is no in-entry form)
+# The destination is derived from `- Task:`; a path that is not a backticked
+# achieved directory is not a destination. The slug is the last path component,
+# which is unique within TaskFlowDocs by construction.
+awk -v plans="$work/plans" -v root="$root" '
+  function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+  function fname(s,   n) { n = index(s, ":"); return substr(s, 3, n - 3) }
+  { line[NR] = $0; n = NR }
+  END {
+    # Section boundaries: a line starting exactly with "## ".
+    sc = 0
+    for (i = 1; i <= n; i++) if (index(line[i], "## ") == 1) { sc++; hd[sc] = i }
+    print "" > "/dev/null"
+    for (j = 1; j <= sc; j++) {
+      a = hd[j]; b = (j < sc) ? hd[j + 1] - 1 : n
+      status = ""; idv = ""; goalv = ""; taskf = ""
+      for (i = a + 1; i <= b; i++) {
+        if (status == "" && index(line[i], "- Status:") == 1) status = trim(substr(line[i], 10))
+        if (idv    == "" && index(line[i], "- ID:")     == 1) idv    = trim(substr(line[i], 6))
+        if (goalv  == "" && index(line[i], "- Goal:")   == 1) goalv  = trim(substr(line[i], 8))
+        if (taskf  == "" && index(line[i], "- Task:")   == 1) taskf  = trim(substr(line[i], 8))
+      }
+      if (status != "done") { for (i = a; i <= b; i++) print line[i]; print ""; continue }
+
+      # Destination: a backticked `TaskFlowDocs/achieved/<slug>/` path, with an
+      # optional `(vN)` suffix — a reopened task points at the same directory and
+      # carries the version beside the path, not inside it. Anything else (a bare
+      # `Not promoted.`, a prose note about where the work went) is not a path.
+      dest = ""
+      if (match(taskf, /`TaskFlowDocs\/achieved\/[^`]+\/`/)) {
+        d = substr(taskf, RSTART + 1, RLENGTH - 2)
+        if (system("test -f \"" root "/" d "plan.md\"") == 0) dest = d
+      }
+
+      # Backfill from the heading, but only when that ID is not already in use.
+      # Seven heading IDs in this file collide with a later entry real ID —
+      # the old numbering ran per day-of-work and was reused — and backfilling
+      # those would make `task get` address the wrong entry. A colliding heading
+      # keeps no ID; it is left exactly as it is today.
+      if (idv == "") {
+        h = trim(substr(line[a], 3))
+        if (match(h, /^(TF|T)-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9A-Za-z-]+/)) {
+          cand = substr(h, 1, RLENGTH)
+          taken = 0
+          for (i = 1; i <= n; i++) if (index(line[i], "- ID: " cand) == 1) taken = 1
+          if (!taken) idv = cand
+        }
+      }
+
+      # Prose: every non-blank, non-field line in the entry, plus the Notes value.
+      np = 0; cur = 0; curname = ""
+      for (i = a + 1; i <= b; i++) {
+        if (line[i] ~ /^- [A-Za-z][A-Za-z ]*:/) {
+          curname = fname(line[i]); cur = 0
+          if (curname == "Notes") {
+            v = trim(substr(line[i], index(line[i], ":") + 1))
+            if (v != "") { np++; lab[np] = curname; txt[np] = "- " v; cur = np }
+          }
+          continue
+        }
+        if (line[i] ~ /^[[:space:]]*$/) continue
+        if (cur == 0) { np++; lab[np] = curname; txt[np] = line[i]; cur = np }
+        else txt[cur] = txt[cur] "\n" line[i]
+      }
+
+      # No destination: leave the entry exactly as it is. A `## Todo Record` at
+      # column 0 would be read as a new section by every hook that splits on it,
+      # so there is no "keep it in the entry" shape — either the prose has a
+      # Plan to go to or the entry is not migrated.
+      if (dest == "") { for (i = a; i <= b; i++) print line[i]; print ""; skipped++; continue }
+
+      print line[a]; print ""
+      if (idv != "") print "- ID: " idv
+      print "- Status: done"
+      if (goalv != "") print "- Goal: " goalv
+      print "- Task: " taskf
+      print "- Next action: None — completed and archived."
+
+      if (np > 0) {
+        slug = dest; sub(/\/$/, "", slug); sub(/.*\//, "", slug)
+        f = plans "/" slug
+        for (i = 1; i <= np; i++) printf "\n### \140- %s:\140\n\n%s\n", lab[i], txt[i] >> f
+        close(f)
+        moved++
+      }
+      print ""
+    }
+    printf "%d %d\n", moved + 0, skipped + 0 > (plans "/../summary")
+  }
+' "$todo" > "$work/todo.new"
+read -r moved kept < "$work/summary"   # moved = had a Plan; kept = left untouched
+
+# Before anything is written: the ID set may only grow, never shrink.
+before_ids="$(sed -n 's/^- ID:[[:space:]]*\([^[:space:]]\{1,\}\).*/\1/p' "$todo" | sort -u)"
+after_ids="$(sed -n 's/^- ID:[[:space:]]*\([^[:space:]]\{1,\}\).*/\1/p' "$work/todo.new" | sort -u)"
+lost="$(comm -23 <(printf '%s\n' "$before_ids") <(printf '%s\n' "$after_ids"))"
+[ -z "$lost" ] || { echo "FAIL: these IDs would disappear:"; printf '%s\n' "$lost"; exit 1; }
+gained="$(( $(printf '%s\n' "$after_ids" | sed '/^$/d' | wc -l) - $(printf '%s\n' "$before_ids" | sed '/^$/d' | wc -l) ))"
+
+# A Plan already carrying a record is a second run, not a merge: refuse it.
+for f in "$work/plans"/*; do
+  [ -e "$f" ] || continue
+  slug="$(basename "$f")"
+  grep -qx '## Todo Record' "$root/TaskFlowDocs/achieved/$slug/plan.md" \
+    && { echo "FAIL: $slug/plan.md already has a ## Todo Record; refusing to append twice"; exit 1; }
+done
+
+if [ "$apply" -ne 1 ]; then
+  echo "dry run — nothing written"
+  echo "  todo.md: $(wc -c < "$todo") -> $(wc -c < "$work/todo.new") bytes"
+  echo "  entries with prose moved to an achieved Plan: $moved"
+  echo "  entries left untouched (no achieved Plan to receive the prose): $kept"
+  echo "  IDs: $(printf '%s\n' "$before_ids" | sed '/^$/d' | wc -l) -> $(printf '%s\n' "$after_ids" | sed '/^$/d' | wc -l) (backfilled $gained, lost 0)"
+  exit 0
+fi
+
+# Plans first, Todo last: a failure in between cannot leave an entry that lost
+# prose which never landed anywhere.
+for f in "$work/plans"/*; do
+  [ -e "$f" ] || continue
+  {
+    printf '\n## Todo Record\n\nMoved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.\n'
+    cat "$f"
+  } >> "$root/TaskFlowDocs/achieved/$(basename "$f")/plan.md"
+done
+cp "$work/todo.new" "$todo.tmp.$$"
+mv "$todo.tmp.$$" "$todo"
+# One newline at EOF, not two. The section emitter ends every section with one
+# and the writer kept it, so the file grew a trailing blank line; a file that
+# ends in two newlines shows up as a `git diff --check` failure on the next edit.
+printf '%s\n' "$(cat "$todo")" > "$todo.tmp.$$"
+mv "$todo.tmp.$$" "$todo"
+
+echo "migrated"
+echo "  todo.md: $(wc -c < "$work/todo.new") bytes"
+echo "  entries with prose moved to an achieved Plan: $moved"
+echo "  entries left untouched (no achieved Plan to receive the prose): $kept"
+echo "  IDs: $(printf '%s\n' "$after_ids" | sed '/^$/d' | wc -l) (backfilled $gained, lost 0)"

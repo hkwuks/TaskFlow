@@ -637,14 +637,21 @@ echo ok
 echo "== archive happy path =="
 # Capture stdout: it must carry the stage/branch instructions.
 arch_out="$tmp/archive-out"
-bash "$HERE/archive" 2026-09-08-smoke "$tmp" > "$arch_out"
+# Guarded, not bare: under `set -e` a bare call aborts the whole suite with no
+# message, so a failing archive would leave the log stopping mid-section and
+# nothing saying which behaviour broke.
+bash "$HERE/archive" 2026-09-08-smoke "$tmp" > "$arch_out" \
+  || { echo "FAIL archive failed on the happy-path fixture"; exit 1; }
 [ ! -d "$docs/2026-09-08-smoke" ] || { echo "FAIL active remains"; exit 1; }
 [ -d "$docs/achieved/2026-09-08-smoke" ] || { echo "FAIL not archived"; exit 1; }
 grep -q -- "- Status: done" "$docs/todo.md" || { echo "FAIL todo not done"; exit 1; }
 grep -q "achieved/2026-09-08-smoke" "$docs/todo.md" || { echo "FAIL todo path"; exit 1; }
 # This fixture entry has no `- Next action:` at all, so archiving has to add the
 # canonical line rather than silently leave a done entry with no next action.
-grep -A1 -- "- Status: done" "$docs/todo.md" | grep -q -- "- Next action: None — completed and archived." || { echo "FAIL next action not added to an entry that lacked one"; exit 1; }
+# The window is the whole compacted entry, not the line after `- Status:`: the
+# entry is now emitted in its field order (ID, Status, Goal, Task, Next action),
+# so adjacency would assert the field order rather than the presence of the line.
+grep -A5 -- "- Status: done" "$docs/todo.md" | grep -q -- "- Next action: None — completed and archived." || { echo "FAIL next action not added to an entry that lacked one"; exit 1; }
 # Exactly one, not one more: an archive that adds the line without replacing an
 # existing one leaves the entry with two next actions and only the first is read.
 [ "$(grep -c '^- Next action:' "$docs/todo.md")" -eq 1 ] || { echo "FAIL archive left more than one next action:"; grep -n '^- Next action:' "$docs/todo.md"; exit 1; }
@@ -728,11 +735,13 @@ grep -qi 'worktree remove' "$tear_base_out" \
   && { echo "FAIL archive told a main working tree to remove itself"; cat "$tear_base_out"; exit 1; }
 echo ok
 
-echo "== archive todo rewrite only touches Status/Task/Next action =="
-# R4 / 172455: lock the three-field rewrite. Diff against a copy taken just
-# before archive… already archived above; rebuild a twin fixture from the same
-# shape the happy path used, snapshot todo, archive, and require every changed
-# line to be one of the three fields (plus the inserted Next action).
+echo "== archive compacts the entry and touches nothing else =="
+# R4 / 172455: the archive used to rewrite three fields in place. It now reduces
+# the whole entry to the fields triage still needs, so the invariant is stated in
+# the two parts that still hold, and each is checked separately: everything
+# outside the entry is byte-identical, and every line that changes inside it is a
+# field line — a heading or a blank-line change there would mean the entry's
+# structure moved rather than its fields.
 r4="$tmp/archive-r4"
 mkdir -p "$r4/TaskFlowDocs/2026-09-08-r4" "$r4/TaskFlowDocs/achieved"
 cp "$docs/2026-09-08-smoke/prd.md" "$r4/TaskFlowDocs/2026-09-08-r4/prd.md" 2>/dev/null || true
@@ -751,25 +760,81 @@ cat > "$r4/TaskFlowDocs/todo.md" <<'EOF'
 
 - ID: T-20260908-r4
 - Status: in_progress
+- Priority: high
+- Owner: Claude
+- Source: user request
+- Added: 2026-09-08
+- Updated: 2026-09-08
 - Goal: r4
 - Task: `TaskFlowDocs/2026-09-08-r4/`
-- Updated: 2026-09-08
+- Next action: mostly true, but this tail goes too
+  and this continuation goes with it
+- Notes: a note that moves
+
+## A trailing entry
+
+- ID: T-20260908-r4b
+- Status: inbox
+- Goal: untouched
+- Task: Not promoted.
+- Next action: wait
 EOF
 cp "$r4/TaskFlowDocs/todo.md" "$tmp/r4-todo-before"
 bash "$HERE/archive" 2026-09-08-r4 "$r4" >/dev/null
-# Unified diff: every +/- line must match Status, Task, or Next action (or ---/+++).
-# `diff` exits 1 when files differ — that is the expected case — so it must not
-# trip `set -e`/`pipefail` before awk can filter the lines.
+# Split both files into "the R4 entry" and "everything else".
+split_entry() {  # split_entry <file> <outer> <entry>
+  awk -v outer="$2" -v inner="$3" '
+    /^## R4 entry$/ { inside = 1; print > inner; next }
+    inside && /^## / { inside = 0 }
+    { if (inside) print > inner; else print > outer }
+  ' "$1"
+}
+split_entry "$tmp/r4-todo-before" "$tmp/r4-outer-before" "$tmp/r4-entry-before"
+split_entry "$r4/TaskFlowDocs/todo.md" "$tmp/r4-outer-after" "$tmp/r4-entry-after"
+if ! diff -q "$tmp/r4-outer-before" "$tmp/r4-outer-after" >/dev/null; then
+  echo "FAIL archive changed something outside the target entry:"
+  diff -u "$tmp/r4-outer-before" "$tmp/r4-outer-after" || true
+  exit 1
+fi
+# Inside the entry, a changed line is either a field line (the fields triage
+# keeps are rewritten in place; the rest are removed) or a continuation line that
+# was removed — and a removed continuation is only legitimate if it was moved.
+# Every removed non-field line is therefore required to appear verbatim in the
+# achieved Plan, which is the difference between compacting and losing prose.
+# `diff` exits 1 when files differ — the expected case — so it must not trip
+# `set -e`/`pipefail`.
 bad_diff="$(
-  { diff -u "$tmp/r4-todo-before" "$r4/TaskFlowDocs/todo.md" || true; } | awk '
+  { diff -u "$tmp/r4-entry-before" "$tmp/r4-entry-after" || true; } | awk '
     /^(---|\+\+\+|@@)/ { next }
-    /^[+-]/ {
-      line = substr($0, 2)
-      if (line ~ /^- Status:/ || line ~ /^- Task:/ || line ~ /^- Next action:/) next
-      print
-    }'
+    /^[+-]/ { line = substr($0, 2); if (line ~ /^- [A-Za-z][A-Za-z ]*:/) next; print line }'
 )"
-[ -z "$bad_diff" ] || { echo "FAIL archive changed a line outside Status/Task/Next action:"; printf '%s\n' "$bad_diff"; exit 1; }
+if [ -n "$bad_diff" ]; then
+  # A removed line is legitimate only when it is prose that moved. A blank line
+  # is neither — the entry's shape is not the compaction's business — so it is
+  # reported by name rather than skipped, which is what makes a dropped
+  # separator inside the entry visible instead of silently accepted.
+  missing=""
+  while IFS= read -r line; do
+    case "$line" in
+      "") missing="$missing<blank line>
+"; continue ;;
+    esac
+    grep -qxF -- "$line" "$r4/TaskFlowDocs/achieved/2026-09-08-r4/plan.md" || missing="$missing$line
+"
+  done <<EOF
+$bad_diff
+EOF
+  [ -z "$missing" ] || { echo "FAIL archive changed a line inside the entry that it neither kept nor moved:"; printf '%s' "$missing"; exit 1; }
+fi
+# The moved prose must actually be on the achieved Plan, and not still here.
+grep -qx '## Todo Record' "$r4/TaskFlowDocs/achieved/2026-09-08-r4/plan.md" \
+  || { echo "FAIL archive did not write the Todo record to the achieved Plan"; exit 1; }
+grep -q 'a note that moves' "$r4/TaskFlowDocs/achieved/2026-09-08-r4/plan.md" \
+  || { echo "FAIL the Notes value did not reach the achieved Plan"; exit 1; }
+grep -q 'and this continuation goes with it' "$r4/TaskFlowDocs/achieved/2026-09-08-r4/plan.md" \
+  || { echo "FAIL a continuation line did not reach the achieved Plan"; exit 1; }
+! grep -q 'a note that moves' "$r4/TaskFlowDocs/todo.md" \
+  || { echo "FAIL the moved prose is still in the Todo entry"; exit 1; }
 # No blank line invented at EOF: the file must not end with two newlines.
 last2="$(tail -c 2 "$r4/TaskFlowDocs/todo.md" | od -An -tx1 | tr -d ' \n')"
 case "$last2" in
@@ -790,6 +855,160 @@ if ! awk '
   echo "FAIL archive inserted a blank after the item template heading"
   exit 1
 fi
+echo ok
+
+echo "== archive gives a heading-only entry its ID and keeps it findable =="
+# Entries written before the `- ID:` field existed carry the ID in the heading
+# only, which is why `task get` could not find them: `findsec` matches on the
+# field. The backfill is derived from the heading and checked against a pattern,
+# so a heading that is not an entry (the template, a prose section) gains none.
+idf="$tmp/archive-id-backfill"
+mkdir -p "$idf/TaskFlowDocs/2026-09-08-idf" "$idf/TaskFlowDocs/achieved"
+printf '# P\n> Task version: v1\n> Status: completed\n' > "$idf/TaskFlowDocs/2026-09-08-idf/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$idf/TaskFlowDocs/2026-09-08-idf/plan.md"
+cat > "$idf/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Items
+
+## TF-20260908-idf — a heading that carries the id
+
+- Status: in_progress
+- Priority: high
+- Goal: legacy goal
+- Task: `TaskFlowDocs/2026-09-08-idf/`
+- Next action: go
+- Notes: a note that moves
+
+## A section that is not an entry
+
+- Status: inbox
+- Goal: untouched
+EOF
+# Guarded like the happy path: a hook that fails outright must say so rather
+# than abort the suite mid-section under `set -e`.
+bash "$HERE/archive" 2026-09-08-idf "$idf" >/dev/null \
+  || { echo "FAIL archive failed on the ID-backfill fixture"; exit 1; }
+grep -qx -- '- ID: TF-20260908-idf' "$idf/TaskFlowDocs/todo.md" \
+  || { echo "FAIL archive did not backfill the ID from the heading"; exit 1; }
+bash "$HERE/task" get TF-20260908-idf --root "$idf" >/dev/null \
+  || { echo "FAIL the backfilled ID is not addressable by task get"; exit 1; }
+[ "$(grep -c '^- ID: ' "$idf/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL backfill invented an ID for a section that had none"; exit 1; }
+echo ok
+
+echo "== archive keeps an entry's prose only after moving it to the Plan =="
+# The compaction removes the free-form prose an Agent accumulated, which is 22%
+# of what a done entry costs. It is not a duplicate of the archived documents —
+# measured over 195 sentences, 2 appear verbatim — so it moves. This pins the
+# move, the removal, and the one-shot heading.
+pr="$tmp/archive-prose"
+mkdir -p "$pr/TaskFlowDocs/2026-09-08-pr" "$pr/TaskFlowDocs/achieved"
+printf '# P\n> Task version: v1\n> Status: completed\n' > "$pr/TaskFlowDocs/2026-09-08-pr/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n\n## Change Log\n\n- v1 — planning.\n' > "$pr/TaskFlowDocs/2026-09-08-pr/plan.md"
+cat > "$pr/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Items
+
+## An entry with prose everywhere
+
+- ID: TF-20260908-prose
+- Status: in_progress
+- Priority: high
+- Owner: Claude
+- Source: user request
+- Added: 2026-09-08
+- Updated: 2026-09-08
+- Goal: a goal
+- Task: `TaskFlowDocs/2026-09-08-pr/`
+- Next action: mostly true
+  and a continuation under Next action
+- Notes: the note value itself
+continues on an unlabelled line
+EOF
+bash "$HERE/archive" 2026-09-08-pr "$pr" >/dev/null
+plan="$pr/TaskFlowDocs/achieved/2026-09-08-pr/plan.md"
+for want in 'the note value itself' 'continues on an unlabelled line' \
+            'and a continuation under Next action'; do
+  grep -qF -- "$want" "$plan" \
+    || { echo "FAIL archive dropped prose instead of moving it: $want"; exit 1; }
+done
+grep -qx '## Todo Record' "$plan" || { echo "FAIL no Todo record heading on the Plan"; exit 1; }
+[ "$(grep -c '^## Todo Record$' "$plan")" -eq 1 ] \
+  || { echo "FAIL the Todo record heading is not one-shot"; exit 1; }
+grep -q 'the note value itself' "$pr/TaskFlowDocs/todo.md" \
+  && { echo "FAIL the moved prose is still in the Todo entry"; exit 1; }
+# The entry itself is exactly the five fields, in that order.
+printf '%s\n' '- ID: TF-20260908-prose' > "$tmp/pr-want"
+printf '%s\n' '- Status: done' >> "$tmp/pr-want"
+printf '%s\n' '- Goal: a goal' >> "$tmp/pr-want"
+printf '%s\n' '- Task: `TaskFlowDocs/achieved/2026-09-08-pr/`' >> "$tmp/pr-want"
+printf '%s\n' '- Next action: None — completed and archived.' >> "$tmp/pr-want"
+got="$(awk '
+  /^## An entry with prose everywhere$/ { inside = 1; next }
+  inside && /^## / { exit }
+  inside && !/^[[:space:]]*$/ { print }' "$pr/TaskFlowDocs/todo.md")"
+[ "$got" = "$(cat "$tmp/pr-want")" ] || {
+  echo "FAIL the compacted entry is not the five fields in order:"
+  printf '%s\n' "$got"
+  exit 1
+}
+echo ok
+
+echo "== reopen writes Updated when the archived entry no longer carries it =="
+# A compacted entry has no `- Updated:` line. `reopen` used to rewrite that line
+# only when present, so the reopened entry silently lost it — and the documented
+# next step `task state` then dies, because `loadpairs` fails on a missing field.
+# The fix is the insert `archive` already has for `- Next action:`.
+ru="$tmp/reopen-compacted"
+mkdir -p "$ru/TaskFlowDocs/achieved/2026-09-08-ru"
+printf '# P\n> Task version: v1\n> Status: completed\n' > "$ru/TaskFlowDocs/achieved/2026-09-08-ru/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$ru/TaskFlowDocs/achieved/2026-09-08-ru/plan.md"
+cat > "$ru/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Items
+
+## A compacted entry
+
+- ID: TF-20260908-ru
+- Status: done
+- Goal: a goal
+- Task: `TaskFlowDocs/achieved/2026-09-08-ru/`
+- Next action: None — completed and archived.
+EOF
+bash "$HERE/reopen" 2026-09-08-ru "$ru" >/dev/null
+grep -qx -- "- Updated: $(date +%Y-%m-%d)" "$ru/TaskFlowDocs/todo.md" \
+  || { echo "FAIL reopen did not write Updated into a compacted entry"; exit 1; }
+bash "$HERE/task" state 2026-09-08-ru planning --root "$ru" >/dev/null \
+  || { echo "FAIL task state failed after reopening a compacted entry"; exit 1; }
+echo ok
+
+echo "== reopen does not add a second Updated to an entry that has one =="
+ru2="$tmp/reopen-had-updated"
+mkdir -p "$ru2/TaskFlowDocs/achieved/2026-09-08-ru2"
+printf '# P\n> Task version: v1\n> Status: completed\n' > "$ru2/TaskFlowDocs/achieved/2026-09-08-ru2/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$ru2/TaskFlowDocs/achieved/2026-09-08-ru2/plan.md"
+cat > "$ru2/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+
+## Items
+
+## A fuller entry
+
+- ID: TF-20260908-ru2
+- Status: done
+- Goal: a goal
+- Task: `TaskFlowDocs/achieved/2026-09-08-ru2/`
+- Next action: None — completed and archived.
+- Updated: 2026-01-01
+EOF
+bash "$HERE/reopen" 2026-09-08-ru2 "$ru2" >/dev/null
+[ "$(grep -c '^- Updated:' "$ru2/TaskFlowDocs/todo.md")" -eq 1 ] \
+  || { echo "FAIL reopen left two Updated lines"; exit 1; }
+grep -qx -- "- Updated: $(date +%Y-%m-%d)" "$ru2/TaskFlowDocs/todo.md" \
+  || { echo "FAIL reopen did not refresh an existing Updated"; exit 1; }
 echo ok
 
 echo "== complete rolls back doc status when archive fails =="

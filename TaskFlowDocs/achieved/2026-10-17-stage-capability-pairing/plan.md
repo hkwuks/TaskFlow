@@ -204,3 +204,22 @@
 ## Version History
 
 - v1 — planning，等待用户批准。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 2026-10-12 用户报告：approve 过程绕，原因是「门要求 bullet 里的能力名等于它那条记录的」，用户把顶部 v14 的三条调成门要的形状才过，并在文件里写明「记录按位点配对，类名不等于该阶段的语义分类」。
+**机制：配对靠队列位点，不靠阶段。** `hooks/capability-gate:144-155` 释放一个阶段时取的是 `awk -v n="$next" "NR == n"`——即 evidence 的**第 next 行**，`next = consumed + 1`；它不问这条属于哪个阶段。所以**哪个阶段拿到哪条记录，取决于文档被写的先后**。本次在临时 fixture 里复现（已删）：按 `ctx_search, ctx_execute, ctx_execute` 记录三条调用，再按 **Plan → PRD → Spec** 的顺序写文档，`released` 得到 `v1|Plan|1|invoke|ctx_search` / `v1|PRD|2|invoke|ctx_execute` / `v1|Spec|3|invoke|ctx_execute`。写 `plan.md` 在前（这在真实会话里是常态，因为 Plan 是当前正在推进的阶段），Plan 就必然被记成 PRD 那次调用的能力。
+**approve 在这之上再加一道名字相等。** `hooks/task:1108-1117` 要求 bullet 里的能力名**逐字**等于记录里的名字（invoke 分支 `grep -qF -- "$capability"`）。同一 fixture、同一组记录，两种写法：
+| `Skills / Tools Used` 写法 | approve 结果 |
+| --- | --- |
+| `[PRD] ctx_search` / `[Spec] ctx_execute` / `[Plan] ctx_execute`（各阶段**实际**用了什么） | `approve blocked: stage [PRD] does not name the recorded capability (ctx_execute)` |
+| 把名字调成门要的形状 | `approve OK: 2026-01-01-demo (user, v1)` |
+即：**如实记录被拒，为过门而重排被接受。** 用户做的那次重排不是伪造（三条调用都真发生过、名字也是真的），但它把这个槽位从「报告」变成了「回填」——`artifacts.md:127` 明写该节「is a report of what happened rather than a declaration」，而现在的机制使它必须写得不像实际发生的样子才能过。
+**两个成因，都是真实的会话形态，不是边角**：(1) **一个阶段会调多次能力**——用户这次 PRD 阶段调了多次，多出的记录不消失，**溢出到后面的阶段**；(2) **写文档的顺序 ≠ 阶段逻辑顺序**——Plan 常最先写。单阶段、单调用时设计是对的（一条 `Write prd.md` 对应一次调用），这两个条件一旦破掉，位点配对就必然错位。`capability-evidence:14-17` 的注释承认了这个解耦（「记录不知道哪个阶段在跑，因为事件不说」），但**没有任何一处文档或注释承认「配对是按位点」**，所以这是机制缺口叠着文档缺口。
+**Token 代价（用户问的）**：每次解「为什么 approve 说我没写对」都要一轮 approve 输出 + 读 `plan.md` + 读门 + 改 `plan.md`；真正的放大器是 `hooks/task:1097` 的 remedy 本身——approve 让你跑 `unaided`，而跑了之后**队列变了、配对再次错位**，于是下一轮继续。用户已经走过这一圈（approve 与 unaided 两条路都试过）。
+**与 TF-20261012-c66ad3 的关系（同一记账层的两个失败面，修法大概率同一个）**：c66ad3 是**供给不够**——`seq` 全局单调，用尽后版本提升无解；本条是**供给够了但配错**——`consumed` 与 `released` 的键不同源（前者是全局计数器、后者是 (version, stage)）。两条都源于「一条证据 = 一个阶段」这个一刀切：它既要求证据按阶段**配得上**（本条），又要求证据按全局顺序**供得上**（c66ad3）。可能的修法（未裁定，留待澄清）：(1) 释放时不贴阶段、只记「本版本消耗 n 条」，approve 改判「本版本记录数 ≥ 阶段数」——最省但丢掉「哪个阶段用了什么」；(2) 记录里带阶段自报——保留信息量，但门重新依赖模型输入；(3) 允许一条 bullet 列多条能力，approve 改判「bullet 集合 ⊇ 该阶段消耗的那几条」——不丢信息，需改 approve 判据。
+**边界**：复现在临时 fixture（`/tmp/tf-eq`）上完成并已删除；用户提到的 v14 那份 `plan.md` 不在本 clone（全仓 `grep 'Task version: v14'` 零命中）。未在真实会话上跑对照。相关：`TF-20261012-c66ad3`、`TF-20261009-8abbd6`、`TF-20261011-39bda8`。
