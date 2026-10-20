@@ -1,7 +1,7 @@
 # Plan — 任务 ID 校验与 promote 的逆运算
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -128,7 +128,7 @@
 - Acceptance: 每个变异至少让它对应的那条断言变红；CI 六个 job 全绿。
 - Verification: 映射写进 `## Verification / Review`。
 - Rollback: 还原变异副本，工作树不变。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -195,3 +195,9 @@
 - 草稿 PR [#89](https://github.com/hkwuks/TaskFlow/pull/89)，body 按 `.github/pull_request_template.md` 五节填写；`## Verification` 里只有 CI 那一项待勾。
 - 变异记录（上表）与两处测试缺陷都写进了 PR body，因为它们属于「这个断言凭什么可信」的一部分，评审时与 diff 一起读。
 - PR [#89](https://github.com/hkwuks/TaskFlow/pull/89) 已标记 ready。head `fc484c6` 的 CI run [`39440465074`](https://github.com/hkwuks/TaskFlow/actions/runs/39440465074) 六项全绿。
+
+### 落地与归档
+
+PR [#89](https://github.com/hkwuks/TaskFlow/pull/89) 合并为 `55ed850`。归档由一个收尾 PR 完成，而不是随本任务自己的 PR —— 这是顺序失误的补救，记在下面。
+
+**顺序错了。** `CONTRIBUTING.md:102` 要求「写验证记录 → 提交推送 → 归档 → 提交推送 → 标 ready」，我在写验证记录后就把 PR 标成了 ready，用户在归档之前合并。结果是任务文档落在了 main 上、任务目录仍活着。补救方式是唯一剩下的一条：开 `chore/archive-task-id-validation` 做归档移动 + Todo 切 `done`。`CONTRIBUTING.md:44` 明说任务文档应当随它自己的 PR 落地，所以这个 PR 形式上就是那一处禁止的拆分；它存在只是因为 #89 已经没有落点了。下次的正确顺序是标 ready 放在最后一步。
