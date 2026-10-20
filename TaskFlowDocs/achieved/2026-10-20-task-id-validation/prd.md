@@ -1,7 +1,7 @@
 # 任务 ID 没有校验，误建的任务也没有退路
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
