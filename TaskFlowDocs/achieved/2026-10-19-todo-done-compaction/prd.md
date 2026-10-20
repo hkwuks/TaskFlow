@@ -1,7 +1,7 @@
 # Compact a closed Todo entry to the fields triage still needs
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

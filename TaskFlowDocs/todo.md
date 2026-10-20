@@ -819,22 +819,10 @@ has an issue number or URL.
 ## Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines, 45%
 
 - ID: TF-20260919-6b4e21
-- Status: in_progress
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-19
-- Updated: 2026-10-20
+- Status: done
 - Goal: Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines / 50 KB, of which the 47 `done` entries are 45% (22.6 KB) and the 18 live entries (`inbox` 12, `promoted` 2, `in_progress` 4) are under a third — the file is a growing archive that every task still has to read.
-- Task: `TaskFlowDocs/2026-10-19-todo-done-compaction/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: **2026-09-19 用户提出，明确排除在本次修复范围外**（「先立一个 todo，我后面研究修复」）。
-- 2026-10-19 用户裁定，方案 C（done 收成固定字段），并把无 ID 老条目并入本任务。实测 main 01a067a：1402 行 / 114226 字节，done 85 条 89554 字节（78%）。保留字段取标题+ID+Status+Task+Next+Goal 一档，迁移后约 66323 字节（原 114226，降 42%）。三个后续裁定：Notes 不丢弃而是搬到 achieved plan.md 的 ## Todo Record；reopen 缺失 - Updated: 是硬故障（reopen 自检通过，随后 task state 在 hooks/task:167 上 missing Todo field: Updated），一并修掉；无 achieved 目录的条目整条不动，因为列 0 的 ## Todo Record 会被所有 hook 当成新 section。读侧 hook 全部零改动。已否决：搬去单独文件（todo-check 的丢条目不变式无法区分移动与丢失）、按年份拆分（85 条全在 2026 年）。
-  **实测分布**（HEAD `c1147ab`，877 行 / 50,427 字节，按条目正文统计）：`done` 47 条 / 22,661 字节（45%）；`inbox` 12 条 / 14,194 字节；`in_progress` 4 条 / 3,422 字节；`promoted` 2 条 / 991 字节；模板与无法解析的 4 段 / 384 字节。**待每天打交道的 live 条目只有 18 条、不到三分之一。**
-  **两个已观测到的结构损伤**（不只是「长」）：(1) `## Item template` 模板块停在第 251 行，**在条目中间**，其下还有条目，随后第 267 行是一句被截断的半句 `Every direct request or imported requireme`；(2) 条目顺序是三个时代的堆叠，不是严格新在前——`TF-20260919-*` 的若干条排在 `TF-20260918-*` 之下。
-  **已排除的选项**：本文件的定义是 intake 清单（`SKILL.md:30`、`references/artifacts.md:9` 都写 triage metadata only），历史事实在 `TaskFlowDocs/achieved/`，且 `SKILL.md:44` 禁止第二份事实源——所以往 todo.md 里做归档是反方向的。按日期分片/换后端会把整套 hook（`hooks/archive`、`hooks/summarize-state`、`hooks/todo-check`、`hooks/merge-todo`、`hooks/task`）都改一遍。
-  **读取代价已被 v1.0.7 砍掉一半**：`hooks/task get <todo-id>` 只回一条条目，`task next` / `task intake` 只写一条，所以「查/改」不再需要读全文；剩下的整读场景只有「新增条目」。（本条由 `hooks/task next` 写入，未手改。）
-
+- Task: `TaskFlowDocs/achieved/2026-10-19-todo-done-compaction/`
+- Next action: None — completed and archived.
 
 ## Cut the mechanical overhead out of a release without adding any authority to it
 
