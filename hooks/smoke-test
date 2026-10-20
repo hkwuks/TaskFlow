@@ -1018,8 +1018,12 @@ echo "== complete rolls back doc status when archive fails =="
 roll="$tmp/rollback-hooks"
 mkdir -p "$roll"
 cp "$HERE/task" "$roll/task"
+# `task` resolves the name rule through SCRIPT_DIR, so a copied tree needs the
+# rule beside it — a missing one would show up here as "task-id: No such file"
+# rather than as the archive failure this section is about.
+cp "$HERE/task-id" "$roll/task-id"
 printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
-chmod +x "$roll/archive" "$roll/task"
+chmod +x "$roll/archive" "$roll/task-id" "$roll/task"
 rf="$tmp/rollback-root"
 mkdir -p "$rf"
 bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
@@ -1383,6 +1387,87 @@ if bash "$HERE/task" complete 2026-09-09-gate-smoke --user-accepted --root "$gat
 fi
 echo ok
 
+echo "== unpromote undoes a promotion, and refuses the four times it must not =="
+# `promote` refuses a name that is not a single path component, so this command
+# is not for the mistake that check now catches — it is for a promotion made
+# under a name somebody meant to change, and for links a hand-written entry can
+# still carry. There is no backup: the directory is removed. The four refusals
+# are therefore the whole of its safety, and each is asserted on its own.
+unp="$tmp/unpromote"
+mkdir -p "$unp/TaskFlowDocs"
+printf '# Todo inbox\n\n## Seed\n\n- ID: TF-20260101-un\n- Status: clarified\n- Priority: normal\n- Owner: smoke\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: unpromote probe\n- Task: Not promoted.\n- Next action: none\n' > "$unp/TaskFlowDocs/todo.md"
+# Rewrites the seed entry back to "ready to promote" so one fixture serves every
+# refusal below. Without it each case would need its own repository. Plain sed:
+# the hooks run with no language runtime, and the suite that tests them must not
+# require one either.
+reset_unp_entry() {
+  sed -i.bak -e 's/^- Status: .*/- Status: clarified/' \
+    -e 's/^- Task: .*/- Task: Not promoted./' \
+    -e 's/^- Next action: .*/- Next action: none/' \
+    -e '/^- Notes: Unpromoted/d' "$unp/TaskFlowDocs/todo.md"
+  rm -f "$unp/TaskFlowDocs/todo.md.bak"
+}
+unp_out="$tmp/unpromote-out"
+
+# 1. The success path: right name, freshly promoted, nothing touched since.
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+  || { echo "FAIL unpromote fixture promote"; cat "$unp_out"; exit 1; }
+bash "$HERE/task" unpromote TF-20260101-un "promoted under the wrong name" --root "$unp" > "$unp_out" 2>&1 \
+  || { echo "FAIL unpromote refused a fresh promotion:"; cat "$unp_out"; exit 1; }
+[ ! -e "$unp/TaskFlowDocs/2026-01-01-unp" ] || { echo "FAIL unpromote left the directory"; exit 1; }
+grep -q 'removing TaskFlowDocs/2026-01-01-unp/' "$unp_out" \
+  || { echo "FAIL unpromote did not name what it removed"; cat "$unp_out"; exit 1; }
+unp_entry="$(bash "$HERE/task" get TF-20260101-un --root "$unp")"
+printf '%s\n' "$unp_entry" | grep -qx -- '- Status: inbox' \
+  || { echo "FAIL unpromote did not return the entry to inbox"; printf '%s\n' "$unp_entry"; exit 1; }
+printf '%s\n' "$unp_entry" | grep -qx -- '- Task: Not promoted.' \
+  || { echo "FAIL unpromote did not clear the Task link"; printf '%s\n' "$unp_entry"; exit 1; }
+printf '%s\n' "$unp_entry" | grep -qx -- '- Next action: Clarify and promote when ready.' \
+  || { echo "FAIL unpromote did not restore the next action"; printf '%s\n' "$unp_entry"; exit 1; }
+printf '%s\n' "$unp_entry" | grep -q '^\- Notes: Unpromoted .*promoted under the wrong name' \
+  || { echo "FAIL unpromote did not record the reason"; printf '%s\n' "$unp_entry"; exit 1; }
+grep -q 'duplicate' "$unp_out" \
+  || { echo "FAIL unpromote did not warn that the goal blocks a re-intake"; cat "$unp_out"; exit 1; }
+
+# 2. Refusal: the entry is not promoted.
+bash "$HERE/task" unpromote TF-20260101-un "nothing to undo" --root "$unp" > "$unp_out" 2>&1 \
+  && { echo "FAIL unpromote accepted an entry that is not promoted"; exit 1; }
+grep -q 'only a promoted Todo entry' "$unp_out" || { echo "FAIL refusal 2 did not name the state"; cat "$unp_out"; exit 1; }
+
+# 3. Refusal: the directory holds tracked files, so undoing it is a Git act.
+# Promote first, initialise Git second: `promote` refuses to run in a base
+# working tree, which is the whole point of the section further up.
+reset_unp_entry
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+  || { echo "FAIL refusal-3 fixture promote"; cat "$unp_out"; exit 1; }
+( cd "$unp" && git init -q . && git config user.email smoke@example.invalid && git config user.name smoke \
+  && git add -A && git -c commit.gpgsign=false commit -qm fixture ) >/dev/null 2>&1 || true
+bash "$HERE/task" unpromote TF-20260101-un "should refuse" --root "$unp" > "$unp_out" 2>&1 \
+  && { echo "FAIL unpromote removed a committed task directory"; exit 1; }
+grep -q 'holds tracked files' "$unp_out" || { echo "FAIL refusal 3 did not name tracked files"; cat "$unp_out"; exit 1; }
+[ -d "$unp/TaskFlowDocs/2026-01-01-unp" ] || { echo "FAIL refusal 3 deleted the directory anyway"; exit 1; }
+
+# 4. Refusal: someone has approved the Plan.
+( cd "$unp" && git rm -r -q --cached TaskFlowDocs/2026-01-01-unp && git -c commit.gpgsign=false commit -qm untrack >/dev/null 2>&1 ) || true
+sed 's/^- Status: requested$/- Status: approved/' "$unp/TaskFlowDocs/2026-01-01-unp/plan.md" > "$unp/p.tmp"
+mv "$unp/p.tmp" "$unp/TaskFlowDocs/2026-01-01-unp/plan.md"
+bash "$HERE/task" unpromote TF-20260101-un "should refuse" --root "$unp" > "$unp_out" 2>&1 \
+  && { echo "FAIL unpromote removed an approved task"; exit 1; }
+grep -q "Approval is not 'requested'" "$unp_out" || { echo "FAIL refusal 4 did not name the approval"; cat "$unp_out"; exit 1; }
+[ -d "$unp/TaskFlowDocs/2026-01-01-unp" ] || { echo "FAIL refusal 4 deleted the directory anyway"; exit 1; }
+
+# 5. Refusal: a document has left planning.
+sed 's/^- Status: approved$/- Status: requested/' "$unp/TaskFlowDocs/2026-01-01-unp/plan.md" > "$unp/p.tmp"
+mv "$unp/p.tmp" "$unp/TaskFlowDocs/2026-01-01-unp/plan.md"
+sed 's/^> Status: planning$/> Status: ready/' "$unp/TaskFlowDocs/2026-01-01-unp/prd.md" > "$unp/p.tmp"
+mv "$unp/p.tmp" "$unp/TaskFlowDocs/2026-01-01-unp/prd.md"
+bash "$HERE/task" unpromote TF-20260101-un "should refuse" --root "$unp" > "$unp_out" 2>&1 \
+  && { echo "FAIL unpromote removed a task whose documents moved on"; exit 1; }
+grep -q "is not at '> Status: planning'" "$unp_out" || { echo "FAIL refusal 5 did not name the document"; cat "$unp_out"; exit 1; }
+[ -d "$unp/TaskFlowDocs/2026-01-01-unp" ] || { echo "FAIL refusal 5 deleted the directory anyway"; exit 1; }
+rm -rf "$unp/.git"
+echo ok
+
 echo "== task approve records the five-field block =="
 # Production is one task per worktree, and the release records live under that
 # worktree's own git dir — so two tasks in one worktree would share them, which
@@ -1643,6 +1728,75 @@ grep -q '^> Status: in_progress$' "$ap_task/plan.md" || { echo "FAIL approve cha
 # pre-write gate section pins it there where it is enforced.
 echo ok
 
+echo "== a task name is a single path component, refused before it is joined =="
+# `promote` is the command that turns the name into a directory, but `state`,
+# `progress`, `approve`, `complete`, `archive` and `reopen` all resolve the same
+# name against the same tree. Measured in an isolated repository before the rule
+# existed: `../evil` created a fully usable task directory above TaskFlowDocs
+# and `../../escaped` created one outside the repository, so the assertion is
+# not merely "it exited non-zero" — it is that nothing was written anywhere.
+badid="$tmp/badid"
+mkdir -p "$badid"
+(
+  cd "$badid" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  mkdir -p TaskFlowDocs
+  printf '# Todo inbox\n\n## Seed\n\n- ID: TF-20260101-bad\n- Status: clarified\n- Priority: normal\n- Owner: smoke\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: bad name probe\n- Task: Not promoted.\n- Next action: none\n' > TaskFlowDocs/todo.md
+  git add -A && git commit -qm base
+) || { echo "FAIL bad-name fixture repository"; exit 1; }
+(
+  cd "$badid" || exit 1
+  git worktree add -q .worktrees/task-tree -b chore/task-tree
+) || { echo "FAIL bad-name fixture worktree"; exit 1; }
+badwt="$badid/.worktrees/task-tree"
+bad_before=$(digest "$badwt/TaskFlowDocs/todo.md")
+bad_out="$tmp/badid-out"
+# Three of these carry a legal date prefix and only the slug is wrong, so they
+# exercise the second half of the rule. The other six are rejected by the date
+# pattern alone — asserting only those would leave the class check unmeasured,
+# which is what the M1 mutation showed.
+for bad in "--size" "../evil" "../../escaped" "a/b" "-rf" "" "2026-01-01-Ab" "2026-01-01-a/b" "2026-01-01-a b"; do
+  for cmd in "promote TF-20260101-bad" "state" "progress" "approve" "complete"; do
+    case "$cmd" in
+      "promote TF-20260101-bad") args=(promote TF-20260101-bad "$bad" small) ;;
+      state)      args=(state "$bad" ready) ;;
+      progress)   args=(progress "$bad" 1 done) ;;
+      approve)    args=(approve "$bad") ;;
+      complete)   args=(complete "$bad" --user-accepted) ;;
+    esac
+    set +e
+    bash "$HERE/task" "${args[@]}" --root "$badwt" > "$bad_out" 2>&1
+    bad_rc=$?
+    set -e
+    [ "$bad_rc" -ne 0 ] || { echo "FAIL task ${args[*]} accepted a bad name"; cat "$bad_out"; exit 1; }
+    grep -q 'invalid task id' "$bad_out" || { echo "FAIL task ${args[*]} refused without naming the rule"; cat "$bad_out"; exit 1; }
+  done
+  for hook in archive reopen; do
+    set +e
+    bash "$HERE/$hook" "$bad" "$badwt" > "$bad_out" 2>&1
+    bad_rc=$?
+    set -e
+    [ "$bad_rc" -ne 0 ] || { echo "FAIL $hook accepted a bad name: $bad"; cat "$bad_out"; exit 1; }
+    grep -q 'invalid task id' "$bad_out" || { echo "FAIL $hook refused without naming the rule"; cat "$bad_out"; exit 1; }
+  done
+done
+[ "$bad_before" = "$(digest "$badwt/TaskFlowDocs/todo.md")" ] || { echo "FAIL a bad name mutated Todo"; exit 1; }
+[ ! -e "$badid/evil" ] || { echo "FAIL '../evil' created a directory above TaskFlowDocs"; exit 1; }
+[ ! -e "$badid/TaskFlowDocs/a" ] || { echo "FAIL 'a/b' created a nested directory"; exit 1; }
+[ ! -e "$(dirname "$badid")/escaped" ] || { echo "FAIL '../../escaped' created a directory outside the fixture"; exit 1; }
+# The rule has to accept the real shape too, or it would pass by refusing
+# everything: this repository's own task directories are the sample.
+for d in TaskFlowDocs/*/; do
+  name="${d%/}"; name="${name##*/}"
+  [ "$name" = "achieved" ] && continue
+  [ "$name" = "repository-docs" ] && continue
+  bash "$HERE/task-id" "$name" || { echo "FAIL the rule rejects this repository's own active task: $name"; exit 1; }
+done
+bash "$HERE/task-id" 2026-01-01-a || { echo "FAIL the rule rejects a minimal legal name"; exit 1; }
+echo ok
+
 echo "== a task is isolated before its first document is written =="
 # A task's first documents are written in Phase 1, so a promotion from the base
 # working tree would put them on whatever branch happens to be checked out — and
@@ -1668,19 +1822,19 @@ iso_todo_digest=$(digest "$iso/TaskFlowDocs/todo.md")
 iso_out="$tmp/isolation-out"
 
 set +e
-bash "$HERE/task" promote TF-20260101-aa promoted-in-base small --root "$iso" > "$iso_out" 2>&1
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-base small --root "$iso" > "$iso_out" 2>&1
 iso_status=$?
 set -e
 [ "$iso_status" -eq 3 ] || { echo "FAIL promote in the base working tree exit code: $iso_status"; cat "$iso_out"; exit 1; }
 grep -q 'STATUS: blocked' "$iso_out" || { echo "FAIL base-tree promote not blocked"; cat "$iso_out"; exit 1; }
 grep -q 'not a task worktree' "$iso_out" || { echo "FAIL base-tree promote did not name the reason"; cat "$iso_out"; exit 1; }
 # Everything the script can know is filled in, so the reader only picks <type>.
-grep -q 'git worktree add \.worktrees/promoted-in-base -b <type>/promoted-in-base ' "$iso_out" \
+grep -q 'git worktree add \.worktrees/2026-01-01-promoted-in-base -b <type>/2026-01-01-promoted-in-base ' "$iso_out" \
   || { echo "FAIL base-tree promote did not print a runnable command with <task-id> and <base> filled in"; cat "$iso_out"; exit 1; }
 grep -q '<type>' "$iso_out" || { echo "FAIL base-tree promote silently chose a branch prefix"; cat "$iso_out"; exit 1; }
 grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree promote did not list the legal prefixes"; cat "$iso_out"; exit 1; }
 # Refused means nothing was written, not just nothing was committed.
-[ ! -e "$iso/TaskFlowDocs/promoted-in-base" ] || { echo "FAIL blocked promote still created the task directory"; exit 1; }
+[ ! -e "$iso/TaskFlowDocs/2026-01-01-promoted-in-base" ] || { echo "FAIL blocked promote still created the task directory"; exit 1; }
 [ "$iso_todo_digest" = "$(digest "$iso/TaskFlowDocs/todo.md")" ] || { echo "FAIL blocked promote still mutated Todo"; exit 1; }
 [ -z "$(git -C "$iso" status --porcelain)" ] || { echo "FAIL blocked promote dirtied the working tree"; exit 1; }
 
@@ -1689,9 +1843,9 @@ grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree prom
   cd "$iso" || exit 1
   git worktree add -q .worktrees/task-tree -b chore/task-tree
 ) || { echo "FAIL isolation fixture worktree"; exit 1; }
-bash "$HERE/task" promote TF-20260101-aa promoted-in-worktree small --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
-[ -f "$iso/.worktrees/task-tree/TaskFlowDocs/promoted-in-worktree/plan.md" ] \
+[ -f "$iso/.worktrees/task-tree/TaskFlowDocs/2026-01-01-promoted-in-worktree/plan.md" ] \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
 grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion printed the base-tree refusal"; cat "$iso_out"; exit 1; }
 
@@ -1700,9 +1854,9 @@ grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion
 iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-isolation-bare.XXXXXX")"
 mkdir -p "$iso_bare/TaskFlowDocs"
 cp "$iso/TaskFlowDocs/todo.md" "$iso_bare/TaskFlowDocs/todo.md"
-bash "$HERE/task" promote TF-20260101-aa promoted-outside-git small --root "$iso_bare" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --root "$iso_bare" > "$iso_out" 2>&1 \
   || { echo "FAIL promote outside a repository was refused:"; cat "$iso_out"; exit 1; }
-[ -f "$iso_bare/TaskFlowDocs/promoted-outside-git/plan.md" ] \
+[ -f "$iso_bare/TaskFlowDocs/2026-01-01-promoted-outside-git/plan.md" ] \
   || { echo "FAIL promote outside a repository did not write the task"; exit 1; }
 rm -rf "$iso_bare"
 

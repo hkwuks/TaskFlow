@@ -32,15 +32,15 @@ has an issue number or URL.
 ## Validate the task id that promote joins into a filesystem path, and give a wrong
 
 - ID: TF-20261020-cd02f5
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: reproduced in an isolated /tmp repository on 2026-10-20
 - Added: 2026-10-20
 - Updated: 2026-10-20
 - Goal: Validate the task id that promote joins into a filesystem path, and give a wrongly promoted entry a CLI way back: promote takes the id as task and runs mkdir -p on TaskFlowDocs/<task> with no shape check, so a misplaced flag makes --size the directory name and ../ escapes the docs tree entirely; because the command then succeeds, the Todo entry reads promoted and task remove refuses to undo it, leaving no CLI recovery. The same unvalidated value reaches state, progress, approve, complete, archive and reopen, and archive can move a directory from outside the repo into achieved/.
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-20-task-id-validation/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Stop stating the Task version history twice: prd.md and plan.md each keep their
 

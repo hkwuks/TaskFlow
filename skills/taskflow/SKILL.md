@@ -57,7 +57,9 @@ After the request passes the applicability gate, first record or update its Todo
 
 Every request within TaskFlow's applicability boundary enters `TaskFlowDocs/todo.md` before task selection. Record its ID, source, goal, status, next action, update date, and external identifier/link when one exists. Deduplicate imported items by source plus external identifier; preserve distinct requirements even when imported as a batch. A batch may carry common source metadata, but it is never itself a task, PRD, or requirements source.
 
-Prefer `hooks/task intake`, `promote`, `state`, `progress`, `unaided`, and `complete` for their bounded mechanical edits. Use Agent edits for semantic content and cases those commands do not cover. These commands are explicit Agent actions, not automatically bound hooks.
+Prefer `hooks/task intake`, `promote`, `unpromote`, `state`, `progress`, `unaided`, and `complete` for their bounded mechanical edits. Use Agent edits for semantic content and cases those commands do not cover. These commands are explicit Agent actions, not automatically bound hooks.
+
+A task name is one path component, `YYYY-MM-DD-short-slug`, and every command that takes one validates it (`hooks/task-id`) before joining it into a path — `promote` runs `mkdir -p` on it, and `archive`/`reopen` move a directory named by it. `task unpromote <todo-id> <reason>` is `promote`'s inverse: it removes the directory and returns the entry to `inbox`. It refuses while the directory holds tracked files, or once the Plan's `## Approval` has left `requested`, or once a document has left `> Status: planning`, because from that point the directory is somebody's work rather than an empty scaffold.
 
 Do not create, reopen, modify, or select a task before the Todo record exists. After promotion, retain lifecycle metadata, source identity, and one task link in Todo; do not duplicate task facts. Update the Todo status as the linked task moves through `inbox → clarified → promoted → in_progress → done/cancelled`.
 

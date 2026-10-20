@@ -21,7 +21,8 @@ taskflow/hooks/
 ├── capability-evidence # records real capability invocations (Claude Code only)
 ├── capability-gate     # refuses a stage document's first body write (Claude Code only)
 ├── json-field          # shared one-level JSON reader for the two hooks above
-├── task                # explicit intake/promote/state/progress/unaided/complete edits
+├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
+├── task                # explicit intake/promote/unpromote/state/progress/unaided/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
