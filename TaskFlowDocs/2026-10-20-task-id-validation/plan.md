@@ -194,3 +194,4 @@
 - 提交 `ac68415` 推到 `fix/task-id-validation`。
 - 草稿 PR [#89](https://github.com/hkwuks/TaskFlow/pull/89)，body 按 `.github/pull_request_template.md` 五节填写；`## Verification` 里只有 CI 那一项待勾。
 - 变异记录（上表）与两处测试缺陷都写进了 PR body，因为它们属于「这个断言凭什么可信」的一部分，评审时与 diff 一起读。
+- PR [#89](https://github.com/hkwuks/TaskFlow/pull/89) 已标记 ready。head `fc484c6` 的 CI run [`39440465074`](https://github.com/hkwuks/TaskFlow/actions/runs/39440465074) 六项全绿。
