@@ -19,7 +19,12 @@
 # path-level change in the sequence and the rollback never has to put a file
 # back into a directory that has already moved out from under it.
 set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
 task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+# `archive` is the forward half of this pair, so the same name rule applies
+# here: the move below is a filesystem join, and `..` in the name would move a
+# directory this script never intended to touch.
+bash "$HERE/task-id" "$task" || exit 1
 docs="$root/TaskFlowDocs"
 todo="$docs/todo.md"
 today="$(date +%Y-%m-%d)"

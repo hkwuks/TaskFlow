@@ -9,7 +9,13 @@
 # Git is never invoked: on success the script prints the exact stage lines and
 # states that the archive commit belongs on the current branch.
 set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
 task="$1"; root="${2:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")}"
+# Before the name is joined into a path, not after: every check below is a test
+# on `$docs/$task`, so a name carrying `..` is answered by the join rather than
+# by this script. The `mv` at the end is the one that can carry a directory from
+# outside this repository into `achieved/`.
+bash "$HERE/task-id" "$task" || exit 1
 docs="$root/TaskFlowDocs"
 [ -d "$docs/$task" ] || { echo "no active task $docs/$task"; exit 1; }
 [ ! -e "$docs/achieved/$task" ] || { echo "achieved/$task already exists"; exit 1; }

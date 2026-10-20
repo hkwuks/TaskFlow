@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# task-id — decide whether a string is a legal TaskFlow task name.
+#
+# Usage: task-id <candidate>
+#   exit 0 — legal
+#   exit 1 — not legal; one line on stderr naming the value and the shape
+#
+# Why this exists as its own file, called with `bash "$SCRIPT_DIR/task-id"` the
+# way `capability-gate` calls `json-field`, rather than as a sourced snippet:
+# nothing in hooks/ sources anything else, and the rule has to exist exactly
+# once. `task`, `archive` and `reopen` all join a caller-supplied name into a
+# filesystem path, so three copies of the rule would be three chances for them
+# to disagree — and the one that disagreed would be the one that let `../` out
+# of TaskFlowDocs.
+#
+# The shape is the one SKILL.md's Safety section states: YYYY-MM-DD-short-slug.
+# It is not merely tidy. `task promote` runs `mkdir -p "$docs/$task"`, so an
+# empty component, a leading dot or a slash is a path, not a name: measured in
+# an isolated repository, `../evil` created a directory above TaskFlowDocs that
+# `task state`, `approve` and `archive` then treated as a real task, and
+# `../../escaped` created one outside the repository entirely.
+#
+# A `case` glob rather than a regular expression: the shape is a character
+# class per position, which a glob states directly, and it needs no `grep -E`
+# or `sed` round trip on a value that is already in a shell variable.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: task-id <candidate>" >&2
+  exit 1
+fi
+
+candidate="$1"
+
+# The date prefix is matched by length and class so the slug cannot be empty:
+# `2026-10-20-` fails here because `[a-z0-9]` needs one character after the
+# trailing hyphen.
+case "$candidate" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[a-z0-9]*) slug="${candidate#????-??-??-}" ;;
+  *)
+    echo "invalid task id: '$candidate' (expected YYYY-MM-DD-short-slug)" >&2
+    exit 1
+    ;;
+esac
+
+# The glob above only pins the first slug character; `*` would happily carry an
+# uppercase letter or a slash through. This second pass is what makes the whole
+# string a single path component of one class — it is the check that rejects
+# `..` and `a/b`.
+case "$slug" in
+  *[!a-z0-9-]*)
+    echo "invalid task id: '$candidate' (expected YYYY-MM-DD-short-slug)" >&2
+    exit 1
+    ;;
+esac
+
+exit 0

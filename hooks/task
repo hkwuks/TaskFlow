@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # task — token-saving TaskFlow lifecycle edits.
-# Usage: task intake|promote|state|next|remove|get|progress|approve|complete ...
+# Usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|complete ...
 # POSIX shell + awk only: the plugin must run with no language runtime available.
 #
 # Every parameter is passed to awk through the environment rather than -v: awk
@@ -22,6 +22,14 @@ trap 'rm -rf "$work"' EXIT
 tmp_pairs="$work/pairs"
 
 fail() { echo "$*" >&2; exit 1; }
+
+# The name rule lives in one file, called the way `capability-gate` calls
+# `json-field`. `promote` is the command that turns the name into a directory,
+# but every other command that takes one resolves it against the same tree, so
+# they all spend the same check rather than each leaving the join unguarded.
+need_task_id() {  # need_task_id <candidate>
+  bash "$SCRIPT_DIR/task-id" "$1" || exit 1
+}
 
 # --- shared text helpers ---------------------------------------------------
 # Reads stdin, writes <path> through a temp file in the same directory so an
@@ -487,7 +495,7 @@ END {
     # has to go through the archive path instead.
     ta = rfield(a, b, "Task")
     if (ta != "Not promoted.") {
-      die("Todo entry is not unpromoted (Task: " (ta == "" ? "missing" : ta) "); handle its task first")
+      die("Todo entry is not unpromoted (Task: " (ta == "" ? "missing" : ta) "); handle its task first: complete and archive it, or unpromote it if the Task link was created by mistake")
     }
     tomb = "- ID: " id " (removed " today ": " removed_reason ")"
     # Delete the heading and body. Blank lines elsewhere are left alone, and the
@@ -595,7 +603,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|state|next|remove|get|progress|approve|unaided|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|complete ..."
 command="$1"; shift
 
 # The phase-table concept classes. This is the only place a concept class is
@@ -709,6 +717,7 @@ case "$command" in
     [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]'
     todo_id="${rest[0]}"; task="${rest[1]}"; size="${rest[2]}"
     case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]' ;; esac
+    need_task_id "$task"
     # Phase 1 writes the task's first documents, so this is where a task that was
     # never isolated would land them in the base tree, on whatever branch happens
     # to be checked out. Refuse before anything is written and hand over the
@@ -871,6 +880,98 @@ case "$command" in
     echo "promote OK: $todo_id -> $task ($size)"
     ;;
 
+  # The inverse of `promote`, for the case `promote` itself now refuses but
+  # older trees and hand-written links can still carry: a Task: path that points
+  # at a directory somebody meant to be a different name. `remove` cannot be
+  # that inverse — it refuses a promoted entry on purpose, because deleting the
+  # entry would orphan the directory. This deletes the directory and then the
+  # link, in that order, so a failure leaves the entry still pointing at
+  # something real instead of at nothing.
+  #
+  # What it refuses is the whole of its safety. There is no backup: the
+  # directory is removed, and the four conditions below are what keeps that from
+  # being somebody's work in progress.
+  unpromote)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 2 ] || fail 'usage: task unpromote <todo-id> <reason> [--root <path>]'
+    todo_id="${rest[0]}"; reason="${rest[1]}"
+    [ -n "$todo_id" ] || fail "todo-id must not be empty"
+    [ -n "$reason" ] || fail "reason must not be empty"
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] || fail "todo.md missing; nothing to unpromote"
+    docs="$root/TaskFlowDocs"
+
+    # One read of the entry, then both fields out of it: `entry` prints the
+    # whole block, which is what `get` is for, and the two values this command
+    # needs are lines in it.
+    entry="$(run_task_awk "$todo" TASKFLOW_CMD=entry TASKFLOW_ID="$todo_id" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id")"
+    entry_status="$(printf '%s\n' "$entry" | sed -n 's/^- Status: //p' | head -1)"
+    entry_task="$(printf '%s\n' "$entry" | sed -n 's/^- Task: //p' | head -1)"
+    [ "$entry_status" = "promoted" ] \
+      || fail "only a promoted Todo entry can be unpromoted (this one is: ${entry_status:-missing})"
+
+    # The link is the only thing that says which directory this promotion made.
+    # `Not promoted.` is not a task, and prose about where the work went is not a
+    # path; both mean there is nothing here to undo.
+    task="$(printf '%s\n' "$entry_task" | sed -n 's|^`TaskFlowDocs/\([^`]*\)/`$|\1|p')"
+    [ -n "$task" ] \
+      || fail "Todo entry does not link a task directory (Task: ${entry_task:-missing}); nothing to unpromote"
+    need_task_id "$task"
+
+    base="$docs/$task"
+    [ -d "$base" ] || fail "task directory not found: TaskFlowDocs/$task/"
+    [ ! -e "$docs/achieved/$task" ] \
+      || fail "this task is already archived; use reopen if you need it back"
+
+    # Tracked files mean the promotion was committed somewhere, so undoing it is
+    # a Git decision and not this command's.
+    if git -C "$root" rev-parse --absolute-git-dir >/dev/null 2>&1 \
+       && [ -n "$(git -C "$root" ls-files -- "TaskFlowDocs/$task" 2>/dev/null)" ]; then
+      fail "TaskFlowDocs/$task/ holds tracked files; undo it with Git, not with unpromote"
+    fi
+
+    # The remaining three answer "has anyone started?" without comparing against
+    # the promote template, whose wording changes: an approval that is not still
+    # `requested`, or a document that has left `planning`, is somebody's work.
+    approval_status="$(sed -n '/^## Approval$/,/^## /s/^- Status: //p' "$base/plan.md" 2>/dev/null | head -1)"
+    [ "$approval_status" = "requested" ] \
+      || fail "plan.md's Approval is not 'requested' (${approval_status:-missing}); this promotion has been worked on"
+    for doc in prd.md plan.md; do
+      doc_status="$(sed -n 's/^> Status: //p' "$base/$doc" 2>/dev/null | head -1)"
+      [ "$doc_status" = "planning" ] \
+        || fail "$doc is not at '> Status: planning' (${doc_status:-missing}); this promotion has been worked on"
+    done
+
+    # Printed before the removal, so the caller sees what is about to go. There
+    # is no undo, and this line is the only record of what was there.
+    echo "removing TaskFlowDocs/$task/:"
+    for f in "$base"/*; do
+      [ -e "$f" ] || continue
+      echo "  ${f##*/}"
+    done
+    rm -rf "$base"
+
+    {
+      printf 'Status\tinbox\n'
+      printf 'Task\tNot promoted.\n'
+      printf 'Next action\tClarify and promote when ready.\n'
+      printf 'Updated\t%s\n' "$today"
+    } > "$tmp_pairs"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_ID="$todo_id" TASKFLOW_PAIRS="$tmp_pairs" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=next TASKFLOW_ID="$todo_id" \
+      TASKFLOW_NEXT_ACTION="Clarify and promote when ready." TASKFLOW_NOTES="Unpromoted $today: $reason" \
+      TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
+
+    echo "unpromote OK: $todo_id ($task)"
+    # Stated here rather than in a document, because the next thing a caller
+    # does after a mistake is retype the same goal — and `intake` refuses a
+    # duplicate goal across every entry regardless of status.
+    echo "note: the entry keeps its Goal, so re-running intake with the same wording"
+    echo "      is refused as a duplicate. Use 'task next' to restate the next action."
+    ;;
+
   state)
     split_root "$@"
     [ "${#rest[@]}" -eq 2 ] || fail 'usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]'
@@ -879,6 +980,7 @@ case "$command" in
       planning|ready|in_progress|checking|blocked) ;;
       *) fail 'usage: task state <task-id> <planning|ready|in_progress|checking|blocked> [--root <path>]' ;;
     esac
+    need_task_id "$task"
     task_paths "$root" "$task"
     if [ "$new_state" = "in_progress" ]; then
       require_approval "$task"
@@ -958,6 +1060,7 @@ case "$command" in
       pending|in_progress|done|blocked) ;;
       *) fail 'usage: task progress <task-id> <step-number> <pending|in_progress|done|blocked> [verification] [--root <path>]' ;;
     esac
+    need_task_id "$task"
     if [ "${#rest[@]}" -eq 4 ]; then verification="${rest[3]}"; else verification=""; fi
     task_paths "$root" "$task"
     require_approval "$task"
@@ -1046,6 +1149,7 @@ case "$command" in
     task="${rest[0]}"
     if [ "${#rest[@]}" -eq 2 ]; then approver="${rest[1]}"; else approver="user"; fi
     [ -n "$approver" ] || fail "approver must not be empty"
+    need_task_id "$task"
     task_paths "$root" "$task"
     [ -f "$plan" ] || fail "missing plan.md; approval not written"
     grep -q '^## Approval$' "$plan" || fail "missing Approval section; approval not written"
@@ -1212,6 +1316,7 @@ CAP_POOL
     split_root "$@"
     [ "${#rest[@]}" -eq 2 ] && [ "${rest[1]}" = "--user-accepted" ] || fail 'usage: task complete <task-id> --user-accepted [--root <path>]'
     task="${rest[0]}"
+    need_task_id "$task"
     task_paths "$root" "$task"
     docs="$root/TaskFlowDocs"
     plan_text="$(cat "$plan")"
