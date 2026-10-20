@@ -192,3 +192,11 @@
 ## Version History
 
 - v1 — 规划中，等待用户批准。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 2026-10-10 用户裁定：本条吸收 TF-20261008-84a0ce（主检出的工作怎么进 worktree）。两条是同一失败模式「干活的落点不是以为的落点」的两半——efbc51 是 hook 侧（事件 cwd 与文件路径两个锚点不一致，记录静默落空），84a0ce 是文档侧（SKILL.md 只写「move the work there」而不给可执行步骤，也不警告隔离外的脏状态）；合并后一个任务同时改 hook 与 SKILL.md，且 84a0ce 不必等 efbc51 的锚点语义定下来才能写步骤。

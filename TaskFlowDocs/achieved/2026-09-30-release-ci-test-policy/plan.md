@@ -133,3 +133,15 @@ No spec required — small, self-contained task.
 
 - v1 — planning; superseded after implementation surfaced three further places to amend.
 - v2 — scope extended to the pull-request template and both READMEs, and the rule stated in both directions.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 用户 2026-09-30 提出：该 revision 若已在 CI 跑绿，发布时不再重复跑同一批测试；测试一律优先交给 CI。与 `TF-20260928-3910fb` 同属「砍掉发布时多余的重复校验」，两条互链。
+  **落点**：`RELEASE.md:54` 的 Validation checklist 里有 `bash hooks/smoke-test`。发布提交本身只改版本字面量与 CHANGELOG（1.1.2 实测为 `5d4fccf`），`hooks/` 与 `skills/` 一行未动，所以这批用例在发布提交上的结果不可能与已跑绿的 CI 不同——重跑在道理上就是空的，不只是「CI 跑过了」。
+  **本机的额外理由**：整段 `hooks/smoke-test` 在这台 Windows + MSYS 上跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，未修改的 `origin/main` 在同一处同样失败），发布时跑它既给不出判定，又要如实记一次「未通过」。
+  **不能跟着砍掉的**：`hooks/release-check`、`hooks/repository-check`、`quick_validate.py`、`git diff --check` 检查的是版本字面量、catalog 的 `ref`/`sha` 与发布记录新鲜度——这些差异**只有发布提交才产生**，CI 结构上覆盖不到，必须留在发布流程里。
+  **待定的边界**：(a) 判据用严格相等（tag 指向的提交 == CI 跑绿的提交），还是允许「发布提交只动版本字面量与 CHANGELOG」这一形态；(b) 跳过时发布记录里要写什么，才能让「没跑」与「跑了没过」仍可区分。

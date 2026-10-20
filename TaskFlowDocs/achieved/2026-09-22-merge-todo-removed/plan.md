@@ -117,3 +117,13 @@ No spec required — small, self-contained task.
 
 - v1 — planning.
 - v1 — approved (user, 2026-09-22); Steps 1–3 done; suite green.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
+  **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
+  **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。

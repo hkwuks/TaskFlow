@@ -90,7 +90,15 @@ rollback() {
 #    action that is true again. `promoted` is what `task state planning|ready`
 #    writes, so a re-approved task lands on the same value either way. Only
 #    those three fields and Updated: change; every other line is emitted
-#    verbatim, which is what keeps ID:, Source:, Goal:, and Notes: intact.
+#    verbatim, which is what keeps ID:, Goal: and any Notes intact.
+#
+#    `Updated:` is inserted when the entry does not carry it. An archived entry
+#    is compacted to five fields and none of them is `Updated:`, so the entry a
+#    reopen targets is exactly the case that has none. Leaving it out is not a
+#    missing refresh: `hooks/task`'s `loadpairs` dies on an absent field, so the
+#    documented next step `task state <task> planning` would fail right after
+#    reopen reported success. The line goes after `Next action:`, or at the end
+#    of the entry when even that is absent.
 if ! awk -v was="\`$was\`" -v now="\`$changed\`" -v next_action="$next_action" -v today="$today" '
   { n++; line[n] = $0 }
   END {
@@ -110,8 +118,16 @@ if ! awk -v was="\`$was\`" -v now="\`$changed\`" -v next_action="$next_action" -
     for (i = start + 1; i < finish; i++) {
       if (index(line[i], "- Next action:") == 1) { line[i] = "- Next action: " next_action; break }
     }
+    upd_i = 0
     for (i = start + 1; i < finish; i++) {
-      if (index(line[i], "- Updated:") == 1) { line[i] = "- Updated: " today; break }
+      if (index(line[i], "- Updated:") == 1) { line[i] = "- Updated: " today; upd_i = i; break }
+    }
+    if (!upd_i) {
+      anchor = finish - 1
+      while (anchor > start && line[anchor] ~ /^[[:space:]]*$/) anchor--
+      for (i = n; i > anchor; i--) line[i + 1] = line[i]
+      n++; finish++
+      line[anchor + 1] = "- Updated: " today
     }
     for (i = 1; i <= n; i++) {
       gsub(was, now, line[i])

@@ -335,3 +335,18 @@
 
 - v1 — 前置门 + 证据存储 + `task unaided` 逃生舱 + approve 对账；v1 只接 Claude Code；stage 记录移出 `plan.md`；谓词限定 `Skill`/`Agent`/MCP。
 - v2 — 修正 v1 在 Windows 上的静默 fail-open（R13/R14、A13/A14）：门按 `file_path` 取目录，而宿主在 Windows 上投递反斜杠路径，切不出分隔符即静默放行。范围仅"归一 + 回归测试 + 文档"，不动存储、谓词与逃生舱。用户 2026-09-30 裁定立刻修正（本条即 reopen 的 v2）。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-09-30 实测（本机 Windows + 已发布 1.1.1）**：
+(1) 在项目内对真实任务文档（同级有 `plan.md`、无任何证据）执行 Write → **被放行**；
+(2) 直接喂装机包的门：正斜杠 `/d/WorkSpace/.../prd.md` → **deny**（消息完整）；反斜杠 `D:\WorkSpace\...\prd.md` → **allow**（空输出）。
+**根因（我方代码）**：门用 `task_dir="${file_path%/*}"` 取目录，`%/*` 只认正斜杠；反斜杠路径切不出分隔符 → `task_dir == file_path` → 撞上"切不出目录即视为非任务文档"的守卫 → `exit 0`。门假设了路径形态，而这是它最不该假设的东西。
+**宿主行为已由上游确认**：issue #83877「Windows 上 `tool_input.file_path` 以反斜杠分隔投递……匹配路径的 hook **静默 fail open**，外面无法区分『没被拦』与『本来无物可拦』」；#64432「Write 工具**总是**投递带反斜杠的 `file_path`」，给的解法即 hook 内做分隔符归一；#40076 / #52962 是 WSL2 下的同一类。
+**为什么 v1 的验证没抓到**：Windows 套件里的 event JSON 是我**自己拼**的，而我在拼的时候写了 `.Replace('\','/')` —— 测的是我假设的格式而不是宿主真实格式。测试与实现对同一个假设犯了同一个错，于是双双通过。
+**修法**：门内先把 `\` 归一成 `/` 再做任何路径判断（证据钩子不受影响：实测它拿到的 `cwd` 是 `/d/...` 形态，且它只把路径交给 `git -C`）；**并补回归断言**，喂反斜杠路径——这正是本该存在的测试。
+**影响**：Windows 上这个门等于不存在，而已发布的 1.1.1 带着它；macOS/Linux 正常（路径本就是正斜杠），故 CI 全绿是真的绿，只是覆盖不到该洞。修好后需再发一版才惠及用户。

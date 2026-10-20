@@ -1,9 +1,3 @@
-# Todo inbox
-
-This is the repository's single lightweight intake list. It stores triage metadata only. After promotion, the linked TaskFlow directory is the sole source of requirements, design, plan, and verification facts.
-
-Every direct request or imported requirement that passes the Skill's applicability gate enters this list — a repository development request, a GitHub Issue or other development import, or an explicit `$taskflow` request.
-
 ## Item template
 
 An entry is written by `hooks/task intake` in this shape. The sample is indented so the hooks that parse this file do not read it as an entry — every field a hook matches sits at column 0 in a real entry:
@@ -24,23 +18,21 @@ An entry is written by `hooks/task intake` in this shape. The sample is indented
 `- External:` is not written by `intake`; add it by hand only for a source that
 has an issue number or URL.
 
+
 ## Status flow
 
 `inbox → clarified → promoted → in_progress → done/cancelled`
+
 
 ## Items
 
 <!-- Add new items at the top using the template below. -->
 
+
 ## Stop stating the Task version history twice: prd.md and plan.md each keep their
 
 - ID: TF-20261018-0f2f6a
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request
-- Added: 2026-10-18
-- Updated: 2026-10-18
 - Goal: Stop stating the Task version history twice: prd.md and plan.md each keep their own Version History, and the two hand-maintained statements drift
 - Task: `TaskFlowDocs/achieved/2026-10-18-single-history-owner/`
 - Next action: None — completed and archived.
@@ -49,11 +41,6 @@ has an issue number or URL.
 
 - ID: TF-20261018-3f6686
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request
-- Added: 2026-10-18
-- Updated: 2026-10-18
 - Goal: Repair the todo.md template block and the leftover headings: the Item template sits between entries with a truncated sentence, and its field names no longer match what intake writes
 - Task: `TaskFlowDocs/achieved/2026-10-18-todo-template-repair/`
 - Next action: None — completed and archived.
@@ -62,25 +49,14 @@ has an issue number or URL.
 
 - ID: TF-20261018-bfc718
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user decision 2026-10-18: option A — restore the record rather than delete the documents
-- Added: 2026-10-18
-- Updated: 2026-10-18
 - Goal: Backfill the missing Todo record for a task whose documents landed without one: TaskFlowDocs/achieved/2026-09-10-repository-document-placement entered the repository inside a release commit (660679a, release 1.0.2) instead of through a task branch, so it never had a Todo entry; the orphan-task-directory check added later by 2026-09-23-orphan-task-dirs has flagged it ever since. The directory and its documents are kept exactly as they are. Only the missing record is restored, so the check reports green again and its green carries information.
 - Task: `TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`
-- Next action: None — record restored; the task itself was completed in 2026-09-10 and its documents are unchanged.
-- Notes: 用户 2026-10-18 选定 A 方案：补记录，不删文档。这次只动 `todo.md`——`TaskFlowDocs/achieved/2026-09-10-repository-document-placement/` 三个文件一字未改。该目录由 `660679a`（release 1.0.2）带入仓库，从未有过对应的 `- Task:` 行；`new_orphan` 检查（`2026-09-23-orphan-task-dirs`）上线后它一直是唯一命中项，使 `hooks/repository-check` 常驻 `STATUS: needs-user-input`（exit 2）。补记录后该检查转绿，其绿重新具有信息量。复核方式：`bash hooks/repository-check .`。
+- Next action: None — completed and archived.
 
 ## Removing a task worktree is nobody's job: nothing in the lifecycle tells the Age
 
 - ID: TF-20261018-66f814
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: audit 2026-10-17: nine stale worktrees on a merged, archived, done tasks
-- Added: 2026-10-18
-- Updated: 2026-10-19
 - Goal: Removing a task worktree is nobody's job: `complete` archives the directory and closes the Todo entry, but nothing in the lifecycle, in `CONTRIBUTING.md`, or in `SKILL.md` ever tells the Agent to tear the worktree down, and nothing checks whether it has gone. The result is that `.worktrees/` keeps every merged task forever and the local branch keeps pointing at its merge commit. Verified 2026-10-18: the word `worktree` appears in `CONTRIBUTING.md` only for creating one, and `grep -rn 'worktree remove\|worktree prune' hooks/` finds nothing, so `repository-check` reports stale worktrees only when their branch no longer exists — not when the task merged and was archived. Nine such worktrees had accumulated before this was noticed.
 - Task: `TaskFlowDocs/achieved/2026-10-19-worktree-teardown/`
 - Next action: None — completed and archived.
@@ -89,34 +65,9 @@ has an issue number or URL.
 
 - ID: TF-20261012-c79e31
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user report 2026-10-12: the approval roundabout, where the bullets had to be reordered into the shape the gate wanted
-- Added: 2026-10-12
-- Updated: 2026-10-18
 - Goal: The stage ledger pairs each release to a capability record by queue position rather than by stage, so which capability a phase is credited with depends on the order its document happened to be written, and hooks/task approve then requires the Skills / Tools Used bullet to name that exact capability: a phase that really invokes several capabilities overflows into the next phase, writing plan.md first credits the Plan stage with the PRD stage call, and an honest Skills / Tools Used section is refused while a reordered one passes, so the section becomes a value back-filled to satisfy the gate rather than a report of what happened
 - Task: `TaskFlowDocs/achieved/2026-10-17-stage-capability-pairing/`
 - Next action: None — completed and archived.
-- Notes: 2026-10-12 用户报告：approve 过程绕，原因是「门要求 bullet 里的能力名等于它那条记录的」，用户把顶部 v14 的三条调成门要的形状才过，并在文件里写明「记录按位点配对，类名不等于该阶段的语义分类」。
-
-**机制：配对靠队列位点，不靠阶段。** `hooks/capability-gate:144-155` 释放一个阶段时取的是 `awk -v n="$next" "NR == n"`——即 evidence 的**第 next 行**，`next = consumed + 1`；它不问这条属于哪个阶段。所以**哪个阶段拿到哪条记录，取决于文档被写的先后**。本次在临时 fixture 里复现（已删）：按 `ctx_search, ctx_execute, ctx_execute` 记录三条调用，再按 **Plan → PRD → Spec** 的顺序写文档，`released` 得到 `v1|Plan|1|invoke|ctx_search` / `v1|PRD|2|invoke|ctx_execute` / `v1|Spec|3|invoke|ctx_execute`。写 `plan.md` 在前（这在真实会话里是常态，因为 Plan 是当前正在推进的阶段），Plan 就必然被记成 PRD 那次调用的能力。
-
-**approve 在这之上再加一道名字相等。** `hooks/task:1108-1117` 要求 bullet 里的能力名**逐字**等于记录里的名字（invoke 分支 `grep -qF -- "$capability"`）。同一 fixture、同一组记录，两种写法：
-
-| `Skills / Tools Used` 写法 | approve 结果 |
-| --- | --- |
-| `[PRD] ctx_search` / `[Spec] ctx_execute` / `[Plan] ctx_execute`（各阶段**实际**用了什么） | `approve blocked: stage [PRD] does not name the recorded capability (ctx_execute)` |
-| 把名字调成门要的形状 | `approve OK: 2026-01-01-demo (user, v1)` |
-
-即：**如实记录被拒，为过门而重排被接受。** 用户做的那次重排不是伪造（三条调用都真发生过、名字也是真的），但它把这个槽位从「报告」变成了「回填」——`artifacts.md:127` 明写该节「is a report of what happened rather than a declaration」，而现在的机制使它必须写得不像实际发生的样子才能过。
-
-**两个成因，都是真实的会话形态，不是边角**：(1) **一个阶段会调多次能力**——用户这次 PRD 阶段调了多次，多出的记录不消失，**溢出到后面的阶段**；(2) **写文档的顺序 ≠ 阶段逻辑顺序**——Plan 常最先写。单阶段、单调用时设计是对的（一条 `Write prd.md` 对应一次调用），这两个条件一旦破掉，位点配对就必然错位。`capability-evidence:14-17` 的注释承认了这个解耦（「记录不知道哪个阶段在跑，因为事件不说」），但**没有任何一处文档或注释承认「配对是按位点」**，所以这是机制缺口叠着文档缺口。
-
-**Token 代价（用户问的）**：每次解「为什么 approve 说我没写对」都要一轮 approve 输出 + 读 `plan.md` + 读门 + 改 `plan.md`；真正的放大器是 `hooks/task:1097` 的 remedy 本身——approve 让你跑 `unaided`，而跑了之后**队列变了、配对再次错位**，于是下一轮继续。用户已经走过这一圈（approve 与 unaided 两条路都试过）。
-
-**与 TF-20261012-c66ad3 的关系（同一记账层的两个失败面，修法大概率同一个）**：c66ad3 是**供给不够**——`seq` 全局单调，用尽后版本提升无解；本条是**供给够了但配错**——`consumed` 与 `released` 的键不同源（前者是全局计数器、后者是 (version, stage)）。两条都源于「一条证据 = 一个阶段」这个一刀切：它既要求证据按阶段**配得上**（本条），又要求证据按全局顺序**供得上**（c66ad3）。可能的修法（未裁定，留待澄清）：(1) 释放时不贴阶段、只记「本版本消耗 n 条」，approve 改判「本版本记录数 ≥ 阶段数」——最省但丢掉「哪个阶段用了什么」；(2) 记录里带阶段自报——保留信息量，但门重新依赖模型输入；(3) 允许一条 bullet 列多条能力，approve 改判「bullet 集合 ⊇ 该阶段消耗的那几条」——不丢信息，需改 approve 判据。
-
-**边界**：复现在临时 fixture（`/tmp/tf-eq`）上完成并已删除；用户提到的 v14 那份 `plan.md` 不在本 clone（全仓 `grep 'Task version: v14'` 零命中）。未在真实会话上跑对照。相关：`TF-20261012-c66ad3`、`TF-20261009-8abbd6`、`TF-20261011-39bda8`。
 
 ## Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task
 
@@ -144,39 +95,19 @@ has an issue number or URL.
 
 **为什么值得单记而不是并入 `TF-20261009-8abbd6`**：8abbd6 要解决的是「宿主没有工具流 / cwd 不在任务工作树」造成的假拒绝，方向是**让阶段选择不必是工具调用的产物**；本条是**记账方式**本身使版本提升变死路，即使宿主有门、cwd 也对，一样会发生。两条的修复面不同（8abbd6 动能力表示层，本条动 `released`/`evidence` 的键或 `approve` 的对账口径）。相关：`TF-20261009-8abbd6`、`TF-20261011-39bda8`（已 done，`unaided` 现在自己写 release 行）。
 
+
 ## The entry signal for unregistered work never fires in the state a session actual
 
 - ID: TF-20261012-50164f
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-12: analyse why the session-start entry signal is silent, then record the finding
-- Added: 2026-10-12
-- Updated: 2026-10-17
 - Goal: The entry signal for unregistered work never fires in the state a session actually opens in: hooks/summarize-state closes three silences (no TaskFlowDocs; TaskFlowDocs with nothing recorded; a branch no task directory matches) but the second is unreachable wherever TaskFlowDocs/todo.md is tracked, and the third excludes main and master by literal name rather than resolving the base branch, so the base checkout, which is where a session most often starts, is the one state that prints neither line
 - Task: `TaskFlowDocs/achieved/2026-10-17-summarize-state-entry-signal/`
 - Next action: None — completed and archived.
-- Notes: 2026-10-12 用户要求：先分析「任务开始的信号为什么是静默的」，再把结论记成一条 todo。本条是那次分析的落点。
-
-**要求「分析」的那个问题，本身就是从一块被截断的上下文里读出来的，而我照抄了它。** 本次会话开场的 `summarize-state` 输出把 inbox 条目的 goal 切在 120 字节（`g = substr(g,1,120)`），而 `substr` 是**字节**操作、切在词中间**不留任何标记**。本次实测：当前 `todo.md` 里 12 条 goal 被这样切过，全部断在词中——`hooks/tas`+`k`（`hooks/task`）、`state close`+`s`（`closes`）、`asks to mo`+`d`（`modify`）。我据此把两个断句当成真实需求，写了「定义准入自动认领」和「user/… intake 的意图门」两条 goal；**两条都不存在**：`grep -rn 'Auto-claim\|Intent gate' .` 零命中，与 `todo.md` 里任何真实条目的 goal 文本也不重叠。我**无法再复核原句**——那两段只出现在当次会话输出里，没有落到任何文件上；可复核的是机制本身与上列 12 条现成实例。中文条目按 UTF-8 至少 3 字节／字，所以在中文仓库里它切得更碎，看起来更像「一个内容更少的真实条目」。`smoke-test` 只断言前缀能被解析，没有任何断言要求截断后带省略号或不被误读。**记录这条是为了让下一个读到同样碎片的会话不去追这两个幽灵需求。** 相关：本条同一次分析的机制结论见下；`TF-20260919-6b4e21`（todo.md 无界增长）是「读 1000+ 行 todo 才可能发现前提是假的」这一前提的扩大源。
-
-**机制结论（本次实测，1.1.5）**：`hooks/summarize-state` 现在已经有三段「不静默」的输出——无 `TaskFlowDocs/`（第 27-34 行）、有目录但一条都没记过（第 54-70 行）、分支不匹配任何任务目录（第 84-96 + 237-240 行）。但改完之后，会话最常打开的那个目录（仓库根的基检出）仍然**两行都不打印**，因为：(1) 第一段要求整个 `TaskFlowDocs/` 不存在，而基检出里 `TaskFlowDocs/repository-docs/` 由路由钩子自己创建、且 `todo.md` 是本仓库的跟踪文件，两者同时在场就把它变成死代码；(2) 第三段把 `main`/`master` 按**字面名**排除，而不是解析远程默认分支/上级分支，注释里写的理由是「基分支上说的每一句都是噪声」——可「这个仓库要不要进 TaskFlow」这件事，恰恰在基分支上最需要说；同时 `case "$current_branch" in ""|main|master)` 也意味着默认分支叫别的名字的仓库（本地常见 `develop`）在基检出上会**误报**那一行。两处同源：判据落在「目录/分支叫什么名字」，而不是「这份工作有没有登记」。
-
-**另一条同源缺口（本次实测）**：分支名叫 `user/foo` 时，`branch_slug="${current_branch##*/}"` 得到 `foo`，`achieved/` 的扫描会把它和某个旧任务目录名做结尾匹配，**只要撞上就静默**。所以不存在任何分支命名可以覆盖的「未登记」信号——这一段的存在理由是「分支是登记信号」（`achieved/2026-10-10-entry-point-silence/prd.md` B5），而它同时又是两处误判和一处漏判的来源。
-
-**为什么要先说这个**：用户原话是「这个适用性门禁在会话最开始就该触发（这是修改仓库的开发请求），我没走」。GATE 那段文字本身在第 27-34 行就写着义务，但它被 (1) 挡在门外；而第三段的分支报告在 `main` 上被 (2) 挡在门外。也就是说**义务的措辞早就在文件里，只是恰好在一个登录到这个仓库的会话里永远不会被执行到**。
-
-**边界**：以上为读码 + 一次实跑（`bash hooks/summarize-state` 在本仓库根，输出仅有 inbox 与 `# Active tasks`）。没有在别的仓库形态上跑，没有做对照。相关：`TF-20261009-cc463b`（入口不静默的母条目，其第四、第五失败模式即本条 (2) 与 (3) 的前身）、`TF-20260919-6b4e21`。
 
 ## The pre-write capability gate is wired only on Claude Code and Trae, so on the o
 
 - ID: TF-20261011-39bda8
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: audit follow-up 2026-10-11
-- Added: 2026-10-11
-- Updated: 2026-10-11
 - Goal: The pre-write capability gate is wired only on Claude Code and Trae, so on the other three supported hosts task approve can never succeed: hooks/task approve requires a taskflow/released record, capability-gate is the only writer of that file, and the Codex, CodeBuddy, and dsh hook wiring files subscribe to no tool-call event at all - only SessionStart. Measured 2026-10-11 in a fixture: with the gate wired the unaided declaration releases the stage and approve reconciles it; with the gate absent the same command reports unaided OK and exits 0 while released is never created, so approve returns 'stage [PRD] was never released by the pre-write gate' permanently, and its suggested remedy is that same unaided command, which cannot work. Approve is the only sanctioned writer of the Approval block, so in_progress, complete, and archive are all unreachable and the user is forced to hand-write the approval record. The three hosts' own deny-capable events are already recorded in the event map (Codex and CodeBuddy PermissionRequest/PreToolUse, dsh tools/pre-execute); Trae was wired by contract match without modifying either hook script. Wire the gate where the host's contract matches, and decide what an approve on a genuinely hookless host must do now that the docs say such a host needs no hooks.
 - Task: `TaskFlowDocs/achieved/2026-10-11-gate-host-coverage/`
 - Next action: None — completed and archived.
@@ -185,15 +116,9 @@ has an issue number or URL.
 
 - ID: TF-20261010-82ec77
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-10, found while reviewing the 1.1.3 entry-point bugs
-- Added: 2026-10-10
-- Updated: 2026-10-10
 - Goal: Taking over work that never entered TaskFlow triggers nothing: the applicability gate fires on a request that asks to modify the repository, while continuing or inheriting an existing unlogged workstream reads as a continuation, and SKILL.md:75 then rules a new session or changed implementation detail is never by itself a new-task trigger, so nothing ever asks whether the work should have been registered
 - Task: `TaskFlowDocs/achieved/2026-10-10-entry-point-silence/`
 - Next action: None — completed and archived.
-- Notes: 2026-10-10 查证（1.1.3 上确认复现）：(1) `SKILL.md:10` 的适用闸门只在「请求要求**修改仓库**」时自动生效，而「接着做这个分支 / 接手这个任务」读起来是**延续**，不构成请求；(2) `SKILL.md:75` 明确反向——「A new session, new Agent, or a changed implementation detail is never by itself a new-task trigger」，本意是防误建任务，但同时给「继续未登记的工作」发了许可；(3) 没有任何东西会留下「这份工作没登记」的痕迹：`hooks/summarize-state` 打印的是**已存在**的 inbox 条目与活跃任务，一份从未进过 TaskFlow 的工作在它里面是空的。**与 TF-20261001-efbc51 的区别**（那一条本周刚吸收 TF-20261008-84a0ce）：efbc51 管的是「**已提交**的工作怎么搬进 worktree」，本条管的是「接手一份从未登记的工作流时该发生什么」——相邻但不同，且本条的触发面是「延续型工作」而非「新请求」。**宿主相关性**：五个宿主的钩子接线都已核对，只有 Claude Code 与 Trae 带 PreToolUse 写入门（Trae 的 SessionStart 只绑 `startup`）；本条与入口静默同属宿主无关的规则缺口，不是某个宿主特有的接线问题。相关：TF-20261009-cc463b。
 
 ## Decouple stage capability selection from the host tool-call stream: the PreToolU
 
@@ -215,15 +140,11 @@ has an issue number or URL.
 
 **(1) 是可独立修的小缺陷**，修法与既有约定一致：要么让门的显示类从 phase 表派生，要么加一条和 `concept_class_re` 同风格的双向断言。用户 2026-10-09 对 (3) 的裁定（把硬 deny 降为 approve 时对账）如落地，(1) 会随之消解。相关：TF-20261008-5b5635（已 done，即上述能力类改动）
 
+
 ## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
 
 - ID: TF-20261009-369e77
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-09: adapt TaskFlow to Trae
-- Added: 2026-10-09
-- Updated: 2026-10-09
 - Goal: Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a documented .trae/hooks.json export, with no Trae plugin mechanism to install through (Trae hooks are user-scoped .trae/hooks.json only; Trae also reads Claude Code hook configs)
 - Task: `TaskFlowDocs/achieved/2026-10-09-trae-host/`
 - Next action: None — completed and archived.
@@ -242,6 +163,7 @@ has an issue number or URL.
 - Next action: Clarify the two assertions together, then promote: document-vs-hooks reconciliation and the version-transition assertion.
 - Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-4d37b2（点名 hooks/version + 版本跃迁的便宜断言）。理由：两条都要在 SKILL.md 的更新点旁加引导、都要在 hooks/smoke-test 里加断言，且「文档点名的命令或文件必须真实存在」本就是同一个断言家族——拆开会在同一批文件上重复撞车。
 
+
 ## Define TaskFlow compatibility with loop and long-running tasks: repeated externa
 
 - ID: TF-20261008-ca2fce
@@ -255,15 +177,11 @@ has an issue number or URL.
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
+
 ## Add a brainstorming and idea-refinement concept class to the phase-to-capability
 
 - ID: TF-20261008-5b5635
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-08, 8-item doc/tooling batch
-- Added: 2026-10-08
-- Updated: 2026-10-09
 - Goal: Add a brainstorming and idea-refinement concept class to the phase-to-capability table: phase 1 bundles refining a vague idea with writing the requirements document, so ideation capabilities are never considered
 - Task: `TaskFlowDocs/achieved/2026-10-08-capability-concept-classes/`
 - Next action: None — completed and archived.
@@ -272,11 +190,6 @@ has an issue number or URL.
 
 - ID: TF-20261008-b1f5e0
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-08, 8-item doc/tooling batch
-- Added: 2026-10-08
-- Updated: 2026-10-08
 - Goal: sessions.md needs a trigger condition, or should be demoted to a hook-only artifact: only the SessionStart hook ever creates it, so 2 of 88 task dirs have one and SKILL.md:289 states no condition that makes the Agent write one
 - Task: `TaskFlowDocs/achieved/2026-10-08-task-open-and-continuation/`
 - Next action: None — completed and archived.
@@ -285,111 +198,54 @@ has an issue number or URL.
 
 - ID: TF-20261001-efbc51
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: audit follow-up 2026-10-01, found while implementing 2026-10-01-artifact-language
-- Added: 2026-10-01
-- Updated: 2026-10-11
 - Goal: The capability-evidence hook and the capability-gate anchor on different things, so a stage invocation can go unrecorded: capability-evidence locates the store and the active task from the event cwd, capability-gate locates them from the written file's path, and the two agree only when the session cwd is the task worktree - otherwise the invocation records nothing and the gate then refuses the write
 - Task: `TaskFlowDocs/achieved/2026-10-11-evidence-anchor/`
 - Next action: None — completed and archived.
-- Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-84a0ce（主检出的工作怎么进 worktree）。两条是同一失败模式「干活的落点不是以为的落点」的两半——efbc51 是 hook 侧（事件 cwd 与文件路径两个锚点不一致，记录静默落空），84a0ce 是文档侧（SKILL.md 只写「move the work there」而不给可执行步骤，也不警告隔离外的脏状态）；合并后一个任务同时改 hook 与 SKILL.md，且 84a0ce 不必等 efbc51 的锚点语义定下来才能写步骤。
 
 ## hooks/reopen does not rewrite the Todo Task: path back to the active root, so ta
 
 - ID: TF-20261001-da6047
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: audit follow-up 2026-10-01
-- Added: 2026-10-01
-- Updated: 2026-10-01
 - Goal: hooks/reopen does not rewrite the Todo Task: path back to the active root, so task state cannot find the entry it just retrieved
 - Task: `TaskFlowDocs/achieved/2026-10-01-reopen-todo-path/`
 - Next action: None — completed and archived.
-- 裁定（2026-10-01）: (1) 范围取「完全对称 archive」——reopen 写回 `Task:` 活动根、`Status: promoted`、`Next action: Re-approve the new Task version before core changes.`、`Updated:` 当天；(2) 取「与 archive 同纪律」——失败回滚 `mv`，写后校验，并打印提交用的 stage 行；(3) `Status:` 取 `promoted`，与 `hooks/task:796` 的 `task state planning|ready` 一致。
 
 ## Commit Todo, release, and TaskFlowDocs changes straight to main when the author
 
 - ID: TF-20261001-331f7c
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request 2026-10-01
-- Added: 2026-10-01
-- Updated: 2026-10-01
 - Goal: Commit Todo, release, and TaskFlowDocs changes straight to main when the author can push there; open a pull request only when they cannot
 - Task: `TaskFlowDocs/achieved/2026-10-01-taskflow-commit-path/`
 - Next action: None — completed and archived.
-- Notes: 用户 2026-10-01 提出：Todo 改动、发布、以及 TaskFlowDocs 的处理，凡作者能直接推 main 的直接推 main，不为「同步」这类改动开 PR；只有没有推送权限时才走 PR。判据是**权限**，不是改动大小——这一点与仓库现有的「一任务一分支 + PR」规则冲突，需要裁定边界。
-- 本仓库实测（2026-10-01）：`main` 未受保护（`gh api repos/hkwuks/TaskFlow/branches/main/protection` → 404 Branch not protected），当前身份为 admin（`permissions` 含 `push: true`），故本仓库可直接推。**一般规律**（用户所问）：仓库主人有 admin/write，默认可直推；协助者通常只有 read 或无访问权，只能 fork 后提 PR。但这不自动成立——给协作者 write、或给 main 加「必须走 PR」的保护规则，都会改变结论；反过来保护规则也会让 owner 自己推不进去。
-- reopen 来源（2026-10-01）：用户追问「这个 todo 创立的目的是什么——所有开发都优先直推，还是只有维护走直推？」。答复与记录一致：意图一直是**窄**——Todo 条目、任务状态与归档、发布执行；批准时选的也是「窄：只含 bookkeeping」。但落地的 `CONTRIBUTING.md:37` 写成了普适句（「Landing is a separate question, and one fact decides it: **can the author push the target branch?**」），读起来像**所有**改动都按权限选路径，而 `:39` 列举的三类沦为例子；真正把范围拉回来的只有 `:51` 末尾一句。**意图是窄的，字面是宽的**——本次把它收紧到字面与意图一致。
-- reopen 来源（2026-10-01，第二次）：用户提出「PR 里的文档操作应当随同一个 PR 提交，不要为文档操作另开 PR」，裁定拆成两根独立的轴（v3）。**v3 合并后首次实战立刻暴露一条缺口**：v3 把「Plan 里的验证记录」一并收进 PR，于是「合入后回填 Plan」这个动作变成规则明令禁止的合并后写入——任务文档里没有位置安放只有合并后才知道的事实。v3 的 PR #66 里我的 Plan 恰好写了「合入后按 A8 核对并回填本处」，正要撞上。用户裁定**取消这个期待**（不改文件），并改为现在就把这句写进规则。本次即 v4：任务落地的主张写在它的 PR 里（正文与提交），任务文档在合并之后不再回写；A8 一类的核对按「核对」表述，不写成分解成回填的承诺。
 
 ## Reconcile the artifact-language rule with capability-written documents: a phase
 
 - ID: TF-20261001-51d9c8
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request 2026-10-01
-- Added: 2026-10-01
-- Updated: 2026-10-01
 - Goal: Reconcile the artifact-language rule with capability-written documents: a phase capability emits English prose, so the rule requiring the user's working language silently stops holding
 - Task: `TaskFlowDocs/achieved/2026-10-01-artifact-language/`
 - Next action: None — completed and archived.
-- 裁定（2026-10-01）: (1) 机制取「只改文档措辞」——把规则改写成约束绑定目的文档而非起草者，不加 hook、不加命令；(2) 骨架语言沿用 `artifacts.md:27` 已为 `task promote` 立下的让步，并推广到任何骨架（含能力模板）：未编辑的骨架标题可留英文，一旦编辑即服从规则，prose 一律用户语言；(3) 验收取「阅读式验收 + 一次下游复核」。
-- Notes: 用户 2026-10-01 提出：采用专业工具写文档之后，原先「prose 用用户惯用语言」的约束失效了——不是被推翻，是没被带上。
-- 实例（本会话）：`2026-09-30-release-ci-test-policy` 的 prd.md 与 plan.md 全程英文——因为 `agent-skills:spec-driven-development` 与 `agent-skills:planning-and-task-breakdown` 的文档骨架是英文，照着写就默认变英文；而 `skills/taskflow/SKILL.md` 要求 prose 用用户工作语言、只有 hook 匹配的行用英文。同仓库 `achieved/2026-09-27-capability-pre-write-gate` 的 v2 文档全是中文，说明这是「写作移交给能力」之后才出现的静默偏离。落点待定：调用能力后把骨架译回用户语言，或在 SKILL 里写明骨架语言与 prose 语言的优先级，或干脆改判为英文——前两者都要动 SKILL。
 
 ## A release skips re-running tests that CI already ran green on the same revision,
 
 - ID: TF-20260930-c4e4c8
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request 2026-09-30
-- Added: 2026-09-30
-- Updated: 2026-10-01
 - Goal: A release skips re-running tests that CI already ran green on the same revision, and testing prefers CI over local runs
 - Task: `TaskFlowDocs/achieved/2026-09-30-release-ci-test-policy/`
 - Next action: None — completed and archived.
-- Notes: 用户 2026-09-30 提出：该 revision 若已在 CI 跑绿，发布时不再重复跑同一批测试；测试一律优先交给 CI。与 `TF-20260928-3910fb` 同属「砍掉发布时多余的重复校验」，两条互链。
-  **落点**：`RELEASE.md:54` 的 Validation checklist 里有 `bash hooks/smoke-test`。发布提交本身只改版本字面量与 CHANGELOG（1.1.2 实测为 `5d4fccf`），`hooks/` 与 `skills/` 一行未动，所以这批用例在发布提交上的结果不可能与已跑绿的 CI 不同——重跑在道理上就是空的，不只是「CI 跑过了」。
-  **本机的额外理由**：整段 `hooks/smoke-test` 在这台 Windows + MSYS 上跑不完（无解释器章节因软链启动的二进制找不到 DLL 而中止，未修改的 `origin/main` 在同一处同样失败），发布时跑它既给不出判定，又要如实记一次「未通过」。
-  **不能跟着砍掉的**：`hooks/release-check`、`hooks/repository-check`、`quick_validate.py`、`git diff --check` 检查的是版本字面量、catalog 的 `ref`/`sha` 与发布记录新鲜度——这些差异**只有发布提交才产生**，CI 结构上覆盖不到，必须留在发布流程里。
-  **待定的边界**：(a) 判据用严格相等（tag 指向的提交 == CI 跑绿的提交），还是允许「发布提交只动版本字面量与 CHANGELOG」这一形态；(b) 跳过时发布记录里要写什么，才能让「没跑」与「跑了没过」仍可区分。
 
 ## Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_
 
 - ID: TF-20260930-ba3b0c
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request 2026-09-30；reopen：v1 的门在 Windows 上对反斜杠路径静默 fail-open（本机实测门对正斜杠 deny、对反斜杠 allow；上游 issue #83877 / #64432 确认宿主行为），即 v1 的验收在真实宿主路径形态下不成立，故取回并升 v2 修正
-- Added: 2026-09-30
-- Updated: 2026-09-30
 - Goal: Fix the pre-write gate's silent fail-open on Windows: Claude Code delivers tool_input.file_path with backslash separators there, so the gate's directory extraction finds no separator and allows every stage write — normalize separators before any path test, and add the regression test that feeds a backslash path
 - Task: `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/` (v2)
 - Next action: None — completed and archived.
-- Notes: **2026-09-30 实测（本机 Windows + 已发布 1.1.1）**：
-(1) 在项目内对真实任务文档（同级有 `plan.md`、无任何证据）执行 Write → **被放行**；
-(2) 直接喂装机包的门：正斜杠 `/d/WorkSpace/.../prd.md` → **deny**（消息完整）；反斜杠 `D:\WorkSpace\...\prd.md` → **allow**（空输出）。
-**根因（我方代码）**：门用 `task_dir="${file_path%/*}"` 取目录，`%/*` 只认正斜杠；反斜杠路径切不出分隔符 → `task_dir == file_path` → 撞上"切不出目录即视为非任务文档"的守卫 → `exit 0`。门假设了路径形态，而这是它最不该假设的东西。
-**宿主行为已由上游确认**：issue #83877「Windows 上 `tool_input.file_path` 以反斜杠分隔投递……匹配路径的 hook **静默 fail open**，外面无法区分『没被拦』与『本来无物可拦』」；#64432「Write 工具**总是**投递带反斜杠的 `file_path`」，给的解法即 hook 内做分隔符归一；#40076 / #52962 是 WSL2 下的同一类。
-**为什么 v1 的验证没抓到**：Windows 套件里的 event JSON 是我**自己拼**的，而我在拼的时候写了 `.Replace('\','/')` —— 测的是我假设的格式而不是宿主真实格式。测试与实现对同一个假设犯了同一个错，于是双双通过。
-**修法**：门内先把 `\` 归一成 `/` 再做任何路径判断（证据钩子不受影响：实测它拿到的 `cwd` 是 `/d/...` 形态，且它只把路径交给 `git -C`）；**并补回归断言**，喂反斜杠路径——这正是本该存在的测试。
-**影响**：Windows 上这个门等于不存在，而已发布的 1.1.1 带着它；macOS/Linux 正常（路径本就是正斜杠），故 CI 全绿是真的绿，只是覆盖不到该洞。修好后需再发一版才惠及用户。
 
 ## 修复 TaskFlow hooks 的四处遗留缺陷
 
 - ID: TF-20260929-f9b6c9
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: TaskFlowDocs/achieved/2026-09-15-hook-integrity/plan.md ## Follow-ups
-- Added: 2026-09-29
-- Updated: 2026-09-29
 - Goal: 修复 TaskFlow hooks 的四处遗留缺陷
 - Task: `TaskFlowDocs/achieved/2026-09-29-hook-defect-followups/`
 - Next action: None — completed and archived.
@@ -414,6 +270,7 @@ has an issue number or URL.
 
 顺带核对宿主侧尚未实测的一项：matcher 是否真按宿主语义命中 `Agent` 与 `mcp__.*`（`Skill` 已实测同时触发两个事件且携带 `tool_input.skill`）。
 
+
 ## Release process: make the manual three-host catalog validation conditional and a
 
 - ID: TF-20260928-3910fb
@@ -429,15 +286,11 @@ has an issue number or URL.
 - Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
 - 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
 
+
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
 - ID: TF-20260927-5814d0
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-09-27
-- Updated: 2026-09-28
 - Goal: Block the first body write of prd/spec/plan until a capability-class tool was actually invoked: the approve-time Skills check is shape-only and fires after every document exists, so 'invoked nothing' and 'compliant' stay indistinguishable
 - Task: `TaskFlowDocs/achieved/2026-09-27-capability-pre-write-gate/`
 - Next action: None — completed and archived.
@@ -446,11 +299,6 @@ has an issue number or URL.
 
 - ID: TF-20260923-230f49
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user decision 2026-09-23
-- Added: 2026-09-23
-- Updated: 2026-09-24
 - Goal: Gate PRD/Spec/Plan on real capability invocation: large tasks need one real invoke (or qualified Unaided with considered classes); approve validates the Skills/Tools record; TaskFlow maps foreign skill outputs into prd/spec/plan; inject concept-class candidates at doc time
 - Task: `TaskFlowDocs/achieved/2026-09-23-capability-invoke-gate/`
 - Next action: None — completed and archived.
@@ -459,29 +307,14 @@ has an issue number or URL.
 
 - ID: TF-20260918-985164
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-22
 - Goal: Fix hooks/merge-todo so a ## Removed record matches its live entry by ID token and deletion wins, then clear the duplicate IDs that resurrection left in todo.md.
 - Task: `TaskFlowDocs/achieved/2026-09-22-merge-todo-removed/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-19 复核（本条是同一 ID 的另一半，见文件末尾 `## Removed`）**：v1.0.7 已正常发布（tag `v1.0.7` = `c3c536d`），发布事务本身没有问题。真正发生的是**工作区/提交时序错乱**：本条目在 `3f683a5`（10:40）还是活条目，`86a0605`（10:41）被整个删掉，同一分钟 `9406720` 又在 `## Removed` 写下移除记录，声称「v1.0.7 已发布、目录已随 PR #42 删除」——而 PR #42 到 19:35 才合并，发布是 21:21。**移除记录先于它声称的事实写下。** 被删的活条目随后在 19 小时后由合并 `944d833`（`feature/dsh-host` 反向合并 main）复活，于是同一 ID 在文件里出现两次。
-
-  **两处根因（都不在发布流程）**：(1) **闸门被前置改写绕过**——`hooks/task remove` 拒绝删除 `Task:` 不是 `Not promoted.` 的条目，而 `3f683a5` 先把该条目的 `Task:` 改成了 `Not promoted.`，闸门于是放行；「已交付但记录未生」的状态由此可以把一条活条目删掉。(2) **`hooks/merge-todo` 认不出 `## Removed`**——移除记录行以 `- ID: TF-20260918-985164 (removed …)` 开头，而 `key_of` 用 `substr($0, 7)` 取 ID，得到的是 ` TF-20260918-985164 (removed 2026-09-19: …`（整段含括号），与活条目的 key `id:TF-20260918-985164` 不相等。driver 的规则是「key 只在一侧存在就保留该侧」且注释明写 entry 永不被删除，所以被删的活条目被当成「我们加过、他们没动」保留下来。**`## Removed` 记录在 driver 眼里只是一条 ID 不同的新条目**，既不表示删除也不参与匹配。
-
-  **修法方向（未开工）**：让 `key_of` 只取 ID 的首个空白分隔 token，并让 driver 在「某侧有 Removed 记录、另一侧有同名活条目」时按删除处理。**别只修 `task remove` 的闸门**——那只是让删除更难发生，没解决「删了也会被 merge 复活」。
 
 ## Windows worktree misjudgement: `hooks/task` reads a `D:/` git dir as relative.
 
 - ID: TF-20260920-9f3c07
 - Status: done
-- Priority: high
-- Owner: unassigned
-- Source: user request
-- Added: 2026-09-20
-- Updated: 2026-09-21
 - Goal: Fix the Windows worktree misjudgement so a drive-letter git dir is not read as relative to the root.
 - Task: `TaskFlowDocs/achieved/2026-09-20-windows-git-path/`
 - Next action: None — completed and archived.
@@ -490,124 +323,82 @@ has an issue number or URL.
 
 - ID: TF-20260914-03
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-14
-- Updated: 2026-09-14
 - Goal: State in the Skill that personal supplements are local-only and must not be committed to Git, and align this repository with that boundary.
 - Task: `TaskFlowDocs/achieved/2026-09-14-personal-docs-git-boundary/`
 - Next action: None — completed and archived.
 
 ## TF-20260913-03 — Pin stable marketplace installs to released revisions
+
+- ID: TF-20260913-03
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- External: None
 - Goal: Keep the marketplace catalog on `main` while pinning stable TaskFlow plugin installs to the immutable `v1.0.4` release commit.
 - Task: `TaskFlowDocs/achieved/2026-09-13-pin-marketplace-release/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-13
 
 ## TF-20260911-02 — Allow appropriate tools to contribute to task documents
+
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Allow relevant tools and capabilities to contribute to task documents without forcing a tool chain.
 - Task: `TaskFlowDocs/achieved/2026-09-07-tool-participation/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## TF-20260911-03 — Audit further Hook automation opportunities
+
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Audit additional Hook automation opportunities while preserving approval and mutation boundaries.
 - Task: `TaskFlowDocs/achieved/2026-09-10-audit-hook-opportunities/`
-- Next action: None — completed and archived; recommendations require separate approved tasks.
-- Updated: 2026-09-11
+- Next action: None — completed and archived.
 
 ## TF-20260911-04 — Consolidate the packaged Skill layout
+
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Consolidate the packaged Skill layout and remove stale duplicate entrypoints.
 - Task: `TaskFlowDocs/achieved/2026-09-10-consolidate-skill-layout/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## TF-20260911-05 — Copy-first Task versioning
+
 - Status: done
-- Priority: high
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Preserve superseded Task documents while retaining current roots during version transitions.
 - Task: `TaskFlowDocs/achieved/2026-09-10-copy-first-versioning/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## TF-20260911-06 — Limit TaskFlow to development requests
+
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Restrict automatic TaskFlow intake to development requests while preserving explicit opt-in.
 - Task: `TaskFlowDocs/achieved/2026-09-10-limit-taskflow-scope/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## TF-20260911-07 — Unblock autonomous capability invocation
+
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Make capability selection, invocation, review, and recording explicit without forcing a provider or tool.
 - Task: `TaskFlowDocs/achieved/2026-09-10-unblock-capability-invocation/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## TF-20260911-08 — Update and review TaskFlow plugin
+
 - Status: done
-- Priority: high
-- Owner: Codex
-- Source: historical TaskFlow task
-- External: None
 - Goal: Fix, publish, install, and verify the TaskFlow plugin and Windows Hook behavior.
 - Task: `TaskFlowDocs/achieved/2026-09-10-update-review-plugin/`
 - Next action: None — completed and archived.
-- Updated: 2026-09-11
 
 ## T-20260910-001 — Enforce repository-governed fork development
+
+- ID: T-20260910-001
 - Status: done
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
 - Goal: Make the TaskFlow plugin follow fork/upstream development discipline and applicable repository, personal-supplement, code-style, contributing, and roadmap documents, creating missing governance documents with the user when needed.
 - Task: `TaskFlowDocs/achieved/2026-09-10-repository-governed-development/`
-- Next: None — completed and archived.
-- Updated: 2026-09-11
+- Next action: None — completed and archived.
 
 ## TF-20260910-08 — Reduce TaskFlow token use with lifecycle scripts
+
+- ID: TF-20260910-08
 - Status: done
-- Priority: high
-- Owner: Codex
-- Source: user request
-- External: None
 - Goal: Replace repetitive Agent reads and Markdown rewrites with bounded lifecycle commands where automation saves tokens.
 - Task: `TaskFlowDocs/achieved/2026-09-10-token-saving-lifecycle-scripts/`
-- Next: User acceptance after verified Windows full-lifecycle compatibility; archive only after explicit authorization.
-- Updated: 2026-09-11
+- Next action: None — completed and archived.
 
 ## T-20260909-002 — Restructure TaskFlow as repo-root plugin (superpowers-style)
 - Status: done
@@ -620,6 +411,7 @@ has an issue number or URL.
 - Next: None — repo-root plugin validated (`claude plugin validate . --strict` PASS), locally installed from the working tree, hooks end-to-end tested (all PASS), full smoke-test suite PASS.
 - Updated: 2026-09-09
 
+
 ## T-20260909-001 — Package TaskFlow as installable plugin (marketplace, Claude + Codex)
 - Status: done
 - Priority: normal
@@ -631,95 +423,67 @@ has an issue number or URL.
 - Next: None — superseded by T-20260909-002; install commands verified end-to-end on both Claude Code (`✔ enabled`) and Codex CLI (`installed, enabled`).
 - Updated: 2026-09-09
 
+
 ## T-20260908-007 — Support host/harness hooks in TaskFlow (reverse non-runtime boundary)
+
+- ID: T-20260908-007
 - Status: done
-- Priority: normal
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
 - Goal: Allow TaskFlow to coordinate with host/harness hooks (Claude Code and Codex) via a flat `hooks/` of extensionless bash scripts + per-host JSON + `run-hook.cmd`, plus a SessionStart context summary, without automation writing core documents or skipping approval.
 - Task: `TaskFlowDocs/achieved/2026-09-08-runtime-hooks/`
-- Next: None — v2 completed, verified (smoke + mirror), and archived.
-- Updated: 2026-09-08
-- Updated: 2026-09-08
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-006 — Reduce TaskFlow workflow token cost
+
+- ID: T-20260908-006
 - Status: done
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
 - Goal: Reduce Agent token consumption in the TaskFlow workflow while preserving traceability and reliability.
 - Task: `TaskFlowDocs/achieved/2026-09-08-token-efficiency/`
-- Next: None — completed, verified, and archived.
-- Updated: 2026-09-08
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-003 — Archive completed legacy TaskFlow tasks
+
+- ID: T-20260908-003
 - Status: done
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user-approved audit repair
-- External: None
 - Goal: Add Todo traceability and archive the completed standards-root and Todo-promotion tasks.
 - Task: `TaskFlowDocs/achieved/2026-09-07-repository-docs-workspace/`
-- Next: None — completed and archived.
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-004 — Repository standards and TaskFlowDocs root
+
+- ID: T-20260908-004
 - Status: done
-- Priority: normal
-- Owner: user / TaskFlow
-- Source: historical TaskFlow task
-- External: None
 - Goal: Preserve the completed repository-standards and TaskFlowDocs-root design as achieved history.
 - Task: `TaskFlowDocs/achieved/2026-09-07-repository-standards-and-doc-root/`
-- Next: None — completed and archived.
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-005 — Todo intake and promotion workflow
+
+- ID: T-20260908-005
 - Status: done
-- Priority: normal
-- Owner: user / TaskFlow
-- Source: historical TaskFlow task
-- External: None
 - Goal: Preserve the completed Todo intake and promotion design as achieved history.
 - Task: `TaskFlowDocs/achieved/2026-09-07-todo-intake-and-promotion/`
-- Next: None — completed and archived.
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-002 — Repair TaskFlow activation and archival consistency
+
+- ID: T-20260908-002
 - Status: done
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
 - Goal: Ensure TaskFlow applies to every repository work request and keeps task, Todo, and achieved locations consistent.
 - Task: `TaskFlowDocs/achieved/2026-09-07-repository-docs-workspace/`
-- Next: None — completed and archived.
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## T-20260908-001 — Todo-first intake and achieved-task retrieval
+
+- ID: T-20260908-001
 - Status: done
-- Priority: high
-- Owner: user / TaskFlow
-- Source: user request
-- External: None
 - Goal: Make Todo mandatory for every direct or imported requirement and retrieve achieved tasks before material maintenance.
 - Task: `TaskFlowDocs/achieved/2026-09-07-repository-docs-workspace/`
-- Next: None — completed and archived.
-- Updated: 2026-09-08
+- Next action: None — completed and archived.
 
 ## Make repository-docs index the primary routing record and maintain/inject it thr
 
 - ID: TF-20260911-01
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-09-11
-- Updated: 2026-09-11
 - Goal: Make repository-docs index the primary routing record and maintain/inject it through SessionStart hook
 - Task: `TaskFlowDocs/achieved/2026-09-11-index-hook-routing/`
 - Next action: None — completed and archived.
@@ -728,11 +492,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-02
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-12
 - Goal: Identify the current TaskFlow task before phase routing
 - Task: `TaskFlowDocs/achieved/2026-09-12-current-task-routing/`
 - Next action: None — completed and archived.
@@ -741,11 +500,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-03
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-12
 - Goal: Add explicit cross-platform runtime preflight for Windows Python dependencies
 - Task: `TaskFlowDocs/achieved/2026-09-12-windows-runtime-preflight/`
 - Next action: None — completed and archived.
@@ -754,11 +508,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-04
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-12
 - Goal: Harden the Windows hook launcher argument forwarding and failure reporting
 - Task: `TaskFlowDocs/achieved/2026-09-12-windows-launcher/`
 - Next action: None — completed and archived.
@@ -767,11 +516,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-05
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-13
 - Goal: Validate repository-document index paths and protect concurrent writes
 - Task: `TaskFlowDocs/achieved/2026-09-13-index-safety/`
 - Next action: None — completed and archived.
@@ -780,11 +524,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-06
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-13
 - Goal: Add Linux and Windows CI coverage for TaskFlow hooks
 - Task: `TaskFlowDocs/achieved/2026-09-13-hooks-ci-matrix/`
 - Next action: None — completed and archived.
@@ -793,11 +532,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-07
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-13
 - Goal: Reduce SessionStart context output to the active task by default
 - Task: `TaskFlowDocs/achieved/2026-09-13-session-context/`
 - Next action: None — completed and archived.
@@ -806,11 +540,6 @@ has an issue number or URL.
 
 - ID: TF-20260911-08
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-11
-- Updated: 2026-09-13
 - Goal: Model optional repository documents and consume SessionStart event input
 - Task: `TaskFlowDocs/achieved/2026-09-13-event-aware-docs/`
 - Next action: None — completed and archived.
@@ -819,11 +548,6 @@ has an issue number or URL.
 
 - ID: TF-20260913-02
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-13
-- Updated: 2026-09-13
 - Goal: Prepare TaskFlow v1.0.4 release
 - Task: `TaskFlowDocs/achieved/2026-09-13-release-v1-0-4/`
 - Next action: None — completed and archived.
@@ -832,11 +556,6 @@ has an issue number or URL.
 
 - ID: TF-20260913-01
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-13
-- Updated: 2026-09-13
 - Goal: Revise release flow to support direct tag releases
 - Task: `TaskFlowDocs/achieved/2026-09-13-revise-release-flow/`
 - Next action: None — completed and archived.
@@ -845,11 +564,6 @@ has an issue number or URL.
 
 - ID: TF-20260914-01
 - Status: done
-- Priority: normal
-- Owner: external contributor
-- Source: external code review (fork pull request)
-- Added: 2026-09-14
-- Updated: 2026-09-14
 - Goal: Make the hooks and smoke tests pass on stock macOS (bash 3.2 + BSD sed), cover macOS and the evals in CI, and align plugin license metadata with the AGPL-3.0 LICENSE.
 - Task: `TaskFlowDocs/achieved/2026-09-14-macos-hook-portability/`
 - Next action: None — completed and archived.
@@ -858,11 +572,6 @@ has an issue number or URL.
 
 - ID: TF-20260915-01
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-15
 - Goal: Map TaskFlow phases to the concept class each one corresponds to in external workflows, so PRD/Spec/Plan work selects the right capability instead of working unaided.
 - Task: `TaskFlowDocs/achieved/2026-09-15-phase-concept-mapping/`
 - Next action: None — completed and archived.
@@ -871,11 +580,6 @@ has an issue number or URL.
 
 - ID: TF-20260914-05
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-14
-- Updated: 2026-09-14
 - Goal: Stop tracking TaskFlowDocs/TASKFLOW_WORKFLOW_DRAFT.md: the workflow draft is not part of the TaskFlowDocs artifact system.
 - Task: `TaskFlowDocs/achieved/2026-09-14-untrack-workflow-draft/`
 - Next action: None — completed and archived.
@@ -884,11 +588,6 @@ has an issue number or URL.
 
 - ID: TF-20260914-04
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-14
-- Updated: 2026-09-14
 - Goal: Require a short-lived branch or dedicated worktree before implementation starts, and route contribution rules to the design phase.
 - Task: `TaskFlowDocs/achieved/2026-09-14-branch-and-worktree-gate/`
 - Next action: None — completed and archived.
@@ -897,11 +596,6 @@ has an issue number or URL.
 
 - ID: TF-20260915-82ec4c
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-17
 - Goal: Run TaskFlow hooks without a Python interpreter
 - Task: `TaskFlowDocs/achieved/2026-09-15-no-python-hooks/`
 - Next action: None — completed and archived.
@@ -910,11 +604,6 @@ has an issue number or URL.
 
 - ID: TF-20260915-02
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-15
 - Goal: Make concurrent Todo updates merge cleanly in parallel-task branches
 - Task: `TaskFlowDocs/achieved/2026-09-15-todo-merge-driver/`
 - Next action: None — completed and archived.
@@ -923,24 +612,14 @@ has an issue number or URL.
 
 - ID: TF-20260915-0f6dda
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-15
 - Goal: Fix hook integrity so archived versions are never polluted, unimplemented work cannot pass the approval gates, and task documents follow the user's language
 - Task: `TaskFlowDocs/achieved/2026-09-15-hook-integrity/`
-- Next action: Awaiting user acceptance of the implemented change; this task's Step 1 also shipped as PR #24 and Steps 2/3 as PR #25, both merged.
+- Next action: None — completed and archived.
 
 ## Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and th
 
 - ID: TF-20260915-a9cabf
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-15
-- Updated: 2026-09-15
 - Goal: Publish TaskFlow v1.0.5 with the no-runtime hooks, the Todo merge driver, and the hook-integrity fixes
 - Task: `TaskFlowDocs/achieved/2026-09-15-release-v1-0-5/`
 - Next action: None — completed and archived.
@@ -949,11 +628,6 @@ has an issue number or URL.
 
 - ID: TF-20260915-1f0f66
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: local fixture
-- Added: 2026-09-15
-- Updated: 2026-09-15
 - Goal: Cut the mechanical overhead out of a release: one version-consistency check, a release document rule, and an archive that clears the Todo next action.
 - Task: `TaskFlowDocs/achieved/2026-09-15-release-friction/`
 - Next action: None — completed and archived.
@@ -962,11 +636,6 @@ has an issue number or URL.
 
 - ID: TF-20260916-2561e8
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-16
-- Updated: 2026-09-16
 - Goal: Detect a Todo entry that a merge dropped, so a silent loss cannot reach main unnoticed.
 - Task: `TaskFlowDocs/achieved/2026-09-16-todo-entry-loss-detection/`
 - Next action: None — completed and archived.
@@ -975,11 +644,6 @@ has an issue number or URL.
 
 - ID: TF-20260916-2a89e2
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-16
-- Updated: 2026-09-17
 - Goal: Make the Todo merge protection hold on the path where merges actually happen: a hosting web-UI pull-request merge.
 - Task: `TaskFlowDocs/achieved/2026-09-16-web-ui-merge-loss-guard/`
 - Next action: None — completed and archived.
@@ -988,11 +652,6 @@ has an issue number or URL.
 
 - ID: TF-20260916-01bd1a
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-16
-- Updated: 2026-09-17
 - Goal: Repair the duplicate Todo ID that the old counter-derived scheme shipped: two live entries both carry TF-20260915-01, so an ID lookup can resolve to the wrong task.
 - Task: `TaskFlowDocs/achieved/2026-09-16-duplicate-todo-id/`
 - Next action: None — completed and archived.
@@ -1001,11 +660,6 @@ has an issue number or URL.
 
 - ID: TF-20260916-ab381b
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user review
-- Added: 2026-09-16
-- Updated: 2026-09-17
 - Goal: Isolate a task before its documents are written, and make the choice auditable: task documents are created in Phase 1 while the branch/worktree rule only applied from Phase 5, so documents landed in a shared checkout (usually another task's branch) and could not be checked out away; separately, the Plan's capability-selection section was marked optional, so "chose not to invoke" and "forgot the step" were indistinguishable.
 - Task: `TaskFlowDocs/achieved/2026-09-16-capability-selection-enforcement/`
 - Next action: None — completed and archived.
@@ -1014,25 +668,14 @@ has an issue number or URL.
 
 - ID: TF-20260916-a357ee
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user review
-- Added: 2026-09-16
-- Updated: 2026-09-23
 - Goal: Detect a task directory that no Todo entry references, so a lost Todo record cannot leave orphaned task documents behind.
 - Task: `TaskFlowDocs/achieved/2026-09-23-orphan-task-dirs/`
 - Next action: None — completed and archived.
-- Notes: 发现于 2026-09-16 —— 提交 PR #28 时为让提交只含任务 A 而摘掉 B/C/D 的 Todo 条目，随后一次 `git checkout -- TaskFlowDocs/todo.md` 把工作区文件整体回退，三条条目一度丢失（同日已按原样补回），而三个任务目录始终在 `TaskFlowDocs/` 下，形成「目录存在、无 Todo 指向」的孤儿态（仅工作区，未进入任何提交）。同一形态在历史里也有一例：`TaskFlowDocs/achieved/2026-09-10-repository-document-placement/`，全部历史中从未有过对应的 Todo 条目。目前该缺口无自动检查兜住。注意：只查「任务目录 → Todo」这一个方向；反方向（Todo 条目指向不存在的目录）本轮已实测为空。2026-09-16 追问：本条与 `TF-20260916-ab381b` 是同一根因的两个方向——孤儿目录是「文档先于隔离产生」的结果，`ab381b` 修根因并在 `hooks/repository-check` 里报告错位产物；本条仍是更广的历史审计（含已提交、已归档的目录），是否仍要独立成检查待定。
 
 ## Publish TaskFlow v1.0.6 with the CodeBuddy host, the Todo merge-drop audit, and the release version check
 
 - ID: TF-20260917-b7bc40
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-17
-- Updated: 2026-09-17
 - Goal: Publish TaskFlow v1.0.6 with the CodeBuddy host, the Todo merge-drop audit, and the release version check
 - Task: `TaskFlowDocs/achieved/2026-09-17-release-v1-0-6/`
 - Next action: None — completed and archived.
@@ -1041,11 +684,6 @@ has an issue number or URL.
 
 - ID: TF-20260917-a608b7
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-17
-- Updated: 2026-09-17
 - Goal: Make the release atomic: push the marketplace pin and the release tag in one atomic push so the catalog never names a tag that is missing or stale
 - Task: `TaskFlowDocs/achieved/2026-09-17-atomic-release-push/`
 - Next action: None — completed and archived.
@@ -1054,11 +692,6 @@ has an issue number or URL.
 
 - ID: TF-20260918-13ff42
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-18
 - Goal: Refresh both READMEs so they document the shipped surfaces: the hooks/tools/evals trees, the verification and CI checks, and the release process link
 - Task: `TaskFlowDocs/achieved/2026-09-18-readme-refresh/`
 - Next action: None — completed and archived.
@@ -1067,11 +700,6 @@ has an issue number or URL.
 
 - ID: TF-20260918-b0f73a
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-09-18
-- Updated: 2026-09-18
 - Goal: The plugin's hook launcher installs without the executable bit, so every Unix SessionStart hook fails with Permission denied
 - Task: `TaskFlowDocs/achieved/2026-09-18-hook-launcher-exec-bit/`
 - Next action: None — completed and archived.
@@ -1080,98 +708,49 @@ has an issue number or URL.
 
 - ID: TF-20260918-ad8348
 - Status: done
-- Priority: high
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-18
-- Updated: 2026-09-18
 - Goal: Restore the zh-CN manifest count that a conflict resolution reverted, and decide whether a resolved conflict needs a recorded side-by-side review before it is pushed.
 - Task: `TaskFlowDocs/achieved/2026-09-18-conflict-side-review/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-18 复核（推翻了先前「静默 auto-merge」的说法）**：`46131a1`（"Merge branch 'main' into chore/e-task-isolation-and-capability-record"）那次**确实是真冲突**，不是自动合并——重放三方合并（base `985b269`、ours `adfc5c1`、theirs `c083240`）得到 `git merge-file` exit 1，且 `46131a1` 里存在过冲突块。冲突行两侧都改过同一句：PR #37 把「两个插件 manifest」改成「三个」，PR #38 在同一句里加了「并列出该 checkout 里未提交的任务产物」。**解决时整块取了分支侧**，于是合入结果同时保留了 PR #38 的新句子和 PR #37 已被覆盖的旧计数。时间窗只有 2 分钟：`adfc5c1` 定稿于 20:08:19，PR #37 合并于 20:11:40，`46131a1` 于 20:13:42。窗口和"两侧都读得通"（同是合法中文、同讲一个检查）是它能逃过目视复核的原因。
-- **`hooks/todo-check` 覆盖不到这一类**：它是纯 hook、无 LLM，对每个 merge commit 比较两个 parent 各自持有的 `- ID:` 集合与结果的集合（`sed` 提取 + `sort -u` + `comm -13`），只查 `TaskFlowDocs/todo.md` 一个文件的条目级丢失，不做三方比较，因此看不见"解决冲突时取错侧"。它由 `.github/workflows/hooks.yml` 的 `todo-merge-audit` 作业调用（非自动 hook），跑 `git rev-list --merges` 范围内的每个 merge。所以本条不能靠泛化 `todo-check` 解决——「取错侧」这个动作必然伴随一次冲突解决，应该做成"冲突解决后需记录取舍"的流程规则，而非内容比对。
-- Updated: 2026-09-18
 
 ## Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits:
 
 - ID: TF-20260918-e2317d
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-18
 - Goal: Fold the deterministic Todo bookkeeping into hooks/task instead of Agent edits: the Next action, Updated, and status fields are fixed writes with no semantic judgment, and writing them by hand spends tokens.
 - Task: `TaskFlowDocs/achieved/2026-09-18-todo-field-writes/`
 - Next action: None — completed and archived.
-- Notes: 用户提出（2026-09-18，在 ad8348 的 PR 打开后）：上面那条 `Next action` 的改写就是例子——它没有任何语义判断，只是把「PR 已开、等合入」这个状态写成固定句式，却要 Agent 读整条条目、定位行、写回。类似动作还有 `Updated` 落日期、状态推进时同步 `Next action`、promote 时回填 `Task:` 路径。hook 做这件事的代价只是把内容固定化，省的是 token。需要先定的边界：哪些字段是**确定性**的（可由 hook 直接从命令参数推出）vs 哪些仍要 Agent 写（需要判断的 goal、notes）；以及 `hooks/task state` 推进状态时是否应当顺带更新 `Next action`，还是留一个独立的 `task action` 子命令。相关条目：`TF-20260918-88e04c`（归档流程开销）是同一条思路的另一半。
-- **2026-09-18 范围复盘**：原 Notes 里「应该做成流程规则，而非内容比对」的论证，只对**冲突该取哪一侧**成立——那是真判断。而这次实际手写的 `Next action: PR open …; await review and merge.` 不是判断，是从已知状态套模板，Hook 完全可以做。所以本条的边界是「确定性写入」（Next action / Updated / promote 时回填 `Task:`）交给 Hook，「需要判断的内容」（goal / notes / 规则措辞）仍由 Agent 写。待决：`Next action` 搭 `task state` 的车，还是单独开 `task action`。
-- 本条交付即为本条服务的第一个用例：这个 Next action 由新命令写入，不再手改。Step 1 在 `hooks/task` 加 `next` 子命令（复用 `findsec`/`setr`/`run_awk_to`），Step 2 在 `hooks/smoke-test` 补一节（含 Notes 落点与字段缺失补行两个边界，已做一次变异验证）。
-- v2 追加读侧：`hooks/task get <todo-id>` 只打印该条目字段行（复用既有 awk 内部分支，另开 entry 分支以免动到 TASKFLOW_CMD=get 的三个内部调用点）。
 
 ## Make the task complete transaction fail-safe: it marks both core documents compl
 
 - ID: TF-20260918-e7c041
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-22
 - Goal: Make the task complete transaction fail-safe: it marks both core documents completed before hooks/archive runs, so any archive failure leaves the task half-archived with no rollback.
 - Task: `TaskFlowDocs/achieved/2026-09-22-archive-transaction/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-18 实测观测到（不是推测）**：在 `2026-09-18-todo-field-writes` 上跑 `hooks/task complete` 时，调用**失败**了，但失败发生在 mutation 之后——`hooks/task:589-590` 先把 prd.md 与 plan.md 置为 `completed`（两次 `docstatus`），再调用 `hooks/archive`；而后续报错时目录已被移动、Todo 已改。工作区于是停在「已归档 + 文档状态已改」的半完成态，没有回滚。
-  当天的实际触发：worktree 上跑 `complete` 成功落盘，但 base 检出落后 4 个提交；`git merge --ff-only origin/main` 把**合并进来的** `plan.md` 覆盖了工作区里已改好的那份，Approval 块回到 `pending`，于是第二次 `complete` 报 `current Task version is not approved`。也就是说事务的中间态被后续的合并撞了回去——纯属运气，不是设计。
-  与 `TF-20260918-172455`（archive 往 todo.md 插空行）、`TF-20260918-88e04c`（archive 的 stage 步骤与分支选择）同属一个事务；三者一起做才不用重复设计同一个失败边界。
-- Updated: 2026-09-18
 
 ## Record approval in the plan from a hook instead of hand-editing four fixed-forma
 
 - ID: TF-20260918-454ac4
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-18
-- Updated: 2026-09-23
 - Goal: Record approval in the plan from a hook instead of hand-editing four fixed-format fields, and fix hooks/version writing an Approval block that disagrees with hooks/task's template.
 - Task: `TaskFlowDocs/achieved/2026-09-23-task-approve/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-18 用户提出**：手改 Approval 块能否自动化。判定——`## Approval` 的字段里只有 `Approved by` 是语义的（必须由人表态），其余都可推导：`Status` 是该子命令的动词，`Approved at` 是当天日期（hook 已有 `today`），`Approved version` 直接读 plan 自己的 `> Task version:` 行，`Approved scope` 由存在的核心文档推出。`skills/taskflow/SKILL.md` 已把模板钉成「`- Approved by:` 起的四行」，格式无需 Agent 判断。
-  **先修一个现成的自相矛盾**：`hooks/version` 的重置只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行——两个 hook 对同一块内容的形状意见不一致。**本任务就是实例**：v1→v2 后 `- Status:` 留在 `checking` 一路没人管，直到 `complete` 读它才发现对不上（`require_approval` 用的是 `grep -qx -- "- Status: approved"`）。
-  **时间格式也打架**：模板写 `YYYY-MM-DD HH:mm +08:00`，`version` 复位只写 `pending`。若自动化，`today` 目前只有 `+%Y-%m-%d`，要扩出分钟与时区。
-  **门禁必须在写入之前**：合法顺序是「人先批准 → hook 记录」，不是「hook 写入 → 门禁通过」，否则 `require_approval` 变成自我认证。自动化只应删掉**转录**（把已表态的事实落成固定格式），不能生成或推断批准本身。
-  **与 `TF-20260918-88e04c`、`TF-20260918-e7c041` 同族**：本次归档时 `complete` 在 base 检出上失败，正是因为 main 落后导致合并把 `Approval` 块覆盖回 `pending`，手工补批准后重跑才过。真正的修法在 `complete` 的**事务原子性**上（`e7c041`），不在让批准好写。
-- Updated: 2026-09-18
 
 ## Fix task get silently dropping indented Notes continuation lines: it prints only
 
 - ID: TF-20260918-9acf57
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-18
-- Updated: 2026-09-22
 - Goal: Fix task get silently dropping indented Notes continuation lines: it prints only lines starting with '- ', so a second Notes bullet written with the repo's two-space indent is absent from the output with no warning.
 - Task: `TaskFlowDocs/achieved/2026-09-22-task-get-notes/`
 - Next action: None — completed and archived.
-- Notes: 本缺陷在归档 2026-09-18-todo-field-writes 时发现：`task get` 只打印 `^- ` 开头的行（`hooks/task` 的 `entry` 分支），而 Notes 的第二条及以后按仓库既有习惯写成**两空格缩进的 `- ` 行**，于是它们不出现在输出里，**且没有提示**。危害不是报错，是**静默**：调用方拿到一份看似完整、实则缺段的条目，据此决策。判据：本次取证用 `bash hooks/task get TF-20260918-454ac4` 只回出 Notes 的第一行，而文件里它下面还有三条缩进续行。修法二选一：(a) 把条目正文的缩进行也算正文一并打印；(b) 至少 stderr 提示该条目有 N 行未显示。v2 已合并，本缺陷未修。同族：`task next` 写 Notes 时用的是同一套字段边界（`isfield`），那边的续行判定虽已覆盖缩进，但输出侧没跟上。
 
 ## Make hooks/version write the same five-field Approval block hooks/task generates
 
 - ID: TF-20260919-b7821b
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: audit follow-up
-- Added: 2026-09-19
-- Updated: 2026-09-23
 - Goal: Make hooks/version write the same five-field Approval block hooks/task generates, so the plan gate and the version reset agree.
 - Task: `TaskFlowDocs/achieved/2026-09-23-version-approval-shape/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-19 发布 v1.0.7 时确认**：`hooks/version` 的复位只写 `- Approved by/at/version/scope: pending` 四条，**不写 `- Status:`**；而 `hooks/task` 生成的模板是**五**行、带 `- Status: requested`。于是经 `version` 迁移过的任务，Approval 块是 version 的字段集加上一条滞留在旧值的 `- Status:` 行。`require_approval` 判定的却是 `grep -qx -- "- Status: approved"`——它在检查一个 `version` 从不写入的字段，之所以通常还能工作，只因 `hooks/task` 生成模板时写了一次。`TF-20260918-454ac4`（Approval 自动化）已记同一处矛盾，本条是它的前提条件：两个 hook 对同一块内容的形状不先对齐，自动写出来的块会继承同样的分歧。
 
 ## Measure whether delegating exploration to subagents actually reduces main-thread
 
@@ -1204,15 +783,11 @@ has an issue number or URL.
 
   **落地条件**：只有实测显示某类探索稳定更省，才写进 `SKILL.md` 的 Phase 2/6（探索与复核）或 `CLAUDE.md` 的工作方式；否则结论就是「不采纳」，那也是有效结论。相关：本条与 `TF-20260919-76e7fb` 无关，属会话成本治理。
 
+
 ## Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin
 
 - ID: TF-20260919-55110d
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-19
-- Updated: 2026-09-19
 - Goal: Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin bundle that self-wires the existing skill and hooks with no manual config
 - Task: `TaskFlowDocs/achieved/2026-09-19-dsh-host/`
 - Next action: None — completed and archived.
@@ -1221,25 +796,14 @@ has an issue number or URL.
 
 - ID: TF-20260919-40eca2
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-09-19
-- Updated: 2026-09-19
 - Goal: Take a release out of the TaskFlow task workflow: RELEASE.md runs directly on the base checkout with no Todo item, task directory, branch, or PRD/Plan, and its record is the CHANGELOG section and the GitHub Release body.
 - Task: `TaskFlowDocs/achieved/2026-09-19-release-flow-exception/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-19 用户确认**：发布彻底不走 TaskFlow（不创建任务目录与 Todo 条目），记录形态取「只在 CHANGELOG 段落 + GitHub Release 正文」，写入方式取「纯文档规则、Agent 手写」，分支取「豁免——发布不从 base 检出切分支」，批准门禁改为「用户授权先行、写入 RELEASE.md 与发布正文」。本条即该决定的规则改动，已落在 RELEASE.md、CONTRIBUTING.md、SKILL.md、references/artifacts.md 与两份 README（分支问题由用户当场追问确认：『发布要切分支吗？不需要吧』，结论是不切）。
 
 ## Map the personal rule to a single personal.md: one file, each rule in its own se
 
 - ID: TF-20260919-495145
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user decision
-- Added: 2026-09-19
-- Updated: 2026-09-23
 - Goal: Map the personal rule to a single personal.md: one file, each rule in its own section with its own scope etc. The repository-docs index names personal.md and explains its origin (local-only, never committed) and purpose (personal rules that cannot override repository documents).
 - Task: `TaskFlowDocs/achieved/2026-09-23-single-personal-md/`
 - Next action: None — completed and archived.
@@ -1248,11 +812,6 @@ has an issue number or URL.
 
 - ID: TF-20260914-02
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-14
-- Updated: 2026-09-14
 - Goal: Record the host SessionStart session_id in the active task's sessions.md so a cross-session resume has a real, platform-specific identifier.
 - Task: `TaskFlowDocs/achieved/2026-09-14-session-id-record/`
 - Next action: None — completed and archived.
@@ -1260,62 +819,38 @@ has an issue number or URL.
 ## Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines, 45%
 
 - ID: TF-20260919-6b4e21
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-19
-- Updated: 2026-09-19
+- Updated: 2026-10-20
 - Goal: Stop `TaskFlowDocs/todo.md` from growing without bound: it is at 877 lines / 50 KB, of which the 47 `done` entries are 45% (22.6 KB) and the 18 live entries (`inbox` 12, `promoted` 2, `in_progress` 4) are under a third — the file is a growing archive that every task still has to read.
-- Task: Not promoted.
-- Next action: User studies the fix and decides; do not start.
+- Task: `TaskFlowDocs/2026-10-19-todo-done-compaction/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-09-19 用户提出，明确排除在本次修复范围外**（「先立一个 todo，我后面研究修复」）。
+- 2026-10-19 用户裁定，方案 C（done 收成固定字段），并把无 ID 老条目并入本任务。实测 main 01a067a：1402 行 / 114226 字节，done 85 条 89554 字节（78%）。保留字段取标题+ID+Status+Task+Next+Goal 一档，迁移后约 66323 字节（原 114226，降 42%）。三个后续裁定：Notes 不丢弃而是搬到 achieved plan.md 的 ## Todo Record；reopen 缺失 - Updated: 是硬故障（reopen 自检通过，随后 task state 在 hooks/task:167 上 missing Todo field: Updated），一并修掉；无 achieved 目录的条目整条不动，因为列 0 的 ## Todo Record 会被所有 hook 当成新 section。读侧 hook 全部零改动。已否决：搬去单独文件（todo-check 的丢条目不变式无法区分移动与丢失）、按年份拆分（85 条全在 2026 年）。
   **实测分布**（HEAD `c1147ab`，877 行 / 50,427 字节，按条目正文统计）：`done` 47 条 / 22,661 字节（45%）；`inbox` 12 条 / 14,194 字节；`in_progress` 4 条 / 3,422 字节；`promoted` 2 条 / 991 字节；模板与无法解析的 4 段 / 384 字节。**待每天打交道的 live 条目只有 18 条、不到三分之一。**
   **两个已观测到的结构损伤**（不只是「长」）：(1) `## Item template` 模板块停在第 251 行，**在条目中间**，其下还有条目，随后第 267 行是一句被截断的半句 `Every direct request or imported requireme`；(2) 条目顺序是三个时代的堆叠，不是严格新在前——`TF-20260919-*` 的若干条排在 `TF-20260918-*` 之下。
   **已排除的选项**：本文件的定义是 intake 清单（`SKILL.md:30`、`references/artifacts.md:9` 都写 triage metadata only），历史事实在 `TaskFlowDocs/achieved/`，且 `SKILL.md:44` 禁止第二份事实源——所以往 todo.md 里做归档是反方向的。按日期分片/换后端会把整套 hook（`hooks/archive`、`hooks/summarize-state`、`hooks/todo-check`、`hooks/merge-todo`、`hooks/task`）都改一遍。
   **读取代价已被 v1.0.7 砍掉一半**：`hooks/task get <todo-id>` 只回一条条目，`task next` / `task intake` 只写一条，所以「查/改」不再需要读全文；剩下的整读场景只有「新增条目」。（本条由 `hooks/task next` 写入，未手改。）
 
+
 ## Cut the mechanical overhead out of a release without adding any authority to it
 
 - ID: TF-20260919-c41f8a
 - Status: done
-- Priority: high
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-19
-- Updated: 2026-09-21
 - Goal: Cut the mechanical overhead out of a release without adding any authority to it: write the six fixed version literals from one command, move the CHANGELOG section into the tagged commit so the tag is immutable, and make a stale release record fail CI instead of passing.
 - Task: `TaskFlowDocs/achieved/2026-09-21-release-overhead/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-19 用户指定三条一起做，作为本条**（依据是 v1.0.8 的实测产物，不是设想）。
-- **2026-09-21 已 promote，三条经实测修正为**：(1) 机械字面量不是 6 处而是 **8 处 / 6 个文件**（4 个 manifest + 两份 README 各两处 `Version:` 示例），`hooks/release-version` 一次写掉；(2) **tag 缺正文不是真的**——实测 v1.0.7 (`c3c536d`) 与 v1.0.8 (`620c6a7`) 的 CHANGELOG 段落**都在被 tag 的 commit 里**，tag 注释是 tag 对象上的第二份正文，不替代第一份；真正缺的只是 `RELEASE.md` 没写下「段落先于 tag」这条顺序规则，改为补规则（R4）；(3) 新增两条已实测的检查——`release-check` 对每份 README **只用 head -1 比第一处**，把 `README.md:261` 改成 1.0.7 仍报 pass；以及 tag→pin 窗口内除 marketplace 两文件与 `TaskFlowDocs/` 外任何改动均应判红。用户已裁定：第 (2) 条只补规则、窗口豁免 `TaskFlowDocs/`。
-  **三条内容**：
-  (1) **`hooks/release-version <x.y.z>`（只做格值写入）**——当前一次发布要手改 **7 个文件**（`620c6a7` 的 stat）：4 个 manifest 的 `version`、两份 README 的插件列表示例、`CHANGELOG.md` 新段落。**前六处是格值**（4 个 manifest + 2 处 README 示例输出，`README.md:207,261`、`README.zh-CN.md:173,226`），完全可以一条命令写掉；**第七处是散文，留给 Agent**。Codex/CodeBuddy 的 cachebuster 形如 `1.0.8+codex.20260919`，日期用 hook 已有的 `today`。**必须一次调用写完，不要做成 preflight + write 两次**——一次调用就先检查后写，失败不留半成品。
-  (2) **把 CHANGELOG 段落搬进 base tree 的 release commit，让 tag 不可变**。现状（`RELEASE.md:86-92` + 实测 `620c6a7`）：**release notes 活在 tag 指向的 commit 之后的第二个 commit 里**，所以 `git tag -a` 只能把正文写进 tag，**tag 本身缺发布正文**；后来补写正文是重写 tag 对象，而 tag 是 claude 的 `sha` pin 引用的东西，重写需要「显式 owner 授权 + 记录理由」（`RELEASE.md:126`，且改的是 `620c6a7`/`2a89e2` 那类 commit）。把 CHANGELOG 段落移进 release commit 之后：tag 指向的 commit 自带发布正文，下一个 tag 可以带正文且先于 pin 创建、此后不再改。`RELEASE.md` 的步骤顺序要同步（正文写入在打标签之前），并记录为什么。
-  (3) **让过期的发布记录在 CI 里失败**：给 `hooks/release-check` 加一条——**tag 指向的 commit 之后、被 pin 的 commit 之前**，只允许存在 marketplace 的 `ref`/`sha` 字面量差异；一旦出现别的差异（CHANGELOG 段落、README、manifest 版本、代码），就退出非零。v1.0.8 顺带发现：`README.md:261` 的 `claude plugin list` 示例还停在 1.0.8，而发布前的文档版本是 1.0.9——这条同时就是防这个的。
-  **三条的公共红线（不是可选项）**：新增的工具**不得做判断**。`RELEASE.md` 的批准门禁是「用户先批准，写入是转录」；格值写入与记录校验都是转录，所以可以做；**「允许发布」必须永远留在人手里**，任何一条都不得演变成自动发布或自动批准。另：`RELEASE.md:122` 明确「不做自动 tag / 自动 GitHub Release」，三条都不得触碰这条边界。
-  **边界已核**：Hook 的 JSON 目前只有 `SessionStart`（`hooks/hooks.json`），三条都不需要新增 hook 事件，也都不需要 `hooks/task` / `hooks/archive` 的现有事务。`hooks/release-check` 已被 `hooks/smoke-test:1172-1231` 覆盖（漂移、坏 pin、cachebuster、缺 manifest），新增的检查要按同法补断言。相关：`TF-20260919-76e7fb`（发布不走 TaskFlow，已交付）、`TF-20260919-b7821b`（`hooks/version` 的 Approval 形状）。
 
 ## `task intake` inserts a new entry into the previous section instead of `## Items`
 
 - ID: TF-20260921-337ab8
 - Status: done
-- Priority: normal
-- Owner: Codex
-- Source: user request
-- Added: 2026-09-21
-- Updated: 2026-09-22
 - Goal: Fix task intake inserting a new entry into the previous section instead of the Items section, and its insertion point landing inside the Removed section.
 - Task: `TaskFlowDocs/achieved/2026-09-22-todo-intake-insert/`
 - Next action: None — completed and archived.
-- Notes: **2026-09-21 用户指定：单独开一条。**
-  **问题**：`hooks/task intake` 把新条目写进文件里的上一个 `## ` 节，而不是插到 `## Items` 下。新条目因此挂到别人的标题下——那次它挂在了「Stop `TaskFlowDocs/todo.md` from growing without bound…」节里，`promote` 又拿那行当标题生出 task 文档（本轮我用假标题「State in the Skill…」跑出了 plan/prd 的首行）。
-  **另一半**：`intake` 的插入点固定在文件末尾，所以它落在 `## Removed` 之后；如果 `## Removed` 不是最后一节，新条目会插进 `## Removed` 节内，`todo-check` 读 `## Removed` 时会把在途条目当成已删除记录（该节与 `TF-20260918-985164` 的删除语义直接冲突）。
-  **根因**：`hooks/task` 的 `intake` 分支（约 `:206-216`）是「rstrip 尾部空行 → 整文件原样输出 → 再追加 `## <title>` 块」，没有定位 `## Items` 边界，也没有插入点概念。
-  **违反的既有约定**：`TaskFlowDocs/todo.md` 自己的 `## Items` 节里写着 `<!-- Add new items at the top using the template below. -->`——实现与文档约定相反。
-  **判定依据**：`hooks/task get <todo-id>` 与 `hooks/task next <todo-id> … [notes]` 能只读/只改一条条目（`next` 的第三个位置参数就是 Notes），所以本次是「用 hook 写 Notes」而非手改——这正是 `task next` 存在的理由。
-  **验收**：新条目落在 `## Items` 节内、位于任何其他 `## ` 节之前；`## Removed` 之后插入新条目不再可能污染删除记录；`todo-check` 的 removed 判定不受影响；smoke 增加一条断言（新条目不得出现在 `## Removed` 与文件末尾之间）。相关：本轮 PR #45 里我被这个 bug 误导，绕过后才 promote 成功。
-  **同因的另一现象**：`## ` 标题与 Goal 对不齐是既有习惯，不是个别错误——本文件的 `## ` 节数比 `- ID:` 行数多 23，多出来的全是模板块（`## T-YYYYMMDD-001` 等），另有约 30 条已交付条目的标题是手写摘要、与 Goal 前缀不一致。`hooks/task get` 按 ID、`findsec` 按 `TaskFlowDocs/<task>/` 解析条目，都不看标题，所以目前只是可读性问题；唯一出错的是 `promote`——它用标题去派生任务目录名。口径待定：标题由 Goal 派生（与 intake 一致、可校验），还是保留人写标题但 `promote` 一并更新它。
 
 ## Removed
 
@@ -1330,15 +865,11 @@ has an issue number or URL.
 - ID: TF-20261008-4d37b2 (removed 2026-10-10: Absorbed into TF-20261008-a4454d: both add guidance beside the same SKILL.md update points and assertions over the same document-vs-hooks reconciliation surface, so a separate task would re-edit the same files)
 - ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
 
+
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
 - ID: TF-20260928-07c659
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: direct user request 2026-09-28；reopen：v1 的 artifact-language 规则把"章节标题"整体划为英文，收窄为 hook 精确匹配的显式名单
-- Added: 2026-09-28
-- Updated: 2026-09-29
 - Goal: 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 - Task: `TaskFlowDocs/achieved/2026-09-15-hook-integrity/` (v2)
 - Next action: None — completed and archived.
@@ -1357,6 +888,7 @@ has an issue number or URL.
 - Next action: Decide the wording or mechanism that makes the drafter translate its own prose, and add a detection the next silent English run trips
 - Notes: Recurrence of TF-20261001-51d9c8 with the same root cause recorded there: the phase capability brought an English skeleton and nothing carried the rule onto the prose underneath it.
 
+
 ## Stop hand-writing a bespoke manual install section per host in the host-facing d
 
 - ID: TF-20261009-99045e
@@ -1370,21 +902,14 @@ has an issue number or URL.
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
+
 ## Make one order binding: entering work enters TaskFlow first, and capabilities ar
 
 - ID: TF-20261009-cc463b
 - Status: done
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-09, found while writing the trae-host PRD
-- Added: 2026-10-09
-- Updated: 2026-10-10
 - Goal: Make one order binding: entering work enters TaskFlow first, and capabilities are selected and used inside the phase. Today the applicability gate and the phase-to-capability step are separate rules with no stated order, so a session can research before TaskFlow and then have no stage to attribute that research to, which is what forces a throwaway invocation when the document is finally written; or skip TaskFlow entirely; or never consider a phase's capability class because no available capability advertises the phase name. A phase's selection must also be able to record work already done for it, instead of requiring a fresh call the gate can find
 - Task: `TaskFlowDocs/achieved/2026-10-10-taskflow-first-order/`
 - Next action: None — completed and archived.
-- Notes: 用户 2026-10-09 裁定：(1) 治理新建一条 todo（比 TF-20261009-8abbd6 宽，后者只讲 gate 读不到归属），本条为宽版；(2) 机制层候选——(a) 只钉顺序（SKILL.md 顶部加『先 TaskFlow、能力随阶段』，phase 表措辞另由 TF-20261008-5b5635 处理），(b) 顺序 + 打通『已发生的调研可明确归属当前阶段』，去掉补一次不相干调用的通道（推荐），(c) 顺序 + 把 gate 从硬 deny 降为 task approve 时对账（更贴能力中立原则，需动 hook）；(3) 本次只记录，不改码。相关：TF-20261001-efbc51、TF-20261009-8abbd6、TF-20261008-5b5635
-- 2026-10-10 第四个失败模式（用户裁定并入本条，不新建）：**未登记的工作在场时入口完全静默**。(1) 目标仓库从未用过 TaskFlow 时，`hooks/summarize-state` 第 18 行 `[ -d "$docs" ] || exit 0` 直接退出，SessionStart 不产生任何输出——插件在整个会话里等于不存在；(2) 即使有 TaskFlowDocs，`summarize-state` 打印的也只有**已存在**的 inbox 条目与活跃任务，一份从没进过 TaskFlow 的工作在它里面是空的，于是「这份工作该不该登记」没有任何信号可依；(3) `hooks/hooks.json` 只有 SessionStart / PreToolUse / PostToolUse，没有 UserPromptSubmit，且 `references/runtime.md:185` 明写写入命令永不绑它。**注意：`UserPromptSubmit` 已被否决过**——`achieved/2026-09-10-audit-hook-opportunities/reference/hook-audit.md:81` 记录「Todo creation from every UserPromptSubmit：多数 prompt 是提问或跟进，matcher 无法可靠分类，除非再加一个模型」。所以本条的机制候选须在此约束下重新给：要么让静默本身可被观测（SessionStart 在无 TaskFlowDocs / 有未登记工作时输出一句），要么改 Applicability gate 的措辞，而不是加 prompt hook。
-- 2026-10-10 第五个失败模式（本次实现中发现，无独立 todo）：**不可上报的未登记状态**。summarize-state 的分支报告要求当前分支名含 slug 且该 slug 不匹配任何任务目录；但「在 base 检出上尚未建分支就开始改仓库」与「分支名本就不含 slug（如 user/foo）」两种情况下，前四类信号（活跃任务、inbox、入口提示、分支报告）全为空——这与第四个失败模式同源，都是「静默」，差别只在触发条件落在分支命名而不是目录存在性。本条不修（需要与 efbc51 的锚点语义一起定），在此记录。
 
 ## Stop duplicating changelog/history content across prd.md, plan.md and spec.md: e
 
@@ -1398,4 +923,3 @@ has an issue number or URL.
 - Goal: Stop duplicating changelog/history content across prd.md, plan.md and spec.md: each document repeats the same change-log or history narrative, which is pure token waste. Assign the history/changelog a single owning document and have the others reference it instead of restating it.
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
-

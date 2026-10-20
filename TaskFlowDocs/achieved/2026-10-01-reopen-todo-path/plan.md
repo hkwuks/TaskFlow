@@ -137,3 +137,11 @@ No spec required — small, self-contained task.
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Next action:`
+
+- 裁定（2026-10-01）: (1) 范围取「完全对称 archive」——reopen 写回 `Task:` 活动根、`Status: promoted`、`Next action: Re-approve the new Task version before core changes.`、`Updated:` 当天；(2) 取「与 archive 同纪律」——失败回滚 `mv`，写后校验，并打印提交用的 stage 行；(3) `Status:` 取 `promoted`，与 `hooks/task:796` 的 `task state planning|ready` 一致。

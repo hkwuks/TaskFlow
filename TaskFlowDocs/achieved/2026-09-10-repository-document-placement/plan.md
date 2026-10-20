@@ -109,3 +109,11 @@ None.
 ## Version History
 
 - v1 — Approved, implemented, verified, and completed.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 用户 2026-10-18 选定 A 方案：补记录，不删文档。这次只动 `todo.md`——`TaskFlowDocs/achieved/2026-09-10-repository-document-placement/` 三个文件一字未改。该目录由 `660679a`（release 1.0.2）带入仓库，从未有过对应的 `- Task:` 行；`new_orphan` 检查（`2026-09-23-orphan-task-dirs`）上线后它一直是唯一命中项，使 `hooks/repository-check` 常驻 `STATUS: needs-user-input`（exit 2）。补记录后该检查转绿，其绿重新具有信息量。复核方式：`bash hooks/repository-check .`。
