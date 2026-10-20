@@ -155,6 +155,7 @@
 全部在本 worktree 的 `fix/task-id-validation` 上跑。
 
 - [x] `bash hooks/smoke-test` — exit `0`，**81 段 `ok`**，`ALL SMOKE PASSED`。比基线多 2 段（`a task name is a single path component…`、`unpromote undoes a promotion…`），其余段落零改动通过。
+- [x] CI —— run [`39440052047`](https://github.com/hkwuks/TaskFlow/actions/runs/39440052047) 在 head `ac68415` 上六项全绿：`evals`、`release`、`smoke`（ubuntu 19s / macos 1m4s / windows 35s）、`todo-merge-audit`。macOS 与 Windows 两项是这次最该看的：新校验器用 `case` glob 实现，两个平台上 bash 的类匹配行为必须一致。
 - [x] `bash -n` 与 `docker run --rm -i bash:3.2 bash -n` — `hooks/task-id`、`hooks/task`、`hooks/archive`、`hooks/reopen`、`hooks/smoke-test` 五个文件全部通过。
 - [x] `git diff --check` — clean。
 - [x] `python3 <skill-creator>/scripts/quick_validate.py skills/taskflow` — `Skill is valid!`
@@ -187,3 +188,9 @@
 ### 一处渠道错位，值得记
 
 变异 3、4 第一次跑出来是「脚本自己坏了」而不是「断言变红」：`bash -n` 通过，但套件在别处静默死掉。原因是那台机器上同时还有别的后台 `smoke-test` 在跑，两个进程共用 `mktemp` 目录名空间之外的东西——更要紧的是，`git checkout -- .` 在第一个沙箱里跑过之后，第二个沙箱的变异被打在别的地方。教训与本次改动无关，但重跑时必须一次一个、每次独立日志文件、每次确认 `git status` 空。
+
+### 推送与 PR
+
+- 提交 `ac68415` 推到 `fix/task-id-validation`。
+- 草稿 PR [#89](https://github.com/hkwuks/TaskFlow/pull/89)，body 按 `.github/pull_request_template.md` 五节填写；`## Verification` 里只有 CI 那一项待勾。
+- 变异记录（上表）与两处测试缺陷都写进了 PR body，因为它们属于「这个断言凭什么可信」的一部分，评审时与 diff 一起读。
