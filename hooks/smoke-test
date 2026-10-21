@@ -2008,15 +2008,33 @@ done
 
 # `todo-merge-audit` is the one job with no `if`, and that is the contract: the
 # merge most likely to drop a Todo entry is the one no path set can single out.
-python3 - "$repo/.github/workflows/hooks.yml" <<'PY' || { echo "FAIL todo-merge-audit gained or lost a condition"; exit 1; }
-import sys, yaml
-jobs = yaml.safe_load(open(sys.argv[1]))["jobs"]
-assert "if" not in jobs["todo-merge-audit"], "todo-merge-audit must stay unconditional"
-for job, key in (("smoke", "smoke"), ("release", "release"), ("evals", "evals")):
-    node = jobs[job]
-    assert node["needs"] == "changes", f"{job} does not depend on changes"
-    assert node["if"] == f"needs.changes.outputs.{key} == 'true'", f"{job} has the wrong condition"
-PY
+#
+# Read as text, not through a YAML parser. `python3` here is the interpreter the
+# runner image happens to ship, and it does not always ship PyYAML: macOS had the
+# module and ubuntu had it, so the assertion passed on two hosts and this repo's
+# own no-interpreter guarantee was never the thing being tested. The shape being
+# asserted is narrow — a job name at two spaces, its `needs`/`if` at four — and
+# anything that stops fitting that shape is a red here rather than a silent pass.
+workflow_jobs="$(awk '
+  /^  [a-z][a-z-]*:$/ { job = substr($0, 3); sub(/:$/, "", job); next }
+  job == "" { next }
+  /^    needs: / { needs[job] = substr($0, 12) }
+  /^    if: /    { cond[job]  = substr($0, 9) }
+  END {
+    if (needs["todo-merge-audit"] != "" || cond["todo-merge-audit"] != "") {
+      print "todo-merge-audit must stay unconditional"; bad = 1
+    }
+    n = split("smoke release evals", keys, " ")
+    for (i = 1; i <= n; i++) {
+      k = keys[i]
+      if (needs[k] != "changes") { print k " does not depend on changes"; bad = 1 }
+      if (cond[k] != "needs.changes.outputs." k " == \x27true\x27") {
+        print k " has the wrong condition: [" cond[k] "]"; bad = 1
+      }
+    }
+    exit bad + 0
+  }
+' "$repo/.github/workflows/hooks.yml")" || { echo "FAIL todo-merge-audit gained or lost a condition"; printf '%s\n' "$workflow_jobs"; exit 1; }
 echo ok
 
 echo "== TaskFlow packaged Skill contract =="
