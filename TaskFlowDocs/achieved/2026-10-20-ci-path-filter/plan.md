@@ -1,7 +1,7 @@
 # Plan — 让 Hooks workflow 只跑改动能影响的 job
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -121,11 +121,11 @@
 
 ### Checkpoint — Step 1 之后
 
-- [ ] 分类器对七种路径情形的输出与 PRD 一致，且每种都退出 `0`。
+- [x] 分类器对七种路径情形的输出与 PRD 一致，且每种都退出 `0`。
 
 ### Checkpoint — Step 2 之后
 
-- [ ] workflow 可被 YAML 解析；`todo-merge-audit` 无条件；另外三个的 `needs`/`if` 字面正确。
+- [x] workflow 可被 YAML 解析；`todo-merge-audit` 无条件；另外三个的 `needs`/`if` 字面正确。
 
 ## Change Log
 

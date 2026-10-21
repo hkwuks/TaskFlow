@@ -1,7 +1,7 @@
 # 让 Hooks workflow 只跑改动真正能影响的 job
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
