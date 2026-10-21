@@ -170,7 +170,7 @@ claude plugin install taskflow@taskflow
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.1.6    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.1.7    Status: ✔ enabled
 ```
 
 更新已有安装：
@@ -227,7 +227,7 @@ CodeBuddy 读取 `.codebuddy-plugin/marketplace.json` 这份目录，其中带�
 ```bash
 codebuddy plugin list
 #   > taskflow@taskflow
-#     Version: 1.1.6
+#     Version: 1.1.7
 #     Scope: user
 #     Status: enabled
 ```
@@ -338,7 +338,7 @@ dsh plugin --profile web add <仓库根目录>
 > [!NOTE]
 > Hooks 是可选的。插件安装的 SessionStart hook 注入一份简短的状态摘要（未完成的收件箱条目 + 活跃任务）和当前阶段适用的仓库文档路由，让 Agent 不必重读整棵树。它从不创建、改写或删除 `prd.md`/`spec.md`/`plan.md`/`reference/index.md`，也从不批准；它唯一会写的文件是所选任务的 `sessions.md` 会话索引和 `TaskFlowDocs/repository-docs/index.md` 里确定性的路由元数据。没有 hooks 的宿主按同样的流程运行。
 
-对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|state|progress|unaided|complete`；这些写命令不会绑定到事件 Hook。
+对于机械性的生命周期更新，Agent 可以显式运行 `hooks/run-hook.cmd task intake|promote|unpromote|state|progress|unaided|complete`；这些写命令不会绑定到事件 Hook。
 
 ## 验证与 CI
 
@@ -415,12 +415,14 @@ hooks/                               # 可选的宿主/工具链 hook —— 见
 ├── install-merge-driver             # 安装仓库本地的 Todo 合并驱动
 ├── merge-todo                       # 驱动本体：按条目合并 todo.md
 ├── task / archive / version / reopen # 显式生命周期命令
+├── task-id                          # 任务名的唯一合法规则
 ├── release-check / todo-check       # 发布版本字面量；被丢掉的 Todo 条目
 ├── hooks{,-codex,-codebuddy,-dsh,-trae}.json   # 每个宿主一份接线文件
 └── run-hook.cmd                     # 跨平台启动器
 
 evals/                               # 离线路由评测（runner.py + cases/、fixtures/）
 tools/fixture-compare                # 逐字节比对两次 smoke-test 的夹具
+tools/workflow-affected              # 改动路径能影响哪些 CI job
 .claude-plugin/ .codex-plugin/ .codebuddy-plugin/   # 各宿主清单与目录
 .github/workflows/hooks.yml          # CI：smoke 矩阵、release、todo 审计、evals
 ```

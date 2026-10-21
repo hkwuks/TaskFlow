@@ -204,7 +204,7 @@ Verify it loaded:
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.1.6    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.1.7    Status: ✔ enabled
 ```
 
 To update an existing installation:
@@ -262,7 +262,7 @@ Verify it loaded:
 ```bash
 codebuddy plugin list
 #   > taskflow@taskflow
-#     Version: 1.1.6
+#     Version: 1.1.7
 #     Scope: user
 #     Status: enabled
 ```
@@ -383,7 +383,7 @@ Then: add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`
 > [!NOTE]
 > Hooks are optional. The plugin installs a SessionStart hook that injects a short derived state summary (inbox items + active tasks) and the repository-document routes for the current phase, so the Agent does not re-read the whole tree. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves; the only files it writes are the selected task's `sessions.md` session index and the deterministic routing metadata in `TaskFlowDocs/repository-docs/index.md`. Hosts without hooks run the exact same flow.
 
-For mechanical lifecycle edits, the Agent can explicitly run `hooks/run-hook.cmd task intake|promote|state|progress|unaided|complete`; these write commands are not event-bound hooks.
+For mechanical lifecycle edits, the Agent can explicitly run `hooks/run-hook.cmd task intake|promote|unpromote|state|progress|unaided|complete`; these write commands are not event-bound hooks.
 
 ## Verification and CI
 
@@ -460,12 +460,14 @@ hooks/                               # optional host/harness hooks — see hooks
 ├── install-merge-driver             # configures the repo-local Todo merge driver
 ├── merge-todo                       # the driver: merges todo.md by entry
 ├── task / archive / version / reopen # explicit lifecycle commands
+├── task-id                          # the one rule for a legal task name
 ├── release-check / todo-check       # release literals; dropped Todo entries
 ├── hooks{,-codex,-codebuddy,-dsh,-trae}.json   # one wiring file per host
 └── run-hook.cmd                     # cross-platform launcher
 
 evals/                               # offline routing evals (runner.py + cases/, fixtures/)
 tools/fixture-compare                # byte-compares two smoke-test fixture runs
+tools/workflow-affected              # which CI jobs a changed path can affect
 .claude-plugin/ .codex-plugin/ .codebuddy-plugin/   # host manifests and catalogs
 dsh/ + package.json                  # dsh bundle plugin: mounts the skill and the hooks
 .github/workflows/hooks.yml          # CI: smoke matrix, release, todo audit, evals
