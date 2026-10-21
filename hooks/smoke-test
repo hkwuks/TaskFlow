@@ -1787,14 +1787,16 @@ done
 [ ! -e "$badid/TaskFlowDocs/a" ] || { echo "FAIL 'a/b' created a nested directory"; exit 1; }
 [ ! -e "$(dirname "$badid")/escaped" ] || { echo "FAIL '../../escaped' created a directory outside the fixture"; exit 1; }
 # The rule has to accept the real shape too, or it would pass by refusing
-# everything: this repository's own task directories are the sample.
-for d in TaskFlowDocs/*/; do
-  name="${d%/}"; name="${name##*/}"
-  [ "$name" = "achieved" ] && continue
-  [ "$name" = "repository-docs" ] && continue
-  bash "$HERE/task-id" "$name" || { echo "FAIL the rule rejects this repository's own active task: $name"; exit 1; }
+# everything. The samples are literal rather than this repository's own
+# directories. A directory here exists only because some earlier version of this
+# same rule accepted it, so the sample would be the rule checked against its own
+# output — and it would make this suite's input depend on which branch is checked
+# out, which is what let `tools/workflow-affected` claim a task directory was
+# read by no job while this loop was reading them.
+for good in 2026-10-20-task-id-validation 2026-09-13-hooks-ci-matrix \
+            2026-09-08-smoke 2026-01-01-a 2026-12-31-a1b2c3; do
+  bash "$HERE/task-id" "$good" || { echo "FAIL the rule rejects a legal name: $good"; exit 1; }
 done
-bash "$HERE/task-id" 2026-01-01-a || { echo "FAIL the rule rejects a minimal legal name"; exit 1; }
 echo ok
 
 echo "== a task is isolated before its first document is written =="
@@ -1908,6 +1910,113 @@ chmod +x "$iso_gitbin/git"
 ) || { echo "FAIL intake under a drive-path git dir was refused"; cat "$iso_out"; exit 1; }
 grep -q 'modified in the base working tree' "$iso_out" \
   && { echo "FAIL a drive-path absolute git dir was read as relative to the root"; cat "$iso_out"; exit 1; }
+echo ok
+
+echo "== the CI classifier covers every path the jobs it gates actually read =="
+# `tools/workflow-affected` decides which `Hooks` jobs a pull request runs, and
+# the only failure mode it has that leaves no trace is a path missing from a set:
+# the job does not run, and nothing says it should have. So the sets are not
+# documented and trusted — they are compared here against what the gated scripts
+# themselves read, both sides measured from the tree rather than restated.
+#
+# `tools/` is not covered by the every-hook-parses loop above, which walks
+# "$HERE"/* and skips nothing outside hooks/.
+repo="$(cd "$HERE/.." && pwd)"
+affected="$repo/tools/workflow-affected"
+[ -f "$affected" ] || { echo "FAIL tools/workflow-affected is missing"; exit 1; }
+if ! err="$(bash -n "$affected" 2>&1)"; then
+  echo "FAIL tools/workflow-affected does not parse: $err"; exit 1
+fi
+
+# The classifier's own exit code is a contract, not an accident: a non-zero exit
+# here marks `changes` failed, and `needs:` then renders the rest `skipped`
+# rather than red — a run that looks fine and checked nothing.
+for args in "" "README.md" "no-such-directory/x"; do
+  set +e
+  bash "$affected" $args >/dev/null 2>&1
+  affected_rc=$?
+  set -e
+  [ "$affected_rc" -eq 0 ] || { echo "FAIL workflow-affected exited $affected_rc for [$args]"; exit 1; }
+done
+
+# Both directions: a path in the set must answer true, and the answer is read by
+# key name, not by line position.
+#
+# The value alone is not enough, which the M1 and M2 mutations showed. Every set
+# omission degrades to "unknown", and unknown answers `true` for all three keys —
+# so a dropped path looks *correct* on exactly the keys it was not dropped from,
+# and `assert_affected release true README.md` stays green while README.md is no
+# longer a release input at all. The fall-through is therefore asserted
+# separately: stderr is where the classifier says it could not place a path.
+assert_known() {  # assert_known <path>
+  err="$(bash "$affected" "$1" 2>&1 >/dev/null)"
+  [ -z "$err" ] || { echo "FAIL $1 is in no set (classified as unknown): $err"; exit 1; }
+}
+assert_affected() {  # assert_affected <key> <expected> <path>
+  out="$(bash "$affected" "$3" 2>/dev/null)"
+  got="$(printf '%s\n' "$out" | sed -n "s/^$1=//p")"
+  [ "$got" = "$2" ] || { echo "FAIL $1 for $3: expected $2, got '${got:-<missing>}'"; printf '%s\n' "$out"; exit 1; }
+  assert_known "$3"
+}
+
+# Every file `hooks/release-check` reads comes from its own list, so the set is
+# compared against that list instead of against a copy of it.
+release_paths="$(sed -n 's/^[a-z_]*=\"\([^\"]*\.json\)\"$/\1/p' "$HERE/release-check")"
+release_paths="$release_paths
+CHANGELOG.md
+README.md
+README.zh-CN.md"
+for p in $release_paths; do
+  assert_affected release true "$p"
+done
+
+# The paths `smoke-test` reads from the real tree, rather than from a fixture.
+# Extracted from this file so an added read cannot silently go unclassified.
+for p in $(grep -oE '(\$repo|\$HERE/\.\.)/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*' "$HERE/smoke-test" \
+           | sed -e 's|^\$repo/||' -e 's|^\$HERE/\.\./||' | sort -u); do
+  # An excluded-then-read path (`$repo/SKILL.md` must NOT exist) is still a path
+  # whose presence changes the answer, so it belongs in the set all the same.
+  assert_affected smoke true "$p"
+done
+
+# The scheduler's own inputs. Editing the classifier must run the thing that
+# tests it; editing the workflow must run the workflow.
+assert_affected smoke true tools/workflow-affected
+assert_affected smoke true .github/workflows/hooks.yml
+
+# The one path set difference that is easy to get backwards, and the reason this
+# section exists at all: a Task directory is read by no job, and a Todo edit is.
+assert_affected smoke false TaskFlowDocs/2026-01-01-example/plan.md
+assert_affected release false TaskFlowDocs/2026-01-01-example/plan.md
+assert_affected evals false TaskFlowDocs/2026-01-01-example/plan.md
+assert_affected smoke true TaskFlowDocs/todo.md
+assert_affected release false TaskFlowDocs/todo.md
+assert_affected release true package.json
+assert_affected smoke false package.json
+assert_affected evals true evals/cases/taskflow.json
+assert_affected smoke false evals/cases/taskflow.json
+
+# A path in no set runs everything — the safe default, asserted rather than
+# assumed, because it is what makes a forgotten entry cost a queued runner
+# instead of a check nobody ran. `assert_known` is deliberately not applied here:
+# the fall-through is the answer this case is asking for.
+for key in smoke release evals; do
+  out="$(bash "$affected" no-such-directory/x 2>/dev/null)"
+  got="$(printf '%s\n' "$out" | sed -n "s/^$key=//p")"
+  [ "$got" = true ] || { echo "FAIL an unknown path did not run $key"; exit 1; }
+done
+
+# `todo-merge-audit` is the one job with no `if`, and that is the contract: the
+# merge most likely to drop a Todo entry is the one no path set can single out.
+python3 - "$repo/.github/workflows/hooks.yml" <<'PY' || { echo "FAIL todo-merge-audit gained or lost a condition"; exit 1; }
+import sys, yaml
+jobs = yaml.safe_load(open(sys.argv[1]))["jobs"]
+assert "if" not in jobs["todo-merge-audit"], "todo-merge-audit must stay unconditional"
+for job, key in (("smoke", "smoke"), ("release", "release"), ("evals", "evals")):
+    node = jobs[job]
+    assert node["needs"] == "changes", f"{job} does not depend on changes"
+    assert node["if"] == f"needs.changes.outputs.{key} == 'true'", f"{job} has the wrong condition"
+PY
 echo ok
 
 echo "== TaskFlow packaged Skill contract =="

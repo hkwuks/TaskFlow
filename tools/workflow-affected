@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+# workflow-affected — decide which `Hooks` workflow jobs a set of changed paths
+# can affect.
+#
+# Usage: workflow-affected <changed-path>...
+#
+# Prints exactly three lines, in this order, values `true` or `false`:
+#   smoke=<bool>
+#   release=<bool>
+#   evals=<bool>
+#
+# Exit code is ALWAYS 0, including for an empty argument list. That is not
+# laziness. The workflow calls this from a `changes` job, and every downstream
+# job reaches it through `needs:` — so a non-zero exit here marks `changes`
+# failed and the other jobs `skipped`, which in the GitHub UI is a normal-looking
+# run with no red anywhere. A classifier that refuses to answer would switch CI
+# off silently. So an answer it cannot give, it gives as "run everything".
+#
+# The sets below are not guesses. Each was measured against the job it gates:
+#
+#   release  hooks/release-check:20-31 reads exactly nine files and nothing else.
+#            It never reads hooks/, and it invokes no other script.
+#
+#   smoke    Hook scripts read the real tree only in a few places — everything
+#            else runs against mktemp fixtures. `TaskFlowDocs/todo.md` is one of
+#            them: hooks/smoke-test:2023-2056 compares its `## Item template`
+#            field set against the fields `hooks/task` actually writes, so a Todo
+#            edit is a smoke input and a `release` non-input.
+#            `.github/workflows/**` is here because a change to this workflow has
+#            to be exercised by the workflow it changes.
+#            The plugin manifests are NOT here: smoke-test:3613-3650 generates its
+#            own in a fixture rather than reading the real ones.
+#            A root-level `SKILL.md`, `agents/` or `references/` IS here, even
+#            though no job reads it: smoke asserts those paths must not exist, so
+#            their appearing is a smoke result.
+#
+#   none     A task's own documents (`TaskFlowDocs/<task>/`,
+#            `TaskFlowDocs/achieved/<task>/`) gate nothing. Said out loud rather
+#            than left to the unknown-path default, and the reason the assertion
+#            exists: `smoke-test` reads the live directory *names* for a while
+#            longer than it should have, which silently made this claim false.
+#
+#   evals    evals/runner.py reads its case file and evals/fixtures/ only. The
+#            `TaskFlowDocs/...` paths inside a case are relative to its fixture,
+#            not to the repository. `skills/**` is included because a case's
+#            prompt and keywords describe where the Skill's routing boundary is.
+#
+# Anything matching none of the sets makes every job run. Losing a path from
+# these lists is the one failure mode that leaves no trace, so the unknown case
+# is covered rather than assumed.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+smoke=0
+release=0
+evals=0
+unknown=""
+
+# This tool lives in tools/, which no set lists, so editing it would classify as
+# "unknown" and run everything — the right answer for a change nobody can yet
+# predict the effect of, but the wrong reason. Naming it and the workflow that
+# calls it makes the dependency explicit rather than accidental.
+for path in "$@"; do
+  matched=0
+  case "$path" in
+    tools/workflow-affected|.github/workflows/*)
+      smoke=1; matched=1 ;;
+  esac
+  case "$path" in
+    hooks/*|skills/*|TaskFlowDocs/todo.md|CODE_STYLE.md|CONTRIBUTING.md|RELEASE.md)
+      smoke=1; matched=1 ;;
+  esac
+  # The packaged Skill lives at `skills/taskflow/`, and smoke asserts no duplicate
+  # sits at the repository root. A root-level `SKILL.md`, `agents/` or
+  # `references/` is that duplicate arriving, so it is a smoke input as much as
+  # the files smoke actually reads.
+  case "$path" in
+    SKILL.md|agents|agents/*|references|references/*)
+      smoke=1; matched=1 ;;
+  esac
+  # A task's own documents are read by no job. Stated rather than left to the
+  # unknown-path default, which would answer the same way for a reason that says
+  # nothing about these files — and one of them *was* read for a while (this
+  # suite used the live task directory names as samples for the task-name rule),
+  # which is the kind of read the sets exist to survive. That loop now uses
+  # literal samples, so the claim holds. `TaskFlowDocs/todo.md` has a single
+  # slash and stays with the smoke inputs above; `achieved/` has two and is
+  # covered here.
+  case "$path" in
+    TaskFlowDocs/*/*) matched=1 ;;
+  esac
+  case "$path" in
+    .claude-plugin/*|.codex-plugin/*|.codebuddy-plugin/*|package.json|CHANGELOG.md|README.md|README.zh-CN.md)
+      release=1; matched=1 ;;
+  esac
+  case "$path" in
+    evals/*|skills/*)
+      evals=1; matched=1 ;;
+  esac
+  [ "$matched" = "1" ] || unknown="$unknown $path"
+done
+
+# No arguments means the caller could not produce a diff — a shallow checkout, a
+# first push, an empty commit. That is indistinguishable from "nothing changed",
+# and the two answers differ completely, so this takes the loud one.
+if [ "$#" -eq 0 ]; then
+  echo "no changed paths; running everything" >&2
+  smoke=1; release=1; evals=1
+fi
+
+if [ -n "$unknown" ]; then
+  echo "path not in any known set:$unknown; running everything" >&2
+  smoke=1; release=1; evals=1
+fi
+
+printf 'smoke=%s\n' "$([ "$smoke" = 1 ] && echo true || echo false)"
+printf 'release=%s\n' "$([ "$release" = 1 ] && echo true || echo false)"
+printf 'evals=%s\n' "$([ "$evals" = 1 ] && echo true || echo false)"
+
+exit 0
