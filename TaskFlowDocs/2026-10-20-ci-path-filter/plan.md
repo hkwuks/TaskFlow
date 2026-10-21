@@ -1,7 +1,7 @@
 # Plan — 让 Hooks workflow 只跑改动能影响的 job
 
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 
@@ -108,14 +108,14 @@
 - Dependencies: Step 1–3。
 - Files: `TaskFlowDocs/2026-10-20-ci-path-filter/plan.md`、PR body。
 - Implementation checklist:
-  - [ ] 逐条变异，一次一个，在 `/tmp` 副本上：从工具里删掉 `TaskFlowDocs/todo.md` 的 smoke 匹配；删掉 `README.md` 的 release 匹配；把未知路径默认改成全 `false`；给 `todo-merge-audit` 加一个 `if`；让分类器对未知路径退出 `1`。
-  - [ ] `git diff --check`、`quick_validate.py skills/taskflow`、`docker run bash:3.2 bash -n`。
-  - [ ] 推送 `chore/ci-path-filter`，按 `.github/pull_request_template.md` 建草稿 PR，把落地声明写进 PR body。
-  - [ ] **归档提交也要推上同一个 PR，最后才标 ready** —— 上个任务就是因为标 ready 早于归档而需要补一个 PR。
+  - [x] 逐条变异，一次一个，在 `/tmp` 副本上：从工具里删掉 `TaskFlowDocs/todo.md` 的 smoke 匹配；删掉 `README.md` 的 release 匹配；把未知路径默认改成全 `false`；给 `todo-merge-audit` 加一个 `if`；让分类器对未知路径退出 `1`。另加两条实现期间补的：M6（删任务文档归类）、M7（把 `release` 的 `if` 指向 `smoke` 的 key）。
+  - [x] `git diff --check`、`quick_validate.py skills/taskflow`、`docker run bash:3.2 bash -n`。
+  - [x] 推送 `chore/ci-path-filter`，按 `.github/pull_request_template.md` 建草稿 PR（#91），把落地声明写进 PR body。
+  - [x] **归档提交也要推上同一个 PR，最后才标 ready** —— 上个任务就是因为标 ready 早于归档而需要补一个 PR。
 - Acceptance: 每个变异至少让它对应的那条断言变红；CI 六项全绿。
 - Verification: 映射写进 `## Verification / Review`。
 - Rollback: 还原变异副本。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -137,9 +137,15 @@
 
 ## Verification / Review
 
+**CI（权威）**：run `39615724218`，`gh pr view` 可见。`changes: success`、`smoke (ubuntu|macos|windows): success`、`todo-merge-audit: success`、`release: skipped`、`evals: skipped`。skipped 两项不是漏跑——这次改动只碰 `hooks/smoke-test`，它们本来就不读这个路径，正是本任务要的结果。
+
+**第一次 CI 是红的，原因值得记**：run `39614963300`，`smoke (macos-latest)` 报 `ModuleNotFoundError: No module named 'yaml'`。`todo-merge-audit` 的结构断言用了 `python3 + yaml.safe_load`，ubuntu 镜像带 PyYAML、macOS 不带，所以这条断言在两个宿主上通过、在第三个上根本没执行。改为 `awk` 读两空格 job 名与四空格键，形状不合即红。这也踩在本仓库自己的硬规矩上——hooks 不依赖任何语言运行时，`smoke-test:174` 专门用一条精简 PATH 测它。
+
 **全量 smoke**：`bash hooks/smoke-test` → `ALL SMOKE PASSED`，82 段 `ok`（实现前 81）。
 
 **语法底线**：`bash -n` 与 `docker run --rm -i bash:3.2 bash -n` 双通过（`tools/workflow-affected`）。
+
+**本地检查**：`git diff --check` 通过；`quick_validate.py skills/taskflow` → `Skill is valid!`。
 
 **变异验证**：一次一个，各自在 `/tmp` 副本与独立日志里跑全量 smoke。
 
@@ -151,6 +157,7 @@
 | M4 | 给 `todo-merge-audit` 加 `if: always()` | `FAIL todo-merge-audit gained or lost a condition` |
 | M5 | 分类器对未知路径 `exit 1` | `FAIL workflow-affected exited 1 for [no-such-directory/x]` |
 | M6 | 删掉 `TaskFlowDocs/*/*` 的显式归类 | `FAIL smoke for TaskFlowDocs/2026-01-01-example/plan.md: expected false, got 'true'` |
+| M7 | 把 `release` 的 `if` 改成读 `smoke` 的 key | `release has the wrong condition: [needs.changes.outputs.smoke == 'true']` |
 
 M1、M2 第一版**没有变红**，是这次实现里最值得记下的一件事：`assert_affected` 只比较值，而集合遗漏会退化成 unknown，unknown 对三个 key 全答 `true`——只删掉 `README.md` 的 release 归属，`assert_affected release true README.md` 仍然绿。补了 `assert_known`（读 stderr）之后才真正被抓住。断言写在「值」上而不写在「它被归类了没有」上，等于给兜底逻辑让路。
 
