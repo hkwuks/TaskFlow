@@ -9,11 +9,77 @@ on:
 permissions:
   contents: read
 
+# A push supersedes the run it replaced, so its queued jobs are worth cancelling
+# on a branch — three pushes to one pull request used to queue three macOS jobs,
+# and the first two could not have told anyone anything the third would not.
+#
+# Not on `push`. Two pushes to main close together would cancel each other, and
+# the earlier commit would then never be verified by anything: main carries no
+# required check to notice. On a branch the replacement run is the same code plus
+# more, on main the replaced commit is a different commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Which of the jobs below a change can actually affect. Every set in
+  # `tools/workflow-affected` was measured against the job it gates rather than
+  # guessed, because a path dropped from a set is the one failure mode that
+  # leaves no trace: the job simply does not run, and nothing says it should
+  # have. A path in no set therefore runs everything — the classifier answers
+  # "run it all" for every input it cannot place, and exits 0 either way, since a
+  # failing `changes` job would make the rest `skipped` rather than red.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      smoke: ${{ steps.classify.outputs.smoke }}
+      release: ${{ steps.classify.outputs.release }}
+      evals: ${{ steps.classify.outputs.evals }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The pull-request comparison names both ends explicitly, and the push
+          # comparison walks one commit back; neither works on a shallow clone.
+          fetch-depth: 0
+      - name: List the changed paths
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          # A push to main runs everything: main is the only thing that ships,
+          # and the paths a merge brought in are not what its own diff shows.
+          case "${{ github.event_name }}" in
+            pull_request) git diff --name-only "$BASE" "$HEAD_SHA" > changed ;;
+            *)            : > changed ;;   # empty means "run everything" too
+          esac
+          cat changed
+      - name: Classify
+        id: classify
+        run: |
+          set -eu
+          paths=()
+          while IFS= read -r path; do
+            # `[ -n ] && paths+=(...)` as the last statement of the body would
+            # leave the loop exit status 1 on a trailing blank line, which `set
+            # -e` then treats as failure — an empty diff would fail the job that
+            # exists to decide an empty diff is safe.
+            if [ -n "$path" ]; then paths+=("$path"); fi
+          done < changed
+          # `${paths[@]+...}` because a bare `"${paths[@]}"` under `set -u`
+          # errors on an empty array before bash 4.4.
+          bash tools/workflow-affected ${paths[@]+"${paths[@]}"} > classified
+          cat classified
+          for key in smoke release evals; do
+            grep "^$key=" classified >> "$GITHUB_OUTPUT"
+          done
+
   # The hooks carry no language runtime, so this job installs none: setup-python
   # is deliberately absent. If a hook ever grows an interpreter dependency, the
   # smoke suite's curated PATH fails here rather than in a user's session.
   smoke:
+    needs: changes
+    if: needs.changes.outputs.smoke == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +99,8 @@ jobs:
   # remembers to run the checklist: a README sample or CHANGELOG section left on
   # the previous version is otherwise invisible until a user sees it.
   release:
+    needs: changes
+    if: needs.changes.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +116,9 @@ jobs:
   # entry the pushed range's merge commits' parents held must survive. A push
   # whose tip is a clean merge can still have dropped an entry earlier in the
   # same push, which is why the range is audited rather than only its tip.
+  # Deliberately unconditional. A Todo entry survives or it does not, and the
+  # change most likely to drop one is a merge of two branches that both edited
+  # todo.md — which no path set can distinguish from an ordinary branch.
   todo-merge-audit:
     runs-on: ubuntu-latest
     steps:
@@ -73,6 +144,8 @@ jobs:
   # The eval runner is repository tooling, not shipped plugin runtime, so it keeps
   # its own Python and is not part of the no-runtime guarantee above.
   evals:
+    needs: changes
+    if: needs.changes.outputs.evals == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

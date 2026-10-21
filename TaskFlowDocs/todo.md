@@ -32,15 +32,10 @@ has an issue number or URL.
 ## Make the Hooks workflow skip the jobs a change cannot affect, so a task archive
 
 - ID: TF-20261020-a46573
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: reproduced on PR #89 and #90 on 2026-10-20
-- Added: 2026-10-20
-- Updated: 2026-10-20
+- Status: done
 - Goal: Make the Hooks workflow skip the jobs a change cannot affect, so a task archive or a docs-only commit does not queue a three-OS smoke matrix and an eleven-minute macOS runner, and add a concurrency group so a new push cancels the run it superseded. Today every pull request runs all four jobs: smoke on ubuntu, macos and windows, release-check, todo-merge-audit, and evals. Measured 2026-10-20 on PR #90, which only moved one task directory into achieved and updated its Todo entry: the macOS job queued eleven minutes and ran forty-two seconds, and the same thing happened on each of the three pushes that preceded it. The dependency is not 'a markdown file changed' but which job reads which path: release-check reads CHANGELOG.md, README.md, README.zh-CN.md and the manifests, so a docs-only skip has to keep running it when those move, while hooks/smoke-test also reads active TaskFlowDocs task directory names, which is why the mapping has to be recorded and checked rather than guessed.
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-10-20-ci-path-filter/`
+- Next action: None — completed and archived.
 
 ## Validate the task id that promote joins into a filesystem path, and give a wrong
 
