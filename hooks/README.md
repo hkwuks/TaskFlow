@@ -13,6 +13,7 @@ taskflow/hooks/
 ├── hooks-dsh.json      # dsh wiring
 ├── hooks-trae.json     # Trae IDE wiring (copied to .trae/hooks.json)
 ├── session-start       # SessionStart entry (extensionless bash)
+├── prompt-reminder     # UserPromptSubmit: puts the in-flight task beside the prompt
 ├── session-record      # records the host session id in the selected task
 ├── install-merge-driver # configures the repo-local Todo merge driver
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
@@ -193,6 +194,19 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   Agent at the lifecycle point. `version` copies changed documents, retains
   their roots, and resets the Plan approval block for the new review cycle;
   it never grants approval.
+- `prompt-reminder` is the per-prompt hook, wired on every host this repository ships
+  wiring for. It runs on `UserPromptSubmit` — before the Agent decides what an incoming
+  prompt means — and emits `hookSpecificOutput.additionalContext` when exactly one
+  active task in the event's working tree is `in_progress` or `checking`. One script
+  serves all five: Claude Code, CodeBuddy, Trae and Codex CLI call the event by that
+  name, and dsh's bridge runs the command configured under `UserPromptSubmit` and
+  decodes the same envelope, so no host gets a second implementation. The line it repeats comes from
+  `summarize-state`, not from a second reader of `plan.md`. It writes nothing, has no
+  per-session marker, and exits 0 on every path: a hook that timed out is discarded by
+  the host while the prompt still reaches Claude, so a slow disk degrades to no
+  reminder rather than to a blocked prompt. Silence is the normal output — no task, two
+  active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unusable
+  input all produce none.
 - `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
   for Claude Code, CodeBuddy, and Trae. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;

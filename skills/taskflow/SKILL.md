@@ -102,7 +102,9 @@ Repository documents prevail over personal rules. A personal rule may add strict
 
 Treat a user message that corrects, rejects, adds to, or materially changes an approved task fact as a change event. Stop the current phase immediately. Do not update only the document named by the user or continue under stale PRD, Spec, or Plan facts.
 
-Classify the change into exactly one of two buckets before editing anything:
+An instruction to change something is a change event whether or not it is worded as a correction. This is the case that most often escapes: a task is `in_progress`, implementation is running, and the user reports a defect or asks for something the Plan does not contain — "fix this bug", "this is wrong", "do it this way instead". Because it arrives as new work rather than as a rejection, it is easy to absorb into whatever Step is running and keep going, and then `plan.md` no longer describes what is being built. It is a change event like any other, and the Step you were on does not resume until it is classified.
+
+Classify the change into exactly one of two buckets before editing anything. The question is: Does it change what this task promised to deliver, or only how it is delivered? Read it against the approved goal, requirements, acceptance criteria, and Spec contracts — not against whether it feels like part of the task. When the answer is not obvious, take the work revision: it costs one change-log line, while a version change archives the current version, returns the task to `ready`, and stops implementation until the user re-approves.
 
 | Change | Examples | Required action |
 | --- | --- | --- |
@@ -278,6 +280,8 @@ When a merge or rebase you run hits a conflict, stop and put both sides in front
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
 If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
+
+**An instruction that arrives mid-Step and is not the Step itself — a defect reported, a different approach demanded, "fix this first" — goes through the User-change trigger before any of it is implemented.** Report the finding and classify it while the Step is still open; do not finish the Step first and classify afterwards, because the edit is what makes the work invisible. A defect in code this task wrote is usually a work revision; a defect that shows the approved approach cannot meet the acceptance criteria is a material change, and the difference is the question the trigger asks.
 
 The same rule applies when the applicable repository-document contract changes materially: archive the prior Task version first, update `prd.md`, `spec.md`, and `plan.md` atomically, return to `ready`, and obtain approval before implementation. Never extend a `completed` task in place.
 
