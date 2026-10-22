@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# prompt-reminder — UserPromptSubmit hook: put the in-flight task and the
+# classification question beside the prompt the Agent is about to read.
+#
+# The problem it addresses is measured, not imagined: the workflow is described
+# once at SessionStart and then says nothing until the next compaction, so a
+# long implementation runs with no TaskFlow signal at all. When a user says
+# "there is a bug here, fix it" in that window, the instruction reads as more of
+# the same work and is absorbed into whatever Step was running, while `plan.md`
+# stops describing what is being built. `SKILL.md` already rules that such a
+# message is a change event; nothing was reminding the Agent to apply that rule.
+#
+# UserPromptSubmit runs before the Agent decides what the prompt means, which is
+# the correct side of the decision that Stop (after it) is not.
+#
+# One script serves every host this repository wires, because the hosts agree on
+# the shape and disagree only in names. Measured 2026-10-22:
+#   claude-code, codebuddy, trae, codex-cli — event `UserPromptSubmit`, input
+#     carries `cwd`, output is `hookSpecificOutput.additionalContext` with
+#     `hookEventName: "UserPromptSubmit"`.
+#   dsh — the `@deepseek-ai/dsh-hooks-claude-code` bridge subscribes to
+#     `agent/pre-step` and runs the configured `UserPromptSubmit` command with a
+#     payload whose own `hook_event_name` is `"UserPromptSubmit"`
+#     (`lib/index.js:234,362`), then decodes the Claude Code envelope and rejects
+#     a `hookSpecificOutput` whose `hookEventName` differs from the firing event
+#     (`dsh-hook-protocol/lib/index.js:144-154`). So dsh takes the same arm: the
+#     envelope name has to be spelled `UserPromptSubmit` there too.
+# Standing per host is recorded in `skills/taskflow/references/runtime.md`; this
+# header only says why the arms collapse to one.
+#
+# What this hook does NOT do, deliberately:
+#   - it writes nothing: no store, no once-per-session marker, no document;
+#   - it decides nothing: the two-bucket classification is a judgement about
+#     approved facts, and a hook that guessed it would be a fourth opinion on a
+#     two-bucket rule;
+#   - it matches no prompt wording: a keyword classifier over free text is wrong
+#     in both directions ("why does this return null?" is the same case), and
+#     would make behaviour depend on English phrasing. It fires on task state.
+#
+# Every error path exits 0. The host discards a timed-out hook's output and
+# still delivers the prompt, so this degrades to no reminder rather than to a
+# broken prompt; a non-zero exit here would be a way to fail a turn over a hint.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+# Unparseable input is not a reportable error here: there is nothing to report to.
+event_json="$(cat)"
+fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" hook_event_name cwd 2>/dev/null)" || exit 0
+event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
+event_cwd="$(printf '%s\n' "$fields" | sed -n '2p')"
+
+[ -n "$event_name" ] || exit 0
+
+# Which host this event came from decides the envelope, not the name alone: dsh's
+# bridge emits the Claude Code event names and reads the Claude Code envelope
+# (measured against @deepseek-ai/dsh-hooks-claude-code 0.2.0-rc.2 and
+# dsh-hook-protocol below), so `UserPromptSubmit` covers Claude Code, CodeBuddy,
+# Trae, Codex CLI and dsh in one arm. A host whose name is not served exits here,
+# which is what keeps an unrelated event from being answered.
+case "$event_name" in
+  UserPromptSubmit) ;;
+  *) exit 0 ;;
+esac
+
+# The event's cwd decides the repository, never a stale shell PWD: the hook is
+# installed machine-wide and fires in every concurrent session. Trae's documented
+# input carries no `cwd` at all and dsh's bridge fills it from the session, so a
+# missing value falls back to the process working directory rather than silencing
+# the hook on a host that never sends one.
+root="${event_cwd:-$PWD}"
+worktree="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$worktree" ] || exit 0
+
+# The one derivation of a task's state already exists and is covered by smoke.
+# Re-reading `plan.md` here would be a second set of answers to the same
+# questions (which directories are active, which Step is next, how approval is
+# read), so this hook consumes that line instead of re-deriving it.
+summary="$(TASKFLOW_REPO_ROOT="$worktree" bash "$HERE/summarize-state" 2>/dev/null)" || exit 0
+[ -n "$summary" ] || exit 0
+
+# Exactly one task line under "# Active tasks", and its status must be a phase
+# where implementation is running. `no active task` prints no line and
+# `Multiple active tasks` prints a line that does not split into fields; both
+# fall through to silence, which is the safe direction.
+line="$(printf '%s\n' "$summary" | awk '
+  { n++; all[n] = $0 }
+  END {
+    inside = 0; count = 0; picked = ""
+    for (i = 1; i <= n; i++) {
+      l = all[i]
+      if (l == "# Active tasks") { inside = 1; continue }
+      if (inside && index(l, "# ") == 1) { inside = 0; continue }
+      if (!inside) continue
+      if (index(l, "- ") != 1) continue
+      count++; picked = l
+    }
+    if (count != 1) exit 0
+    k = split(picked, f, "|")
+    if (k < 3) exit 0
+    # The status is the first token of the third field: the value is always one
+    # word, and the heading that follows it is separated by an optional em dash.
+    split(f[3], w, " ")
+    if (w[1] != "in_progress" && w[1] != "checking") exit 0
+    print picked
+  }
+')"
+[ -n "$line" ] || exit 0
+
+# Three lines: the derived state verbatim, the question the rule asks, and the
+# default. The default is the work revision because it is reversible in one
+# line, while a version bump returns the task to `ready` and stops work.
+context="$line
+This instruction is a TaskFlow change event and must be classified before you act on it: does it change what this task promised to deliver, or only how it is delivered?
+If it changes the promise, archive this Task version, bump every core document to vN+1, and return the task to ready for re-approval. Otherwise it is a work revision: update the affected documents and add one line to the Plan change log. When it is not obvious, take the work revision."
+
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+escaped="$(escape_for_json "$context")"
+printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "UserPromptSubmit",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped"
+exit 0

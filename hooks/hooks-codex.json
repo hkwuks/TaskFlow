@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary (Codex CLI plugin form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary and per-prompt in-flight task reminder (Codex CLI plugin form).",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,17 @@
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/session-start\"",
             "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" session-start"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/prompt-reminder\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" prompt-reminder"
           }
         ]
       }

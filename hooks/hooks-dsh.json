@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary (DeepSeek Harness form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary and per-prompt in-flight task reminder (DeepSeek Harness form).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,16 @@
           {
             "type": "command",
             "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' session-start"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' prompt-reminder"
           }
         ]
       }

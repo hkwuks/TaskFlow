@@ -4295,8 +4295,8 @@ for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher
     || { echo "FAIL hooks/hooks-codebuddy.json is missing $cb_pat"; exit 1; }
 done
 cb_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$cb_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 4 ] \
-  || { echo "FAIL hooks/hooks-codebuddy.json should wire four hook commands (SessionStart, PreToolUse, Skill, MCP):"; printf '%s\n' "$cb_cmds"; exit 1; }
+[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 5 ] \
+  || { echo "FAIL hooks/hooks-codebuddy.json should wire five hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP):"; printf '%s\n' "$cb_cmds"; exit 1; }
 cb_root="$(cd "$HERE/.." && pwd)"
 cb_run() {  # cb_run <script-name> <event-json>
   cb_cmd="$(printf '%s\n' "$cb_cmds" | grep -F -- "$1" | head -1)"
@@ -4371,8 +4371,8 @@ trae_root="$(cd "$HERE/.." && pwd)"
 # them: left in, `\"path\"` reaches the shell as a word whose characters include
 # two quote marks, and sh reports "not found" for a path that exists.
 trae_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$trae_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 4 ] \
-  || { echo "FAIL hooks/hooks-trae.json should wire four hook commands (SessionStart, PreToolUse, Skill, MCP):"; printf '%s\n' "$trae_cmds"; exit 1; }
+[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 5 ] \
+  || { echo "FAIL hooks/hooks-trae.json should wire five hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP):"; printf '%s\n' "$trae_cmds"; exit 1; }
 printf '%s\n' "$trae_cmds" | grep -q "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>'" \
   || { echo "FAIL hooks/hooks-trae.json does not set CLAUDE_PLUGIN_ROOT: Trae would discard the SessionStart context silently"; exit 1; }
 # Trae's matcher is a regex on the normalized tool name, so the gate's own names
@@ -4472,6 +4472,177 @@ echo "$exec_out" | grep -q '"hookSpecificOutput"' || {
   printf '%s\n' "$exec_out"
   exit 1
 }
+echo ok
+
+echo "== prompt-reminder puts the in-flight task beside the prompt =="
+# The trigger is a user report of a defect while a task is mid-implementation:
+# the instruction arrives as new work, is absorbed into the running Step, and
+# `plan.md` stops describing what is being built. The rule that classifies it
+# already existed; nothing was putting it in front of the Agent at the moment
+# the decision is made. `UserPromptSubmit` runs before the Agent reads the
+# prompt, and injects `hookSpecificOutput.additionalContext` on exit 0.
+rem="$tmp/prompt-reminder"
+rem_repo="$rem/repo"
+mkdir -p "$rem_repo/TaskFlowDocs/2026-10-22-demo"
+( cd "$rem_repo" && git init -q . && git config user.email smoke@example.invalid \
+    && git config user.name smoke && git checkout -q -b fix/demo )
+rem_plan="$rem_repo/TaskFlowDocs/2026-10-22-demo/plan.md"
+write_rem_plan() {  # write_rem_plan <phase>
+  cat > "$rem_plan" <<EOF
+# Plan — Demo task
+> Task version: v1
+> Status: $1
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-10-22 10:00 +08:00
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan
+
+## Steps
+### Step 1 — First
+- Status: in_progress
+EOF
+}
+rem_event() {  # rem_event <cwd>
+  printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"fix this bug"}\n' "$1"
+}
+write_rem_plan in_progress
+rem_out="$(rem_event "$rem_repo" | bash "$HERE/prompt-reminder")"
+# Read the field, not the raw JSON: an escaped `\n` makes a substring check pass
+# even when the field a consumer would read is empty.
+rem_ctx="$(printf '%s' "$rem_out" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
+rem_ev="$(printf '%s' "$rem_out" | bash "$HERE/json-field" hookSpecificOutput.hookEventName)"
+[ "$rem_ev" = "UserPromptSubmit" ] || { echo "FAIL reminder did not name its own event: $rem_ev"; exit 1; }
+# The line is `summarize-state`'s, verbatim: one derivation of a task's state.
+rem_line="$(printf '%s\n' "$rem_ctx" | sed -n '1p')"
+TASKFLOW_REPO_ROOT="$rem_repo" bash "$HERE/summarize-state" > "$rem/summary"
+printf '%s\n' "$rem_line" | grep -q -F -- "$(sed -n 's/^- \(2026-10-22-demo | v1 | in_progress.*\)$/\1/p' "$rem/summary")" \
+  || { echo "FAIL reminder does not repeat the summarize-state line: $rem_line"; exit 1; }
+printf '%s\n' "$rem_line" | grep -q -F 'approval: approved' || { echo "FAIL reminder omits approval"; exit 1; }
+printf '%s\n' "$rem_line" | grep -q -F 'next: Step 1 First' || { echo "FAIL reminder omits the next Step"; exit 1; }
+printf '%s\n' "$rem_ctx" | grep -q -F 'change event' || { echo "FAIL reminder does not ask for classification"; exit 1; }
+# `checking` is still in flight -- verification runs there and a defect found in
+# it is the same case.
+write_rem_plan checking
+rem_event "$rem_repo" | bash "$HERE/prompt-reminder" | grep -q -F 'additionalContext' \
+  || { echo "FAIL reminder silent while checking"; exit 1; }
+echo ok
+
+echo "== prompt-reminder is silent outside the window where drift happens =="
+# Silence is the contract for every non-applicable case, and the phase gate is
+# the only rate limit: no marker file, no per-session counter. The second and
+# third instructions of a long session are exactly where drift accumulates, so
+# bounding by count would leave them unreminded.
+rem_silent() {  # rem_silent <label> <input>
+  local out rc
+  out="$(printf '%s' "$2" | bash "$HERE/prompt-reminder" 2>&1)"; rc=$?
+  [ "$rc" -eq 0 ] || { echo "FAIL prompt-reminder exited $rc on $1"; exit 1; }
+  [ -z "$out" ] || { echo "FAIL prompt-reminder spoke on $1: $out"; exit 1; }
+}
+for rem_phase in planning ready; do
+  write_rem_plan "$rem_phase"
+  rem_silent "a $rem_phase task" "$(rem_event "$rem_repo")"
+done
+write_rem_plan in_progress
+mkdir -p "$rem_repo/TaskFlowDocs/2026-10-22-second"
+cp "$rem_plan" "$rem_repo/TaskFlowDocs/2026-10-22-second/plan.md"
+rem_silent "two active tasks" "$(rem_event "$rem_repo")"
+# With TASKFLOW_VERBOSE=1 -- which a user may legitimately export for the
+# SessionStart summary -- `summarize-state` prints one line per task instead of
+# the "Multiple active tasks" notice. Both shapes must stay silent, and the
+# verbose one is the case where the single-task guard is the only protection
+# left: a broken guard would name whichever task happened to be last.
+rem_verbose_silent() {
+  local out
+  out="$(printf '%s' "$1" | TASKFLOW_VERBOSE=1 bash "$HERE/prompt-reminder" 2>&1)"
+  [ -z "$out" ] || { echo "FAIL prompt-reminder spoke on two active tasks with TASKFLOW_VERBOSE=1: $out"; exit 1; }
+}
+rem_verbose_silent "$(rem_event "$rem_repo")"
+rm -rf "$rem_repo/TaskFlowDocs/2026-10-22-second"
+rem_empty="$(mktemp -d "$rem/empty.XXXXXX")"
+mkdir -p "$rem_empty/TaskFlowDocs"
+rem_silent "a repository with no active task" "$(rem_event "$rem_empty")"
+# Built outside `$tmp` on purpose: a caller-provided root may itself sit inside a
+# repository (the suite is documented as runnable from a checkout), and then this
+# fixture would not be "outside any repository" at all.
+rem_norepo="$(mktemp -d)"
+rem_silent "a cwd outside any repository" "$(rem_event "$rem_norepo")"
+rem_silent "a nonexistent cwd" "$(rem_event "$rem/does-not-exist")"
+rem_silent "a SessionStart event" '{"hook_event_name":"SessionStart","cwd":"'"$rem_repo"'"}'
+rem_silent "empty input" ''
+rem_silent "truncated JSON" '{"hook_event_name":"UserPrompt'
+# A missing or null `cwd` falls back to the process working directory, the same
+# fallback `capability-evidence` takes, so a host that omits the field still gets
+# the reminder for the tree it is actually in -- and gets nothing when that tree
+# is not a task worktree.
+rem_nocwd() {  # rem_nocwd <dir> -- run the hook from <dir> with a cwd-less event
+  ( cd "$1" && printf '{"hook_event_name":"UserPromptSubmit"}\n' | bash "$HERE/prompt-reminder" )
+}
+[ -z "$(rem_nocwd "$rem_norepo" 2>&1)" ] \
+  || { echo "FAIL a cwd-less event spoke from outside a repository"; exit 1; }
+rem_nocwd "$rem_repo" | grep -q -F 'additionalContext' \
+  || { echo "FAIL a cwd-less event did not fall back to the working directory"; exit 1; }
+echo ok
+
+echo "== prompt-reminder writes nothing =="
+# A hook that reports is allowed to inject context and nothing else. The check
+# covers the git directory as well as the tree, because a store written under
+# `.git` would never show up in `git status`.
+write_rem_plan in_progress
+rem_tracked_before="$(cd "$rem_repo" && git status --porcelain)"
+rem_files_before="$(cd "$rem_repo" && find .git -type f | sort)"
+rem_event "$rem_repo" | bash "$HERE/prompt-reminder" >/dev/null
+[ "$rem_tracked_before" = "$(cd "$rem_repo" && git status --porcelain)" ] \
+  || { echo "FAIL prompt-reminder changed the working tree"; exit 1; }
+[ "$rem_files_before" = "$(cd "$rem_repo" && find .git -type f | sort)" ] \
+  || { echo "FAIL prompt-reminder wrote inside the git directory"; exit 1; }
+[ ! -e "$rem_repo/.git/taskflow" ] \
+  || { echo "FAIL prompt-reminder created a store it does not need"; exit 1; }
+echo ok
+
+echo "== every shipped host wires the UserPromptSubmit reminder =="
+# v1 of this task wired Claude Code alone, justified by "the contract is only
+# established for that host". Checking the other hosts' own references
+# contradicted it: CodeBuddy, Trae and Codex CLI all call the event
+# `UserPromptSubmit` and read `hookSpecificOutput.additionalContext`, and dsh's
+# bridge runs the command configured under that name and decodes the same
+# envelope. A fix shipped to one of five hosts reproduces the original complaint
+# on the other four, so the wiring file count is the assertion.
+for rem_json in hooks.json hooks-codex.json hooks-codebuddy.json hooks-dsh.json hooks-trae.json; do
+  [ -f "$HERE/$rem_json" ] || { echo "FAIL $rem_json is missing"; exit 1; }
+  grep -q -F '"UserPromptSubmit"' "$HERE/$rem_json" \
+    || { echo "FAIL $rem_json does not wire UserPromptSubmit"; exit 1; }
+  grep -q -F 'prompt-reminder' "$HERE/$rem_json" \
+    || { echo "FAIL $rem_json wires UserPromptSubmit to the wrong command"; exit 1; }
+done
+# The same script, not a per-host copy: five arms inside one predicate is the
+# shape, and a second file per host is how the five drift apart.
+rem_files="$(ls "$HERE" | grep -c '^prompt-reminder')"
+[ "$rem_files" -eq 1 ] || { echo "FAIL expected exactly one prompt-reminder, found $rem_files"; exit 1; }
+echo ok
+
+echo "== the mid-implementation case is named in the rule, in both places =="
+# The rule already existed and was correct; what escaped was that its wording
+# described a requirement change. These pins are the fix: the case is named where
+# the trigger is defined and where implementation actually happens, so the
+# sentence cannot be removed without a red line.
+for clause in \
+  'An instruction to change something is a change event whether or not it is worded as a correction' \
+  'Does it change what this task promised to deliver, or only how it is delivered?' \
+  'When the answer is not obvious, take the work revision'; do
+  grep -q -F -- "$clause" "$skill/SKILL.md" \
+    || { echo "FAIL the User-change trigger does not pin: $clause"; exit 1; }
+done
+for clause in \
+  'goes through the User-change trigger before any of it is implemented' \
+  'do not finish the Step first and classify afterwards'; do
+  grep -q -F -- "$clause" "$skill/SKILL.md" \
+    || { echo "FAIL Phase 5 does not pin: $clause"; exit 1; }
+done
+grep -q -F 'Per-prompt in-flight task reminder' "$skill/references/runtime.md" \
+  || { echo "FAIL runtime.md event map has no UserPromptSubmit row"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"
