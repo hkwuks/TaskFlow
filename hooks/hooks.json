@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary, pre-write capability gate, and capability-call capture (Claude Code).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, per-prompt in-flight task reminder, pre-write capability gate, and capability-call capture (Claude Code).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,17 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" session-start",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" prompt-reminder",
             "shell": "bash"
           }
         ]

@@ -41,6 +41,7 @@ An environment running any other agent host needs no hooks: it continues with th
 | TaskFlow need | Claude Code | Codex CLI | CodeBuddy | dsh | Trae |
 | --- | --- | --- | --- | --- | --- |
 | Session-start state summary (derived, non-authoritative) | `SessionStart` → `additionalContext` | `SessionStart` → `additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` | `agent/session-start` → `hookSpecificOutput.additionalContext` | `SessionStart` → `hookSpecificOutput.additionalContext` |
+| Per-prompt in-flight task reminder (derived, non-authoritative) | `UserPromptSubmit` → `hookSpecificOutput.additionalContext` | `UserPromptSubmit` → `hookSpecificOutput.additionalContext` (added as developer context) | `UserPromptSubmit` → `hookSpecificOutput.additionalContext` | `agent/pre-step` → the bridge runs the configured `UserPromptSubmit` command, so the same event name and envelope | `UserPromptSubmit` → `hookSpecificOutput.additionalContext` |
 | Cross-platform launcher | `run-hook.cmd` (polyglot, finds Git Bash on Windows) | `commandWindows` in `hooks-codex.json` | `run-hook.cmd` is not needed; `hooks-codebuddy.json` calls `bash` directly | `run-hook.cmd`, reached through dsh's `bash -c` seam | `run-hook.cmd` behind an explicit `bash`; no `commandWindows` equivalent, so Windows uses `& '<path>\hooks\run-hook.cmd'` |
 | Bookkeeping guardrail (never decides) | `PostToolUse` / `PostToolBatch` | `PostToolUse` | `PostToolUse` | `tools/post-execute` | `PostToolUse` |
 | End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` | `Stop` (with `loop_limit`); no subagent tool event |
@@ -175,7 +176,7 @@ The first run on Trae either confirms it or corrects it.
 
 A hook MAY:
 - update a `TaskFlowDocs/todo.md` item's triage metadata (status, priority, date, `Next`) — Todo is triage metadata only;
-- inject a derived, clearly non-authoritative context summary (e.g. the SessionStart state summary);
+- inject a derived, clearly non-authoritative context summary (e.g. the SessionStart state summary, or the per-prompt in-flight task reminder, which names the task, its phase, approval and next Step and asks the Agent to classify the incoming instruction — it never classifies, records, or edits anything);
 - maintain the selected task's `sessions.md` session index from the host event: one entry per session, limited to the session id, agent/platform, availability, started/last-active timestamps, code working directory, task artifact directory, and Task version/phase. `Last completed`, `Next step`, and `Notes` stay Agent-owned; the hook never creates the entry in another task, never touches `TaskFlowDocs/achieved/`, and never marks a session `closed`;
 - record a real capability invocation in the task worktree's evidence store, and refuse a stage document's first body write until one was recorded for that stage (`capability-evidence`, `capability-gate`);
 - run one of the single-command transition scripts below.
@@ -213,7 +214,11 @@ Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and
 
 ## Single-command transitions
 
-Run explicitly by the Agent as one operation. Only SessionStart summary injection, the sessions index, and the Claude Code pre-write gate are automatically wired; the write commands never bind to `UserPromptSubmit`, `PostToolUse`, or `Stop`.
+Run explicitly by the Agent as one operation. Only SessionStart summary injection, the per-prompt reminder, the sessions index, and the Claude Code pre-write gate are automatically wired; no write command binds to `UserPromptSubmit`, `PostToolUse`, or `Stop`. `UserPromptSubmit` is bound, but only to `prompt-reminder`, which reads state and emits context — it is not a write command and it changes nothing.
+
+`prompt-reminder` exists because the workflow speaks exactly once otherwise, at SessionStart, and a long implementation runs entirely inside the window before the next compaction. `SessionStart` already fires on `compact`, so post-compaction is covered; what was uncovered is the turn in between. The hook derives its line from `summarize-state` rather than reading `plan.md` again — one derivation, already covered by the suite — and emits only while the single active task is `in_progress` or `checking`. A worktree with no task, two active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unparseable input all produce silence, and the phase gate is the only rate limit: there is no marker file and no per-session counter, because the second and third instructions of a long session are exactly where drift accumulates. It is wired on all five hosts, under one event name on four of them: Claude Code, CodeBuddy, Trae and Codex CLI all call the event `UserPromptSubmit` and read `hookSpecificOutput.additionalContext`, and dsh's bridge subscribes to `agent/pre-step`, runs the command configured under `UserPromptSubmit` with a payload whose `hook_event_name` is that same string, and decodes the same envelope — measured against `@deepseek-ai/dsh-hooks-claude-code` 0.2.0-rc.2 and `@deepseek-ai/dsh-hook-protocol`, which discards a `hookSpecificOutput` whose `hookEventName` differs from the firing event. The per-host standing is the table's: Claude Code measured, CodeBuddy from its packaged CLI and docs, Trae, Codex and dsh from documentation. Trae's documented input carries no `cwd`, so the hook falls back to the process working directory, the same fallback `capability-evidence` takes.
+
+A host with no hook wiring gets none of this, and that is not a gap to be filled by adding more hosts: `SKILL.md`'s User-change trigger is the rule, and the reminder only keeps it in view across a long session. The wording there therefore names the case on its own — an instruction that arrives mid-Step, a reported defect, a different approach — so an Agent on a host with no hooks at all still has the rule; see the trigger's section and Phase 5.
 
 `intake` and `promote` both care whether the working tree they write into is the base one: a task's first documents are written in Phase 1, so writing them in the base tree puts them on whatever branch happens to be checked out. `promote` refuses there; `intake` only notes it, because triage should stay cheap. Both read the same signal — a linked worktree's git directory contains `commondir`, which is Git's own answer and needs no branch-name parsing — and neither applies where `--root` is not a repository at all.
 
@@ -276,13 +281,14 @@ repo-root/
     │   └── references/                  # runtime.md, artifacts.md, versioning-and-recovery.md
     └── hooks/
         ├── README.md                    # install + run instructions for every host
-        ├── hooks.json                   # Claude Code wiring (SessionStart; auto-loaded)
-        ├── hooks-codex.json             # Codex CLI wiring (SessionStart)
-        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart)
-        ├── hooks-dsh.json               # dsh wiring (SessionStart)
-        ├── hooks-trae.json              # Trae wiring (SessionStart + the gate pair)
+        ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit; auto-loaded)
+        ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit)
+        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit)
+        ├── hooks-dsh.json               # dsh wiring (SessionStart + UserPromptSubmit)
+        ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + the gate pair)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
+        ├── prompt-reminder              # UserPromptSubmit: in-flight task + classification question
         ├── session-record               # records the host session id in the task index
         ├── install-merge-driver         # configures the repo-local Todo merge driver
         ├── merge-todo                   # the driver: merges todo.md by entry

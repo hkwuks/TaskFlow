@@ -29,6 +29,67 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
+## End-of-task collapse: hooks/archive checks only that prd/plan say completed, whi
+
+- ID: TF-20261022-fda8d8
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: found while investigating TF-20261022-d8db4d; separate mechanism from the mid-task drift
+- Added: 2026-10-22
+- Updated: 2026-10-22
+- Goal: End-of-task collapse: hooks/archive checks only that prd/plan say completed, while task complete checks approval, unchecked items and unfinished Steps — so hand-editing the status and running archive skips all three (measured 2026-10-22: approval section deleted, 2 pending Steps, archive still exit 0). SKILL.md:305 also documents the manual sequence as the procedure and mentions task complete only at :60
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Agent drifts out of TaskFlow mid-task: after starting under the workflow it sile
+
+- ID: TF-20261022-d8db4d
+- Status: done
+- Goal: Agent drifts out of TaskFlow mid-task: after starting under the workflow it silently stops following it and just runs on its own — no state/progress updates, no approval gate, no verification record — while the task directory still looks in-progress
+- Task: `TaskFlowDocs/achieved/2026-10-22-taskflow-drift-guard/`
+- Next action: None — completed and archived.
+
+## Before pushing a PR, establish which repository receives it: a fork's branch is
+
+- ID: TF-20261021-d5c738
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-21, verified against gh api + gh pr create head/base semantics
+- Added: 2026-10-21
+- Updated: 2026-10-21
+- Goal: Before pushing a PR, establish which repository receives it: a fork's branch is pushed to the writable fork (head), while the PR targets the original author's repository (base) — cannot push to upstream without write permission. Record the checkable facts (isFork/parent/source via gh api, .permissions.push per candidate, branch protection) instead of inferring repo role from a remote named origin/upstream
+- Task: Not promoted.
+- Next action: Decide whether to extend hooks/repository-check to report fork topology (fork/parent/source) and per-remote push permission, or keep it as a rule in CONTRIBUTING
+- Notes: repository-check:18-31 currently lists remote names+URLs only; it reports neither isFork/parent/source nor permissions.push. Verified facts: gh api repos/X -> .fork/.parent.full_name/.source.full_name/.permissions.push; gh pr create --head <owner>:<branch> is the writable head, --base is the upstream branch to merge into; gh api .../branches/<b>/protection returns 404 when unprotected.
+
+## Refine the worktree rules: changes the author does not want to commit (local edi
+
+- ID: TF-20261021-0f066f
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-21
+- Added: 2026-10-21
+- Updated: 2026-10-21
+- Goal: Refine the worktree rules: changes the author does not want to commit (local edits, not a requirement) and actions the author is authorized to perform directly on the base checkout (tagging, releasing) must not open a worktree
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Extract a set of default working rules from CODE_STYLE.md / CONTRIBUTING.md and
+
+- ID: TF-20261021-4950fc
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-21
+- Added: 2026-10-21
+- Updated: 2026-10-21
+- Goal: Extract a set of default working rules from CODE_STYLE.md / CONTRIBUTING.md and similar docs, and make sure the defaults never override or violate the user's own habits
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## Make the Hooks workflow skip the jobs a change cannot affect, so a task archive
 
 - ID: TF-20261020-a46573

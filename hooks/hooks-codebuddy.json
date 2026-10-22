@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary, pre-write capability gate, and capability-call capture (CodeBuddy plugin form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, per-prompt in-flight task reminder, pre-write capability gate, and capability-call capture (CodeBuddy plugin form).",
   "hooks": {
     "SessionStart": [
       {
@@ -8,6 +8,17 @@
           {
             "type": "command",
             "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/prompt-reminder\"",
             "timeout": 15
           }
         ]
