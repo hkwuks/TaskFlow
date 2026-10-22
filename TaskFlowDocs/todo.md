@@ -45,16 +45,10 @@ has an issue number or URL.
 ## Agent drifts out of TaskFlow mid-task: after starting under the workflow it sile
 
 - ID: TF-20261022-d8db4d
-- Status: in_progress
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-22, observed in practice
-- Added: 2026-10-22
-- Updated: 2026-10-22
+- Status: done
 - Goal: Agent drifts out of TaskFlow mid-task: after starting under the workflow it silently stops following it and just runs on its own — no state/progress updates, no approval gate, no verification record — while the task directory still looks in-progress
-- Task: `TaskFlowDocs/2026-10-22-taskflow-drift-guard/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: Severity case (measured 2026-10-22 on 1.1.7): every state transition is an explicit command. runtime.md:216 states 'Only SessionStart summary injection, the sessions index, and the Claude Code pre-write gate are automatically wired; the write commands never bind to UserPromptSubmit, PostToolUse, or Stop.' capability-gate:126-131 returns exit 0 once (version, stage) is released, so after the FIRST write of prd/spec/plan nothing observes the task again; its path dispatch only matches prd.md/spec.md/plan.md one level under TaskFlowDocs, so every implementation edit is unguarded. PostToolUse runs capability-evidence only, which records invocations and checks nothing. summarize-state reports active tasks at SessionStart only. The one hard backstop is task complete, which fails on unchecked Plan items (hooks/task:1324) and unfinished Steps — but it only fires if the agent chooses to call it. So the failure is silent: the task directory still reads in_progress while nothing is enforcing it.
+- Task: `TaskFlowDocs/achieved/2026-10-22-taskflow-drift-guard/`
+- Next action: None — completed and archived.
 
 ## Before pushing a PR, establish which repository receives it: a fork's branch is
 

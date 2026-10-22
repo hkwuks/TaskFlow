@@ -1,7 +1,7 @@
 # Plan — Keep a mid-implementation request inside the workflow
 
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -170,6 +170,8 @@ here; the v2 documents were rewritten against the host references above.
 
 ## Verification / Review
 
+- 2026-10-22 Step 5: CI run 39805143538: smoke ubuntu pass, windows pass, macos pending at time of writing; changes/evals/todo-merge-audit pass; release skipped by classifier
+
 - 2026-10-22 Step 5: bash hooks/smoke-test ALL SMOKE PASSED; 3 mutations caught; bash:3.2 clean; release-check pass
 
 ### Step 1 — per-host contract
@@ -222,6 +224,9 @@ Auto-picked-up by the suite, verified by reading the section: the `bash -n` loop
 | No interpreter | hook run with a curated `PATH` holding no python | emitted normally, rc=0 |
 | Wiring JSON | all five files parsed | 5/5 valid |
 | Release literals | `bash hooks/release-check .` | `STATUS: pass` |
+| Skill validation | `quick_validate.py skills/taskflow` | `Skill is valid!` |
+| `git diff --check` | whitespace/conflict markers | clean |
+| CI, run 39805143538 (PR #92) | `gh pr checks 92` | `changes`, `evals`, `todo-merge-audit`, `smoke` ubuntu, `smoke` macOS, `smoke` windows all pass; `release` skipped by the path classifier — 6 passing, 0 failing |
 
 Mutations, one at a time, each against the focused sections and then restored:
 
@@ -278,3 +283,11 @@ fail loudly rather than silently under-counting.
 - v1 — planning; documents rewritten against the corrected reading.
 - v2 — planning; wiring widened to every shipped host, and the no-hook fallback stated
   as a requirement rather than left implicit.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- Severity case (measured 2026-10-22 on 1.1.7): every state transition is an explicit command. runtime.md:216 states 'Only SessionStart summary injection, the sessions index, and the Claude Code pre-write gate are automatically wired; the write commands never bind to UserPromptSubmit, PostToolUse, or Stop.' capability-gate:126-131 returns exit 0 once (version, stage) is released, so after the FIRST write of prd/spec/plan nothing observes the task again; its path dispatch only matches prd.md/spec.md/plan.md one level under TaskFlowDocs, so every implementation edit is unguarded. PostToolUse runs capability-evidence only, which records invocations and checks nothing. summarize-state reports active tasks at SessionStart only. The one hard backstop is task complete, which fails on unchecked Plan items (hooks/task:1324) and unfinished Steps — but it only fires if the agent chooses to call it. So the failure is silent: the task directory still reads in_progress while nothing is enforcing it.

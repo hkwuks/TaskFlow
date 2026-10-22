@@ -1,7 +1,7 @@
 # PRD — Keep a mid-implementation request inside the workflow
 
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Goal
 
