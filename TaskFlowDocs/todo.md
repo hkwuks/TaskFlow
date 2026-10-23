@@ -29,6 +29,20 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
+## Reference-material reinforcement: some materials must be brought back to attenti
+
+- ID: TF-20261023-c7540c
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-23 (参考资料增强：有一些资料是需要任务进行中时刻提醒参考的)
+- Added: 2026-10-23
+- Updated: 2026-10-23
+- Goal: Reference-material reinforcement: some materials must be brought back to attention while a task is running, not only read once at session start. Today the routed document list is produced by hooks/repository-docs-context and injected only from session-start, so in a long implementation the Agent works from whatever it read at the beginning. Decide what makes a document task-running material rather than phase material, where that is recorded, and whether the existing per-prompt reminder carries it.
+- Task: Not promoted.
+- Next action: Decide the trigger and the carrier, then find where it belongs. Checkable today: (1) hooks/repository-docs-context derives the route list and hooks/session-start:179 is its only caller, so routes enter the session once and never again; (2) hooks/prompt-reminder already fires on every prompt and its output is three lines, the in-flight task line plus the two-line classification question, so it is the only per-prompt carrier that exists; (3) repository-docs/index.md has a Phases column (design / code / commit / pr / release, or all) with no notion of re-reading mid-task; (4) skills/taskflow/references/artifacts.md:94 already has a Reference Pointers Plan section, so a Plan can name its material but nothing brings it back. Settle which of three: a new index column, a Plan section the reminder reads, or a separate per-task material file.
+- Notes: Recorded as a user request 2026-10-23; the user wording was 参考资料增强：有一些资料是需要任务进行中时刻提醒参考的. Distinct from TF-20261022-47c217 (review the Plan before approval); this one is about material consulted during execution.
+
 ## Review the Plan once before approval while TaskFlow is in use: after plan.md is
 
 - ID: TF-20261022-47c217
