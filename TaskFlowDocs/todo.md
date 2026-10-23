@@ -29,6 +29,20 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
+## Review the Plan once before approval while TaskFlow is in use: after plan.md is
+
+- ID: TF-20261022-47c217
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-22
+- Added: 2026-10-22
+- Updated: 2026-10-22
+- Goal: Review the Plan once before approval while TaskFlow is in use: after plan.md is written and before the user approves it, review the Plan itself rather than the code. If a capability covers plan review, invoke it the way the other phases invoke theirs (the [Plan] capability line in Skills / Tools Used, recorded through the same evidence path); if none is available, decide between reviewing unaided and reminding during implementation instead. Scope: TaskFlow while it is being used on a project, not development of TaskFlow itself.
+- Task: Not promoted.
+- Next action: Decide the trigger point and the fallback: SKILL.md Phase 4 ends at plan.md and the Approval block, so the review must sit before task approve — there is no second chance after it. Phase 6 "Verify and review" reviews code and acceptance, not the Plan itself. Check the phase/capability table: the Plan row lists only work breakdown, there is no "review the plan" class; agent-skills:code-reviewer and agent-skills:review exist but target code. Settle which of the three it is — invoke a capability, review unaided, or remind during implementation.
+- Notes: Recorded from a side channel as a prepared intake; re-read goal for full wording. Distinct from TF-20261021-4950fc (default rules from CODE_STYLE/CONTRIBUTING) and TF-20261022-fda8d8 (archive looseness).
+
 ## End-of-task collapse: hooks/archive checks only that prd/plan say completed, whi
 
 - ID: TF-20261022-fda8d8
