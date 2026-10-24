@@ -125,12 +125,14 @@ line="$(printf '%s\n' "$summary" | awk '
 # the only per-prompt carrier such a note can ride, because the routed document
 # list is injected at SessionStart and never again.
 #
-# The marker is `- [Reinforce] `path` — reason`. Three conditions decide
+# The marker is `- [Reinforce] `path` — reason`. Four conditions decide
 # admission, and each is answerable while the Plan is written rather than being
-# a guess about importance: the marker, a non-empty reason, and a
-# repository-relative path. A URL, an absolute path, or one climbing out with
-# `..` is dropped, because the hook cannot check that those exist and an
-# unverifiable entry would turn the line from a fact into a claim.
+# a guess about importance: the marker, a backticked path, the separator, and a
+# non-empty reason after it. Missing any of them drops the entry unread, because
+# a malformed bullet reported as a pointer claims a document has gone missing
+# when what is actually wrong is the bullet. On top of those, a URL, an absolute
+# path, or one climbing out with `..` is dropped: the hook cannot check those,
+# and an unverifiable entry would turn the line from a fact into a claim.
 #
 # Existence is reported, not filtered. A path that no longer resolves prints as
 # `MISSING: <path>` inside the same line. Material disappearing is precisely the
