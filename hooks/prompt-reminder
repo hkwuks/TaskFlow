@@ -113,10 +113,84 @@ line="$(printf '%s\n' "$summary" | awk '
 ')"
 [ -n "$line" ] || exit 0
 
-# Three lines: the derived state verbatim, the question the rule asks, and the
-# default. The default is the work revision because it is reversible in one
-# line, while a version bump returns the task to `ready` and stops work.
-context="$line
+# Four lines, or three: the derived state verbatim, the material the Plan asks to
+# be reminded of, the question the rule asks, and the default. The default is the
+# work revision because it is reversible in one line, while a version bump returns
+# the task to `ready` and stops work. The reinforce line is omitted entirely when
+# the Plan names nothing, so a task that does not use the feature sees the output
+# it always saw.
+
+# --- reinforce pointers ----------------------------------------------------
+# A Plan names material it must be reminded of while the task runs; this hook is
+# the only per-prompt carrier such a note can ride, because the routed document
+# list is injected at SessionStart and never again.
+#
+# The marker is `- [Reinforce] `path` — reason`. Three conditions decide
+# admission, and each is answerable while the Plan is written rather than being
+# a guess about importance: the marker, a non-empty reason, and a
+# repository-relative path. A URL, an absolute path, or one climbing out with
+# `..` is dropped, because the hook cannot check that those exist and an
+# unverifiable entry would turn the line from a fact into a claim.
+#
+# Existence is reported, not filtered. A path that no longer resolves prints as
+# `MISSING: <path>` inside the same line. Material disappearing is precisely the
+# failure this list exists to make visible, and dropping it would make the
+# reminder get quieter the more wrong it became.
+reinforce_line=""
+plan_doc="$worktree/TaskFlowDocs/${line#- }"
+plan_doc="${plan_doc%% | *}/plan.md"
+if [ -f "$plan_doc" ]; then
+  # Only this section: a `[Reinforce]` bullet elsewhere in the Plan is not a
+  # declaration, and treating it as one would make the section name meaningless.
+  reinforce_entries="$(awk '
+    /^## Reference Pointers$/ { p = 1; next }
+    p && /^## / { exit }
+    p && /^- \[Reinforce\] / { print }
+  ' "$plan_doc" 2>/dev/null)" || reinforce_entries=""
+  present=""
+  missing=""
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    rest="${entry#- \[Reinforce\] \`}"
+    # A line with no opening backtick leaves `rest` equal to `entry`, and is
+    # dropped here. A missing closing backtick needs no guard of its own: the
+    # separator below then lands nowhere and the entry is dropped there. Measured
+    # 2026-10-24 under bash 3.2 before the separator was required, a line with no
+    # closing backtick became a pointer whose path was the whole line and whose
+    # reason was reported as a document that had gone missing.
+    [ "$rest" != "$entry" ] || continue
+    pointer="${rest%%\`*}"
+    reason="${rest#*\`}"
+    [ -n "$pointer" ] || continue
+    case "$pointer" in
+      *://*|/*|[A-Za-z]:/*|..|../*|*/../*) continue ;;
+    esac
+    # Strip the separator and surrounding space; what is left is the reason. The
+    # separator is required, not optional: it is what distinguishes the documented
+    # shape from a bullet that merely starts like one, and it is what rejects a
+    # backtick inside the path -- there the first closing backtick is not the end
+    # of the path, and reading it as one named a truncated path as MISSING.
+    reason="${reason#"${reason%%[![:space:]]*}"}"
+    case "$reason" in
+      —*) reason="${reason#—}" ;;
+      *) continue ;;
+    esac
+    reason="${reason#"${reason%%[![:space:]]*}"}"
+    [ -n "$reason" ] || continue
+    if [ -e "$worktree/$pointer" ]; then
+      present="$present${present:+, }$pointer"
+    else
+      missing="$missing${missing:+, }MISSING: $pointer"
+    fi
+  done <<REINFORCE
+$reinforce_entries
+REINFORCE
+  reinforce_line="${present}${present:+${missing:+, }}${missing}"
+  [ -z "$reinforce_line" ] || reinforce_line="- Reinforce while this task runs: $reinforce_line"
+fi
+
+context="$line${reinforce_line:+
+$reinforce_line}
 This instruction is a TaskFlow change event and must be classified before you act on it: does it change what this task promised to deliver, or only how it is delivered?
 If it changes the promise, archive this Task version, bump every core document to vN+1, and return the task to ready for re-approval. Otherwise it is a work revision: update the affected documents and add one line to the Plan change log. When it is not obvious, take the work revision."
 

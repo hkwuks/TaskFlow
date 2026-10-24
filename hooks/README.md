@@ -215,7 +215,12 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   the host while the prompt still reaches Claude, so a slow disk degrades to no
   reminder rather than to a blocked prompt. Silence is the normal output — no task, two
   active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unusable
-  input all produce none.
+  input all produce none. When the Plan's `## Reference Pointers` marks material with
+  `- [Reinforce] \`path\` — reason`, it adds one line naming those paths between the task
+  line and the classification question; a path that no longer resolves prints as
+  `MISSING:` rather than vanishing. That line is the only thing it reads out of the
+  Plan, and a Plan that marks nothing produces the same three lines it always did.
+  `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
 - `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
   for Claude Code, CodeBuddy, and Trae. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;

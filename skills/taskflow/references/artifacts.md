@@ -130,6 +130,24 @@ List a capability only after an actual invocation attempt. Discovery or selectio
 
 `task approve` gates stages before Approval fields: required = `[PRD]`+`[Plan]`, plus `[Spec]` when `spec.md` exists. A missing stage line fails naming that stage; so does a stage with no release record, a line naming a capability this Task version never released as an invocation, and an invocation-shaped line standing over an unaided record. The name is checked against the version's released invocations, not against the stage's own record, because the store records no stage: writing the stages in a different order legitimately moves which stage a call's record lands on, and requiring that record's name would force the section to misreport itself. What it cannot do is invent a name — a capability in no released record of the version is refused, and one that exists only as an `unaided` declaration cannot be claimed as an invocation. The `Unaided` class is the exception: it is typed into `hooks/task unaided` and written back by that same command, so it reconciles exactly. It prints how many stages were released by an invocation and how many unaided, so a task that declared every phase unaided is visible rather than silent; the invoked count is stages, not distinct capabilities. A task promoted before this gate existed has no release record for any stage, and `approve` fails closed for it: declare each stage with `hooks/task unaided`, or re-run the phase with a capability invoked. Fold foreign capability output by kind: requirements → `prd.md`, design → `spec.md`, breakdown → `plan.md` Steps; never a second fact root.
 
+`## Reference Pointers` lists what this task's work is read against. A plain bullet there is material already consulted; the line below is a declaration that it must come back while the task runs:
+
+```markdown
+- [Reinforce] `<repository-relative path>` — <why this task cannot do without it>
+```
+
+`hooks/prompt-reminder` prints those paths once per prompt, between the in-flight task line and the classification question, and prints nothing for a Plan that declares none. The marker, a backticked path, the `—` separator, and a non-empty reason after it are all required; a line missing any of them is dropped rather than read as far as it parses, because a malformed entry reported as a pointer is worse than an ignored one — it claims a document is missing when what is actually wrong is the bullet. A URL, an absolute path, or one climbing out with `..` is dropped for a different reason: the hook cannot resolve it, and an unresolvable entry is a claim rather than a fact.
+
+**Who marks it, and by what test.** The Agent writing the Plan marks it; the user reviews the list when approving that Plan. Both questions are settled here because nothing else can settle them: the hook cannot read a document and decide whether it matters, and a second judge would be a second standard. An entry earns the marker when all three hold, each answerable while the Plan is being written rather than guessed at:
+
+1. **It spans Steps.** Something one Step alone consults belongs in that Step, not in a list printed every prompt.
+2. **Violating it is silent.** Nothing turns red when it is ignored — no assertion, no lint, no review checklist item.
+3. **No code states it.** A rule the suite already enforces needs no reminder; the failure is already loud.
+
+The second is the one that does the work. Mark what breaks quietly and forgets itself; do not mark `CODE_STYLE.md`, because a violation there is caught, or a rule `hooks/smoke-test` asserts, because the reminder would duplicate a louder signal.
+
+**When the material goes wrong.** A path that no longer resolves prints as `MISSING: <path>` in the same line rather than disappearing — material vanishing is exactly what this list exists to surface. A pointer whose content contradicts the implementation is a work revision: fix the affected documents and add one change-log line, keeping the Task version. Only if the material overturns an approved requirement does it become a Task-version material change, per the User-change trigger in `SKILL.md`. Whether a *repository* document is wrong is a separate deliverable, not something this list judges.
+
 ## Release task documents
 
 A release does not use task documents at all. It runs `RELEASE.md` directly, on the base checkout, with no Todo item, no task directory, no branch, and no PRD, Spec, or Plan — so there is nothing here to restate a procedure or to drift from one. The record of a release is its `CHANGELOG.md` section and its GitHub Release body; `RELEASE.md` names what they carry, and this reference does not repeat it.
