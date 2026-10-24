@@ -105,6 +105,13 @@ No spec required — 小且自洽的任务：一个钩子多印一行、一条�
 | `git diff --check` | 干净 |
 | `bash -n hooks/prompt-reminder hooks/smoke-test` | 通过 |
 
+CI（PR #95，`Hooks` workflow）：
+
+| 提交 | run | 结果 |
+| --- | --- | --- |
+| `25ebc32` feat: bring declared reference material back on every prompt | `40101708275` | 7/7 pass（`smoke` ubuntu 23s / macos 37s / windows 38s；`release`、`evals`、`changes`、`todo-merge-audit` 全 pass） |
+| `4153438` docs: state all four admission conditions in the hook header | `40101836982` | 7/7 pass（`smoke` ubuntu 19s / macos 41s / windows 32s） |
+
 ### 验收对照
 
 | AC | 断言 | 位置 |
