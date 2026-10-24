@@ -13,7 +13,7 @@ taskflow/hooks/
 ├── hooks-dsh.json      # dsh wiring
 ├── hooks-trae.json     # Trae IDE wiring (copied to .trae/hooks.json)
 ├── session-start       # SessionStart entry (extensionless bash)
-├── prompt-reminder     # UserPromptSubmit: puts the in-flight task beside the prompt
+├── prompt-reminder     # UserPromptSubmit: in-flight task + reinforce pointers + classification question
 ├── session-record      # records the host session id in the selected task
 ├── install-merge-driver # configures the repo-local Todo merge driver
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
@@ -209,13 +209,19 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   active task in the event's working tree is `in_progress` or `checking`. One script
   serves all five: Claude Code, CodeBuddy, Trae and Codex CLI call the event by that
   name, and dsh's bridge runs the command configured under `UserPromptSubmit` and
-  decodes the same envelope, so no host gets a second implementation. The line it repeats comes from
+  decodes the same envelope, so no host gets a second implementation. The state line it repeats comes from
   `summarize-state`, not from a second reader of `plan.md`. It writes nothing, has no
   per-session marker, and exits 0 on every path: a hook that timed out is discarded by
   the host while the prompt still reaches Claude, so a slow disk degrades to no
   reminder rather than to a blocked prompt. Silence is the normal output — no task, two
   active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unusable
-  input all produce none.
+  input all produce none. When the Plan's `## Reference Pointers` marks material with
+  `- [Reinforce] \`path\` — reason`, it adds one line naming those paths between the state
+  line and the classification question; a path that no longer resolves prints as
+  `MISSING:` rather than vanishing. That section is the only thing it reads out of the
+  Plan — the state line still comes from `summarize-state` — and a Plan that marks
+  nothing produces the same three lines it always did.
+  `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
 - `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
   for Claude Code, CodeBuddy, and Trae. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;

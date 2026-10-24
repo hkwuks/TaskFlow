@@ -113,10 +113,108 @@ line="$(printf '%s\n' "$summary" | awk '
 ')"
 [ -n "$line" ] || exit 0
 
-# Three lines: the derived state verbatim, the question the rule asks, and the
-# default. The default is the work revision because it is reversible in one
-# line, while a version bump returns the task to `ready` and stops work.
-context="$line
+# Four lines, or three: the derived state verbatim, the material the Plan asks to
+# be reminded of, the question the rule asks, and the default. The default is the
+# work revision because it is reversible in one line, while a version bump returns
+# the task to `ready` and stops work. The reinforce line is omitted entirely when
+# the Plan names nothing, so a task that does not use the feature sees the output
+# it always saw.
+
+# --- reinforce pointers ----------------------------------------------------
+# A Plan names material it must be reminded of while the task runs; this hook is
+# the only per-prompt carrier such a note can ride, because the routed document
+# list is injected at SessionStart and never again.
+#
+# The marker is `- [Reinforce] `path` — reason`. Four conditions decide
+# admission, and each is answerable while the Plan is written rather than being
+# a guess about importance: the marker, a backticked path, the separator, and a
+# non-empty reason after it. Missing any of them drops the entry unread, because
+# a malformed bullet reported as a pointer claims a document has gone missing
+# when what is actually wrong is the bullet. On top of those, a URL, an absolute
+# path, or one climbing out with `..` is dropped: the hook cannot check those,
+# and an unverifiable entry would turn the line from a fact into a claim.
+#
+# Existence is reported, not filtered. A path that no longer resolves prints as
+# `MISSING: <path>` inside the same line. Material disappearing is precisely the
+# failure this list exists to make visible, and dropping it would make the
+# reminder get quieter the more wrong it became.
+reinforce_line=""
+plan_doc="$worktree/TaskFlowDocs/${line#- }"
+plan_doc="${plan_doc%% | *}/plan.md"
+if [ -f "$plan_doc" ]; then
+  # Only this section: a `[Reinforce]` bullet elsewhere in the Plan is not a
+  # declaration, and treating it as one would make the section name meaningless.
+  # Fenced blocks are skipped because `artifacts.md`'s own Plan outline is one and
+  # contains this heading verbatim: pasting the outline before filling it in was
+  # measured on 2026-10-24 printing an example as a real pointer.
+  reinforce_entries="$(awk '
+    /^```/ { fence = !fence; next }
+    fence { next }
+    /^## Reference Pointers[[:space:]]*$/ { p = 1; next }
+    p && /^## / { exit }
+    p && /^- \[Reinforce\] / { print }
+  ' "$plan_doc" 2>/dev/null)" || reinforce_entries=""
+  parts=""
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    rest="${entry#- \[Reinforce\] \`}"
+    # A line with no opening backtick leaves `rest` equal to `entry`, and is
+    # dropped here. A missing closing backtick needs no guard of its own: the
+    # separator below then lands nowhere and the entry is dropped there. Measured
+    # 2026-10-24 under bash 3.2 before the separator was required, a line with no
+    # closing backtick became a pointer whose path was the whole line and whose
+    # reason was reported as a document that had gone missing.
+    [ "$rest" != "$entry" ] || continue
+    pointer="${rest%%\`*}"
+    reason="${rest#*\`}"
+    # Trim the pointer. Untrimmed, a stray space made a file that exists report as
+    # MISSING -- the very claim the MISSING report exists to make trustworthy.
+    pointer="${pointer#"${pointer%%[![:space:]]*}"}"
+    pointer="${pointer%"${pointer##*[![:space:]]}"}"
+    [ -n "$pointer" ] || continue
+    # One conservative shape instead of a list of escapes: a POSIX
+    # repository-relative path. A backslash, a colon, a leading slash or tilde
+    # each names something outside it -- a Windows drive or UNC share, a URL
+    # scheme, an absolute path -- and a `..` segment leaves the worktree without
+    # being visible as a prefix, so `docs/..` slipped through a prefix-only test.
+    # Each was measured on 2026-10-24 printing as a MISSING document rather than
+    # being dropped.
+    case "$pointer" in
+      *\\*|*:*|/*|~*|..|../*|*/..|*/../*) continue ;;
+    esac
+    # Strip the separator and surrounding space; what is left is the reason. The
+    # separator is required rather than optional: without it the closing backtick
+    # is inferred, and `- [Reinforce] `a` — b.md`` truncated the path to `a` and
+    # took the rest as the reason. A backtick anywhere in the reason is that same
+    # truncation arriving with a separator after the first one, so it is rejected
+    # too -- a path cannot encode an internal backtick, and silently truncating to
+    # another real path is the worst answer available.
+    reason="${reason#"${reason%%[![:space:]]*}"}"
+    case "$reason" in
+      *\`*) continue ;;
+      —*) reason="${reason#—}" ;;
+      *) continue ;;
+    esac
+    reason="${reason#"${reason%%[![:space:]]*}"}"
+    [ -n "$reason" ] || continue
+    # A pointer declared twice would print twice on every prompt of the task, and
+    # the second copy says nothing the first did not.
+    case ", $parts," in
+      *", $pointer,"*|*", MISSING: $pointer,"*) continue ;;
+    esac
+    if [ -e "$worktree/$pointer" ]; then
+      parts="$parts${parts:+, }$pointer"
+    else
+      parts="$parts${parts:+, }MISSING: $pointer"
+    fi
+  done <<REINFORCE
+$reinforce_entries
+REINFORCE
+  [ -z "$parts" ] || reinforce_line="- Reinforce while this task runs: $parts"
+fi
+
+context="$line${reinforce_line:+
+$reinforce_line}
 This instruction is a TaskFlow change event and must be classified before you act on it: does it change what this task promised to deliver, or only how it is delivered?
 If it changes the promise, archive this Task version, bump every core document to vN+1, and return the task to ready for re-approval. Otherwise it is a work revision: update the affected documents and add one line to the Plan change log. When it is not obvious, take the work revision."
 

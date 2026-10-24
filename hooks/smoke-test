@@ -4842,6 +4842,172 @@ rem_nocwd "$rem_repo" | grep -q -F 'additionalContext' \
   || { echo "FAIL a cwd-less event did not fall back to the working directory"; exit 1; }
 echo ok
 
+echo "== prompt-reminder carries the material the Plan asks to be reminded of =="
+# The routed document list is injected at SessionStart and never again, so a Plan
+# that names material it must keep consulting has no per-prompt carrier except
+# this hook. What is being asserted is the admission rule, not the wording: a
+# marker, a reason, and a path the hook can actually resolve.
+rein="$tmp/reinforce"
+rein_repo="$rein/repo"
+mkdir -p "$rein_repo/TaskFlowDocs/2026-10-24-demo"
+( cd "$rein_repo" && git init -q . && git config user.email smoke@example.invalid \
+    && git config user.name smoke && git checkout -q -b fix/demo )
+mkdir -p "$rein_repo/docs"
+: > "$rein_repo/docs/rule.md"
+: > "$rein_repo/docs/guide.md"
+rein_plan="$rein_repo/TaskFlowDocs/2026-10-24-demo/plan.md"
+write_rein_plan() {  # write_rein_plan <reference-pointers body>
+  cat > "$rein_plan" <<EOF
+# Plan — Demo task
+> Task version: v1
+> Status: in_progress
+
+## Reference Pointers
+
+$1
+
+## Approval
+- Status: approved
+
+## Steps
+### Step 1 — First
+- Status: in_progress
+EOF
+}
+rein_ctx() {  # rein_ctx -- the injected context for the fixture as written
+  printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s"}\n' "$rein_repo" \
+    | bash "$HERE/prompt-reminder" \
+    | bash "$HERE/json-field" hookSpecificOutput.additionalContext
+}
+# A plan that declares nothing is the baseline: the three lines every task that
+# does not use this feature must keep seeing, byte for byte.
+write_rein_plan ""
+rein_baseline="$(rein_ctx)"
+[ "$(printf '%s\n' "$rein_baseline" | wc -l | tr -d ' ')" = "3" ] \
+  || { echo "FAIL an undeclared Plan changed the reminder's line count"; exit 1; }
+
+# A1 -- both resolvable entries, in Plan order, between the state line and the
+# classification question.
+write_rein_plan '- [Reinforce] `docs/rule.md` — 跨 Step 生效
+- [Reinforce] `docs/guide.md` — 违反时无声'
+rein_out="$(rein_ctx)"
+[ "$(printf '%s\n' "$rein_out" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md, docs/guide.md" ] \
+  || { echo "FAIL reinforce line is not the second line or not in Plan order"; exit 1; }
+[ "$(printf '%s\n' "$rein_out" | sed -n '3p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '2p')" ] \
+  || { echo "FAIL the classification question no longer follows the reinforce line"; exit 1; }
+[ "$(printf '%s\n' "$rein_out" | sed -n '1p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '1p')" ] \
+  || { echo "FAIL the state line changed when a reinforce line was added"; exit 1; }
+
+# A2 -- each admission condition on its own. A reason-less entry is not a
+# declaration: the reason is what a reviewer reads, and an entry nobody can
+# justify is exactly the inflation this rule exists to stop.
+write_rein_plan '- [Reinforce] `docs/rule.md` — 跨 Step 生效
+- [Reinforce] `docs/guide.md` — '
+rein_out="$(rein_ctx)"
+[ "$(printf '%s\n' "$rein_out" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md" ] \
+  || { echo "FAIL a reason-less entry was admitted"; exit 1; }
+write_rein_plan '- [Reinforce] `docs/guide.md` — '
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL dropping the last admitted entry did not restore the baseline output"; exit 1; }
+
+# A3/A4 -- a path that no longer resolves is reported, never dropped. Material
+# disappearing is the failure this list exists to make visible, so a filter here
+# would make the reminder get quieter the more wrong it became.
+write_rein_plan '- [Reinforce] `docs/rule.md` — 跨 Step 生效
+- [Reinforce] `docs/gone.md` — 已经删掉了'
+rein_out="$(rein_ctx)"
+[ "$(printf '%s\n' "$rein_out" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md, MISSING: docs/gone.md" ] \
+  || { echo "FAIL a missing pointer was dropped or not marked: $(printf '%s\n' "$rein_out" | sed -n '2p')"; exit 1; }
+write_rein_plan '- [Reinforce] `docs/gone.md` — 已经删掉了'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: MISSING: docs/gone.md" ] \
+  || { echo "FAIL an all-missing declaration went silent"; exit 1; }
+
+# A5 -- a path the hook cannot resolve is not a claim it may make. A URL, an
+# absolute path and one climbing out with `..` are dropped from both lists: they
+# are neither present nor missing, because the hook has no way to tell. The shapes
+# below are the ones measured on 2026-10-24 printing as MISSING documents rather
+# than being dropped -- a trailing `..` segment, a Windows drive path, a UNC
+# share, and a scheme with no `//`.
+write_rein_plan '- [Reinforce] `https://example.invalid/doc` — 外部
+- [Reinforce] `../outside.md` — 越界
+- [Reinforce] `docs/..` — 尾部越界
+- [Reinforce] `/etc/hosts` — 绝对路径
+- [Reinforce] `C:\Work\rule.md` — Windows 绝对路径
+- [Reinforce] `\\server\share\rule.md` — UNC
+- [Reinforce] `mailto:a@b` — 无斜杠 scheme'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL an unverifiable pointer reached the output"; exit 1; }
+
+# Whitespace around a pointer is a typo, not a document. Untrimmed, a trailing
+# space reported a file that exists as MISSING -- the one claim that has to stay
+# trustworthy -- and a whitespace-only path reported an empty document.
+write_rein_plan '- [Reinforce] ` docs/rule.md ` — 前后空格'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md" ] \
+  || { echo "FAIL an untrimmed pointer reported an existing file as MISSING"; exit 1; }
+write_rein_plan '- [Reinforce] ` ` — 全是空格'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL a whitespace-only pointer was admitted"; exit 1; }
+
+# A backtick inside the path cannot be encoded, so the first one always ends the
+# path. With a separator after it that truncation used to pass as a pointer and
+# the remainder became the reason -- the worst answer, because the truncated path
+# may name another real file.
+write_rein_plan '- [Reinforce] `docs/rule.md` — 结尾多一个反引号`'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL a reason carrying a backtick was read as a truncated path"; exit 1; }
+
+# A fenced block is an example, not a declaration. `artifacts.md`'s Plan outline
+# is itself fenced and contains this heading verbatim, so pasting the outline
+# before filling it in is a reachable way to declare a pointer by accident.
+{ printf '# Plan — Demo task\n> Task version: v1\n> Status: in_progress\n\n## Spec Pointers\n\n```markdown\n## Reference Pointers\n\n- [Reinforce] `docs/rule.md` — 例子\n```\n\n## Approval\n- Status: approved\n\n## Steps\n### Step 1 — First\n- Status: in_progress\n'; } > "$rein_plan"
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL an example inside a fenced block was parsed as a declaration"; exit 1; }
+
+# The line keeps Plan order and drops a repeat. Grouping present before missing
+# was measured on 2026-10-24 printing the second bullet before the first, and a
+# duplicate printed twice on every prompt of the task.
+write_rein_plan '- [Reinforce] `docs/gone.md` — 第一条
+- [Reinforce] `docs/rule.md` — 第二条'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: MISSING: docs/gone.md, docs/rule.md" ] \
+  || { echo "FAIL the reinforce line does not follow Plan order"; exit 1; }
+write_rein_plan '- [Reinforce] `docs/rule.md` — 一
+- [Reinforce] `docs/rule.md` — 二'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md" ] \
+  || { echo "FAIL a duplicated pointer printed twice"; exit 1; }
+
+# The marker is what makes a bullet a declaration. A plain bullet is material the
+# task has already consulted -- the shape every Plan carried before this feature
+# existed -- and admitting one would put every consulted document on the line,
+# which is the whole list this rule exists to narrow.
+write_rein_plan '- `docs/rule.md` — 只读一次
+- [Reinforce] `docs/guide.md` — 违反时无声'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: docs/guide.md" ] \
+  || { echo "FAIL an unmarked bullet was admitted alongside the marked one"; exit 1; }
+
+# A malformed entry is dropped, not read as far as it parses. Measured 2026-10-24
+# under bash 3.2 before the separator was required: with no closing backtick the
+# whole tail of the line became the path and the reason was printed as a document
+# that had gone missing, and with a backtick inside the path the first one ended
+# it and a truncated path was reported instead. Both are the same root cause --
+# the closing delimiter is inferred rather than found -- and requiring the
+# separator drops both, so the two assertions below guard one rule, not two.
+write_rein_plan '- [Reinforce] `docs/rule.md — 没有收尾反引号'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL an entry with no closing backtick was parsed as a pointer"; exit 1; }
+write_rein_plan '- [Reinforce] `docs/rule.md`'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL an entry with no reason separator was admitted"; exit 1; }
+
+# The section is the declaration. A bullet elsewhere in the Plan is a note, and
+# admitting it would make the section heading meaningless.
+write_rein_plan ""
+cat >> "$rein_plan" <<'EOF'
+- [Reinforce] `docs/rule.md` — 写在 Steps 段里
+EOF
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL a marker outside Reference Pointers was admitted"; exit 1; }
+echo ok
+
 echo "== prompt-reminder writes nothing =="
 # A hook that reports is allowed to inject context and nothing else. The check
 # covers the git directory as well as the tree, because a store written under
