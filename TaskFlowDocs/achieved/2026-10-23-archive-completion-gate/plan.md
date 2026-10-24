@@ -1,7 +1,7 @@
 # Plan — End-of-task collapse: archive enforces the same completion gates as task complete
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — one hook gains three checks it should already have had, plus the docs and fixtures that state them. No new interface, no data format, no cross-layer contract.
 

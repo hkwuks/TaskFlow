@@ -1,7 +1,7 @@
 # End-of-task collapse: archive enforces the same completion gates as task complete
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
