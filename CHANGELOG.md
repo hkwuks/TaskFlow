@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`hooks/completion-gate` is the one rule for "approved and finished", and both entry points into `achieved/` ask it.** Four commands need this answer and three of them answered it separately. `hooks/archive` checked nothing but the two `> Status: completed` lines; `hooks/task complete` checked three conditions; `task state in_progress` and `task progress` checked the approval half. The copies had begun to disagree, and the two entry points did not defend the same thing. Measured 2026-10-22: with the `## Approval` block emptied, two Steps left `pending` and an unchecked item in the Plan, hand-editing the two `> Status:` lines and running `archive` printed `archive OK` and exited `0`. The rule now lives in one file, called the way `hooks/archive` already calls `task-id`, and `archive` reaches it before the directory moves, so a refusal leaves the task active, the Todo unchanged and `achieved/` without it. Seventeen of 82 archived Plans fail the rule and stay untouched — they predate it and are read-only history; the gate never runs on them.
+- **A `printf | grep -q` test disabled itself on any Plan larger than the pipe buffer.** `hooks/task complete` read the Plan into a variable and tested it through a pipe under `set -o pipefail`: `grep -q` exits on the first match, `printf` takes SIGPIPE and dies with 141, and `pipefail` reports the whole pipeline as failed — so the guard was skipped. Measured on the pre-existing code, a 111 KB Plan with an unchecked item first in the file was archived **15 times out of 15**, and the same shape falsely refused a genuinely approved 39 KB `## Approval` block **16 times out of 200**. `completion-gate` reads the Plan as a file in a single `awk`, which is exact at any size. The suite had passed with the defect present, so both sizes now have fixtures.
+
+### Changed
+
+- **Phase 7 names `hooks/task complete` as the archive transaction, with the manual sequence described as what it performs.** `skills/taskflow/SKILL.md` previously stated the hand sequence — mark the documents `completed`, move the directory, close the Todo entry — as *the* procedure, and named `complete` only in the preferred-command list, which is exactly the path that bypassed the gates.
+- **`task state in_progress` and `task progress` keep their mid-task behaviour through `--approval-only`.** They must not require a finished Plan — that is what they are working towards — so the shared file answers the narrower question for them rather than gaining a second copy.
+
 ## [1.1.7] — 2026-10-21
 
 ### Added

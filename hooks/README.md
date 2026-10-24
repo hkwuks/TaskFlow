@@ -23,6 +23,7 @@ taskflow/hooks/
 ├── capability-gate     # refuses a stage document's first body write (Claude Code only)
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
+├── completion-gate     # the one rule for what counts as an approved, finished Plan
 ├── task                # explicit intake/promote/unpromote/state/progress/unaided/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
