@@ -1,7 +1,7 @@
 # Plan — 参考资料增强：任务执行期把部分资料带回注意力
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 小且自洽的任务：一个钩子多印一行、一条断言段、三份文档说明与模板。没有跨层契约，没有数据结构变更，没有兼容性决策。
 
@@ -220,3 +220,11 @@ M3（放开标记只收普通 bullet 的一半）在修订前的代码上单独�
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- Recorded as a user request 2026-10-23; the user wording was 参考资料增强：有一些资料是需要任务进行中时刻提醒参考的. Distinct from TF-20261022-47c217 (review the Plan before approval); this one is about material consulted during execution.

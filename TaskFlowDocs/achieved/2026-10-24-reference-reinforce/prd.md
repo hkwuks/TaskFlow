@@ -1,7 +1,7 @@
 # 参考资料增强：任务执行期把部分资料带回注意力
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
