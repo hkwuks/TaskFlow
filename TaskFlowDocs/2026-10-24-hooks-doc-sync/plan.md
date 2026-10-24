@@ -111,6 +111,22 @@ No spec required — 小且自洽的任务。三个文件，没有跨层契约�
 | `bash -n hooks/smoke-test` | 解析通过 |
 | `git diff --check` | 无输出，exit `0` |
 
+### CI（推送后）
+
+`Hooks` 工作流，run [`40095811263`](https://github.com/hkwuks/TaskFlow/actions/runs/40095811263)，提交 `51702d8`，八个检查全部 pass：
+
+| 检查 | 结果 | 用时 |
+| --- | --- | --- |
+| `changes` | pass | 4s |
+| `evals` | pass | 7s |
+| `release` | pass | 6s |
+| `smoke (macos-latest)` | pass | 46s |
+| `smoke (ubuntu-latest)` | pass | 18s |
+| `smoke (windows-latest)` | pass | 35s |
+| `todo-merge-audit` | pass | 3s |
+
+三个平台都跑了完整的 smoke 套件，包括本次新增的两节；macOS 与 Windows 各自 46s/35s，说明新断言在其中也真的执行了，而不只是在 ubuntu 上通过。`repository-check` 在上一张表里报的 `needs-user-input` 在推送后按预期消失——CI 是在一个干净的检出上评分的。
+
 ### 文档与目录核对（可执行，替代一句「已同步」）
 
 ```bash
