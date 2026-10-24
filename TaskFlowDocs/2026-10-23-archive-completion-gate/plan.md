@@ -108,6 +108,24 @@ No spec required — one hook gains three checks it should already have had, plu
 | Mutation: each call site removed | `archive` without the gate → `FAIL archive accepted an unapproved Plan`; `complete` without it → `FAIL complete did not name the gate it failed` |
 | Mutation: the historical pipeline defect restored | `FAIL complete did not name the gate at >64KB` — the size case catches the exact regression that motivated the shared file |
 
+### CI on the pushed branch
+
+Run `40059988882` (commit `be69289`, PR #93), all seven jobs `pass`:
+
+| Job | Result | Duration |
+| --- | --- | --- |
+| `changes` | pass | 5s |
+| `smoke (ubuntu-latest)` | pass | 17s |
+| `smoke (macos-latest)` | pass | 32s |
+| `smoke (windows-latest)` | pass | 33s |
+| `release` | pass | 5s |
+| `evals` | pass | 6s |
+| `todo-merge-audit` | pass | 6s |
+
+The macOS job matters most for this change: the size fixtures build files with a
+shell loop, and bash 3.2 is where a 3.2-only parse error would surface.
+
+
 ## Change Log
 
 - 2026-10-23 v1 — planning; three steps.
