@@ -252,17 +252,10 @@ has an issue number or URL.
 ## Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real h
 
 - ID: TF-20261008-a4454d
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-08, 8-item doc/tooling batch
-- Added: 2026-10-08
-- Updated: 2026-10-10
+- Status: done
 - Goal: Keep skills/taskflow/references/*.md and hooks/README.md in sync with the real hooks directory: smoke-test pins clauses in SKILL.md and artifacts.md but never validates these two documents against the hooks that exist
-- Task: Not promoted.
-- Next action: Clarify the two assertions together, then promote: document-vs-hooks reconciliation and the version-transition assertion.
-- Notes: 2026-10-10 用户裁定：本条吸收 TF-20261008-4d37b2（点名 hooks/version + 版本跃迁的便宜断言）。理由：两条都要在 SKILL.md 的更新点旁加引导、都要在 hooks/smoke-test 里加断言，且「文档点名的命令或文件必须真实存在」本就是同一个断言家族——拆开会在同一批文件上重复撞车。
-
+- Task: `TaskFlowDocs/achieved/2026-10-24-hooks-doc-sync/`
+- Next action: None — completed and archived.
 
 ## Define TaskFlow compatibility with loop and long-running tasks: repeated externa
 
