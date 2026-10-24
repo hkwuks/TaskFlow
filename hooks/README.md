@@ -13,7 +13,7 @@ taskflow/hooks/
 ├── hooks-dsh.json      # dsh wiring
 ├── hooks-trae.json     # Trae IDE wiring (copied to .trae/hooks.json)
 ├── session-start       # SessionStart entry (extensionless bash)
-├── prompt-reminder     # UserPromptSubmit: puts the in-flight task beside the prompt
+├── prompt-reminder     # UserPromptSubmit: in-flight task + reinforce pointers + classification question
 ├── session-record      # records the host session id in the selected task
 ├── install-merge-driver # configures the repo-local Todo merge driver
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry

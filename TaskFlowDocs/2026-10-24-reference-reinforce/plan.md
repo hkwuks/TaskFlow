@@ -165,6 +165,37 @@ M3（放开标记只收普通 bullet 的一半）在修订前的代码上单独�
 
 后两条不改：`cat -A` 显示 3.2 下 CRLF 行的路径没有尾随 `\r`，反引号把 `\r` 挡在外面；反斜杠路径在 Linux 上确实解析不到，报 `MISSING:` 是准确的事实陈述而不是缺陷。
 
+### 独立评审（`agent-skills:code-reviewer`）
+
+评审结论 REQUEST CHANGES，指出 6 个 Important 与若干建议。逐条在本机复现后处理：
+
+| 评审项 | 复现结果 | 处理 |
+| --- | --- | --- |
+| `docs/..` 结尾的 `..` 段逃出工作树并印成 present | 确认 | 路径规则改为「保守形状」：反斜杠、冒号、`/` `~` 开头、任何 `..` 段一律丢弃 |
+| 指针不去空格 → 存在的文件被报 `MISSING`；纯空白指针也通过 | 确认 | 加去空格，空白指针丢弃；补断言 |
+| 理由里含反引号时路径被截断且照收，注释说法与实现不符 | 确认 | 理由含反引号一律丢弃；改正注释 |
+| awk 不跳过围栏代码块 → 粘贴 `artifacts.md` 的 Plan 大纲会被当成声明 | 确认 | 加围栏切换；补断言 |
+| Windows 盘符/UNC/无 `//` 的 scheme 被印成 `MISSING`，与四份文档「absolute 与 URL 丢弃」矛盾 | 确认 | 由新形状规则统一丢弃，代码与文档一致 |
+| `artifacts.md` 的「保持英文原样」清单未收录 `## Reference Pointers` 与 bullet 形状 | 确认 | 两行补进清单 |
+| 建议：输出按 present 再 missing 分组，与「Plan 顺序」的说法不符 | 确认 | 改为单一累加器，保持 Plan 顺序；补断言 |
+| 建议：重复指针印两次 | 确认 | 去重；补断言 |
+| 建议：标题精确匹配，尾随空格即失效 | 确认 | 改为 `[[:space:]]*$`，顺带兼容 CRLF |
+| 建议：缩进的 marker 静默失效 | 确认 | 不改代码，`artifacts.md` 写明「必须顶格」 |
+| 建议：`hooks/README.md:16` 的树注释未同步 | 确认 | 同步 |
+
+对应的新变异（同一方法，改坏 → 跑套件 → `cp` 还原 → `diff -q` 确认）：
+
+| # | 故意改坏 | 结果 |
+| --- | --- | --- |
+| N1 | 路径规则退回只认前缀形式 | `FAIL an unverifiable pointer reached the output` |
+| N2 | 不去指针空格 | `FAIL an untrimmed pointer reported an existing file as MISSING` |
+| N3 | 不跳过围栏代码块 | `FAIL reinforce line is not the second line or not in Plan order` |
+| N4 | 不去重 | `FAIL a duplicated pointer printed twice` |
+| N5 | 退回 present/missing 分组 | `FAIL the reinforce line does not follow Plan order` |
+| N6 | 不再拒绝 `..` 段 | `FAIL an unverifiable pointer reached the output` |
+
+不采纳的一处：评审建议给输出行加条数上限。本任务不用计数或截断 —— `prompt-reminder` 现有的设计理由就是「阶段门是唯一限流」，而且截断会让一行声明变成「前面几个」。上限已作为 Follow-up 记录（Plan 的 Reference Pointers 涨到数十 KB 时改为只解析 `[Reinforce]` 行），不引入计数。
+
 ### 一次自伤，已复原
 
 清点 Step 1 的 checkbox 时误用了 `sed -n '45,54s/…/' file > tmp && cp tmp file` —— 范围打印把 Plan 截成 0 行。已按原内容重建，并由 `wc -l`（116 行 / 82 行）与全套件重跑确认无残留。同批 `sed -i` 变异没有还原成功时也由 `diff -q` 抓出并 `cp` 复原，`hooks/prompt-reminder` 现与 pristine 实现逐字节相同。记录在此，因为这类操作不该悄悄过去。

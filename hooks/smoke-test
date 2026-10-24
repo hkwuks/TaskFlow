@@ -4924,12 +4924,56 @@ write_rein_plan '- [Reinforce] `docs/gone.md` — 已经删掉了'
 
 # A5 -- a path the hook cannot resolve is not a claim it may make. A URL, an
 # absolute path and one climbing out with `..` are dropped from both lists: they
-# are neither present nor missing, because the hook has no way to tell.
+# are neither present nor missing, because the hook has no way to tell. The shapes
+# below are the ones measured on 2026-10-24 printing as MISSING documents rather
+# than being dropped -- a trailing `..` segment, a Windows drive path, a UNC
+# share, and a scheme with no `//`.
 write_rein_plan '- [Reinforce] `https://example.invalid/doc` — 外部
 - [Reinforce] `../outside.md` — 越界
-- [Reinforce] `/etc/hosts` — 绝对路径'
+- [Reinforce] `docs/..` — 尾部越界
+- [Reinforce] `/etc/hosts` — 绝对路径
+- [Reinforce] `C:\Work\rule.md` — Windows 绝对路径
+- [Reinforce] `\\server\share\rule.md` — UNC
+- [Reinforce] `mailto:a@b` — 无斜杠 scheme'
 [ "$(rein_ctx)" = "$rein_baseline" ] \
   || { echo "FAIL an unverifiable pointer reached the output"; exit 1; }
+
+# Whitespace around a pointer is a typo, not a document. Untrimmed, a trailing
+# space reported a file that exists as MISSING -- the one claim that has to stay
+# trustworthy -- and a whitespace-only path reported an empty document.
+write_rein_plan '- [Reinforce] ` docs/rule.md ` — 前后空格'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md" ] \
+  || { echo "FAIL an untrimmed pointer reported an existing file as MISSING"; exit 1; }
+write_rein_plan '- [Reinforce] ` ` — 全是空格'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL a whitespace-only pointer was admitted"; exit 1; }
+
+# A backtick inside the path cannot be encoded, so the first one always ends the
+# path. With a separator after it that truncation used to pass as a pointer and
+# the remainder became the reason -- the worst answer, because the truncated path
+# may name another real file.
+write_rein_plan '- [Reinforce] `docs/rule.md` — 结尾多一个反引号`'
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL a reason carrying a backtick was read as a truncated path"; exit 1; }
+
+# A fenced block is an example, not a declaration. `artifacts.md`'s Plan outline
+# is itself fenced and contains this heading verbatim, so pasting the outline
+# before filling it in is a reachable way to declare a pointer by accident.
+{ printf '# Plan — Demo task\n> Task version: v1\n> Status: in_progress\n\n## Spec Pointers\n\n```markdown\n## Reference Pointers\n\n- [Reinforce] `docs/rule.md` — 例子\n```\n\n## Approval\n- Status: approved\n\n## Steps\n### Step 1 — First\n- Status: in_progress\n'; } > "$rein_plan"
+[ "$(rein_ctx)" = "$rein_baseline" ] \
+  || { echo "FAIL an example inside a fenced block was parsed as a declaration"; exit 1; }
+
+# The line keeps Plan order and drops a repeat. Grouping present before missing
+# was measured on 2026-10-24 printing the second bullet before the first, and a
+# duplicate printed twice on every prompt of the task.
+write_rein_plan '- [Reinforce] `docs/gone.md` — 第一条
+- [Reinforce] `docs/rule.md` — 第二条'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: MISSING: docs/gone.md, docs/rule.md" ] \
+  || { echo "FAIL the reinforce line does not follow Plan order"; exit 1; }
+write_rein_plan '- [Reinforce] `docs/rule.md` — 一
+- [Reinforce] `docs/rule.md` — 二'
+[ "$(printf '%s\n' "$(rein_ctx)" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md" ] \
+  || { echo "FAIL a duplicated pointer printed twice"; exit 1; }
 
 # The marker is what makes a bullet a declaration. A plain bullet is material the
 # task has already consulted -- the shape every Plan carried before this feature

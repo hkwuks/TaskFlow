@@ -22,7 +22,8 @@ The rule binds the document, not whoever drafts it: prose that arrives from a ca
 
 Hooks parse task documents by exact text, so the lines they match stay English verbatim:
 
-- Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`
+- Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`, `## Reference Pointers`
+- The reinforce bullet inside `## Reference Pointers`: `- [Reinforce] \`<path>\` — <reason>`, matched at column 0. The marker, the backticks and the `—` separator are text a hook reads; translating or re-indenting any of them turns the declaration off without an error. The reason after the separator is prose and follows the user's language.
 - The `## Todo Record` heading: not matched by any hook, but it is written by `hooks/archive` and must stay at column 0 in `plan.md` — the same rule that keeps it out of a Todo entry, where a column-0 `## ` line is a section boundary to every hook that splits the file.
 - Entry headings a hook matches by name: `### Step N — <name>`, `### SN — <Agent>`
 - The `## Approval` fields, in order: `- Status:`, `- Approved by:`, `- Approved at:`, `- Approved version:`, `- Approved scope:`
@@ -136,7 +137,9 @@ List a capability only after an actual invocation attempt. Discovery or selectio
 - [Reinforce] `<repository-relative path>` — <why this task cannot do without it>
 ```
 
-`hooks/prompt-reminder` prints those paths once per prompt, between the in-flight task line and the classification question, and prints nothing for a Plan that declares none. The marker, a backticked path, the `—` separator, and a non-empty reason after it are all required; a line missing any of them is dropped rather than read as far as it parses, because a malformed entry reported as a pointer is worse than an ignored one — it claims a document is missing when what is actually wrong is the bullet. A URL, an absolute path, or one climbing out with `..` is dropped for a different reason: the hook cannot resolve it, and an unresolvable entry is a claim rather than a fact.
+`hooks/prompt-reminder` prints those paths once per prompt, between the in-flight task line and the classification question, and prints nothing for a Plan that declares none. The list follows Plan order and a pointer declared twice prints once. The marker, a backticked path, the `—` separator, and a non-empty reason after it are all required; a line missing any of them is dropped rather than read as far as it parses, because a malformed entry reported as a pointer is worse than an ignored one — it claims a document is missing when what is actually wrong is the bullet. The bullet has to start at column 0: an indented one is not matched, so keep it flush left under the heading.
+
+The path has to be a POSIX repository-relative one. A leading `/` or `~`, a backslash, a colon, and any `..` segment each name something the hook cannot resolve — an absolute path, a Windows drive or UNC share, a URL scheme, or a directory outside the worktree — so each is dropped rather than printed. A fenced block is skipped, which matters because this file's own Plan outline is fenced and contains the heading: pasting the outline before filling it in declares nothing.
 
 **Who marks it, and by what test.** The Agent writing the Plan marks it; the user reviews the list when approving that Plan. Both questions are settled here because nothing else can settle them: the hook cannot read a document and decide whether it matters, and a second judge would be a second standard. An entry earns the marker when all three hold, each answerable while the Plan is being written rather than guessed at:
 

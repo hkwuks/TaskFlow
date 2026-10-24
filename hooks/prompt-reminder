@@ -144,13 +144,17 @@ plan_doc="${plan_doc%% | *}/plan.md"
 if [ -f "$plan_doc" ]; then
   # Only this section: a `[Reinforce]` bullet elsewhere in the Plan is not a
   # declaration, and treating it as one would make the section name meaningless.
+  # Fenced blocks are skipped because `artifacts.md`'s own Plan outline is one and
+  # contains this heading verbatim: pasting the outline before filling it in was
+  # measured on 2026-10-24 printing an example as a real pointer.
   reinforce_entries="$(awk '
-    /^## Reference Pointers$/ { p = 1; next }
+    /^```/ { fence = !fence; next }
+    fence { next }
+    /^## Reference Pointers[[:space:]]*$/ { p = 1; next }
     p && /^## / { exit }
     p && /^- \[Reinforce\] / { print }
   ' "$plan_doc" 2>/dev/null)" || reinforce_entries=""
-  present=""
-  missing=""
+  parts=""
   while IFS= read -r entry; do
     [ -n "$entry" ] || continue
     rest="${entry#- \[Reinforce\] \`}"
@@ -163,32 +167,50 @@ if [ -f "$plan_doc" ]; then
     [ "$rest" != "$entry" ] || continue
     pointer="${rest%%\`*}"
     reason="${rest#*\`}"
+    # Trim the pointer. Untrimmed, a stray space made a file that exists report as
+    # MISSING -- the very claim the MISSING report exists to make trustworthy.
+    pointer="${pointer#"${pointer%%[![:space:]]*}"}"
+    pointer="${pointer%"${pointer##*[![:space:]]}"}"
     [ -n "$pointer" ] || continue
+    # One conservative shape instead of a list of escapes: a POSIX
+    # repository-relative path. A backslash, a colon, a leading slash or tilde
+    # each names something outside it -- a Windows drive or UNC share, a URL
+    # scheme, an absolute path -- and a `..` segment leaves the worktree without
+    # being visible as a prefix, so `docs/..` slipped through a prefix-only test.
+    # Each was measured on 2026-10-24 printing as a MISSING document rather than
+    # being dropped.
     case "$pointer" in
-      *://*|/*|[A-Za-z]:/*|..|../*|*/../*) continue ;;
+      *\\*|*:*|/*|~*|..|../*|*/..|*/../*) continue ;;
     esac
     # Strip the separator and surrounding space; what is left is the reason. The
-    # separator is required, not optional: it is what distinguishes the documented
-    # shape from a bullet that merely starts like one, and it is what rejects a
-    # backtick inside the path -- there the first closing backtick is not the end
-    # of the path, and reading it as one named a truncated path as MISSING.
+    # separator is required rather than optional: without it the closing backtick
+    # is inferred, and `- [Reinforce] `a` — b.md`` truncated the path to `a` and
+    # took the rest as the reason. A backtick anywhere in the reason is that same
+    # truncation arriving with a separator after the first one, so it is rejected
+    # too -- a path cannot encode an internal backtick, and silently truncating to
+    # another real path is the worst answer available.
     reason="${reason#"${reason%%[![:space:]]*}"}"
     case "$reason" in
+      *\`*) continue ;;
       —*) reason="${reason#—}" ;;
       *) continue ;;
     esac
     reason="${reason#"${reason%%[![:space:]]*}"}"
     [ -n "$reason" ] || continue
+    # A pointer declared twice would print twice on every prompt of the task, and
+    # the second copy says nothing the first did not.
+    case ", $parts," in
+      *", $pointer,"*|*", MISSING: $pointer,"*) continue ;;
+    esac
     if [ -e "$worktree/$pointer" ]; then
-      present="$present${present:+, }$pointer"
+      parts="$parts${parts:+, }$pointer"
     else
-      missing="$missing${missing:+, }MISSING: $pointer"
+      parts="$parts${parts:+, }MISSING: $pointer"
     fi
   done <<REINFORCE
 $reinforce_entries
 REINFORCE
-  reinforce_line="${present}${present:+${missing:+, }}${missing}"
-  [ -z "$reinforce_line" ] || reinforce_line="- Reinforce while this task runs: $reinforce_line"
+  [ -z "$parts" ] || reinforce_line="- Reinforce while this task runs: $parts"
 fi
 
 context="$line${reinforce_line:+
