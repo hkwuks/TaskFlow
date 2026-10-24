@@ -111,6 +111,8 @@ CI（PR #95，`Hooks` workflow）：
 | --- | --- | --- |
 | `25ebc32` feat: bring declared reference material back on every prompt | `40101708275` | 7/7 pass（`smoke` ubuntu 23s / macos 37s / windows 38s；`release`、`evals`、`changes`、`todo-merge-audit` 全 pass） |
 | `4153438` docs: state all four admission conditions in the hook header | `40101836982` | 7/7 pass（`smoke` ubuntu 19s / macos 41s / windows 32s） |
+| `dad0bc1` docs: record the first two CI runs in the Plan, and fix a README claim | `40101985407` | 7/7 pass |
+| `40d0daa` fix: close six admission holes the review found in the reinforce parser | `40104605721` | 7/7 pass（`smoke` ubuntu / macos / windows 全 pass；`release`、`evals`、`changes`、`todo-merge-audit` 全 pass） |
 
 ### 验收对照
 
@@ -207,6 +209,7 @@ M3（放开标记只收普通 bullet 的一半）在修订前的代码上单独�
 - 2026-10-24 Step 1 完成，并补一条「未标记的普通 bullet 不得混入」的断言（变异验证发现该路径原本没有断言）；影响 `hooks/prompt-reminder`、`hooks/smoke-test`。
 - 2026-10-24 一次 `sed -n '45,54s/.../' file > tmp && cp tmp file` 误把本 Plan 清空，按已写内容重建并复原；内容与清空前一致，非用户改动。影响 `plan.md`。
 - 2026-10-24 边界扫描（bash 3.2 容器）发现两处解析错误并修正：缺收尾反引号被当成指针、缺分隔符被当成指针；同一根因是收尾定界符靠猜。改为要求分隔符，并补两条断言与 M9/M9b 变异。影响 `hooks/prompt-reminder`、`hooks/smoke-test`、`plan.md`。
+- 2026-10-24 独立评审（`agent-skills:code-reviewer`）提出 6 个 Important 与若干建议，逐条复现后修正并补 N1–N6 变异；影响 `hooks/prompt-reminder`、`hooks/smoke-test`、`artifacts.md`、`runtime.md`、`hooks/README.md`、`CHANGELOG.md`、`plan.md`。
 
 ## Follow-ups
 
