@@ -1,7 +1,7 @@
 # 让 hooks 文档与 hooks 目录保持同步
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

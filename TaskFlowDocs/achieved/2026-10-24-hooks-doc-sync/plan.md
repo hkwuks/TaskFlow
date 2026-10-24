@@ -1,7 +1,7 @@
 # Plan — 让 hooks 文档与 hooks 目录保持同步
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — 小且自洽的任务。三个文件，没有跨层契约：改动是两处文档和两条针对已存在文件的断言。
 
@@ -172,3 +172,11 @@ M6 的意义：证明夹具本身带缺口，所以 M5 那条不是对空集合�
 ## Version History
 
 - v1 — planning。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 2026-10-10 用户裁定：本条吸收 TF-20261008-4d37b2（点名 hooks/version + 版本跃迁的便宜断言）。理由：两条都要在 SKILL.md 的更新点旁加引导、都要在 hooks/smoke-test 里加断言，且「文档点名的命令或文件必须真实存在」本就是同一个断言家族——拆开会在同一批文件上重复撞车。
