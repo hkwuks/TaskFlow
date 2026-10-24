@@ -24,6 +24,25 @@ docs="$root/TaskFlowDocs"
 grep -q '> Status: completed' "$docs/$task/prd.md" || { echo "prd.md not completed"; exit 1; }
 grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not completed"; exit 1; }
 
+# 1b. and the completion has to be real, not just recorded.
+#
+# `task complete` checks three things before it writes anything: the Plan is
+# approved for the current Task version, no checklist item is unchecked, and no
+# Step is still pending/in_progress/blocked. `archive` checked none of them, so
+# the guards held only for whoever chose the stricter entry point — measured
+# 2026-10-22: an empty `## Approval`, two pending Steps and an unchecked item
+# archived with exit 0 when two `> Status:` lines were hand-edited first.
+# `hooks/task`'s comment above its own gates already claimed archive re-checked
+# them; this is that claim made true.
+#
+# The rule lives in `completion-gate`, called the way `task-id` is called on the
+# line above, rather than written out here a second time: `archive` and
+# `complete` are the two ways into `achieved/`, and two copies of "finished" are
+# two chances for them to disagree. It runs before the `mv`, so a refusal never
+# enters the rollback path — the active directory, the Todo and the absent
+# achieved path are all untouched.
+bash "$HERE/completion-gate" "$docs/$task" || exit 1
+
 todo="$docs/todo.md"
 [ -f "$todo" ] || { echo "todo.md missing; archive not started"; exit 1; }
 if ! grep -q "\`TaskFlowDocs/$task/\`" "$todo"; then

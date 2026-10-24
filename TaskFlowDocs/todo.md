@@ -60,15 +60,15 @@ has an issue number or URL.
 ## End-of-task collapse: hooks/archive checks only that prd/plan say completed, whi
 
 - ID: TF-20261022-fda8d8
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: found while investigating TF-20261022-d8db4d; separate mechanism from the mid-task drift
 - Added: 2026-10-22
-- Updated: 2026-10-22
+- Updated: 2026-10-24
 - Goal: End-of-task collapse: hooks/archive checks only that prd/plan say completed, while task complete checks approval, unchecked items and unfinished Steps — so hand-editing the status and running archive skips all three (measured 2026-10-22: approval section deleted, 2 pending Steps, archive still exit 0). SKILL.md:305 also documents the manual sequence as the procedure and mentions task complete only at :60
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-23-archive-completion-gate/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Agent drifts out of TaskFlow mid-task: after starting under the workflow it sile
 

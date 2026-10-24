@@ -29,6 +29,114 @@ if [ $# -eq 0 ]; then
   trap 'rm -rf "$tmp"' EXIT
 fi
 
+echo "== completion-gate decides the one shared answer =="
+# `archive`, `task complete`, `task state in_progress` and `task progress` all
+# ask this file whether the Plan may be treated as approved/finished. Two copies
+# of that answer would be two chances to disagree — and they did: `complete`
+# checked three conditions, `archive` checked none, and the two entry points
+# into `achieved/` did not defend the same thing. Each condition gets its own
+# fixture because a deleted check must fail its own line, not merely "something".
+cg="$tmp/completion-gate"
+mkdir -p "$cg/T"
+cg_case() {  # cg_case <name> <expected-rc> <expected message or ""> <plan body>
+  printf '%s' "$4" > "$cg/T/plan.md"
+  set +e
+  cg_out="$(bash "$HERE/completion-gate" ${5:-} "$cg/T" 2>&1)"
+  cg_rc=$?
+  set -e
+  [ "$cg_rc" -eq "$2" ] || { echo "FAIL completion-gate $1: rc $cg_rc != $2 ($cg_out)"; exit 1; }
+  [ -z "$3" ] || printf '%s\n' "$cg_out" | grep -q "$3" \
+    || { echo "FAIL completion-gate $1: message was '$cg_out'"; exit 1; }
+}
+cg_approved='> Task version: v1
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-08 12:00 +0000
+- Approved version: v1
+- Approved scope: PRD / Plan
+'
+cg_case clean 0 '' "$cg_approved### Step 1 — a
+- Implementation checklist:
+  - [x] done
+- Status: done
+"
+cg_case unapproved 1 'not approved' '> Task version: v1
+## Approval
+- Status: requested
+- Approved by: pending
+- Approved version: pending
+'
+cg_case stale-version 1 'not approved' '> Task version: v2
+## Approval
+- Status: approved
+- Approved by: user
+- Approved version: v1
+'
+cg_case pending-approver 1 'not approved' '> Task version: v1
+## Approval
+- Status: approved
+- Approved by: pending
+- Approved version: v1
+'
+# An approval written outside `## Approval` must not count: a `- Status: approved`
+# under `## Steps` is a Step status, not an approval record.
+cg_case approval-outside-section 1 'not approved' '> Task version: v1
+## Approval
+- Status: requested
+## Steps
+- Status: approved
+- Approved version: v1
+'
+cg_case unchecked 1 'unchecked items' "${cg_approved}### Step 1 — a
+- Implementation checklist:
+  - [ ] not done
+- Status: done
+"
+cg_case unfinished 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: pending
+"
+# `--approval-only` is the mid-task question: `state in_progress` and
+# `progress` must not demand a finished Plan, only an approved one.
+cg_case approval-only-unfinished 0 '' "${cg_approved}### Step 1 — a
+  - [ ] still working
+- Status: in_progress
+" '--approval-only'
+# A promotion that never got a Plan is the case `task complete` can reach,
+# because `task_paths` only requires the directory. The gate says so in words
+# rather than letting awk report a missing file.
+rm -f "$cg/T/plan.md"
+set +e
+cg_out="$(bash "$HERE/completion-gate" "$cg/T" 2>&1)"
+cg_rc=$?
+set -e
+[ "$cg_rc" -eq 1 ] || { echo "FAIL completion-gate no-plan: rc $cg_rc != 1"; exit 1; }
+printf '%s\n' "$cg_out" | grep -q 'plan.md missing' \
+  || { echo "FAIL completion-gate no-plan message: $cg_out"; exit 1; }
+# The two defects the shared gate exists to remove, at the size where the old
+# pipeline shape broke: `printf "$text" | grep -q` dies of SIGPIPE under
+# `pipefail` when the match is early and the text exceeds the pipe buffer, so a
+# large Plan used to disable the very check it was being tested for.
+cg_big="$cg/B"
+mkdir -p "$cg_big"
+{ printf '> Task version: v1\n## Approval\n- Status: approved\n- Approved by: user\n- Approved version: v1\n  - [ ] UNCHECKED FIRST\n'
+  i=0; while [ "$i" -lt 8000 ]; do printf -- '- filler %s\n' "$i"; i=$((i + 1)); done
+  printf -- '- Status: done\n'; } > "$cg_big/plan.md"
+[ "$(wc -c < "$cg_big/plan.md")" -gt 65536 ] || { echo "FAIL large-Plan fixture is not large"; exit 1; }
+if bash "$HERE/completion-gate" "$cg_big" >/dev/null 2>&1; then
+  echo "FAIL completion-gate accepted a >64KB Plan with an unchecked item"; exit 1
+fi
+{ printf '> Task version: v1\n## Approval\n- Status: approved\n- Approved by: user\n- Approved version: v1\n- Notes: x\n'
+  i=0; while [ "$i" -lt 4000 ]; do printf 'bulk %s\n' "$i"; i=$((i + 1)); done
+  printf -- '- Status: done\n'; } > "$cg_big/plan.md"
+i=0
+while [ "$i" -lt 50 ]; do
+  bash "$HERE/completion-gate" --approval-only "$cg_big" >/dev/null 2>&1 \
+    || { echo "FAIL completion-gate refused a genuinely approved 39KB Approval block (run $i)"; exit 1; }
+  i=$((i + 1))
+done
+echo ok
+
 echo "== every hook parses under the shell that is running =="
 # macOS ships bash 3.2, so this loop is a real 3.2 parser check in CI. It is worth
 # its own section because a 3.2 parse error otherwise surfaces as a puzzling
@@ -368,6 +476,11 @@ cat > "$docs/2026-09-08-smoke/plan.md" <<'EOF'
 - Approved version: v1
 - Approved scope: PRD / Spec / Plan
 EOF
+# Kept outside the task directory: `archive` refuses a Plan that is not approved
+# for its current version, so every later fixture that only means to exercise
+# the Todo rewrite needs a genuinely approved one, and the happy-path task moves
+# to achieved/ before those fixtures are built.
+cp "$docs/2026-09-08-smoke/plan.md" "$tmp/approved-plan.md"
 cat > "$docs/todo.md" <<'EOF'
 # Todo inbox
 ## Smoke with an arbitrary heading
@@ -672,6 +785,74 @@ grep -qi 'worktree remove' "$arch_out" \
   && { echo "FAIL archive told a base checkout to remove a worktree"; cat "$arch_out"; exit 1; }
 echo ok
 
+echo "== archive refuses a completion the Plan does not support =="
+# `task complete` gates on approval, unchecked items and unfinished Steps;
+# `archive` gated on nothing but the two `> Status:` lines, so hand-editing those
+# and running archive skipped all three. Measured 2026-10-22: an empty
+# `## Approval`, two pending Steps and an unchecked item archived with exit 0.
+# Each gate gets its own fixture, because one fixture failing does not say which
+# check fired — and a gate deleted later must fail its own section by name.
+#
+# Fixture builder: a genuinely completable task, then one sed per gate.
+gate_root() {  # gate_root <name> — prints the fixture root
+  gr="$tmp/archive-gate-$1"
+  mkdir -p "$gr/TaskFlowDocs/2026-09-08-gate" "$gr/TaskFlowDocs/achieved"
+  printf '# P\n> Task version: v1\n> Status: completed\n' > "$gr/TaskFlowDocs/2026-09-08-gate/prd.md"
+  cat > "$gr/TaskFlowDocs/2026-09-08-gate/plan.md" <<'EOF'
+# Plan — Gate
+> Task version: v1
+> Status: completed
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-09-08 12:00 +0000
+- Approved version: v1
+- Approved scope: PRD / Plan
+
+## Steps
+### Step 1 — work
+- Goal: work
+- Implementation checklist:
+  - [x] done
+- Status: done
+EOF
+  cat > "$gr/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+## Gate
+- ID: TF-20260908-gate
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-gate/`
+EOF
+  printf '%s' "$gr"
+}
+# The control: the builder's own output has to archive, or every refusal below
+# would pass for the wrong reason.
+gate_ok="$(gate_root ok)"
+bash "$HERE/archive" 2026-09-08-gate "$gate_ok" >/dev/null 2>&1 \
+  || { echo "FAIL archive refused a genuinely completable task"; exit 1; }
+
+check_refusal() {  # check_refusal <name> <expected message fragment> <sed expr>
+  gr="$(gate_root "$1")"
+  plan="$gr/TaskFlowDocs/2026-09-08-gate/plan.md"
+  sed "$3" "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"
+  if bash "$HERE/archive" 2026-09-08-gate "$gr" > "$tmp/gate-$1.out" 2>&1; then
+    echo "FAIL archive accepted an $1 Plan"; cat "$tmp/gate-$1.out"; exit 1
+  fi
+  grep -q "$2" "$tmp/gate-$1.out" \
+    || { echo "FAIL refusal for $1 did not name the gate:"; cat "$tmp/gate-$1.out"; exit 1; }
+  [ -d "$gr/TaskFlowDocs/2026-09-08-gate" ] || { echo "FAIL archive moved on an $1 Plan"; exit 1; }
+  [ ! -e "$gr/TaskFlowDocs/achieved/2026-09-08-gate" ] || { echo "FAIL archive created the achieved path on an $1 Plan"; exit 1; }
+  grep -q '^- Status: in_progress' "$gr/TaskFlowDocs/todo.md" \
+    || { echo "FAIL archive rewrote the Todo on an $1 Plan"; exit 1; }
+}
+check_refusal unapproved 'not approved' 's/^- Status: approved$/- Status: requested/'
+check_refusal stale-approval 'not approved' "s/^- Approved version: v1\$/- Approved version: v0/"
+check_refusal pending-approver 'not approved' "s/^- Approved by: user\$/- Approved by: pending/"
+check_refusal unchecked 'unchecked items' 's/^  - \[x\] done$/  - [ ] not done/'
+check_refusal unfinished 'unfinished Steps' 's/^- Status: done$/- Status: in_progress/'
+echo ok
+
 echo "== archive names the worktree teardown only from a linked worktree =="
 # The teardown cannot be acted on when it is printed — `complete` runs before the
 # push and the merge — so the instruction carries its own condition and the
@@ -685,7 +866,10 @@ cat > "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" <<'EOF'
 > Task version: v1
 > Status: completed
 EOF
-cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear/plan.md"
+# The Plan is the approved one, not a copy of the PRD: `archive` now refuses a
+# version that is not approved, so a fixture that only ever proved the teardown
+# message has to be a genuinely completable task or it proves nothing.
+cp "$tmp/approved-plan.md" "$tear/TaskFlowDocs/2026-09-08-tear/plan.md"
 cat > "$tear/TaskFlowDocs/todo.md" <<'EOF'
 # Todo inbox
 ## Tear
@@ -721,7 +905,7 @@ mkdir -p "$tear/TaskFlowDocs/2026-09-08-tear-base"
 # The first archive ran inside the linked worktree, so the original pair is
 # still active in the main working tree — that is where the documents come from.
 cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear-base/prd.md"
-cp "$tear/TaskFlowDocs/2026-09-08-tear/prd.md" "$tear/TaskFlowDocs/2026-09-08-tear-base/plan.md"
+cp "$tmp/approved-plan.md" "$tear/TaskFlowDocs/2026-09-08-tear-base/plan.md"
 cat >> "$tear/TaskFlowDocs/todo.md" <<'EOF'
 ## Tear base
 - ID: T-20260908-tearb
@@ -745,9 +929,11 @@ echo "== archive compacts the entry and touches nothing else =="
 r4="$tmp/archive-r4"
 mkdir -p "$r4/TaskFlowDocs/2026-09-08-r4" "$r4/TaskFlowDocs/achieved"
 cp "$docs/2026-09-08-smoke/prd.md" "$r4/TaskFlowDocs/2026-09-08-r4/prd.md" 2>/dev/null || true
-# prd/plan already archived; reconstruct completed pair + todo with the link
+# prd/plan already archived; reconstruct completed pair + todo with the link.
+# The Plan is the approved one: this fixture is about the Todo rewrite, and an
+# unapproved Plan would now stop it before the rewrite is reached.
 printf '# P\n> Task version: v1\n> Status: completed\n' > "$r4/TaskFlowDocs/2026-09-08-r4/prd.md"
-printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$r4/TaskFlowDocs/2026-09-08-r4/plan.md"
+cp "$tmp/approved-plan.md" "$r4/TaskFlowDocs/2026-09-08-r4/plan.md"
 cat > "$r4/TaskFlowDocs/todo.md" <<'EOF'
 # Todo inbox
 
@@ -865,7 +1051,7 @@ echo "== archive gives a heading-only entry its ID and keeps it findable =="
 idf="$tmp/archive-id-backfill"
 mkdir -p "$idf/TaskFlowDocs/2026-09-08-idf" "$idf/TaskFlowDocs/achieved"
 printf '# P\n> Task version: v1\n> Status: completed\n' > "$idf/TaskFlowDocs/2026-09-08-idf/prd.md"
-printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$idf/TaskFlowDocs/2026-09-08-idf/plan.md"
+cp "$tmp/approved-plan.md" "$idf/TaskFlowDocs/2026-09-08-idf/plan.md"
 cat > "$idf/TaskFlowDocs/todo.md" <<'EOF'
 # Todo inbox
 
@@ -905,7 +1091,7 @@ echo "== archive keeps an entry's prose only after moving it to the Plan =="
 pr="$tmp/archive-prose"
 mkdir -p "$pr/TaskFlowDocs/2026-09-08-pr" "$pr/TaskFlowDocs/achieved"
 printf '# P\n> Task version: v1\n> Status: completed\n' > "$pr/TaskFlowDocs/2026-09-08-pr/prd.md"
-printf '# Plan\n> Task version: v1\n> Status: completed\n\n## Change Log\n\n- v1 — planning.\n' > "$pr/TaskFlowDocs/2026-09-08-pr/plan.md"
+{ cat "$tmp/approved-plan.md"; printf '\n## Change Log\n\n- v1 — planning.\n'; } > "$pr/TaskFlowDocs/2026-09-08-pr/plan.md"
 cat > "$pr/TaskFlowDocs/todo.md" <<'EOF'
 # Todo inbox
 
@@ -1018,12 +1204,14 @@ echo "== complete rolls back doc status when archive fails =="
 roll="$tmp/rollback-hooks"
 mkdir -p "$roll"
 cp "$HERE/task" "$roll/task"
-# `task` resolves the name rule through SCRIPT_DIR, so a copied tree needs the
-# rule beside it — a missing one would show up here as "task-id: No such file"
-# rather than as the archive failure this section is about.
+# `task` resolves the name rule and the completion gate through SCRIPT_DIR, so a
+# copied tree needs both beside it — a missing one would show up here as
+# "completion-gate: No such file" rather than as the archive failure this
+# section is about.
 cp "$HERE/task-id" "$roll/task-id"
+cp "$HERE/completion-gate" "$roll/completion-gate"
 printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
-chmod +x "$roll/archive" "$roll/task-id" "$roll/task"
+chmod +x "$roll/archive" "$roll/task-id" "$roll/completion-gate" "$roll/task"
 rf="$tmp/rollback-root"
 mkdir -p "$rf"
 bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
@@ -1053,6 +1241,74 @@ now_prd="$(sed -n 's/^> Status: //p' "$rtask/prd.md" | head -1)"
 [ "$now_plan" = "$prev_plan" ] || { echo "FAIL plan status not restored: $now_plan != $prev_plan"; exit 1; }
 [ "$now_prd" = "$prev_prd" ] || { echo "FAIL prd status not restored: $now_prd != $prev_prd"; exit 1; }
 [ "$now_plan" != "completed" ] || { echo "FAIL plan still completed after failed archive"; exit 1; }
+echo ok
+
+echo "== complete refuses an unfinished Plan before it writes anything =="
+# The gate moved out of `complete` and into `completion-gate`. Two things have to
+# stay true at the call site, and only the first is an end state: the refusal
+# itself, and that it arrives *before* the first write.
+#
+# The end state alone does not prove the second — `complete` rolls the documents
+# back when archive fails, so a `complete` with no gate of its own reaches the
+# same final state one mutation later. The discriminator is the failing archive
+# stub from the section above: if the gate ran first, the stub was never reached.
+cf="$tmp/complete-gate"
+mkdir -p "$cf"
+bash "$roll/task" intake "Complete gate smoke goal." "fixture" --root "$cf" >/dev/null
+cfid=$(awk '/^- ID: TF-/{print $3; exit}' "$cf/TaskFlowDocs/todo.md")
+bash "$roll/task" promote "$cfid" 2026-09-22-complete-gate small --root "$cf" >/dev/null
+cftask="$cf/TaskFlowDocs/2026-09-22-complete-gate"
+sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
+  "$cftask/plan.md" > "$cftask/plan.md.tmp"
+mv "$cftask/plan.md.tmp" "$cftask/plan.md"
+cf_prev="$(sed -n 's/^> Status: //p' "$cftask/plan.md" | head -1)"
+set +e
+cf_out="$(bash "$roll/task" complete 2026-09-22-complete-gate --user-accepted --root "$cf" 2>&1)"
+cf_rc=$?
+set -e
+[ "$cf_rc" -ne 0 ] || { echo "FAIL complete accepted an unfinished Plan"; printf '%s\n' "$cf_out"; exit 1; }
+printf '%s\n' "$cf_out" | grep -q 'Plan has unchecked items' \
+  || { echo "FAIL complete did not name the gate it failed: $cf_out"; exit 1; }
+# The stub's message is the proof the refusal came from `complete`'s own gate
+# rather than from archive on the far side of a docstatus write.
+printf '%s\n' "$cf_out" | grep -q 'archive stub: forced failure' \
+  && { echo "FAIL complete reached archive before running its own gate"; printf '%s\n' "$cf_out"; exit 1; }
+[ -d "$cftask" ] || { echo "FAIL complete moved the directory on a refusal"; exit 1; }
+cf_now="$(sed -n 's/^> Status: //p' "$cftask/plan.md" | head -1)"
+[ "$cf_now" = "$cf_prev" ] \
+  || { echo "FAIL complete mutated the Plan status before refusing: $cf_now != $cf_prev"; exit 1; }
+
+# The same refusal at the size where the old shape silently stopped working.
+# `complete` read the Plan into a variable and tested it through
+# `printf | grep -q`; under `pipefail` an early match on a Plan larger than the
+# pipe buffer kills `printf` with SIGPIPE, the pipeline reports failure, and the
+# guard is skipped — measured 15 times out of 15 on a 111 KB Plan. Nothing about
+# this case looks different from the small one, which is exactly why it needs its
+# own fixture: the suite passed with the defect present.
+cfl="$tmp/complete-gate-large"
+mkdir -p "$cfl"
+bash "$roll/task" intake "Complete gate large Plan goal." "fixture" --root "$cfl" >/dev/null
+cflid=$(awk '/^- ID: TF-/{print $3; exit}' "$cfl/TaskFlowDocs/todo.md")
+bash "$roll/task" promote "$cflid" 2026-09-22-complete-gate-large small --root "$cfl" >/dev/null
+cfltask="$cfl/TaskFlowDocs/2026-09-22-complete-gate-large"
+sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
+  "$cfltask/plan.md" > "$cfltask/plan.md.tmp"
+mv "$cfltask/plan.md.tmp" "$cfltask/plan.md"
+# An unchecked item in the first lines, then enough filler to overflow the pipe
+# buffer several times over.
+{ cat "$cfltask/plan.md"
+  printf -- '- filler for size %s\n' 1 2 3
+  i=0; while [ "$i" -lt 9000 ]; do printf -- '- filler %s\n' "$i"; i=$((i + 1)); done; } > "$cfltask/plan.md.tmp"
+mv "$cfltask/plan.md.tmp" "$cfltask/plan.md"
+[ "$(wc -c < "$cfltask/plan.md")" -gt 65536 ] || { echo "FAIL large complete fixture is not large"; exit 1; }
+set +e
+cfl_out="$(bash "$roll/task" complete 2026-09-22-complete-gate-large --user-accepted --root "$cfl" 2>&1)"
+cfl_rc=$?
+set -e
+[ "$cfl_rc" -ne 0 ] || { echo "FAIL complete accepted a >64KB Plan with an unchecked item"; printf '%s\n' "$cfl_out"; exit 1; }
+printf '%s\n' "$cfl_out" | grep -q 'Plan has unchecked items' \
+  || { echo "FAIL complete did not name the gate at >64KB: $cfl_out"; exit 1; }
+[ -d "$cfltask" ] || { echo "FAIL complete moved a >64KB task on a refusal"; exit 1; }
 echo ok
 
 echo "== reopen restores =="

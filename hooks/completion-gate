@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# completion-gate — decide whether a task's Plan may be treated as finished.
+#
+# Usage: completion-gate [--approval-only] <task-dir>
+#   exit 0 — the Plan passes
+#   exit 1 — it does not; one line on stderr names the condition that failed
+#
+# Why this exists as its own file, called the way `hooks/archive` already calls
+# `task-id`, rather than as a copy inside each caller: four commands need this
+# answer — `archive` and `task complete` must agree about what "finished" means,
+# and `task state in_progress` and `task progress` need the approval half of it
+# before they touch approved work. Before this file `complete` checked three
+# conditions and `archive` checked none, so the guard held only for whoever
+# chose the stricter entry point: measured 2026-10-22, an emptied `## Approval`,
+# two pending Steps and an unchecked item archived with exit 0 after two
+# hand-edited `> Status: completed` lines.
+#
+# `--approval-only` is the narrower question the two mid-task commands ask: is
+# the current Task version approved? They must not require the Plan to be
+# finished — that is what they are working towards.
+#
+# Every check reads the Plan *as a file*, in one `awk`, with no pipeline. That
+# is not style. These scripts run under `set -o pipefail`, where
+# `printf '%s\n' "$text" | grep -q pattern` fails whenever `$text` is larger
+# than the pipe buffer and the pattern matches early: `grep -q` exits on the
+# first hit, `printf` takes SIGPIPE and dies with 141, and `pipefail` turns a
+# successful match into a failed pipeline. Measured on the pre-existing code: a
+# 111 KB Plan with an unchecked item first in the file was archived 15 times
+# out of 15, and the same shape falsely refused a genuinely approved 39 KB
+# `## Approval` block 16 times out of 200. Reading the file once makes every
+# check exact at any size, and there is no silent-skip path left in the gate.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+usage="usage: completion-gate [--approval-only] <task-dir>"
+
+approval_only=0
+if [ "${1:-}" = "--approval-only" ]; then
+  approval_only=1
+  shift
+fi
+[ "$#" -eq 1 ] || { echo "$usage" >&2; exit 1; }
+
+plan="$1/plan.md"
+[ -f "$plan" ] || { echo "plan.md missing; completion not started" >&2; exit 1; }
+
+# One pass, one process, one read. The conditions are checked in the order the
+# Agent would hit them and the first failure wins, so a Plan with two problems
+# reports the earlier one rather than whichever the reader happened to notice.
+#
+# The Approval fields are matched only inside the `## Approval` section, so a
+# `- Status: approved` written anywhere else cannot stand in for an approval.
+# An end-of-file section needs no special case: `inap` simply stays set.
+result="$(awk -v approval_only="$approval_only" 'BEGIN { bad = 0 }
+  /^> Task version: v[0-9][0-9]*$/ { if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) } next }
+  /^## Approval$/ { inap = 1; next }
+  inap && /^## / { inap = 0 }
+  inap && $0 == "- Status: approved" { st = 1 }
+  inap && $0 == "- Approved by: pending" { pend = 1 }
+  inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
+  /^[[:space:]]*- \[ \]/ { unchecked = 1 }
+  /^- Status: (pending|in_progress|blocked)$/ { unfinished = 1 }
+  END {
+    if (ver == "")                     { print "missing Plan Task version"; bad = 1 }
+    else if (!st || av != ver || pend) { print "current Task version is not approved"; bad = 1 }
+    else if (!approval_only && unchecked)  { print "Plan has unchecked items"; bad = 1 }
+    else if (!approval_only && unfinished) { print "Plan has unfinished Steps"; bad = 1 }
+    exit bad
+  }
+' "$plan")" || { printf '%s\n' "$result" >&2; exit 1; }
+exit 0
