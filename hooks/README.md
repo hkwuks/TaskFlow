@@ -30,11 +30,19 @@ taskflow/hooks/
 ├── reopen              # retrieve an achieved task
 ├── release-version     # write the eight mechanical release version literals
 ├── release-check       # version literals + marketplace pin agree
+├── repository-check    # read-only governance and fork readiness check; names removable worktrees
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 └── smoke-test          # assert-style smoke tests
 ```
+
+The tree is the inventory of this directory, and `hooks/smoke-test` asserts
+that it stays one: every file listed here exists, and every file that exists is
+listed here. Adding a hook without adding its line is a suite failure, not a
+review miss. What the tree does not carry is a description of behaviour — a line
+can name a script and still describe it wrongly — so read the script for what it
+does, and treat the line as the pointer.
 
 ## Why this shape
 

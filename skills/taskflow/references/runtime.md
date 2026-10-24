@@ -297,17 +297,25 @@ repo-root/
         ├── capability-evidence          # records real invocations in the worktree store
         ├── capability-gate              # refuses a stage document's first body write
         ├── json-field                   # shared one-level JSON reader
+        ├── task-id                      # the one rule for a legal task name
+        ├── completion-gate              # the one rule for an approved, finished Plan
         ├── task                         # explicit intake/promote/state/progress/unaided/complete
         ├── summarize-state              # shared state-summary generator
         ├── archive                      # full archive transaction (incl. Todo update)
         ├── version                      # archive changed docs + version bump
         ├── reopen                       # retrieve an achieved task
+        ├── release-version              # write the mechanical release version literals
         ├── release-check                # version literals + marketplace pin agree
+        ├── repository-check             # governance and fork readiness check (read-only)
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests
 ```
 
 This mirrors the `obra/superpowers/hooks` convention: flat directory, extensionless bash scripts, one hook JSON per host, and a cross-platform launcher — no per-host subfolders or non-bash runtimes. Shared logic lives in the scripts themselves; each host JSON only wires events to them.
+
+The tree is the inventory, and `hooks/smoke-test` asserts it against the directory in this file and in `hooks/README.md` alike: a script added, renamed, or removed without its line here is a suite failure.
+
+Not every script in the tree is a lifecycle command, and the two are documented in different places. `hooks/task` and the four it drives (`task-id`, `completion-gate`, `archive`, `version`, `reopen`) are the lifecycle, and their rows are above. `hooks/release-version` and `hooks/repository-check` belong to the release procedure instead — `release-version` writes the mechanical version literals across the eight files that carry them, and `repository-check` performs a read-only governance and fork-readiness check that also names every worktree whose branch is already merged. Both are documented in `RELEASE.md`, which is where their ordering and preconditions live; they are listed here so that a reader routed to the hooks layout knows they exist, not so that a second copy of the procedure lives here.
 
 `hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. Every other host points at its file some other way — a manifest `hooks` entry for Codex and CodeBuddy, `dsh/index.js` for dsh, a copy to `.trae/hooks.json` for Trae — so only Claude Code depends on the name.

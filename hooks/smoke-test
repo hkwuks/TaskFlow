@@ -4901,4 +4901,101 @@ grep -q -F 'Per-prompt in-flight task reminder' "$skill/references/runtime.md" \
   || { echo "FAIL runtime.md event map has no UserPromptSubmit row"; exit 1; }
 echo ok
 
+echo "== the two documents that inventory hooks/ name every file in it =="
+# `hooks/README.md`'s tree is the inventory of this directory and
+# `runtime.md`'s §Folder layout repeats it, but nothing checked either against
+# the directory. Measured 2026-10-24: the README tree was missing
+# `repository-check` and `runtime.md` named neither it nor `release-version` --
+# both documented in `RELEASE.md`, so the knowledge existed and simply was not in
+# the file each reader is routed to. A missing hook is not a documentation
+# nuisance: it is a reader concluding a command does not exist.
+#
+# Both directions are checked, because they fail differently. A file absent from
+# the tree is a hook nobody can find; a tree line naming no file is a reader
+# chasing a script that was renamed or removed. Only names are compared -- a
+# line can name a script and still describe it wrongly, and that stays a review
+# question rather than becoming a test that lies about what it covers.
+#
+# The tree is parsed by shape, so a reformatted block fails the parse rather
+# than the fact, and the message says which document could not be parsed.
+#
+# `$HERE` rather than a repository-relative path to this directory: it is the
+# same directory, but the bare directory name is not a path a diff produces, so
+# naming it here would put an entry in the classifier assertion below that no
+# set can cover.
+real_hooks="$(ls -1 "$HERE" | grep -v -e '^README\.md$' | sort)"
+
+# doc_tree <file> [subtree] — parse a ```text block and print the entry names.
+# With `subtree`, print only the entries under the first `<name>/` line, which is
+# how `runtime.md`'s whole-repository layout names its one `hooks/` section.
+doc_tree() {
+  awk -v want="${2:-}" '
+    /^```text$/ { infence = 1; next }
+    /^```$/    { infence = 0; next }
+    !infence   { next }
+    {
+      line = $0
+      sub(/^[│ ]*[├└]── /, "", line)
+      if (line == $0) next
+      split(line, f, " ")
+      name = f[1]
+      if (want == "") { print name; next }
+      if (name == want "/") { intree = 1; next }
+      if (intree && name ~ /\/$/) { intree = 0 }
+      if (intree) print name
+    }
+  ' "$1" | sort
+}
+
+for pair in "hooks/README.md:" "skills/taskflow/references/runtime.md:hooks"; do
+  doc="$repo/${pair%%:*}"
+  listed="$(doc_tree "$doc" "${pair#*:}")"
+  [ -n "$listed" ] || { echo "FAIL could not parse the file inventory in ${pair%%:*}"; exit 1; }
+  missing="$(printf '%s\n' "$real_hooks" | comm -23 - <(printf '%s\n' "$listed"))"
+  extra="$(printf '%s\n' "$listed" | comm -13 - <(printf '%s\n' "$real_hooks"))"
+  [ -z "$missing" ] || { echo "FAIL ${pair%%:*} does not name: $(printf '%s ' $missing)"; exit 1; }
+  [ -z "$extra" ] || { echo "FAIL ${pair%%:*} names files that do not exist: $(printf '%s ' $extra)"; exit 1; }
+done
+echo ok
+
+echo "== an achieved Task version has its old/ directory for every version below it =="
+# The half this entry absorbed from TF-20261008-4d37b2. `hooks/version` writes
+# `old/vN/` before bumping the root to `vN+1`, so a missing directory means a
+# superseded version was overwritten in place rather than archived -- and the
+# recovery procedure has nothing to restore. Measured 2026-10-24: all 83 achieved
+# tasks, 0 gaps, so this is a regression guard rather than a repair.
+#
+# The fixture is written rather than found, because the live tree has no gap to
+# demonstrate against, and an assertion never seen to fail is not known to run.
+vg="$tmp/version-gap"
+mkdir -p "$vg/TaskFlowDocs/achieved/2026-01-01-gap/old/v1" "$vg/TaskFlowDocs/achieved/2026-01-02-sound/old/v1" "$vg/TaskFlowDocs/achieved/2026-01-02-sound/old/v2" "$vg/TaskFlowDocs/achieved/2026-01-03-legacy/old/v1"
+printf '> Task version: v3\n' > "$vg/TaskFlowDocs/achieved/2026-01-01-gap/plan.md"
+printf '> Task version: v3\n' > "$vg/TaskFlowDocs/achieved/2026-01-02-sound/plan.md"
+printf -- '- Task version: v2\n' > "$vg/TaskFlowDocs/achieved/2026-01-03-legacy/plan.md"
+
+# version_gaps <root> — print "<task-id> old/vN" for every version with no archive.
+version_gaps() {
+  for plan in "$1"/TaskFlowDocs/achieved/*/plan.md; do
+    [ -f "$plan" ] || continue
+    task_dir="$(dirname "$plan")"
+    v="$(sed -n 's/^> Task version: v\([0-9][0-9]*\)$/\1/p;s/^- Task version: v\([0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
+    [ -n "$v" ] || continue
+    n=$((v - 1))
+    while [ "$n" -ge 1 ]; do
+      [ -d "$task_dir/old/v$n" ] || printf '%s old/v%s\n' "$(basename "$task_dir")" "$n"
+      n=$((n - 1))
+    done
+  done
+}
+
+gaps="$(version_gaps "$vg")"
+[ "$gaps" = "2026-01-01-gap old/v2" ] \
+  || { echo "FAIL version-gap fixture: expected only 2026-01-01-gap old/v2, got [$gaps]"; exit 1; }
+# The legacy `- Task version:` line is still read, so an old task does not become
+# a false gap; and a task with no version line at all is skipped rather than
+# reported as broken, because two achieved tasks predate the line entirely.
+gaps="$(version_gaps "$repo")"
+[ -z "$gaps" ] || { echo "FAIL achieved task versions have gaps: $(printf '%s ' $gaps)"; exit 1; }
+echo ok
+
 echo "ALL SMOKE PASSED"
