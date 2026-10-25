@@ -68,7 +68,7 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
   - [x] A3/A4：同一夹具里造出 `total == consumed > 0` 与 `consumed == 0` 两种健康状态，断言消息里的 detail 原文不变。
   - [ ] **A6（CI 之后发现的缺口）：`hooks/smoke-test-windows.ps1` 也要覆盖失步分支。** 门把 `$store` 原样拼进消息，Windows 上 `--absolute-git-dir` 带反斜杠；bash 套件只跑正斜杠路径，同一份代码在那里静默正确。断言三点：消息能 `ConvertFrom-Json`、含 `out of step` 与两个数字、不再说「已被用掉」。夹具必须让 `released` 不覆盖被测阶段（用 `plan.md`）——门对被释放过的 `(version, stage)` 直接早退，失步检查根本走不到。
 - Acceptance: A1–A4、A6 由断言覆盖。
-- Verification: `bash hooks/smoke-test` 全绿；变异 8 项各自变红（见 `## Verification / Review`），每次用 `cp` 还原并 `cmp -s` 确认字节一致。**Windows 套件本地跑不了**（WSL 里没有 `pwsh`），只能靠 CI 的 `smoke (windows-latest)`——这一条在 Plan 里写明，不假装验证过。
+- Verification: `bash hooks/smoke-test` 全绿；变异 8 项各自变红（见 `## Verification / Review`），每次用 `cp` 还原并 `cmp -s` 确认字节一致。Windows 套件**本地能跑**：这台机器的 Git for Windows 在 `D:\Git`，用 `C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -File <suite>.ps1` 即可（我最初写「跑不了」是因为只查了 `pwsh` 和 `C:\Program Files\Git`）。
 - Rollback: `git checkout main -- hooks/smoke-test hooks/smoke-test-windows.ps1`。
 - Status: done
 
@@ -140,24 +140,43 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
 - `bash hooks/release-check .` — `STATUS: pass`，版本 1.1.7 一致。
 - `git diff --check` — 干净。
 - `python3 -I <skill-creator>/scripts/quick_validate.py skills/taskflow` — `Skill is valid!`
+- **Windows 套件本地跑**（`C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -File hooks\smoke-test-windows.ps1`，Git for Windows 在 `D:\Git`）— 未改的门上 `WINDOWS PRE-WRITE GATE PASSED`，连跑两次都是 exit 0。
+
+### Windows 套件：变异与两条实测结论
+
+新增的断言在真实 Windows 上做过变异，每项各自变红，门每次用 `cp` 还原后 `cmp -s` 字节一致：
+
+| # | 改坏的地方 | 结果 |
+| --- | --- | --- |
+| W1 | 去掉 `out of step` | 红 |
+| W2 | 消息里塞回「已被用掉」 | 红 |
+| W3 | 去掉 `released reaches seq` | 红 |
+| W4 | 去掉 `evidence holds` | 红 |
+| W5 | 去掉 `tr '\134' '/'` 归一化 | **仍然绿**，见下 |
+
+**结论一：Git Bash 从不让 `--absolute-git-dir` 输出反斜杠。** 直接测了 Git Bash 里的 `git rev-parse --absolute-git-dir`：普通目录、含空格与中文的目录、linked worktree，三种情况都返回 `C:/…` 正斜杠形式。所以 W5 在真实链路上不改变任何字节，`tr` 在那里是**防御性**的，不是承重墙。我原先在 Plan 与 PR 正文里写「三平台全绿说明归一化生效」——那句话没有证据支持，已改掉。归一化仍然保留（消息要跨主机可读，且 `stray_evidence` 已有同款处理），但不再声称它被这个变异证明了。
+
+**结论二：这个套件里任何 throw 都表现为挂起而不是失败。** 在 launcher 小节之后的任意位置插入 `throw 'probe'`，本地跑满 100–500 秒超时、`probe` 一个字都不打印；在 launcher 小节**之前**插入则正常 exit 1。`main` 上同样如此，所以这不是本分支引入的。后果是：这条断言在 CI 上变红会表现为 `smoke (windows-latest)` 超时，而不是一条消息。本任务不改它（超出范围），已记为 Follow-up。
+
+**结论三（初版断言是废的）：夹具最初用 `prd.md`。** 而 `released` 里已经有一行 `v1|PRD`，门对被释放过的 `(version, stage)` 直接早退，失步分支根本走不到——断言在任何措辞下都会通过。改成 `plan.md` 之后才有意义。这条是本任务第二次踩同一类坑（第一次是 v1 把追平条数写死），已一并写进 Change Log。
 
 ### CI
 
 [run 40191640310](https://github.com/hkwuks/TaskFlow/actions/runs/40191640310) @ `327bdfd` — **7/7 pass**：`changes` 6s、`evals` 7s、`release` 6s、`todo-merge-audit` 4s、`smoke (ubuntu-latest)` 21s、`smoke (macos-latest)` 43s、`smoke (windows-latest)` 39s。
 
-**这一轮绿不能证明归一化生效，我一开始写错了。** Windows 那条 job 跑的是 `hooks/smoke-test-windows.ps1`，而它只断言门会 deny、消息里有逃生命令——没有一条碰过失步分支，也就从没读过新消息。真正会暴露反斜杠问题的是「把 `$store` 原样拼进 JSON」这条路径，而它只在 `total < consumed` 时走到。
-
-补法（Step 2 追加）：在 Windows 套件里造一个失步 store，断言消息 parse 得开、含 `out of step`、含两个数字、且不再说「已被用掉」。这条只在 Windows 上有意义——bash 套件跑在正斜杠路径上，同一份代码在那里**静默正确**，测不出来。
+**这一轮绿不能证明新消息在 Windows 上正确。** Windows 那条 job 跑的是 `hooks/smoke-test-windows.ps1`，而它只断言门会 deny、消息里有逃生命令——没有一条碰过失步分支，也就从没读过新消息。这是 v2 提升的直接原因，补的是 A6。
 
 ## Change Log
 
 - v1 — 任务建立，PRD 与 Plan 同批写完。
 - v1 — Step 1–3 完成：门的三分支、8 项变异、`runtime.md` 与 `CHANGELOG` 同步。新增一处 Plan 内的设计修正（断言不该写死条数）。
 - v2 — **Task-version 提升**，原因：v1 的验收条件没有覆盖 Windows。第一轮 CI 7/7 之后发现 `smoke (windows-latest)` 跑的是 `hooks/smoke-test-windows.ps1`，其中没有任何断言进入失步分支——于是「反斜杠会破坏 JSON」这个本任务最需要 Windows 证实的点，恰好没被验证。v1 的 R1–R7 / A1–A5 一字未改，新增 R8 / A6 与 `hooks/smoke-test-windows.ps1` 的范围。
+- v2 — Windows 套件变异跑完后的两处更正：(1) 「三平台全绿说明归一化生效」这句话撤回——实测 Git Bash 的 `--absolute-git-dir` 从不输出反斜杠，归一化是防御性的，W5 变异因此仍然绿；(2) 「Windows 套件本地跑不了」这句话也撤回——Git for Windows 在 `D:\Git`，用绝对路径调 `powershell.exe` 就能跑，我最初只查了 `pwsh` 与 `C:\Program Files\Git`。
 
 ## Follow-ups
 
 - 门的 class 表 `stage_class()` 是 `SKILL.md` 阶段表的手抄子集（PRD 格少 `divergent exploration`），`smoke-test` 没有比较这两份表。属 `TF-20261009-8abbd6`，本任务不碰。
+- **`hooks/smoke-test-windows.ps1` 里的 throw 表现为挂起。** 在 launcher 小节之后任何位置 throw，本地跑 100–500 秒超时且不打印任何东西；`main` 上同样如此，不是本分支引入。后果是这条断言在 CI 上失败会以 `smoke (windows-latest)` 超时呈现，读者据此很难知道是哪条断言。小改法是在套件外层加 `catch { Write-Output $_; exit 1 }`。本任务范围外，未做。
 
 ## Version History
 
