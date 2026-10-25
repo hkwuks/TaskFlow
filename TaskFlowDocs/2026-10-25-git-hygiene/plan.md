@@ -119,13 +119,51 @@
 
 - 2026-10-25 Step 4: block added and passing; mutations caught; .gitignore rule restored as a scoped complement
 
-- 2026-10-25 Step 3: five docs, .gitignore reverted to repository-only rules, CHANGELOG Added+Changed
+- 2026-10-25 Step 3: five docs, `.gitignore` comment rewritten to state the two scopes, CHANGELOG Added+Changed
 
 - 2026-10-25 Step 2: session-start and both README trees call the new name
 
 - 2026-10-25 Step 1: scratch repo: rules written, idempotent byte-identical, tracked copy still visible, non-git silent
 
-待实现后填写。
+本机于 2026-10-25 在 `.worktrees/git-hygiene`（`chore/git-hygiene`，基线 `main@0833dca`）上跑：
+
+| 命令 | 结果 |
+| --- | --- |
+| `bash hooks/smoke-test < /dev/null` | `ALL SMOKE PASSED`，exit 0 |
+| `bash hooks/release-check .` | `STATUS: pass` |
+| `git diff --check` | 干净 |
+| `bash -n hooks/install-git-hygiene hooks/session-start hooks/smoke-test` | 通过 |
+
+CI（PR #97，run [40164478310](https://github.com/hkwuks/TaskFlow/actions/runs/40164478310)，分支 `chore/git-hygiene` @ `1c1cdf8`）：7/7 全绿 —— `changes` 7s、`release` 4s、`evals` 54s、`todo-merge-audit` 3s、`smoke (ubuntu-latest)` 28s、`smoke (windows-latest)` 33s、`smoke (macos-latest)` 54s。macOS 那一项是本任务最该看的：新 hook 的 `while IFS= read -r` 循环与 `grep -qxF --` 都在它上面跑过。
+
+### 手工契约验证（Step 1 的验收依据）
+
+在四个临时仓库里逐个跑：
+
+| 情形 | 结果 |
+| --- | --- |
+| 首次运行 | `info/exclude` 末尾出现两条规则，顺序为 `personal.md` 然后 `**/sessions.md`；输出为空 |
+| 二次运行 | `info/exclude` 逐字节不变（`diff -q` 无声） |
+| 用户已写了一条等价但拼法不同的规则（`/TaskFlowDocs/repository-docs/personal.md`） | 该行留在第一行，未被移动或删除；缺的那条追加在末尾 |
+| 非 Git 根 | exit 0，输出为空，目录里没有新文件 |
+| `git add -f` 过的 `sessions.md` 提交后再改 | `git status --porcelain` 仍报 ` M `；`git check-ignore` 判定未忽略 |
+
+### 变异验证
+
+逐条改坏、跑套件、`cp` 还原并由 `cmp -s` 确认逐字节相同：
+
+| # | 故意改坏 | 结果 |
+| --- | --- | --- |
+| M1 | `exclude` 路径取空（不写 `info/exclude`） | `FAIL the exclude file does not name exactly once` |
+| M2 | 二次运行时无条件追加（跳过「缺哪条补哪条」） | `FAIL a second install changed the exclude file` |
+| M3 | 规则改去写 `info/attributes` | `FAIL the exclude file does not name exactly once` |
+| M4 | `hooks/README.md` 目录树退回旧 hook 名 | `FAIL README.md still names the old hook name` |
+
+**两条断言没有被单独证明，记在这里。** M3 咬住的是形状而不是位置：把路径换成 `info/attributes` 之后 `info/exclude` 里一条规则也没有，先撞到的是「恰好出现一次」。同理，把 `sessions.md` 的规则放宽成 `TaskFlowDocs/*` 时，名字对不上也是先撞形状，所以「`git check-ignore` 真生效」与「`index.md` 仍然可见」这两条都只是**在正确实现上通过过**，没有一次单独让它们变红。要让它们可测，需要构造「形状对、语义错」的状态（例如把一条等价规则换到别的位置，或放一个该可见的文件到 `achieved/` 之下再放宽规则）。记入 Follow-ups。
+
+### 两次选错的变异，留在记录里
+
+第一次跑 M4 时我把替换写成整行覆盖，改掉了 `smoke-test` 自己也断言的那段文字，套件红在别的断言上并留下一条误导性的 `nothing to commit` 输出。换成精确的 `hooks/README.md` 行替换后才得到上表那一行。这与上个任务遇到的同一类问题：变异必须改到被测的那一处，不是改到任何会红的地方。
 
 ## Change Log
 
@@ -135,6 +173,7 @@
 ## Follow-ups
 
 - **`TF-20261025-24d06c`** 是子任务，不是本任务的 Follow-up 条目，但本任务不完成它，仓库就仍然带着 8 份陈旧会话索引。
+- **两条断言只被「正确实现」证明过，没被单独变红**：「`git check-ignore` 对两条规则生效」与「`index.md` 仍然可见」。现有的四个变异都先撞到「规则恰好出现一次」。补法不是加断言，而是造一个「形状对、语义错」的夹具——把一条写法不同但语义等价的规则换到别的位置，或在该可见的 `achieved/` 下放一个文件再放宽规则。
 - **没有卸载路径**：删掉 `info/exclude` 的两行就是卸载；不提供命令，也不打算提供。
 
 ## Version History
