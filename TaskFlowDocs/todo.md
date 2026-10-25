@@ -29,18 +29,19 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
-## Globally ignoring sessions.md hides a tracked copy from CI: a repo that already
+## A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the sui
 
-- ID: TF-20261025-33b2c4
+- ID: TF-20261025-645ef4
 - Status: inbox
 - Priority: normal
 - Owner: Claude
-- Source: found while wiring the exclude hook 2026-10-25
+- Source: follow-up from 2026-10-25-gate-desync-diagnosis
 - Added: 2026-10-25
 - Updated: 2026-10-25
-- Goal: Globally ignoring sessions.md hides a tracked copy from CI: a repo that already commits one would stop seeing changes to it silently
+- Goal: A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the suite instead of failing it: measured 2026-10-25 at 100-500s of silence with nothing printed, on main as well, so a red assertion reaches CI as a smoke (windows-latest) timeout rather than a message
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Decide whether the suite should fail loudly: wrap the outer try/catch so a throw prints its message and exits non-zero. First reproduce on main to confirm it predates the branch, then check whether the CI job log shows anything on timeout.
+- Notes: Found while verifying 2026-10-25-gate-desync-diagnosis. Positioning: a throw past the launcher section (after "WINDOWS LAUNCHER ARGS PASSED") hangs; a throw before it exits 1 correctly. Same on main, so not caused by that task. Consequence: the desync assertions added there, if they ever fail, arrive as a windows-latest timeout with no message. Local test: powershell.exe -File hooks/smoke-test-windows.ps1 (Git for Windows lives at D:\Git on this machine).
 
 ## Ignore personal.md and sessions.md without the user editing .gitignore: the plug
 
@@ -1016,6 +1017,7 @@ has an issue number or URL.
 - ID: TF-20261008-6b6ecf (removed 2026-10-08: probe entry created while verifying the intake exit-code contract; not a real request)
 - ID: TF-20261008-4d37b2 (removed 2026-10-10: Absorbed into TF-20261008-a4454d: both add guidance beside the same SKILL.md update points and assertions over the same document-vs-hooks reconciliation surface, so a separate task would re-edit the same files)
 - ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
+- ID: TF-20261025-33b2c4 (removed 2026-10-25: Falsified by 2026-10-25-gate-desync-diagnosis A3: git applies no ignore rule to a tracked path, so a force-added copy stays visible in git status and check-ignore returns false — the concern the entry raised cannot occur)
 
 
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
