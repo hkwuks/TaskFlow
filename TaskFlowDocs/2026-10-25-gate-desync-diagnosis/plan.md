@@ -66,7 +66,7 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
   - [x] A1：`released` 到 seq 5 + 空 `evidence` → 消息含 `out of step`、`released reaches seq 5`、`evidence holds 0 line`，且**不含** `already spent by an earlier document`。
   - [x] A2：按消息给出的条数补 evidence 行，用循环补到门放行，断言补的行数等于消息里写的数（消息与实际不一致这条断言就会红）。
   - [x] A3/A4：同一夹具里造出 `total == consumed > 0` 与 `consumed == 0` 两种健康状态，断言消息里的 detail 原文不变。
-  - [ ] **A6（CI 之后发现的缺口）：`hooks/smoke-test-windows.ps1` 也要覆盖失步分支。** 门把 `$store` 原样拼进消息，Windows 上 `--absolute-git-dir` 带反斜杠；bash 套件只跑正斜杠路径，同一份代码在那里静默正确。断言三点：消息能 `ConvertFrom-Json`、含 `out of step` 与两个数字、不再说「已被用掉」。夹具必须让 `released` 不覆盖被测阶段（用 `plan.md`）——门对被释放过的 `(version, stage)` 直接早退，失步检查根本走不到。
+  - [x] **A6（CI 之后发现的缺口）：`hooks/smoke-test-windows.ps1` 也要覆盖失步分支。** 门把 `$store` 原样拼进消息；bash 套件只跑正斜杠路径，同一份代码在那里静默正确。（实测后更正：Git Bash 的 `--absolute-git-dir` 其实也返回正斜杠，所以这条断言拦住的是「消息在这条链路上可解析且数字正确」，不是反斜杠——见 `## Verification / Review` 的 W5。）断言三点：消息能 `ConvertFrom-Json`、含 `out of step` 与两个数字、不再说「已被用掉」。夹具必须让 `released` 不覆盖被测阶段（用 `plan.md`）——门对被释放过的 `(version, stage)` 直接早退，失步检查根本走不到。
 - Acceptance: A1–A4、A6 由断言覆盖。
 - Verification: `bash hooks/smoke-test` 全绿；变异 8 项各自变红（见 `## Verification / Review`），每次用 `cp` 还原并 `cmp -s` 确认字节一致。Windows 套件**本地能跑**：这台机器的 Git for Windows 在 `D:\Git`，用 `C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -File <suite>.ps1` 即可（我最初写「跑不了」是因为只查了 `pwsh` 和 `C:\Program Files\Git`）。
 - Rollback: `git checkout main -- hooks/smoke-test hooks/smoke-test-windows.ps1`。
@@ -93,17 +93,17 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
 - Implementation checklist:
   - [x] `bash hooks/smoke-test`、`bash hooks/release-check .`、`git diff --check`。
   - [x] push 分支 → 读 CI → 把结果写进 `## Verification / Review` → 提交 → 归档 → 再提交 → 标记 ready。
-  - [ ] `TF-20261025-537a8a` 随 `task complete` 置 done。
+  - [x] `TF-20261025-537a8a` 随 `task complete` 置 done。
 - Acceptance: A5。
 - Verification: CI 7/7，URL 记进本 Plan。
 - Rollback: 不合并即可；分支删除即回退。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
 - [x] Step 1–2 之后：三分支的消息在手工夹具与 smoke 里一致。
 - [x] Step 3 之后：文档与门的行为无矛盾。
-- [ ] Step 4：CI 全绿后才标记 ready。
+- [x] Step 4：CI 全绿后才标记 ready。
 
 ## Verification / Review
 
