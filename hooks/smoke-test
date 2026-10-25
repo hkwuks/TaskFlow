@@ -2792,6 +2792,83 @@ cvc_unaided() {  # cvc_unaided <stage> <class> -> exit code
 [ "$(cvc_unaided XXX 'work breakdown')" = "2" ] || { echo "FAIL unaided accepted an invalid stage"; exit 1; }
 echo ok
 
+# A store whose evidence was truncated or deleted reads, to the gate, as already
+# past the end of the queue — `consumed` comes from `released` alone. The gate
+# used to report that as "the most recent invocation was already spent by an
+# earlier document", which is not a vague way of saying the store is broken but a
+# false statement about it: the sequences it counts as spent have no record
+# behind them. Measured 2026-10-25 on `released` at seq 5 with an empty
+# `evidence`: that sentence, and a remedy — produce one more invocation — that
+# cannot close a gap of five. Its own repository, because every store above is
+# asserted on a release count.
+gds="$tmp/gate-desync"
+mkdir -p "$gds/repo/TaskFlowDocs/2026-01-01-gds"
+git -C "$gds/repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$gds/repo/TaskFlowDocs/2026-01-01-gds/plan.md"
+gds_store="$(git -C "$gds/repo" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$gds_store"
+gds_msg() {  # gds_msg -> the denial reason for the plan, or empty when allowed
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$(cg_json "$gds/repo/TaskFlowDocs/2026-01-01-gds/plan.md")\"}}" \
+    | bash "$cg" | sed -n 's/.*"permissionDecisionReason":"\(.*\)"}}$/\1/p'
+}
+printf 'v1|PRD|5|invoke|a:prd\n' > "$gds_store/released"
+gds_out="$(gds_msg)"
+case "$gds_out" in
+  *"out of step"*) ;;
+  *) echo "FAIL the gate did not name an out-of-step store as such"; printf '%s\n' "$gds_out"; exit 1 ;;
+esac
+# Both numbers, phrased as `unaided` phrases them, so the two writers are read
+# side by side without translation.
+case "$gds_out" in
+  *"released reaches seq 5"*"evidence holds 0 line"*) ;;
+  *) echo "FAIL the desync message omits the two numbers"; printf '%s\n' "$gds_out"; exit 1 ;;
+esac
+# The false sentence is the bug, not only the missing one. This is the assertion
+# that fails on the pre-change gate, where every other check here passes.
+case "$gds_out" in
+  *"already spent by an earlier document"*)
+    echo "FAIL a desynced store is still reported as a spent invocation"; exit 1 ;;
+esac
+# Both recoveries, each with its cost, because neither is free: catching up
+# spends calls, starting over discards the releases. The count is not asserted
+# here — a shape check that hardcoded it would pass a message whose number is
+# wrong, and would fire before the check below could. It is read out of the
+# message and spent there instead.
+case "$gds_out" in
+  *"Catch up: produce "*" more capability record"*"Start over: remove "*"declare each stage again"*) ;;
+  *) echo "FAIL the desync message omits a recovery path or its cost"; printf '%s\n' "$gds_out"; exit 1 ;;
+esac
+# The number in the message is checked against the gate rather than against a
+# literal, which is what makes it a check at all: produce one fewer than it asked
+# and the gate must still deny, produce exactly that many and it must allow. Off
+# by one in either direction fails, and so does a message whose number is right
+# while the gate's own condition is not.
+gds_ask="$(printf '%s\n' "$gds_out" | sed -n 's/.*Catch up: produce \([0-9][0-9]*\) more capability.*/\1/p')"
+[ -n "$gds_ask" ] || { echo "FAIL the desync message does not say how many records close the gap"; printf '%s\n' "$gds_out"; exit 1; }
+gds_i=1
+while [ "$gds_i" -lt "$gds_ask" ]; do
+  printf 'invoke|a:cap%s\n' "$gds_i" >> "$gds_store/evidence"
+  gds_i=$((gds_i + 1))
+done
+[ -n "$(gds_msg)" ] || { echo "FAIL the gate allowed after $((gds_ask - 1)) of the $gds_ask records it asked for"; exit 1; }
+printf 'invoke|a:cap%s\n' "$gds_ask" >> "$gds_store/evidence"
+[ -z "$(gds_msg)" ] || { echo "FAIL the gate kept denying after the $gds_ask records it asked for"; exit 1; }
+# The two sound states keep their wording, and the check is on the sentence the
+# agent reads: a store with no banked record at all, and one whose queue is
+# banked but already spent.
+printf 'v1|PRD|1|invoke|a:prd\n' > "$gds_store/released"
+printf 'invoke|a:prd\n' > "$gds_store/evidence"
+case "$(gds_msg)" in
+  *"the most recent invocation was already spent by an earlier document"*) ;;
+  *) echo "FAIL a spent queue no longer says so"; exit 1 ;;
+esac
+: > "$gds_store/released"; : > "$gds_store/evidence"
+case "$(gds_msg)" in
+  *"no capability invocation is recorded for this task version"*) ;;
+  *) echo "FAIL an empty store no longer says so"; exit 1 ;;
+esac
+echo ok
+
 # A path's spelling must not decide the verdict. The host sends backslashes on
 # Windows (claude-code #83877, #64432), and v1 shipped a gate that assumed the
 # other separator: `${file_path%/*}` found nothing, the no-op guard fired, and

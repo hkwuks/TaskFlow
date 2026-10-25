@@ -79,15 +79,15 @@ has an issue number or URL.
 ## Give the pre-write gate the same out-of-step diagnosis that unaided now has: it
 
 - ID: TF-20261025-537a8a
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: follow-up from TF-20261024-310937
 - Added: 2026-10-25
 - Updated: 2026-10-25
 - Goal: Give the pre-write gate the same out-of-step diagnosis that unaided now has: it keeps denying a desynced store but never says why
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-25-gate-desync-diagnosis/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## When a phase has no capability worth invoking, the fallback is the model's own a
 
