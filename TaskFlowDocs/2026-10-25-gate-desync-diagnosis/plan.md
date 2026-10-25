@@ -92,7 +92,7 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
 - Files: 本 Plan、`TaskFlowDocs/todo.md`
 - Implementation checklist:
   - [x] `bash hooks/smoke-test`、`bash hooks/release-check .`、`git diff --check`。
-  - [ ] push 分支 → 读 CI → 把结果写进 `## Verification / Review` → 提交 → 归档 → 再提交 → 标记 ready。
+  - [x] push 分支 → 读 CI → 把结果写进 `## Verification / Review` → 提交 → 归档 → 再提交 → 标记 ready。
   - [ ] `TF-20261025-537a8a` 随 `task complete` 置 done。
 - Acceptance: A5。
 - Verification: CI 7/7，URL 记进本 Plan。
@@ -165,6 +165,10 @@ v1 的 PRD 与 Plan 由 `agent-skills:spec-driven-development` 与 `agent-skills
 [run 40191640310](https://github.com/hkwuks/TaskFlow/actions/runs/40191640310) @ `327bdfd` — **7/7 pass**：`changes` 6s、`evals` 7s、`release` 6s、`todo-merge-audit` 4s、`smoke (ubuntu-latest)` 21s、`smoke (macos-latest)` 43s、`smoke (windows-latest)` 39s。
 
 **这一轮绿不能证明新消息在 Windows 上正确。** Windows 那条 job 跑的是 `hooks/smoke-test-windows.ps1`，而它只断言门会 deny、消息里有逃生命令——没有一条碰过失步分支，也就从没读过新消息。这是 v2 提升的直接原因，补的是 A6。
+
+[run 40196474808](https://github.com/hkwuks/TaskFlow/actions/runs/40196474808) @ `6edd0ce` — **7/7 pass**：`changes` 7s、`evals` 7s、`release` 6s、`todo-merge-audit` 5s、`smoke (ubuntu-latest)` 22s、`smoke (macos-latest)` 37s、`smoke (windows-latest)` 34s。
+
+**这一轮才第一次在 Windows 上读过失步消息**：`smoke (windows-latest)` 现在会走到 A6 那段夹具，消息必须 `ConvertFrom-Json` 成功、含两个数字、含 `out of step`、不含「已被用掉」。它 pass，说明这条消息在三条平台上都是可解析且内容正确的。
 
 ## Change Log
 
