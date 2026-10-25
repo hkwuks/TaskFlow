@@ -29,6 +29,20 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
+## When a phase has no capability worth invoking, the fallback is the model's own a
+
+- ID: TF-20261024-b48e56
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-24
+- Added: 2026-10-24
+- Updated: 2026-10-24
+- Goal: When a phase has no capability worth invoking, the fallback is the model's own ability, and the docs should say so in those words instead of only describing it as nothing having been invoked
+- Task: Not promoted.
+- Next action: Read the three places that define the fallback -- skills/taskflow/SKILL.md:179, references/artifacts.md:99 and :130, references/runtime.md:63 -- and decide what the wording should say. Today all of them describe Unaided as the absence of a capability ('no capability applied to this phase', 'nothing was invoked'), which reads as a gap rather than as a choice. The requested framing is that the fallback when no tool is worth introducing is the model's own ability, so the phase still runs, and the record says which ability was brought to bear. Decide whether that is an edit to those three paragraphs, a fourth field in the recorded line, or a rename -- and whether the 'considered:' field already carries it (it names the concept class the model was asked to supply). Keep the mechanical contract unchanged: the class still validates against the phase vocabulary and approve still reconciles it exactly.
+- Notes: Reported by the user 2026-10-24 while defining TF-20261024-310937. The user's wording: 这类引入工具的策略，当没有工具可以引入的时候，就用模型自己的能力。Related to TF-20261024-310937 (the Test stage's carrier): that task adds a fourth stage to the same set, so its line shape has to say what the model supplied for a stage no tool covers. Not the same gap as TF-20261009-8abbd6 (give a phase a way to record a selection that is not a tool-call artifact) -- this one is about what the fallback IS, not about how to record it.
+
 ## Test generation and test writing should draw in tools through the same mechanism
 
 - ID: TF-20261024-310937
