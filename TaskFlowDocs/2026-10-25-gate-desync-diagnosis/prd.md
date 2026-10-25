@@ -1,5 +1,5 @@
 # 让 pre-write 门在 store 失步时给出它真正的原因，而不是说错话
-> Task version: v1
+> Task version: v2
 > Status: in_progress
 
 ## Goal
@@ -28,6 +28,7 @@
 - **R5 —— `hooks/smoke-test` 断言失步与两种未失步的措辞。** 失步用例要断言两个数字与「不再出现假话」，两条未失步用例断言原文不变。
 - **R6 —— `skills/taskflow/references/runtime.md` 的 store 段落补一句：门也会这样诊断。** 那里第 77 行已经写了门在跨工作树时会点名记录去向，本条是同一类「拒绝时说真话」。
 - **R7 —— `CHANGELOG.md` 的 `[Unreleased]` 加一条 `### Fixed`。**
+- **R8 —— Windows 套件也要覆盖失步分支。** `hooks/smoke-test-windows.ps1` 造一个失步 store（`released` 到 seq 5、`evidence` 空），断言门给出的消息：`ConvertFrom-Json` 能解析（反斜杠未归一化会截断 JSON 字符串）、含 `out of step` 与两个数字、不再说「已被用掉」。被测阶段必须是 `released` 没覆盖的那个，否则门在幂等分支早退。这条补的是 R2 在 Windows 上的可验证性：bash 套件跑正斜杠路径，同一份代码在那里静默正确。
 
 ## Acceptance Criteria
 
@@ -38,11 +39,13 @@
 | A3 | 健康但队列用尽（`total == consumed > 0`）时，消息逐字节等于改动前 |
 | A4 | 空账本（`consumed == 0`）时，消息逐字节等于改动前 |
 | A5 | `bash hooks/smoke-test`、`bash hooks/release-check .`、`git diff --check` 全绿；CI 7/7 |
+| A6 | Windows 套件里失步消息可被 `ConvertFrom-Json` 解析，且含 `out of step`、两个数字、不含「已被用掉」 |
 
 ## In Scope
 
 - `hooks/capability-gate` —— 拒绝分支增加失步判断与新措辞（约 10 行，含注释）。
 - `hooks/smoke-test` —— A1–A4 的断言，放在既有「pre-write gate」小节内，复用它已有的 fixture 风格。
+- `hooks/smoke-test-windows.ps1` —— A6 的断言。
 - `skills/taskflow/references/runtime.md` —— R6 的那一句。
 - `CHANGELOG.md` —— R7。
 - `TaskFlowDocs/todo.md` —— `TF-20261025-537a8a` 的推进与收尾。
