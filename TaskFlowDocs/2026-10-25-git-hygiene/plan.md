@@ -1,7 +1,7 @@
 # Plan — 本地文件由插件排除，不要求用户改 .gitignore
 
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 
@@ -117,6 +117,8 @@
 
 ## Verification / Review
 
+- 2026-10-25 Step 4: CI 7/7 on run 40164478310 at 1c1cdf8
+
 - 2026-10-25 Step 4: block added and passing; mutations caught; .gitignore rule restored as a scoped complement
 
 - 2026-10-25 Step 3: five docs, `.gitignore` comment rewritten to state the two scopes, CHANGELOG Added+Changed
@@ -134,7 +136,7 @@
 | `git diff --check` | 干净 |
 | `bash -n hooks/install-git-hygiene hooks/session-start hooks/smoke-test` | 通过 |
 
-CI（PR #97，run [40164478310](https://github.com/hkwuks/TaskFlow/actions/runs/40164478310)，分支 `chore/git-hygiene` @ `1c1cdf8`）：7/7 全绿 —— `changes` 7s、`release` 4s、`evals` 54s、`todo-merge-audit` 3s、`smoke (ubuntu-latest)` 28s、`smoke (windows-latest)` 33s、`smoke (macos-latest)` 54s。macOS 那一项是本任务最该看的：新 hook 的 `while IFS= read -r` 循环与 `grep -qxF --` 都在它上面跑过。
+CI（PR #97，分支 `chore/git-hygiene`）两轮 7/7 全绿：[40164478310](https://github.com/hkwuks/TaskFlow/actions/runs/40164478310) @ `1c1cdf8`（实现）与 [40164667410](https://github.com/hkwuks/TaskFlow/actions/runs/40164667410) @ `e147956`（Verification 记录）。第一轮 —— `changes` 7s、`release` 4s、`evals` 54s、`todo-merge-audit` 3s、`smoke (ubuntu-latest)` 28s、`smoke (windows-latest)` 33s、`smoke (macos-latest)` 54s。macOS 那一项是本任务最该看的：新 hook 的 `while IFS= read -r` 循环与 `grep -qxF --` 都在它上面跑过。
 
 ### 手工契约验证（Step 1 的验收依据）
 
