@@ -1,7 +1,7 @@
 # Plan — Test 阶段的能力选择载体
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -213,3 +213,12 @@ M7 的断言要求拒绝消息点名两个数字，所以「拒绝但不说清�
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- Reported by the user 2026-10-24 while working on TF-20261023-c7540c. The gap is real but the shape is undecided: the concept class exists in the table, the enforcement does not. Distinct from TF-20261022-47c217 (review the Plan before approval) and from TF-20261023-c7540c (bring declared material back) — this one is about the phase that writes the tests, not about the material a phase reads. Also relates to TF-20261017-stage-capability-pairing: adding a fourth stage multiplies the per-version bookkeeping it describes.
+- Unpromoted 2026-10-24: re-promote at the correct size; this changes a stage contract approve enforces

@@ -1,7 +1,7 @@
 # Test generation and test writing should draw in tools through the same mechanism
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

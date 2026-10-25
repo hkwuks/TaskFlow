@@ -9,6 +9,13 @@ tasks/
 # CodeBuddy CLI local artifacts (plugin install cache / staged copies)
 .plugins-cache.json
 plugins/
+
+# A task's sessions.md is a resume index for the machine that wrote it: session
+# id, working directory, timestamps, and `Session availability: local-only`. A
+# committed copy is stale on every other clone and names a session nobody there
+# can resume. Files committed before this line stay tracked — `git rm --cached`
+# is the separate decision, and `git ls-files '*sessions.md'` lists them.
+TaskFlowDocs/**/sessions.md
 # Personal rules are local-only and are never committed: everything beside
 # TaskFlowDocs/repository-docs/index.md is personal, so ignore its contents
 # and re-include the routing record itself.

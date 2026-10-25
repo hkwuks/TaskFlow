@@ -29,6 +29,45 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
+## Keep sessions.md out of Git: it carries a machine-local session id, working dire
+
+- ID: TF-20261025-24d06c
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user statement 2026-10-25 while archiving TF-20261024-310937
+- Added: 2026-10-25
+- Updated: 2026-10-25
+- Goal: Keep sessions.md out of Git: it carries a machine-local session id, working directory and timestamps, so a committed copy is stale on every other clone
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Make the capability store recoverable instead of delete-and-restart: a truncated
+
+- ID: TF-20261025-ef6c18
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: follow-up from TF-20261024-310937
+- Added: 2026-10-25
+- Updated: 2026-10-25
+- Goal: Make the capability store recoverable instead of delete-and-restart: a truncated evidence file loses records the released lines still point at
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Give the pre-write gate the same out-of-step diagnosis that unaided now has: it
+
+- ID: TF-20261025-537a8a
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: follow-up from TF-20261024-310937
+- Added: 2026-10-25
+- Updated: 2026-10-25
+- Goal: Give the pre-write gate the same out-of-step diagnosis that unaided now has: it keeps denying a desynced store but never says why
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## When a phase has no capability worth invoking, the fallback is the model's own a
 
 - ID: TF-20261024-b48e56
@@ -46,17 +85,10 @@ has an issue number or URL.
 ## Test generation and test writing should draw in tools through the same mechanism
 
 - ID: TF-20261024-310937
-- Status: in_progress
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-24
-- Added: 2026-10-24
-- Updated: 2026-10-24
+- Status: done
 - Goal: Test generation and test writing should draw in tools through the same mechanism that writing the Plan does, instead of being only one row in the phase-concept table with nothing that makes the consideration happen or records that it did
-- Task: `TaskFlowDocs/2026-10-24-test-phase-capability/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: Reported by the user 2026-10-24 while working on TF-20261023-c7540c. The gap is real but the shape is undecided: the concept class exists in the table, the enforcement does not. Distinct from TF-20261022-47c217 (review the Plan before approval) and from TF-20261023-c7540c (bring declared material back) — this one is about the phase that writes the tests, not about the material a phase reads. Also relates to TF-20261017-stage-capability-pairing: adding a fourth stage multiplies the per-version bookkeeping it describes.
-- Unpromoted 2026-10-24: re-promote at the correct size; this changes a stage contract approve enforces
+- Task: `TaskFlowDocs/achieved/2026-10-24-test-phase-capability/`
+- Next action: None — completed and archived.
 
 ## Reference-material reinforcement: some materials must be brought back to attenti
 
