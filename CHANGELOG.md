@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **The eight `sessions.md` copies that were already tracked are out of the repository.** 1.1.8 made `sessions.md` and `personal.md` clone-local by writing an exclude rule into each clone's `.git/info/exclude`, and the rule works: measured 2026-10-25, a task directory holding both `prd.md` and `sessions.md` stages only `prd.md`. But a rule applies to untracked paths, so the copies already in the index kept travelling — stale on every other clone, and visible in `git status` as somebody else's session record. All eight predate the rule (the last was added 2026-10-24, one day before it landed), none was force-added, and all eight are under `achieved/`. They are removed from the index and kept on disk unchanged; history is not rewritten. **The one way this can lose work**: a clone that had edited one of those copies sees a deletion and an ignored untracked file, so its edits do not surface as a conflict. Nothing in this repository edited them after archiving, but another clone is not something this repository can check.
+
 ## [1.1.8] — 2026-10-25
 
 ### Added
