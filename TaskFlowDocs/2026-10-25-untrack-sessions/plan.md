@@ -93,6 +93,23 @@ No spec required — small, self-contained task.
 covered」），关于「八个副本」的那句在 CHANGELOG 1.1.8 里，不在注释里。改它就是改一段没有说错的文字。
 A5 要求的 CHANGELOG 记录照做。
 
+## CI record
+
+PR [#100](https://github.com/hkwuks/TaskFlow/pull/100)，head `9479cd0`，run
+[40206756359](https://github.com/hkwuks/TaskFlow/actions/runs/40206756359)：
+
+| job | 结果 |
+| --- | --- |
+| smoke (ubuntu-latest) | pass 19s |
+| smoke (macos-latest) | pass 54s |
+| smoke (windows-latest) | pass 31s |
+| release / todo-merge-audit / changes | pass |
+| evals | **skipping** |
+
+`evals` 是 skipped 而不是 pass：`tools/workflow-affected` 按路径分类，本分支只动
+`TaskFlowDocs/achieved/**/sessions.md` 与 `CHANGELOG.md`，不进 evals 的路径集。PR 上只跑受影响的 job，
+推 main 才跑全部——这是那个工具的既定行为，不是这次改动造成的缺口。
+
 ## Change Log
 
 - v1 — planning：PRD 与 Plan 写成，等待批准。
@@ -104,3 +121,4 @@ A5 要求的 CHANGELOG 记录照做。
 ## Version History
 
 - v1 — planning。
+- v2 — 记入 CI 结果（PR #100，run 40206756359）；`evals` 为 skipped 而非 pass，原因记在 CI record 一节。
