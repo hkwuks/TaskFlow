@@ -1,7 +1,7 @@
 # Plan — 本地文件由插件排除，不要求用户改 .gitignore
 
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 

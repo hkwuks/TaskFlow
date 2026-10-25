@@ -1,7 +1,7 @@
 # 本地文件不上传，靠插件做，不靠用户改 .gitignore
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
