@@ -46,16 +46,17 @@ has an issue number or URL.
 ## Test generation and test writing should draw in tools through the same mechanism
 
 - ID: TF-20261024-310937
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-24
 - Added: 2026-10-24
 - Updated: 2026-10-24
 - Goal: Test generation and test writing should draw in tools through the same mechanism that writing the Plan does, instead of being only one row in the phase-concept table with nothing that makes the consideration happen or records that it did
-- Task: Not promoted.
-- Next action: Settle the two axes now, before any code: (1) IS THERE A CARRIER? Phase 6 Verify and review already names the concept class 'testing strategy and code review' (skills/taskflow/SKILL.md:176), but nothing makes that consideration happen and nothing records that it did — the pre-write gate only covers prd.md/spec.md/plan.md (hooks/capability-gate:96-98), task unaided only accepts PRD/Spec/Plan (hooks/task:1075), and task approve only requires those three (hooks/task:1254-1257). Decide whether a test-writing stage gets the same treatment as the Plan: a fourth gated stage, a Plan section the per-prompt reminder reads (the Reference Pointers mechanism from TF-20261023-c7540c), or a Skills / Tools Used line with no gate. (2) WHAT IS THE ARTIFACT? The other three stages are each one file; tests are many files written over several Steps, so there is no single first write to gate — decide whether the stage attaches to the first test file in the task, to a test plan section in plan.md, or is declared through task unaided only. Then decide what task approve should reconcile, and whether the new stage is required or optional for tasks whose Plan has no test Step.
+- Task: `TaskFlowDocs/2026-10-24-test-phase-capability/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: Reported by the user 2026-10-24 while working on TF-20261023-c7540c. The gap is real but the shape is undecided: the concept class exists in the table, the enforcement does not. Distinct from TF-20261022-47c217 (review the Plan before approval) and from TF-20261023-c7540c (bring declared material back) — this one is about the phase that writes the tests, not about the material a phase reads. Also relates to TF-20261017-stage-capability-pairing: adding a fourth stage multiplies the per-version bookkeeping it describes.
+- Unpromoted 2026-10-24: re-promote at the correct size; this changes a stage contract approve enforces
 
 ## Reference-material reinforcement: some materials must be brought back to attenti
 

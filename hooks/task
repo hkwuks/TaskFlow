@@ -1072,14 +1072,14 @@ case "$command" in
     # needs-user-input, and an unusable invocation here is exactly that — the
     # caller must supply the missing input. `fail` is the house helper for
     # argument errors and exits 1, so do not tidy this branch back onto it.
-    unaided_usage='usage: task unaided <PRD|Spec|Plan> --considered "<concept class>" [--root <path>]'
+    unaided_usage='usage: task unaided <PRD|Spec|Plan|Test> --considered "<concept class>" [--root <path>]'
     [ "${#rest[@]}" -eq 3 ] || { echo "$unaided_usage" >&2; exit 2; }
     stage="${rest[0]}"
     considered="${rest[2]}"
     [ "${rest[1]}" = "--considered" ] || { echo "$unaided_usage" >&2; exit 2; }
     case "$stage" in
-      PRD|Spec|Plan) ;;
-      *) echo "stage must be PRD, Spec, or Plan: $stage" >&2; exit 2 ;;
+      PRD|Spec|Plan|Test) ;;
+      *) echo "stage must be PRD, Spec, Plan, or Test: $stage" >&2; exit 2 ;;
     esac
     [ -n "$considered" ] || { echo "--considered must not be empty" >&2; exit 2; }
     printf '%s' "$considered" | grep -qiE "$concept_class_re" || {
@@ -1119,6 +1119,7 @@ case "$command" in
     [ -n "$unaided_version" ] \
       || fail "cannot read the Plan task version for $active; the stage was not declared"
     released="$git_dir/taskflow/released"
+    evidence="$git_dir/taskflow/evidence"
     # Idempotent per version and stage, the same key the gate uses when it skips
     # a document whose stage it already released.
     if [ -f "$released" ] \
@@ -1130,9 +1131,50 @@ case "$command" in
     if [ -f "$released" ]; then
       consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
     fi
+    total=0
+    [ -f "$evidence" ] && total="$(awk 'END { print NR }' "$evidence")"
+    # I1 can already be broken when this command arrives, and this is the only
+    # writer that would get a chance to notice. `consumed` comes from `released`
+    # alone, so a store whose `evidence` was deleted or truncated reads as
+    # `consumed` above the queue length: the gate denies every stage from then on
+    # and each further write here pushes the two further apart. Refusing is the
+    # honest answer -- the lost lines cannot be reconstructed, and a release
+    # against a sequence nothing backs is what makes the desync permanent.
+    [ "$consumed" -le "$total" ] \
+      || fail "capability store out of step under $git_dir/taskflow: released reaches seq $consumed but evidence holds $total line(s). The lost records cannot be rebuilt; to start the store over, remove $git_dir/taskflow and declare each stage again."
     considered="$(printf '%s' "$considered" | tr -d '|\r\n')"
     mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
-    printf 'unaided|%s\n' "$considered" >> "$git_dir/taskflow/evidence"
+    # `Test` is the one stage declared without a document, so the gate never
+    # consumes a record for it and this command does what the gate would have
+    # done: spend the next unreleased evidence line, if there is one. The kind
+    # then follows the queue rather than the declaration -- a declarer decides
+    # which concept class applied, never whether a call happened. Every other
+    # stage keeps the older behaviour below, which writes its own evidence line
+    # and so cannot spend one.
+    #
+    # The invariant both paths hold is that the highest sequence in `released`
+    # equals the number of lines in `evidence`. The gate releases a stage while
+    # `evidence lines > consumed`, so a release with no line behind it makes
+    # consumed exceed the evidence and denies every stage from then on. Spending
+    # an existing line leaves the two in step by construction; declaring without
+    # one adds its line first.
+    if [ "$stage" = "Test" ]; then
+      if [ "$total" -gt "$consumed" ]; then
+        next=$((consumed + 1))
+        spent="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
+        spent_kind="${spent%%|*}"
+        spent_capability="${spent#*|}"
+        printf '%s|Test|%s|%s|%s\n' "$unaided_version" "$next" "$spent_kind" "$spent_capability" >> "$released"
+        printf 'unaided OK: Test in %s -> %s (consumed an invocation record: %s)\n' \
+          "$active" "$considered" "$spent_capability"
+        exit 0
+      fi
+      printf 'unaided|%s\n' "$considered" >> "$evidence"
+      printf '%s|Test|%s|unaided|%s\n' "$unaided_version" "$((consumed + 1))" "$considered" >> "$released"
+      printf 'unaided OK: Test in %s -> %s (recorded as unaided)\n' "$active" "$considered"
+      exit 0
+    fi
+    printf 'unaided|%s\n' "$considered" >> "$evidence"
     printf '%s|%s|%s|unaided|%s\n' "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
     ;;
@@ -1211,6 +1253,12 @@ case "$command" in
       local stage="$1" stage_lines line record kind capability cap_pool cap_hit c
       stage_lines="$(printf '%s\n' "$cap_skills" | grep -E "^- \\[${stage}\\] " || true)"
       if [ -z "$(printf '%s' "$stage_lines" | tr -d '[:space:]')" ]; then
+        # The remedy is named for `Test` because its stage has no document: every
+        # other stage's remedy is to re-run the phase with a capability invoked,
+        # and there is no phase to re-run for a stage the gate cannot see.
+        if [ "$stage" = "Test" ]; then
+          fail "approve blocked: missing stage [$stage]. Declare it in one line: - [Test] ... ; or record the phase with: bash hooks/task unaided Test --considered 'testing strategy'"
+        fi
         fail "approve blocked: missing stage [$stage]"
       fi
       record=""
@@ -1253,6 +1301,15 @@ CAP_POOL
     }
     require_stage PRD
     require_stage Plan
+    # `Test` is required for every task, not only ones whose Plan happens to
+    # contain a testing Step. A test document does not exist, so there is no
+    # existence test to hang it on, and inferring one (a Step mentioning tests,
+    # a path-shaped file) would be a second standard for what counts. A task
+    # that wrote no tests declares that in one line instead:
+    #   bash hooks/task unaided Test --considered 'testing strategy'
+    # Measured 2026-10-24: 77 of 85 archived Plans ran tests and none recorded
+    # the phase at all, which is what a requirement nobody carries looks like.
+    require_stage Test
     if [ "$cap_size" = large ]; then
       require_stage Spec
     fi

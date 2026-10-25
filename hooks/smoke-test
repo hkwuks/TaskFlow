@@ -492,7 +492,12 @@ cat > "$docs/todo.md" <<'EOF'
 EOF
 summary=$(cd "$tmp" && TASKFLOW_VERBOSE=1 bash "$HERE/summarize-state")
 echo "$summary" | grep -q -- "- T-20260908-999 | in_progress | Prove field-based Todo parsing." || { echo "FAIL Todo ID parsing"; exit 1; }
-json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" 2>&1)
+# `< /dev/null`, not a pipe: this invocation means "no event", and `session-start`
+# reads its event from stdin by contract. Inheriting the suite's own stdin makes
+# the read block whenever that stdin stays open — interactively it waits for a
+# Ctrl-D, and under a runner that holds the pipe it hangs indefinitely. Measured
+# 2026-10-25: `bash hooks/smoke-test` with an open stdin stopped here for >145s.
+json=$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." bash "$HERE/session-start" < /dev/null 2>&1)
 echo "$json" | grep -q '"hookSpecificOutput"' && echo "ok (claude shape)"
 
 echo "== session-start consumes event JSON and filters other events =="
@@ -1803,6 +1808,11 @@ grep -q 'missing stage \[PRD\]' "$ap/untagged.err" \
 # point of the change: text could not previously be told from a real call.
 ap_line_prd='- [PRD] `some:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
 ap_line_plan='- [Plan] `other:breakdown-tool` — purpose: split steps; outcome: succeeded; incorporated: plan steps.'
+# `Test` is required of every task, so every fixture below carries it. It is
+# declared rather than invoked on purpose: a test phase has no document for the
+# gate to spend a record on, which is why `unaided Test` may do the spending
+# itself — covered by its own section, not here.
+ap_line_test='- [Test] Unaided — no capability applied to this phase; considered: testing strategy.'
 set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/norec.err"; then
   echo "FAIL approve accepted stage lines with no release record"; exit 1
@@ -1817,9 +1827,10 @@ grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased re
 # names a capability this Task version never released as an invocation.
 ap_release "$ap_store" v1 PRD 1 invoke some:requirements-skill
 ap_release "$ap_store" v1 Plan 2 unaided 'work breakdown'
+ap_release "$ap_store" v1 Test 3 unaided 'testing strategy'
 set_skills_body "$ap_task/plan.md" \
   '- [PRD] `other:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
-  "$ap_line_plan"
+  "$ap_line_plan" "$ap_line_test"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/mismatch.err"; then
   echo "FAIL approve accepted a stage naming a capability that was not invoked"; exit 1
 fi
@@ -1831,7 +1842,7 @@ fi
 # attribution the record cannot carry. The refusal itself is the same refusal.
 grep -q 'stage \[PRD\] does not name a capability invoked in this Task version (some:requirements-skill)' "$ap/mismatch.err" \
   || { echo "FAIL capability-mismatch message"; cat "$ap/mismatch.err"; exit 1; }
-set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan"
+set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan" "$ap_line_test"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/kind.err"; then
   echo "FAIL approve accepted an invocation-shaped line over an unaided record"; exit 1
 fi
@@ -1846,14 +1857,15 @@ grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unai
 # required section could only pass by misreporting itself. It must pass now.
 # `Spec` carries it because no `spec.md` exists here, so that record is in the
 # version's pool without being any required stage's own record.
-ap_release "$ap_store" v1 Spec 3 invoke 'later:plan-skill'
+ap_release "$ap_store" v1 Spec 4 invoke 'later:plan-skill'
 ap_line_prd_mispaired='- [PRD] `later:plan-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
 set_skills_body "$ap_task/plan.md" "$ap_line_prd_mispaired" \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  "$ap_line_test"
 if ! bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >"$ap/pool.out" 2>"$ap/pool.err"; then
   echo "FAIL approve refused a stage naming a capability this version released"; cat "$ap/pool.err"; exit 1
 fi
-grep -q 'stages released by the gate: 1 invoked, 1 unaided' "$ap/pool.out" \
+grep -q 'stages released by the gate: 1 invoked, 2 unaided' "$ap/pool.out" \
   || { echo "FAIL pooled approve did not report the released stages"; cat "$ap/pool.out"; exit 1; }
 # The pool is read from `released`, not from `evidence`: a call still sitting
 # unconsumed in the queue backs nothing. Stated as its own assertion because the
@@ -1862,7 +1874,8 @@ grep -q 'stages released by the gate: 1 invoked, 1 unaided' "$ap/pool.out" \
 printf 'invoke|queued:never-released\n' >> "$ap_store/evidence"
 set_skills_body "$ap_task/plan.md" \
   '- [PRD] `queued:never-released` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  "$ap_line_test"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/queued.err"; then
   echo "FAIL approve counted an unreleased invocation"; exit 1
 fi
@@ -1871,7 +1884,8 @@ grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' 
 # And a name in no record for the version is still refused, pool or not.
 set_skills_body "$ap_task/plan.md" \
   '- [PRD] `never:invoked` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  "$ap_line_test"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/never.err"; then
   echo "FAIL approve accepted a capability no record names"; exit 1
 fi
@@ -1882,9 +1896,10 @@ grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' 
 # every phase unaided visible instead of silent.
 set_skills_body "$ap_task/plan.md" \
   "$ap_line_prd" \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  "$ap_line_test"
 bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" > "$ap/approve.out"
-grep -q 'stages released by the gate: 1 invoked, 1 unaided' "$ap/approve.out" \
+grep -q 'stages released by the gate: 1 invoked, 2 unaided' "$ap/approve.out" \
   || { echo "FAIL approve did not report the released stages"; cat "$ap/approve.out"; exit 1; }
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
@@ -1924,10 +1939,12 @@ mkdir -p "$ap_large_store"
 ap_release "$ap_large_store" v1 PRD 1 unaided 'requirements elicitation'
 ap_release "$ap_large_store" v1 Spec 2 unaided 'architecture and design'
 ap_release "$ap_large_store" v1 Plan 3 unaided 'work breakdown'
+ap_release "$ap_large_store" v1 Test 4 unaided 'testing strategy'
 # PRD+Plan only → missing Spec stage.
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
   echo "FAIL large approve accepted missing [Spec] stage"; exit 1
 fi
@@ -1937,7 +1954,8 @@ grep -q '^- Status: requested$' "$ap_large/plan.md" || { echo "FAIL missing Spec
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase.' \
   '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
   echo "FAIL large approve accepted stage Unaided without considered:"; exit 1
 fi
@@ -1948,7 +1966,8 @@ grep -q 'stage \[PRD\] Unaided needs considered:' "$ap/large.err" \
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: literature and evidence' \
   '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 if bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" >/dev/null 2>"$ap/large.err"; then
   echo "FAIL large approve accepted a considered class the store never recorded"; exit 1
 fi
@@ -1958,10 +1977,11 @@ grep -q 'stage \[PRD\] reports a different considered class than the recorded on
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
   '- [Spec] Unaided — no capability applied to this phase; considered: architecture and design' \
-  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 bash "$HERE/task" approve 2026-09-09-approve-large alice --root "$ap_large_root" > "$ap/large.out"
-grep -q 'stages released by the gate: 0 invoked, 3 unaided' "$ap/large.out" \
-  || { echo "FAIL approve did not report three unaided stages"; cat "$ap/large.out"; exit 1; }
+grep -q 'stages released by the gate: 0 invoked, 4 unaided' "$ap/large.out" \
+  || { echo "FAIL approve did not report four unaided stages"; cat "$ap/large.out"; exit 1; }
 approval_fields="$(awk '
   /^## Approval$/ { p = 1; next }
   p && /^## / { exit }
@@ -2919,7 +2939,7 @@ echo "== an unaided declaration releases its stage with no gate on the host =="
 ug="$tmp/unaided-gate"
 mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
 git -C "$ug" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
@@ -2928,19 +2948,23 @@ bash "$HERE/task" unaided PRD  --considered "requirements elicitation and framin
   || { echo "FAIL unaided PRD"; exit 1; }
 bash "$HERE/task" unaided Plan --considered "work breakdown and task decomposition" --root "$ug" >/dev/null \
   || { echo "FAIL unaided Plan"; exit 1; }
+bash "$HERE/task" unaided Test --considered "testing strategy" --root "$ug" >/dev/null \
+  || { echo "FAIL unaided Test"; exit 1; }
 [ -f "$ug_store/released" ] \
   || { echo "FAIL unaided did not write the release record"; exit 1; }
 # Both files get a line. The gate releases a stage when evidence has more lines
 # than the highest sequence in released, so a released line without its evidence
 # line would put consumed above the evidence and deny every stage from then on.
-[ "$(wc -l < "$ug_store/evidence" | tr -d ' ')" -eq 2 ] \
-  || { echo "FAIL unaided did not record two evidence lines"; cat "$ug_store/evidence"; exit 1; }
-[ "$(wc -l < "$ug_store/released" | tr -d ' ')" -eq 2 ] \
-  || { echo "FAIL unaided did not release two stages"; cat "$ug_store/released"; exit 1; }
+[ "$(wc -l < "$ug_store/evidence" | tr -d ' ')" -eq 3 ] \
+  || { echo "FAIL unaided did not record three evidence lines"; cat "$ug_store/evidence"; exit 1; }
+[ "$(wc -l < "$ug_store/released" | tr -d ' ')" -eq 3 ] \
+  || { echo "FAIL unaided did not release three stages"; cat "$ug_store/released"; exit 1; }
 grep -qxF 'v1|PRD|1|unaided|requirements elicitation and framing' "$ug_store/released" \
   || { echo "FAIL PRD release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
 grep -qxF 'v1|Plan|2|unaided|work breakdown and task decomposition' "$ug_store/released" \
   || { echo "FAIL Plan release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
+grep -qxF 'v1|Test|3|unaided|testing strategy' "$ug_store/released" \
+  || { echo "FAIL Test release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
 # The point of the whole section: approve can now reconcile and write the block.
 bash "$HERE/task" approve 2026-09-27-declared --root "$ug" >/dev/null 2>"$ug/approve.err" \
   || { echo "FAIL approve refused a stage the declaration released"; cat "$ug/approve.err"; exit 1; }
@@ -2976,7 +3000,7 @@ echo "== an unaided declaration never overwrites the gate's own release =="
 uc="$tmp/unaided-conflict"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
 git -C "$uc" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
@@ -4717,8 +4741,10 @@ fi
 # The real thing, run as the harness runs it: the path alone, no `bash` prefix.
 # Name resolution differs too -- the tree needs `bash` on `$PATH` for the
 # scripts it launches, and the harness inherits no such guarantee from us.
+# `< /dev/null` for the same reason as above: this case exercises the launcher,
+# not the event, and an inherited open stdin blocks inside `session-start`.
 exec_out="$(cd "$tmp" && CLAUDE_PLUGIN_ROOT="$HERE/.." TASKFLOW_REPO_ROOT="$tmp" \
-  PATH="$PATH:/usr/bin:/bin" sh -c "\"$HERE/run-hook.cmd\" session-start" 2>&1)" || {
+  PATH="$PATH:/usr/bin:/bin" sh -c "\"$HERE/run-hook.cmd\" session-start" < /dev/null 2>&1)" || {
   echo "FAIL run-hook.cmd could not be executed directly:"
   printf '%s\n' "$exec_out"
   exit 1
@@ -5006,6 +5032,182 @@ cat >> "$rein_plan" <<'EOF'
 EOF
 [ "$(rein_ctx)" = "$rein_baseline" ] \
   || { echo "FAIL a marker outside Reference Pointers was admitted"; exit 1; }
+echo ok
+
+echo "== Test is a stage with a carrier, and its kind follows the evidence queue =="
+# Writing tests had a concept class in the phase table and nothing else: no
+# document for the pre-write gate to release, no stage `approve` asked about.
+# Measured 2026-10-24: 77 of 85 archived Plans ran tests, none recorded the
+# phase. It now has the other half — `unaided Test` declares it, and because
+# there is no document to spend an evidence line the declaration spends one
+# itself, taking the kind from the queue rather than from the caller. These
+# assertions cover both branches of that spend, the idempotence that keeps it
+# from spending twice, and approve's side of the contract.
+tp="$tmp/test-phase"
+mkdir -p "$tp/TaskFlowDocs/2026-01-01-tp"
+git -C "$tp" init -q
+tp_plan="$tp/TaskFlowDocs/2026-01-01-tp/plan.md"
+tp_store="$(git -C "$tp" rev-parse --absolute-git-dir)/taskflow"
+tp_version() {  # tp_version <vN> -- rewrite the Plan's Task version
+  TASKFLOW_V="$1" awk '
+    BEGIN { v = ENVIRON["TASKFLOW_V"] }
+    /^> Task version: v[0-9][0-9]*$/ { print "> Task version: " v; next }
+    { print }
+  ' "$tp_plan" > "$tp_plan.tmp" && mv "$tp_plan.tmp" "$tp_plan"
+}
+tp_plan_body() {  # tp_plan_body <test-stage-line>
+  printf '# Plan — Test phase fixture\n# placeholder\n' > /dev/null
+  {
+    printf '%s\n' '# Plan — Test phase fixture' '> Task version: v1' '> Status: planning' ''
+    printf '%s\n' '## Skills / Tools Used' ''
+    printf '%s\n' '- [PRD] `a:prd` — purpose: frame; outcome: succeeded; incorporated: requirements.'
+    printf '%s\n' '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+    [ -z "$1" ] || printf '%s\n' "$1"
+    printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+      '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
+    printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
+  } > "$tp_plan"
+}
+tp_unaided() {  # tp_unaided <class> -> "<exit>|<output>"
+  tp_out="$(bash "$HERE/task" unaided Test --considered "$1" --root "$tp" 2>&1)"
+  printf '%s|%s' "$?" "$tp_out"
+}
+# I1 in one expression: the highest released sequence is the evidence line count.
+# The gate releases a stage only while evidence holds more lines than that
+# sequence, so a release with no line behind it denies every stage afterwards.
+tp_in_step() {
+  tp_max="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$tp_store/released" 2>/dev/null || echo 0)"
+  tp_lines=0
+  [ -f "$tp_store/evidence" ] && tp_lines="$(awk 'END { print NR }' "$tp_store/evidence")"
+  [ "$tp_max" = "$tp_lines" ] || {
+    echo "FAIL release and evidence stores are out of step ($tp_max vs $tp_lines)"
+    cat "$tp_store/released" "$tp_store/evidence" 2>/dev/null
+    exit 1
+  }
+}
+tp_plan_body ''
+# Each declaration is run once and its result kept: re-running it in the failure
+# branch would report the second run, which for a non-idempotent bug says
+# "already released" and sends the reader after the wrong thing.
+tp_res="$(tp_unaided 'testing strategy')"
+# An empty queue means nothing was invoked, so the declaration is the record.
+case "$tp_res" in
+  "0|"*"(recorded as unaided)") ;;
+  *) echo "FAIL an empty queue did not record an unaided Test stage"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+grep -qxF 'v1|Test|1|unaided|testing strategy' "$tp_store/released" \
+  || { echo "FAIL a test declaration did not write its release line"; cat "$tp_store/released"; exit 1; }
+tp_in_step
+# Idempotent on (version, stage), the key the gate skips by. A second call must
+# neither spend another line nor rewrite the record.
+tp_before="$(digest "$tp_store/evidence")$(digest "$tp_store/released")"
+tp_res="$(tp_unaided 'testing strategy')"
+case "$tp_res" in
+  "0|"*"(already released)") ;;
+  *) echo "FAIL re-declaring an already-released Test stage did not report it"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+[ "$tp_before" = "$(digest "$tp_store/evidence")$(digest "$tp_store/released")" ] \
+  || { echo "FAIL re-declaring a Test stage appended a record"; exit 1; }
+tp_in_step
+# With a call standing unconsumed the declaration spends it instead, and the
+# kind follows the queue. This is the whole reason the stage could not use the
+# gate: there is no document whose first write would do the spending.
+tp_version v2
+printf 'invoke|some:test-engineer\n' >> "$tp_store/evidence"
+tp_res="$(tp_unaided 'testing strategy')"
+case "$tp_res" in
+  "0|"*"(consumed an invocation record: some:test-engineer)") ;;
+  *) echo "FAIL an unconsumed invocation was not spent by the declaration"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+grep -qxF 'v2|Test|2|invoke|some:test-engineer' "$tp_store/released" \
+  || { echo "FAIL the spent record was not written as an invocation"; cat "$tp_store/released"; exit 1; }
+tp_in_step
+# Banked evidence must be spent, not duplicated: the line was already there.
+[ "$(awk 'END { print NR }' "$tp_store/evidence")" -eq 2 ] \
+  || { echo "FAIL spending an invocation appended a second evidence line"; cat "$tp_store/evidence"; exit 1; }
+# The vocabulary is validated exactly once, as for every other stage, and a
+# refusal writes nothing.
+tp_version v3
+tp_before="$(digest "$tp_store/evidence")$(digest "$tp_store/released")"
+[ "$(tp_unaided 'just vibes' | cut -d'|' -f1)" = "2" ] \
+  || { echo "FAIL Test accepted a class outside the phase vocabulary"; exit 1; }
+[ "$tp_before" = "$(digest "$tp_store/evidence")$(digest "$tp_store/released")" ] \
+  || { echo "FAIL a refused Test declaration still wrote a record"; exit 1; }
+tp_in_step
+# Approve's half. A `[Test]` line is required of every task, and it reconciles
+# through the same two branches as the other stages — no third code path.
+tp_plan_body '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
+tp_version v1
+printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\nv1|Test|3|unaided|testing strategy\n' > "$tp_store/released"
+printf 'invoke|a:prd\nunaided|work breakdown\nunaided|testing strategy\n' > "$tp_store/evidence"
+tp_approve() {  # tp_approve -- "<exit>|stderr"
+  tp_err="$(bash "$HERE/task" approve 2026-01-01-tp --root "$tp" 2>&1 >/dev/null)"
+  printf '%s|%s' "$?" "$tp_err"
+}
+tp_res="$(tp_approve)"
+case "$tp_res" in
+  "0|"*) ;;
+  *) echo "FAIL approve refused a declared Test stage"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+# A task with no Test line at all is refused, and the refusal names both the
+# stage and the one command that can stand in for it. Every task needs this, not
+# just the ones with a testing Step: there is no document whose existence could
+# decide that, and inferring one would be a second standard.
+tp_plan_body ''
+tp_res="$(tp_approve)"
+case "$tp_res" in
+  *"missing stage [Test]"*'task unaided Test --considered'*) ;;
+  *) echo "FAIL a Plan without a Test line did not name the stage and its remedy"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+# An invocation-shaped Test line over an unaided record is the same kind
+# mismatch the other stages refuse, which is what proves the reconciliation is
+# shared and not a fourth copy.
+tp_plan_body '- [Test] `some:test-engineer` — purpose: write tests; outcome: succeeded; incorporated: cases.'
+tp_res="$(tp_approve)"
+case "$tp_res" in
+  *"stage [Test] is reported as an invocation but was recorded as an unaided decision"*) ;;
+  *) echo "FAIL a Test line could claim an invocation over an unaided record"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+# And an invocation agrees only for a capability this Task version released.
+printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\nv1|Test|3|invoke|some:test-engineer\n' > "$tp_store/released"
+tp_res="$(tp_approve)"
+case "$tp_res" in
+  "0|"*) ;;
+  *) echo "FAIL approve refused a Test line naming a released capability"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+tp_plan_body '- [Test] `never:released` — purpose: write tests; outcome: succeeded; incorporated: cases.'
+tp_res="$(tp_approve)"
+case "$tp_res" in
+  *"stage [Test] does not name a capability invoked in this Task version"*) ;;
+  *) echo "FAIL a Test line could name a capability no record carries"; printf '%s\n' "$tp_res"; exit 1 ;;
+esac
+# A store already out of step refuses instead of writing, and it refuses for
+# every stage, not just `Test` — the check sits above the branch because both
+# writers derive `seq` from `released` alone. Measured on HEAD before the check:
+# `released` at seq 2 with no `evidence` file, then a declaration, left max seq 3
+# against 1 evidence line, and the gate denies every stage from then on. The
+# stages named here are exactly the two `released` does not already carry, so the
+# idempotency branch cannot answer first and hide the guard.
+dsp="$tmp/desync"
+mkdir -p "$dsp/TaskFlowDocs/2026-01-01-ds"
+git -C "$dsp" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$dsp/TaskFlowDocs/2026-01-01-ds/plan.md"
+dsp_store="$(git -C "$dsp" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$dsp_store"
+printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\n' > "$dsp_store/released"
+dsp_before="$(digest "$dsp_store/released")"
+for dsp_stage in Test Spec; do
+  dsp_res="$(bash "$HERE/task" unaided "$dsp_stage" --considered 'testing strategy' --root "$dsp" 2>&1)" \
+    && { echo "FAIL $dsp_stage was declared against a store already out of step"; printf '%s\n' "$dsp_res"; exit 1; }
+  case "$dsp_res" in
+    *"out of step"*"released reaches seq 2"*"evidence holds 0 line"*) ;;
+    *) echo "FAIL the desync refusal for $dsp_stage does not say what is wrong"; printf '%s\n' "$dsp_res"; exit 1 ;;
+  esac
+done
+[ "$dsp_before" = "$(digest "$dsp_store/released")" ] \
+  || { echo "FAIL a refused declaration still wrote to a desynced store"; cat "$dsp_store/released"; exit 1; }
+[ ! -f "$dsp_store/evidence" ] \
+  || { echo "FAIL a refused declaration created an evidence file"; cat "$dsp_store/evidence"; exit 1; }
 echo ok
 
 echo "== prompt-reminder writes nothing =="
