@@ -1825,6 +1825,12 @@ grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased re
 # Now the records exist. Two ways a stage line can still fail to reconcile: it
 # reports an invocation where a deliberate unaided decision was recorded, or it
 # names a capability this Task version never released as an invocation.
+# The evidence file is written alongside the releases, not left empty. Before
+# `approve` checked the invariant these fixtures worked with `released` only,
+# because the stage lookup reads that file alone; a store whose releases outrun
+# its evidence is now refused outright, which is the point of the check, so a
+# fixture that means "these stages were released" has to mean a consistent store.
+printf 'invoke|some:requirements-skill\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_store/evidence"
 ap_release "$ap_store" v1 PRD 1 invoke some:requirements-skill
 ap_release "$ap_store" v1 Plan 2 unaided 'work breakdown'
 ap_release "$ap_store" v1 Test 3 unaided 'testing strategy'
@@ -1857,6 +1863,10 @@ grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unai
 # required section could only pass by misreporting itself. It must pass now.
 # `Spec` carries it because no `spec.md` exists here, so that record is in the
 # version's pool without being any required stage's own record.
+# The release needs a record behind it for the same reason as above: `approve`
+# now refuses a store whose releases outrun its evidence, so a release added
+# to this fixture has to be backed by a line in the SAME queue position.
+printf 'invoke|later:plan-skill\n' >> "$ap_store/evidence"
 ap_release "$ap_store" v1 Spec 4 invoke 'later:plan-skill'
 ap_line_prd_mispaired='- [PRD] `later:plan-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
 set_skills_body "$ap_task/plan.md" "$ap_line_prd_mispaired" \
@@ -1936,6 +1946,11 @@ printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
 # satisfied by the small task's releases.
 ap_large_store="$(git -C "$ap_large_root" rev-parse --absolute-git-dir)/taskflow"
 mkdir -p "$ap_large_store"
+# Four releases, four records: these fixture stages are all `unaided`, and
+# `hooks/task unaided` writes an evidence line with every release it records
+# (`hooks/task`, the two `printf`s at the end of the `unaided)` branch). The
+# fixture has to carry that half too, or `approve` refuses the store outright.
+printf 'unaided|requirements elicitation\nunaided|architecture and design\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_large_store/evidence"
 ap_release "$ap_large_store" v1 PRD 1 unaided 'requirements elicitation'
 ap_release "$ap_large_store" v1 Spec 2 unaided 'architecture and design'
 ap_release "$ap_large_store" v1 Plan 3 unaided 'work breakdown'
@@ -2867,6 +2882,118 @@ case "$(gds_msg)" in
   *"no capability invocation is recorded for this task version"*) ;;
   *) echo "FAIL an empty store no longer says so"; exit 1 ;;
 esac
+echo ok
+
+echo "== a store holding releases it cannot back is repaired, not thrown away =="
+# `hooks/task recover` exists because the only recovery used to be `rm -rf` on
+# the whole store, which discarded every release whose record still existed
+# along with the ones that had none. The repair is arithmetic rather than
+# reconstruction: a release at a sequence past the end of `evidence` points at a
+# record that is gone, and that is the only kind that can be identified without
+# guessing. These cases pin the three properties that make it usable — it keeps
+# what it can back, it is a no-op on a healthy store, and running it twice
+# changes nothing the second time.
+rc_ev="$gds_store/evidence"; rc_rel="$gds_store/released"; rc_dis="$gds_store/released.discarded"
+rc_task="TaskFlowDocs/2026-01-01-gds"
+rc_todo="$gds/repo/TaskFlowDocs/todo.md"
+mkdir -p "$gds/repo/TaskFlowDocs"
+printf -- '- ID: TF-20260101-aaaaaa\n- Status: promoted\n- Goal: probe\n- Task: `%s`\n- Next action: x\n' "$rc_task" > "$rc_todo"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$gds/repo/$rc_task/plan.md"
+printf 'invoke|a:one\ninvoke|a:two\ninvoke|a:three\n' > "$rc_ev"
+rm -f "$rc_dis"
+
+# Partial desync: seq 1,2,3 are backed and seq 4 and 7 are not. The gap is 4 but
+# only two rows are unsupported, which is why the message counts rows rather than
+# subtracting: reporting the gap as a row count would overstate the loss.
+# Seq 3 is deliberately equal to the evidence line count — that is the last
+# backed release, and it is what makes the boundary of both filters observable.
+# Without it, `>` and `>=` and `<` and `<=` all produce the same output, and the
+# mutation that swaps them stays green.
+printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Spec|3|invoke|a:three\nv1|Test|4|invoke|a:three\nv1|Spec|7|invoke|a:three\n' > "$rc_rel"
+bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
+  || { echo "FAIL recover exited non-zero on a store it could repair"; exit 1; }
+[ "$(cat "$rc_rel")" = "$(printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Spec|3|invoke|a:three')" ] \
+  || { echo "FAIL recover did not keep exactly the backed releases"; cat "$rc_rel"; exit 1; }
+[ "$(grep -c '^v1|' "$rc_dis")" = 2 ] \
+  || { echo "FAIL recover discarded a different number of rows than were unbacked"; cat "$rc_dis"; exit 1; }
+grep -qxF 'v1|Test|4|invoke|a:three' "$rc_dis" \
+  || { echo "FAIL the discarded releases were not recorded"; cat "$rc_dis"; exit 1; }
+[ "$(awk 'END { print NR }' "$rc_ev")" = 3 ] \
+  || { echo "FAIL recover touched the evidence file"; exit 1; }
+
+# Idempotent: the second run finds nothing to discard and writes nothing.
+rc_sum="$(cat "$rc_rel" "$rc_dis" "$rc_ev" | shasum -a 256)"
+bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
+  || { echo "FAIL recover exited non-zero on an already-repaired store"; exit 1; }
+[ "$rc_sum" = "$(cat "$rc_rel" "$rc_dis" "$rc_ev" | shasum -a 256)" ] \
+  || { echo "FAIL a second recover changed a repaired store"; exit 1; }
+
+# A healthy store is a read-only no-op, and in particular does not create the
+# discard file: a file that appears on every run would say a loss happened.
+rm -f "$rc_dis"
+printf 'v1|PRD|1|invoke|a:one\n' > "$rc_rel"
+bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
+  || { echo "FAIL recover exited non-zero on a healthy store"; exit 1; }
+[ ! -e "$rc_dis" ] \
+  || { echo "FAIL recover created a discard file on a store it did not change"; exit 1; }
+[ "$(cat "$rc_rel")" = 'v1|PRD|1|invoke|a:one' ] \
+  || { echo "FAIL recover rewrote a healthy store"; exit 1; }
+
+# And it never invents a release to fill a gap: after the repair the gate has to
+# release stages the ordinary way, which this checks by declaring one and
+# reading the record back.
+bash "$HERE/task" unaided Spec --considered "architecture and design" --root "$gds/repo" >/dev/null 2>&1 \
+  || { echo "FAIL recover left the store unusable for a later declaration"; exit 1; }
+grep -q '^v1|Spec|' "$rc_rel" \
+  || { echo "FAIL no release was written after the repair"; cat "$rc_rel"; exit 1; }
+echo ok
+
+echo "== approve refuses a store it cannot reconcile stages against =="
+# Measured 2026-10-25: with `released` at seq 4 against 3 evidence lines,
+# `approve` looked each stage up by (version, stage) alone and wrote
+# `approve OK (user, v1)`; deleting that one row made the same document fail.
+# Whether a task could be approved therefore depended on an unsupported release.
+rc_plan="$gds/repo/$rc_task/plan.md"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$gds/repo/$rc_task/prd.md"
+cat > "$rc_plan" <<'RC_PLAN'
+# Plan
+> Task version: v1
+> Status: planning
+
+## Skills / Tools Used
+
+- [PRD] `a:one` — purpose: x; outcome: `succeeded`
+- [Plan] `a:two` — purpose: x; outcome: `succeeded`
+- [Test] `a:three` — purpose: x; outcome: `succeeded`
+
+## Approval
+
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
+RC_PLAN
+# Both files are set, not just `released`: the earlier `unaided Spec` in this
+# block added a record, and a fixture that only rewrote `released` would be in
+# step by coincidence and approve for the wrong reason.
+printf 'invoke|a:one\ninvoke|a:two\ninvoke|a:three\n' > "$rc_ev"
+printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Test|4|invoke|a:three\n' > "$rc_rel"
+rc_out="$(bash "$HERE/task" approve 2026-01-01-gds --root "$gds/repo" 2>&1)" && rc_rc=0 || rc_rc=$?
+[ "$rc_rc" -ne 0 ] \
+  || { echo "FAIL approve accepted a store whose releases outrun its evidence"; printf '%s\n' "$rc_out"; exit 1; }
+case "$rc_out" in
+  *"out of step"*"hooks/task recover"*) ;;
+  *) echo "FAIL approve did not name the repair for an out-of-step store"; printf '%s\n' "$rc_out"; exit 1 ;;
+esac
+grep -q '^- Approved by: pending$' "$rc_plan" \
+  || { echo "FAIL approve wrote an Approval field before refusing"; exit 1; }
+# Repaired, the same document is approvable — the refusal was about the store,
+# not about the task.
+bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1
+bash "$HERE/task" unaided Test --considered "testing strategy" --root "$gds/repo" >/dev/null 2>&1
+bash "$HERE/task" approve 2026-01-01-gds --root "$gds/repo" >/dev/null 2>&1 \
+  || { echo "FAIL approve still refused after the store was repaired"; exit 1; }
 echo ok
 
 # A path's spelling must not decide the verdict. The host sends backslashes on

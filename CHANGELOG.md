@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`hooks/task recover` repairs a capability store instead of requiring it to be thrown away.** `consumed` is the highest sequence in `released` and the queue length is counted in `evidence`, so a store whose evidence was truncated or deleted reads as further along than it is: the gate denies every stage, `unaided` refuses to widen the gap, and `approve` now refuses too. The only recovery was `rm -rf` on the whole store, which discarded every release whose record still existed along with the ones that had none. The repair is arithmetic rather than reconstruction — a release at a sequence past the end of `evidence` points at a record that is gone, and that is the only kind identifiable without guessing — so `recover` drops exactly those rows, keeps the rest, and appends what it dropped to `released.discarded`. It never adds a release and accepts no argument naming rows, because a command that could write a release would be a way to edit the ledger. A healthy store is a read-only no-op: nothing is written and no discard file appears.
+
+### Fixed
+
+- **`hooks/task approve` refuses a capability store whose releases outrun its evidence.** It reconciled each stage against `released` by `(version, stage)` alone, so a release whose sequence pointed at a record that no longer existed still counted. Measured 2026-10-25: with `released` at seq 4 against 3 evidence lines, `approve` wrote `approve OK (user, v1)`; deleting that one row made the same document fail with "stage [Test] was never released by the pre-write gate". Whether a task could be approved therefore depended on damage to the store. The check runs before any Approval field is written, uses the same sequence arithmetic the gate and `unaided` use, and names `recover` as the repair.
+- **The gate's out-of-step denial names `recover` alongside the two recoveries it already listed.** The wording said "two ways forward" and both of them had a cost: producing the missing records spends calls, and deleting the store discards the releases. The repair it now names first keeps every backed release and re-declares only the stages it had to discard. No condition in the gate changed.
+
 ## [1.1.8] — 2026-10-25
 
 ### Added

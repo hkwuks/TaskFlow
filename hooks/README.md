@@ -24,7 +24,7 @@ taskflow/hooks/
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
 ├── completion-gate     # the one rule for what counts as an approved, finished Plan
-├── task                # explicit intake/promote/unpromote/state/progress/unaided/complete edits
+├── task                # explicit intake/promote/unpromote/state/progress/unaided/recover/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
 ├── reopen              # retrieve an achieved task
@@ -280,7 +280,9 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   travel with the repository.
 - Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote`,
   `task state`, `task progress`, and `task complete`; `task unaided <stage>
-  --considered "<concept class>"` declares a stage that ran without a capability.
+  --considered "<concept class>"` declares a stage that ran without a capability;
+  `task recover` repairs a capability store whose `released` file outruns its
+  `evidence` by discarding only the releases whose record is gone.
   Append `--root <path>` when operating outside the current repository.
 - Smoke: `bash smoke-test` (builds temporary TaskFlowDocs fixtures and, on
   Windows, runs the full lifecycle through PowerShell 5.1 + `run-hook.cmd` in

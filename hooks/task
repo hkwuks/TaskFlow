@@ -603,7 +603,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|recover|complete ..."
 command="$1"; shift
 
 # The phase-table concept classes. This is the only place a concept class is
@@ -1141,7 +1141,7 @@ case "$command" in
     # honest answer -- the lost lines cannot be reconstructed, and a release
     # against a sequence nothing backs is what makes the desync permanent.
     [ "$consumed" -le "$total" ] \
-      || fail "capability store out of step under $git_dir/taskflow: released reaches seq $consumed but evidence holds $total line(s). The lost records cannot be rebuilt; to start the store over, remove $git_dir/taskflow and declare each stage again."
+      || fail "capability store out of step under $git_dir/taskflow: released reaches seq $consumed but evidence holds $total line(s). Repair it first:  bash hooks/task recover  — it keeps every release whose record still exists and discards only the ones whose record is gone, after which each discarded stage has to be declared again. Removing $git_dir/taskflow also works and discards every release, not only the unbacked ones."
     considered="$(printf '%s' "$considered" | tr -d '|\r\n')"
     mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
     # `Test` is the one stage declared without a document, so the gate never
@@ -1177,6 +1177,71 @@ case "$command" in
     printf 'unaided|%s\n' "$considered" >> "$evidence"
     printf '%s|%s|%s|unaided|%s\n' "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
+    ;;
+
+  recover)
+    # The one repair for a store whose `evidence` fell behind `released`. Both
+    # other writers take the next sequence from `released` alone, so a store in
+    # that state reads as further along than the queue is: the gate denies every
+    # stage, `unaided` refuses to widen the gap, and `approve` now refuses too.
+    # Until this command existed the only recovery was `rm -rf` on the whole
+    # store, which threw away every backed release as well.
+    #
+    # The repair is arithmetic, not reconstruction: a release whose sequence
+    # exceeds the number of evidence lines points at a record that is gone, so
+    # it is the only kind that can be identified as unsupported. Dropping those
+    # rows makes the highest released sequence equal the queue length again,
+    # which is exactly the invariant all three writers maintain. Every release
+    # with a record behind it survives, and `approve` reconciles against this
+    # file alone, so those stages stay approved.
+    #
+    # Nothing is inferred. The lost records cannot be rebuilt — a seq is a queue
+    # position, and an Approval block proves a stage was approved, never which
+    # record backed it — so this command adds no rows and accepts no argument
+    # naming rows. That is deliberate: a command that could write a release
+    # would be a way to edit the ledger, which is the thing the gate exists to
+    # make impossible.
+    #
+    # Discarded rows are appended to `released.discarded` rather than deleted
+    # outright. They are the only remaining statement of which stages had been
+    # released, and an append keeps two repairs from overwriting each other.
+    split_root "$@"
+    [ "${#rest[@]}" -eq 0 ] || fail 'usage: task recover [--root <path>]'
+    git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
+      || fail "cannot locate the git directory for $root"
+    store="$git_dir/taskflow"
+    released="$store/released"
+    evidence="$store/evidence"
+    if [ ! -f "$released" ]; then
+      printf 'recover OK: no capability store at %s, nothing to repair\n' "$store"
+      exit 0
+    fi
+    total=0
+    [ -f "$evidence" ] && total="$(awk 'END { print NR }' "$evidence")"
+    consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+    # In step already: no file is created and none is touched, so running this on
+    # a healthy store is a read-only no-op rather than a rewrite.
+    if [ "$consumed" -le "$total" ]; then
+      printf 'recover OK: in step (released reaches seq %s, %s evidence line(s)), nothing to discard\n' "$consumed" "$total"
+      exit 0
+    fi
+    # Counted from the file rather than from `consumed - total`. The two are
+    # equal only when the surviving releases are a contiguous run from seq 1: a
+    # store holding seq 1,2,3,5 against 3 evidence lines has a gap of 2 but one
+    # row to drop, and a message that reported the gap as a row count would
+    # overstate what was thrown away.
+    discarded="$(awk -F'|' -v t="$total" '$3 + 0 > t + 0' "$released" | awk 'END { print NR }')"
+    [ "$discarded" -gt 0 ] || fail "the store reads as out of step but holds no unsupported release; nothing was changed"
+    awk -F'|' -v t="$total" '$3 + 0 > t + 0' "$released" >> "$released.discarded" \
+      || fail "cannot append to $released.discarded; the store was not changed"
+    awk -F'|' -v t="$total" '$3 + 0 <= t + 0' "$released" > "$released.tmp" \
+      && mv "$released.tmp" "$released" \
+      || { rm -f "$released.tmp"; fail "cannot rewrite $released; the store was not changed"; }
+    kept=0
+    [ -s "$released" ] && kept="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+    printf 'recover OK: discarded %s release line(s) whose record is gone; released now reaches seq %s with %s evidence line(s)\n' \
+      "$discarded" "$kept" "$total"
+    printf 'Every release whose record still exists was kept. The stages those %s line(s) named are unreleased again, so each has to be declared or re-run: bash hooks/task unaided <stage> --considered "<concept class>"\n' "$discarded"
     ;;
 
   approve)
@@ -1234,6 +1299,30 @@ case "$command" in
     # Required stages: always [PRD] and [Plan]; [Spec] when spec.md exists
     # (promote large writes it). Untagged bullets do not satisfy a stage.
     # Fail closed before any Approval field is written.
+    #
+    # A store that is out of step is refused here for the same reason `unaided`
+    # refuses it, and this is the half that was missing until it was measured
+    # 2026-10-25: with `released` at seq 4 and `evidence` holding 3 lines, this
+    # command looked each stage up by (version, stage) alone, found the row, and
+    # wrote `approve OK (user, v1)` — while the row's sequence pointed at a
+    # record that no longer exists. Deleting that one row made the same
+    # document fail with "stage [Test] was never released by the pre-write
+    # gate". So whether a task could be approved depended on an unsupported
+    # release row, which is precisely the inequality `recover` restores and
+    # precisely what this check must not pass. The sequence arithmetic is the
+    # same awk the gate and `unaided` use, so the three never disagree about
+    # what "out of step" means.
+    cap_git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || cap_git_dir=""
+    cap_released="$cap_git_dir/taskflow/released"
+    cap_evidence="$cap_git_dir/taskflow/evidence"
+    cap_consumed=0
+    if [ -f "$cap_released" ]; then
+      cap_consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$cap_released")"
+    fi
+    cap_total=0
+    [ -f "$cap_evidence" ] && cap_total="$(awk 'END { print NR }' "$cap_evidence")"
+    [ "$cap_consumed" -le "$cap_total" ] \
+      || fail "approve blocked: the capability store under $cap_git_dir is out of step, so no stage can be reconciled. released reaches seq $cap_consumed while evidence holds $cap_total line(s) — at least one release points at a record that is gone, and this command cannot tell a backed release from an unbacked one until they agree again. Repair it first:  bash hooks/task recover   — it keeps every release whose record still exists and discards the ones whose record is gone, after which each discarded stage has to be declared again. Removing $cap_git_dir/taskflow also works and discards every release, not only the unbacked ones."
     cap_size=small
     [ -f "$base/spec.md" ] && cap_size=large
     cap_skills="$(awk '
@@ -1246,7 +1335,6 @@ case "$command" in
     fi
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
-    cap_released="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)/taskflow/released"
     cap_invoked=0
     cap_unaided=0
     require_stage() {

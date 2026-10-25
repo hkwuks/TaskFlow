@@ -67,15 +67,15 @@ has an issue number or URL.
 ## Make the capability store recoverable instead of delete-and-restart: a truncated
 
 - ID: TF-20261025-ef6c18
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: follow-up from TF-20261024-310937
 - Added: 2026-10-25
 - Updated: 2026-10-25
 - Goal: Make the capability store recoverable instead of delete-and-restart: a truncated evidence file loses records the released lines still point at
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-25-capability-store-recover/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## Give the pre-write gate the same out-of-step diagnosis that unaided now has: it
 
