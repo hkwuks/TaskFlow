@@ -29,19 +29,34 @@ has an issue number or URL.
 <!-- Add new items at the top using the template below. -->
 
 
-## Test generation and test writing should draw in tools through the same mechanism
+## When a phase has no capability worth invoking, the fallback is the model's own a
 
-- ID: TF-20261024-310937
+- ID: TF-20261024-b48e56
 - Status: inbox
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-24
 - Added: 2026-10-24
 - Updated: 2026-10-24
-- Goal: Test generation and test writing should draw in tools through the same mechanism that writing the Plan does, instead of being only one row in the phase-concept table with nothing that makes the consideration happen or records that it did
+- Goal: When a phase has no capability worth invoking, the fallback is the model's own ability, and the docs should say so in those words instead of only describing it as nothing having been invoked
 - Task: Not promoted.
-- Next action: Settle the two axes now, before any code: (1) IS THERE A CARRIER? Phase 6 Verify and review already names the concept class 'testing strategy and code review' (skills/taskflow/SKILL.md:176), but nothing makes that consideration happen and nothing records that it did — the pre-write gate only covers prd.md/spec.md/plan.md (hooks/capability-gate:96-98), task unaided only accepts PRD/Spec/Plan (hooks/task:1075), and task approve only requires those three (hooks/task:1254-1257). Decide whether a test-writing stage gets the same treatment as the Plan: a fourth gated stage, a Plan section the per-prompt reminder reads (the Reference Pointers mechanism from TF-20261023-c7540c), or a Skills / Tools Used line with no gate. (2) WHAT IS THE ARTIFACT? The other three stages are each one file; tests are many files written over several Steps, so there is no single first write to gate — decide whether the stage attaches to the first test file in the task, to a test plan section in plan.md, or is declared through task unaided only. Then decide what task approve should reconcile, and whether the new stage is required or optional for tasks whose Plan has no test Step.
+- Next action: Read the three places that define the fallback -- skills/taskflow/SKILL.md:179, references/artifacts.md:99 and :130, references/runtime.md:63 -- and decide what the wording should say. Today all of them describe Unaided as the absence of a capability ('no capability applied to this phase', 'nothing was invoked'), which reads as a gap rather than as a choice. The requested framing is that the fallback when no tool is worth introducing is the model's own ability, so the phase still runs, and the record says which ability was brought to bear. Decide whether that is an edit to those three paragraphs, a fourth field in the recorded line, or a rename -- and whether the 'considered:' field already carries it (it names the concept class the model was asked to supply). Keep the mechanical contract unchanged: the class still validates against the phase vocabulary and approve still reconciles it exactly.
+- Notes: Reported by the user 2026-10-24 while defining TF-20261024-310937. The user's wording: 这类引入工具的策略，当没有工具可以引入的时候，就用模型自己的能力。Related to TF-20261024-310937 (the Test stage's carrier): that task adds a fourth stage to the same set, so its line shape has to say what the model supplied for a stage no tool covers. Not the same gap as TF-20261009-8abbd6 (give a phase a way to record a selection that is not a tool-call artifact) -- this one is about what the fallback IS, not about how to record it.
+
+## Test generation and test writing should draw in tools through the same mechanism
+
+- ID: TF-20261024-310937
+- Status: in_progress
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-24
+- Added: 2026-10-24
+- Updated: 2026-10-24
+- Goal: Test generation and test writing should draw in tools through the same mechanism that writing the Plan does, instead of being only one row in the phase-concept table with nothing that makes the consideration happen or records that it did
+- Task: `TaskFlowDocs/2026-10-24-test-phase-capability/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: Reported by the user 2026-10-24 while working on TF-20261023-c7540c. The gap is real but the shape is undecided: the concept class exists in the table, the enforcement does not. Distinct from TF-20261022-47c217 (review the Plan before approval) and from TF-20261023-c7540c (bring declared material back) — this one is about the phase that writes the tests, not about the material a phase reads. Also relates to TF-20261017-stage-capability-pairing: adding a fourth stage multiplies the per-version bookkeeping it describes.
+- Unpromoted 2026-10-24: re-promote at the correct size; this changes a stage contract approve enforces
 
 ## Reference-material reinforcement: some materials must be brought back to attenti
 

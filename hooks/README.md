@@ -246,9 +246,13 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   `write`/`edit` while every `case` arm is case-sensitive. Neither is wired, because
   a hook that matches nothing allows every write while the docs claim a gate.
   What does not depend on a gate is `hooks/task unaided`: it
-  writes its own `released` line, so a stage can be declared on any host. Several
-  things *do* depend on that record, because `hooks/task approve` reconciles
-  against it and `approve` is the only sanctioned writer of the Approval block.
+  writes its own `released` line, so a stage can be declared on any host. That is
+  also the whole carrier for `Test`, the one stage with no document: its
+  declaration does what the gate would have done and spends a standing evidence
+  record when there is one, so the recorded kind follows the queue rather than
+  the caller. Several things *do* depend on that record, because `hooks/task
+  approve` reconciles against it and `approve` is the only sanctioned writer of
+  the Approval block.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
 - `install-merge-driver` writes only repository-local, untracked Git state:
   `merge.taskflow-todo.driver` in the repository's own config and a
