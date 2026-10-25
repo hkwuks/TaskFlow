@@ -176,6 +176,22 @@ No spec required — the PRD's R1–R6 fix the contract; the change is one subco
 
 **一处顺带修正**：`discarded` 起初按 `consumed - total` 算，实测发现它只在幸存 release 从 seq 1 连续时才等于行数（seq 1,2,3,5 对 3 行 evidence：缺口 4，实际只丢 1 行）。改成数行，并留了一条夹具专测这个差（seq 1,2,4,7 对 3 行：缺口 4，丢 2 行）。
 
+## CI record
+
+PR [#99](https://github.com/hkwuks/TaskFlow/pull/99)，head `790255c`，run
+[40206672910](https://github.com/hkwuks/TaskFlow/actions/runs/40206672910)：**7/7 pass，无 skipped**。
+
+| job | 结果 |
+| --- | --- |
+| smoke (ubuntu-latest) | pass 21s |
+| smoke (macos-latest) | pass 55s |
+| **smoke (windows-latest)** | **pass 25s** |
+| release / evals / todo-merge-audit / changes | pass |
+
+`smoke (windows-latest)` 这一条要单独说：本任务没有为 `recover` 写 Windows 断言，也没有在本地跑过那个套件
+（理由见下）。所以这个 pass 证明的是**既有 Windows 断言在我改完 `hooks/task` 之后仍然通过**，不证明 `recover`
+在 Windows 上工作。两者的差别写在 PR 的 Known limitations 里，不在这里抹平。
+
 ## 未做
 
 - **Windows 侧断言没有加，也没有本地验证。** 原因不在本条：`hooks/smoke-test-windows.ps1` 在 launcher 段之后的 `throw` 会间歇性挂起（同一次 `throw` 三次里一次挂 88s 无输出、两次 14–18s 正常退出），已经在 `TF-20261025-645ef4`。在没有稳定复现的环境里加一条 PowerShell 断言，我无法把「它绿了」和「它没跑到」区分开，所以不加，也不写成通过。
