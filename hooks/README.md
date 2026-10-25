@@ -15,7 +15,7 @@ taskflow/hooks/
 ├── session-start       # SessionStart entry (extensionless bash)
 ├── prompt-reminder     # UserPromptSubmit: in-flight task + reinforce pointers + classification question
 ├── session-record      # records the host session id in the selected task
-├── install-merge-driver # configures the repo-local Todo merge driver
+├── install-git-hygiene # per-clone Git config: Todo merge driver + local-file excludes
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
@@ -254,14 +254,30 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   approve` reconciles against it and `approve` is the only sanctioned writer of
   the Approval block.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
-- `install-merge-driver` writes only repository-local, untracked Git state:
-  `merge.taskflow-todo.driver` in the repository's own config and a
-  `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`. It
-  never edits a tracked file or global config, is idempotent and silent, and is
-  best-effort — a failure leaves the session unaffected. It is what makes two
-  task branches merge `todo.md` by entry instead of by line; see
+- `install-git-hygiene` writes only repository-local, untracked Git state:
+  `merge.taskflow-todo.driver` in the repository's own config, a
+  `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`, and
+  two ignore rules in `.git/info/exclude` — `TaskFlowDocs/repository-docs/
+  personal.md` and `TaskFlowDocs/**/sessions.md`. It never edits a tracked file
+  or global config, is idempotent and silent, and is best-effort — a failure
+  leaves the session unaffected. The driver is what makes two task branches
+  merge `todo.md` by entry instead of by line; see
   `../skills/taskflow/references/runtime.md` for the two cases it resolves and
   the web-UI limit it does not.
+- **Why the excludes live in `info/exclude`.** `personal.md` is a personal rule,
+  never team policy, and `sessions.md` carries a session id, a working directory
+  and `Session availability: local-only`; both belong to the clone that wrote
+  them. A `.gitignore` line would be a tracked file, so it would change every
+  clone's view — including a clone that does want to commit them — which is why
+  the plugin writes a per-clone rule instead of asking the user to edit one.
+  Two consequences worth knowing. The rule hides only **untracked** paths: Git
+  applies neither an exclude nor an ignore rule to a tracked one, so a copy that
+  was forced in once keeps showing in `git status`, and that is the wanted
+  behaviour — a rule that hid real changes to a tracked file would be worse than
+  the stale file. And it is installed by SessionStart, so a host not running
+  this hook leaves the repository unconfigured: run `bash hooks/install-git-hygiene`
+  once, or write the two lines into `.gitignore` yourself and accept that they
+  travel with the repository.
 - Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote`,
   `task state`, `task progress`, and `task complete`; `task unaided <stage>
   --considered "<concept class>"` declares a stage that ran without a capability.

@@ -412,7 +412,7 @@ hooks/                               # 可选的宿主/工具链 hook —— 见
 ├── session-record                   # 把宿主会话 id 写进 sessions.md
 ├── summarize-state                  # 派生状态摘要（共享逻辑）
 ├── repository-docs-context          # 同步 index 元数据并派生路由
-├── install-merge-driver             # 安装仓库本地的 Todo 合并驱动
+├── install-git-hygiene              # 仓库本地的 Git 配置：Todo 合并驱动 + 本地文件排除
 ├── merge-todo                       # 驱动本体：按条目合并 todo.md
 ├── task / archive / version / reopen # 显式生命周期命令
 ├── task-id                          # 任务名的唯一合法规则

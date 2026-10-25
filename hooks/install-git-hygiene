@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# install-git-hygiene — point this repository's Git at TaskFlow's Todo merge
+# driver, and keep TaskFlow's clone-local files out of `git status`.
+#
+# Everything this writes is repository-local and untracked:
+#   * `merge.taskflow-todo.driver` in the repository's own config, so parallel
+#     task branches merge `TaskFlowDocs/todo.md` by entry
+#   * a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`
+#   * two ignore rules in `.git/info/exclude`, for the files that belong to one
+#     clone rather than to the repository
+#
+# Nothing is written outside the repository, and nothing tracked is edited: a
+# fresh clone picks all of it up on its first SessionStart. Idempotent, silent
+# on success, and best-effort — a repository that cannot be configured (no Git,
+# a read-only .git) must not disturb the session.
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+root="${TASKFLOW_REPO_ROOT:-}"
+[ -n "$root" ] && [ -d "$root" ] || root=""
+[ -n "$root" ] || root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$root" ] && [ -d "$root" ] || exit 0
+command -v git >/dev/null 2>&1 || exit 0
+
+# `TASKFLOW_REPO_ROOT` is the TaskFlow root, which is not necessarily inside a Git
+# repository at all (a fixture, or a project kept out of version control). Every
+# `git` call below is silenced and every failure exits 0: this hook must never
+# print anything a user would see on a repository it cannot configure.
+git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || exit 0
+
+# Reachable as a path, not as a program: `merge-todo` is invoked by whatever shell
+# Git uses to run the driver, which is not necessarily this one.
+driver="$HERE/merge-todo"
+if command -v cygpath >/dev/null 2>&1; then
+  # Mixed-mode (`C:/...`) rather than POSIX: it is understood by Git for Windows'
+  # own shell and by `bash.exe`, whichever runs the driver.
+  driver="$(cygpath -m "$driver" 2>/dev/null || printf '%s' "$driver")"
+fi
+wanted="bash '$driver' %O %A %B"
+
+current="$(git -C "$root" config --local --get merge.taskflow-todo.driver 2>/dev/null)" || true
+if [ "$current" != "$wanted" ]; then
+  git -C "$root" config --local merge.taskflow-todo.driver "$wanted" >/dev/null 2>&1 || exit 0
+fi
+
+# `info/attributes` rather than the tracked `.gitattributes`: it is per-clone, so a
+# repository that has not adopted the driver is unaffected by another's setup.
+info="$(git -C "$root" rev-parse --git-path info/attributes 2>/dev/null)" || exit 0
+[ -n "$info" ] || exit 0
+case "$info" in /*|[A-Za-z]:[/\\]*) ;; *) info="$root/$info" ;; esac
+if [ ! -f "$info" ] || ! grep -qxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$info" 2>/dev/null; then
+  mkdir -p "$(dirname "$info")" 2>/dev/null || exit 0
+  printf 'TaskFlowDocs/todo.md merge=taskflow-todo\n' >> "$info" 2>/dev/null || exit 0
+fi
+
+# Two TaskFlow files belong to the clone, not to the repository:
+#   * `repository-docs/personal.md` is a personal rule, which is never team policy
+#   * `sessions.md` carries a session id, a working directory, timestamps and
+#     `Session availability: local-only`, so it is a resume index for the machine
+#     that wrote it
+# Both are documented as never committed, and until now nothing made that true
+# for a repository that is not this one: a `.gitignore` line lives in a tracked
+# file, so it would change every clone's view — including the clones that really
+# do want to commit them. `info/exclude` is the per-clone place for a per-clone
+# rule, which is the same reason this script already uses `info/attributes`.
+#
+# The rules only hide what is untracked. Git applies neither an exclude nor an
+# ignore rule to a tracked path, so a copy that was forced in once keeps showing
+# in `git status` — deliberately, because a rule that hid real changes to a
+# tracked file would be worse than the stale file itself. Clearing those copies
+# out is a separate decision about tracked history.
+#
+# Matched whole-line and written whole-line: a rule already present in a
+# different spelling (say a leading `/`) is left alone and this one is added
+# beside it. Two spellings of one path are two rules Git takes the union of;
+# trying to recognise them as the same rule would be a guess, and the direction
+# it fails is the file getting committed again.
+LOCAL_ONLY='TaskFlowDocs/repository-docs/personal.md
+TaskFlowDocs/**/sessions.md'
+exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)" || exit 0
+[ -n "$exclude" ] || exit 0
+case "$exclude" in /*|[A-Za-z]:[/\\]*) ;; *) exclude="$root/$exclude" ;; esac
+if [ ! -f "$exclude" ]; then
+  mkdir -p "$(dirname "$exclude")" 2>/dev/null || exit 0
+  printf '%s\n' "$LOCAL_ONLY" >> "$exclude" 2>/dev/null || exit 0
+else
+  # Append only what is missing, in the constant order above. `while read` rather
+  # than a loop over argv: the patterns are one per line by construction, and
+  # `$LOCAL_ONLY` is never word-split.
+  missing="$(printf '%s\n' "$LOCAL_ONLY" | while IFS= read -r pattern; do
+    grep -qxF -- "$pattern" "$exclude" 2>/dev/null || printf '%s\n' "$pattern"
+  done)" || exit 0
+  [ -z "$missing" ] || printf '%s\n' "$missing" >> "$exclude" 2>/dev/null || exit 0
+fi
+
+exit 0

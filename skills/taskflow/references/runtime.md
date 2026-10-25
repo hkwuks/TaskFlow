@@ -252,7 +252,9 @@ A host with no hook wiring gets none of this, and that is not a gap to be filled
 
 Two branches changing *the same* entry differently is still a real conflict and is left for review with ordinary conflict markers.
 
-The wiring is per-clone and untracked: `merge.taskflow-todo.driver` in the repository's own Git config, plus a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`. `hooks/install-merge-driver` writes both, `hooks/session-start` calls it on every session start, and it is idempotent, `--local`-only, silent on success, and best-effort. Nothing tracked is edited, so a repository that has not adopted TaskFlow is unaffected; `hooks/merge-todo` is the driver itself.
+The wiring is per-clone and untracked: `merge.taskflow-todo.driver` in the repository's own Git config, a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`, and two exclude rules in `.git/info/exclude` (`TaskFlowDocs/repository-docs/personal.md` and `TaskFlowDocs/**/sessions.md`). `hooks/install-git-hygiene` writes all three, `hooks/session-start` calls it on every session start, and it is idempotent, `--local`-only, silent on success, and best-effort. Nothing tracked is edited, so a repository that has not adopted TaskFlow is unaffected; `hooks/merge-todo` is the driver itself.
+
+The two exclude rules are there because those files belong to one clone rather than to the repository — a personal rule is not team policy, and `sessions.md` carries a session id, a working directory and `Session availability: local-only`. They are written per clone for exactly that reason: a `.gitignore` line would be a tracked file, which changes the view of every clone including the ones that want to commit the same paths. Two limits follow. Git applies no ignore rule to a **tracked** path, so a copy that was forced in once keeps appearing in `git status` — deliberately, because a rule that hid real changes to a tracked file would be worse than the stale file; clearing those copies is a decision about tracked history, not a configuration change. And the installation is done by SessionStart, so a host that does not run the hooks leaves the repository unconfigured until someone runs `bash hooks/install-git-hygiene` there.
 
 Two limits are worth stating plainly:
 
@@ -297,7 +299,7 @@ repo-root/
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── prompt-reminder              # UserPromptSubmit: in-flight task + reinforce pointers + classification question
         ├── session-record               # records the host session id in the task index
-        ├── install-merge-driver         # configures the repo-local Todo merge driver
+        ├── install-git-hygiene          # per-clone Git config: Todo merge driver + local-file excludes
         ├── merge-todo                   # the driver: merges todo.md by entry
         ├── repository-docs-context      # syncs index metadata + derives routes
         ├── capability-evidence          # records real invocations in the worktree store

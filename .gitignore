@@ -10,11 +10,12 @@ tasks/
 .plugins-cache.json
 plugins/
 
-# A task's sessions.md is a resume index for the machine that wrote it: session
-# id, working directory, timestamps, and `Session availability: local-only`. A
-# committed copy is stale on every other clone and names a session nobody there
-# can resume. Files committed before this line stay tracked — `git rm --cached`
-# is the separate decision, and `git ls-files '*sessions.md'` lists them.
+# `sessions.md` is a clone-local resume index and `personal.md` is a personal
+# rule; neither is ever committed. `hooks/install-git-hygiene` writes both into
+# each clone's own `.git/info/exclude`, which is what covers a user's project —
+# this file cannot, it only reaches clones of this repository. The line below is
+# the other half: a clone of *this* repository that has not run the hooks yet is
+# still covered, and the two rules are equivalent, so the union changes nothing.
 TaskFlowDocs/**/sessions.md
 # Personal rules are local-only and are never committed: everything beside
 # TaskFlowDocs/repository-docs/index.md is personal, so ignore its contents
