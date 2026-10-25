@@ -220,6 +220,31 @@ stray_evidence() {  # stray_evidence <task-dir> <this-store's-git-dir>
 }
 
 class="$(stage_class "$stage")"
+# Three causes, three messages, and they are not interchangeable. `consumed` comes
+# from `released` alone while `total` counts `evidence`, so a store whose evidence
+# was truncated or deleted reads as already past the end of the queue. Reporting
+# that as "already spent" is simply false: the sequences it counts as spent have
+# no record behind them at all, and the remedy it points at — produce one more
+# invocation — cannot close a gap of five. Measured 2026-10-25: `released` at seq
+# 5 with an empty `evidence` denied with "the most recent invocation was already
+# spent by an earlier document", on a store where no line had ever been spent.
+#
+# Catching the gap is also worth doing because it is not a dead end, which the
+# message has to say. The gate allows while `evidence lines > consumed`, so
+# appending `consumed - total + 1` records closes it, and the releases already in
+# `released` survive untouched — `approve` reconciles against that file alone, so
+# the task continues normally afterwards. Deleting the store also works and is
+# the path `hooks/task unaided` names, but it throws those releases away; both are
+# stated with their cost and neither is recommended over the other.
+#
+# The path is separator-normalized before it goes into the message for the reason
+# `stray_evidence` above normalizes its own: this hook embeds it in JSON without
+# an escaping step, and a Windows git directory carries backslashes.
+if [ "$total" -lt "$consumed" ]; then
+  store_shown="$(printf '%s' "$store" | tr '\134' '/')"
+  gap=$((consumed - total))
+  deny "TaskFlow pre-write gate blocked stage [$stage]: the capability store is out of step, so this is not about whether a capability was invoked. $store_shown/released reaches seq $consumed while $store_shown/evidence holds $total line(s) — $gap record(s) the releases still point at are gone, and no release can be written until the two agree again. Two ways forward, with their costs. Catch up: produce $((gap + 1)) more capability record(s), after which this gate allows again and every release already in released survives. Start over: remove $store_shown and declare each stage again, which works but discards those releases. The records themselves cannot be recovered either way. The concept class for this stage is '$class'."
+fi
 if [ "$consumed" -gt 0 ]; then
   detail="the most recent invocation was already spent by an earlier document"
 else

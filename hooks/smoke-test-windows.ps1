@@ -187,6 +187,30 @@ try {
         $verdict = Invoke-Hook 'capability-gate' $ev
         if ($verdict.Output -match '"permissionDecision":"deny"') { throw "gate denied a stage the escape hatch had released: $ev" }
     }
+
+    # An out-of-step store, on this host specifically. The new denial embeds the
+    # store path, and `--absolute-git-dir` returns a backslash path on Windows —
+    # unnormalized, those bytes end the JSON string early and the message becomes
+    # unparseable rather than merely ugly. The bash suite cannot see that: it runs
+    # on paths with forward slashes, where the same code is silently correct.
+    $gateStore = Join-Path (Join-Path $gateRepo '.git') 'taskflow'
+    New-Item -ItemType Directory -Path $gateStore -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $gateStore 'released'), "v1|PRD|5|invoke|a:prd`n", $utf8)
+    [IO.File]::WriteAllText((Join-Path $gateStore 'evidence'), '', $utf8)
+    # `plan.md`, not the PRD: the released line above already covers `v1|PRD`, and
+    # the gate returns early for a stage it has released — the desync check is
+    # never reached. The stage under test has to be one `released` does not name.
+    $planPath = Join-Path $gateTask 'plan.md'
+    $verdict = Invoke-Hook 'capability-gate' (New-PathEvent $planPath 'Edit')
+    if ($verdict.Output -notmatch 'out of step') { throw "gate did not name an out-of-step store: $($verdict.Output)" }
+    if ($verdict.Output -match 'already spent by an earlier document') { throw 'gate reported a desynced store as a spent invocation' }
+    # Windows PowerShell 5.1's ConvertFrom-Json is the strictest parser available
+    # here, and an unparseable message is the failure mode this asserts against.
+    try { $parsed = $verdict.Output | ConvertFrom-Json } catch { throw "the desync message is not valid JSON on Windows: $($_.Exception.Message)" }
+    $reason = $parsed.hookSpecificOutput.permissionDecisionReason
+    if ($reason -notmatch 'released reaches seq 5' -or $reason -notmatch 'evidence holds 0 line') {
+        throw "the desync message lost its numbers on Windows: $reason"
+    }
     'WINDOWS PRE-WRITE GATE PASSED'
 }
 finally {
