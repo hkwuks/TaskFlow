@@ -457,7 +457,7 @@ hooks/                               # optional host/harness hooks — see hooks
 ├── session-record                   # records the host session id in sessions.md
 ├── summarize-state                  # derives the state summary (shared logic)
 ├── repository-docs-context          # syncs index metadata and derives routes
-├── install-merge-driver             # configures the repo-local Todo merge driver
+├── install-git-hygiene              # per-clone Git config: Todo merge driver + local-file excludes
 ├── merge-todo                       # the driver: merges todo.md by entry
 ├── task / archive / version / reopen # explicit lifecycle commands
 ├── task-id                          # the one rule for a legal task name

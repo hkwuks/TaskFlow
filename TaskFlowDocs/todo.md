@@ -45,15 +45,15 @@ has an issue number or URL.
 ## Ignore personal.md and sessions.md without the user editing .gitignore: the plug
 
 - ID: TF-20261025-7c5897
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user statement 2026-10-25 after archiving TF-20261024-310937
 - Added: 2026-10-25
 - Updated: 2026-10-25
 - Goal: Ignore personal.md and sessions.md without asking the user to edit .gitignore: the plugin writes its own per-clone exclude lines, because a tracked .gitignore only ever governs the repository it lives in
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-10-25-git-hygiene/`
+- Next action: Push the branch and open the PR, then archive with the Plan record in it
 
 ## Keep sessions.md out of Git: it carries a machine-local session id, working dire
 

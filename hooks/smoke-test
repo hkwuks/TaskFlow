@@ -3272,7 +3272,7 @@ git -C "$md" init -q
 git -C "$md" symbolic-ref HEAD refs/heads/main
 git -C "$md" config user.email smoke@example.invalid
 git -C "$md" config user.name smoke
-TASKFLOW_REPO_ROOT="$md" bash "$HERE/install-merge-driver"
+TASKFLOW_REPO_ROOT="$md" bash "$HERE/install-git-hygiene"
 mkdir -p "$md/TaskFlowDocs"
 todo_write() {  # todo_write <file> <entries...>  (preamble, then one block per arg)
   local f="$1"
@@ -3376,7 +3376,7 @@ git -C "$rm_drv" init -q
 git -C "$rm_drv" symbolic-ref HEAD refs/heads/main
 git -C "$rm_drv" config user.email smoke@example.invalid
 git -C "$rm_drv" config user.name smoke
-TASKFLOW_REPO_ROOT="$rm_drv" bash "$HERE/install-merge-driver"
+TASKFLOW_REPO_ROOT="$rm_drv" bash "$HERE/install-git-hygiene"
 mkdir -p "$rm_drv/TaskFlowDocs"
 todo_write "$rm_drv/TaskFlowDocs/todo.md" "$(entry Base TF-20260101-01 done)"
 git -C "$rm_drv" add -A
@@ -3459,7 +3459,7 @@ install_root="$tmp/install"
 mkdir -p "$install_root"
 git -C "$install_root" init -q
 expected="bash '$HERE/merge-todo' %O %A %B"
-install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-merge-driver" 2>&1)"
+install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-git-hygiene" 2>&1)"
 [ -z "$install_out" ] || { echo "FAIL installer was not silent:"; printf '%s\n' "$install_out"; exit 1; }
 [ "$(git -C "$install_root" config --local --get merge.taskflow-todo.driver)" = "$expected" ] \
   || { echo "FAIL installer did not configure the driver"; exit 1; }
@@ -3472,7 +3472,7 @@ case "$info" in /*) ;; *) info="$install_root/$info" ;; esac
 [ "$(git -C "$install_root" check-attr merge -- TaskFlowDocs/todo.md | awk '{print $NF}')" = "taskflow-todo" ] \
   || { echo "FAIL Git does not resolve the merge attribute"; exit 1; }
 # Second run: same config, still one attribute line, still silent.
-install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-merge-driver" 2>&1)"
+install_out="$(TASKFLOW_REPO_ROOT="$install_root" bash "$HERE/install-git-hygiene" 2>&1)"
 [ -z "$install_out" ] || { echo "FAIL second install was not silent"; exit 1; }
 [ "$(grep -cxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$info")" = 1 ] \
   || { echo "FAIL second install duplicated the attribute"; exit 1; }
@@ -3485,9 +3485,90 @@ git config --global --get merge.taskflow-todo.driver >/dev/null 2>&1 \
 # `git config --local` outside a repository prints a fatal error otherwise.
 non_git="$tmp/install-non-git"
 mkdir -p "$non_git"
-install_out="$(TASKFLOW_REPO_ROOT="$non_git" bash "$HERE/install-merge-driver" 2>&1)"
+install_out="$(TASKFLOW_REPO_ROOT="$non_git" bash "$HERE/install-git-hygiene" 2>&1)"
 [ -z "$install_out" ] || { echo "FAIL installer spoke on a non-Git root:"; printf '%s\n' "$install_out"; exit 1; }
 [ -z "$(ls -A "$non_git")" ] || { echo "FAIL installer wrote into a non-Git root"; exit 1; }
+echo ok
+
+echo "== the clone-local files are excluded per clone, not by a tracked .gitignore =="
+# `personal.md` and `sessions.md` are documented as never committed, and until
+# `install-git-hygiene` wrote the exclude rules nothing made that true outside
+# this repository: `personal.md` was only covered because `.gitignore` happens to
+# ignore everything beside `index.md`, and eight `sessions.md` copies had already
+# been committed. The rule goes in `info/exclude` rather than `.gitignore`
+# because a `.gitignore` line is a tracked file — it would change every clone's
+# view, including a clone that does want to commit those paths.
+gh_root="$tmp/git-hygiene"
+mkdir -p "$gh_root/TaskFlowDocs/2026-01-01-gh" "$gh_root/TaskFlowDocs/repository-docs"
+git -C "$gh_root" init -q
+printf 'x\n' > "$gh_root/TaskFlowDocs/2026-01-01-gh/sessions.md"
+printf '# rule\n' > "$gh_root/TaskFlowDocs/repository-docs/personal.md"
+# The routing record is committed by design, so it must stay visible: a rule
+# that swallowed it would silently drop the one file that has to travel.
+printf '# index\n' > "$gh_root/TaskFlowDocs/repository-docs/index.md"
+TASKFLOW_REPO_ROOT="$gh_root" bash "$HERE/install-git-hygiene" 2>/dev/null
+exclude="$(git -C "$gh_root" rev-parse --git-path info/exclude)"
+case "$exclude" in /*) ;; *) exclude="$gh_root/$exclude" ;; esac
+for rule in 'TaskFlowDocs/repository-docs/personal.md' 'TaskFlowDocs/**/sessions.md'; do
+  [ "$(grep -cxF -- "$rule" "$exclude")" = 1 ] \
+    || { echo "FAIL the exclude file does not name exactly once: $rule"; cat "$exclude"; exit 1; }
+done
+# `git check-ignore` reads the same sources Git does, so it also catches a rule
+# written into a file Git does not consult for this purpose.
+git -C "$gh_root" check-ignore -q TaskFlowDocs/2026-01-01-gh/sessions.md \
+  || { echo "FAIL Git does not ignore the task sessions index"; exit 1; }
+git -C "$gh_root" check-ignore -q TaskFlowDocs/repository-docs/personal.md \
+  || { echo "FAIL Git does not ignore the personal rules"; exit 1; }
+git -C "$gh_root" check-ignore -q TaskFlowDocs/repository-docs/index.md \
+  && { echo "FAIL the excluded pattern swallowed the routing record"; exit 1; }
+# Second run: byte-identical, so a re-install neither duplicates nor reorders the
+# user's own lines.
+digest_exclude="$(digest "$exclude")"
+TASKFLOW_REPO_ROOT="$gh_root" bash "$HERE/install-git-hygiene" 2>/dev/null
+[ "$digest_exclude" = "$(digest "$exclude")" ] \
+  || { echo "FAIL a second install changed the exclude file"; cat "$exclude"; exit 1; }
+# A rule that already exists in another spelling is not recognised as the same
+# rule: the two are added beside each other rather than guessed at, because the
+# way that guess fails is the file being committed again.
+gh_root2="$tmp/git-hygiene-own"
+mkdir -p "$gh_root2"
+git -C "$gh_root2" init -q
+printf '/TaskFlowDocs/repository-docs/personal.md\n' > "$gh_root2/.git/info/exclude"
+TASKFLOW_REPO_ROOT="$gh_root2" bash "$HERE/install-git-hygiene" 2>/dev/null
+[ "$(sed -n '1p' "$gh_root2/.git/info/exclude")" = '/TaskFlowDocs/repository-docs/personal.md' ] \
+  || { echo "FAIL the installer moved a line the user wrote"; exit 1; }
+[ "$(grep -cxF 'TaskFlowDocs/**/sessions.md' "$gh_root2/.git/info/exclude")" = 1 ] \
+  || { echo "FAIL the installer did not add the missing rule beside the user's"; exit 1; }
+# A tracked copy stays visible. Git applies no ignore rule to a tracked path, so
+# the exclusion hides what was never committed and reports what was — which is
+# the point: a rule that hid real changes to a tracked file would be worse than
+# the stale file. Clearing those copies is a separate decision about history.
+git -C "$gh_root" add -f TaskFlowDocs/2026-01-01-gh/sessions.md
+git -C "$gh_root" -c user.email=smoke@example.invalid -c user.name=smoke commit -qm tracked
+printf 'y\n' > "$gh_root/TaskFlowDocs/2026-01-01-gh/sessions.md"
+git -C "$gh_root" status --porcelain -- TaskFlowDocs/2026-01-01-gh/sessions.md | grep -q . \
+  || { echo "FAIL the exclusion hid a tracked sessions index"; exit 1; }
+git -C "$gh_root" check-ignore -q TaskFlowDocs/2026-01-01-gh/sessions.md \
+  && { echo "FAIL a tracked sessions index is reported as ignored"; exit 1; }
+# The old name is gone on purpose: an alias would keep two names alive, so a
+# script that was never updated fails loudly instead of running something else.
+[ ! -e "$HERE/install-merge-driver" ] \
+  || { echo "FAIL the renamed hook still exists under its old name"; exit 1; }
+# Only the files that describe the hook, and only ones this suite is already an
+# input for: `tools/workflow-affected` sends `README.md` to `release` alone, so
+# reading it here would either demand a set change that makes every README typo
+# pay for a three-OS matrix, or leave an assertion that cannot run on the change
+# it is about. The two root README trees are therefore checked by hand, and this
+# suite names the old name on purpose in the line above, so `hooks/` as a whole
+# is not grepped either.
+for doc in "$repo/hooks/README.md" "$repo/skills/taskflow/SKILL.md" \
+           "$repo/skills/taskflow/references/runtime.md" \
+           "$repo/skills/taskflow/references/artifacts.md"; do
+  grep -qF -- 'install-merge-driver' "$doc" \
+    && { echo "FAIL $(basename "$doc") still names the old hook name"; exit 1; }
+done
+[ -z "$(grep -rlF -- 'install-merge-driver' "$HERE" 2>/dev/null | grep -v 'smoke-test$')" ] \
+  || { echo "FAIL a hook still names the old hook name"; exit 1; }
 echo ok
 
 echo "== Todo IDs are derived from the goal, not from a shared counter =="
@@ -3621,7 +3702,7 @@ git -C "$par" init -q
 git -C "$par" symbolic-ref HEAD refs/heads/main
 git -C "$par" config user.email smoke@example.invalid
 git -C "$par" config user.name smoke
-TASKFLOW_REPO_ROOT="$par" bash "$HERE/install-merge-driver"
+TASKFLOW_REPO_ROOT="$par" bash "$HERE/install-git-hygiene"
 bash "$HERE/task" intake "The goal both branches start from." "fixture" --root "$par" >/dev/null
 git -C "$par" add -A
 git -C "$par" commit -qm base
