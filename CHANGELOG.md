@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.8] — 2026-10-25
 
 ### Added
 
@@ -28,6 +28,31 @@
 - **`task approve` now requires a `[Test]` stage line, and refuses a Plan without one.** This is a deliberate break, not a compatibility gap: leaving the stage optional is what let it go unrecorded for 85 tasks. The refusal names the one command that supplies it, `bash hooks/task unaided Test --considered 'testing strategy'`, so an in-flight task is one line from unblocking. Existing tasks are not backfilled — `achieved/` is read-only history and `approve` never runs on it.
 - **Phase 7 names `hooks/task complete` as the archive transaction, with the manual sequence described as what it performs.** `skills/taskflow/SKILL.md` previously stated the hand sequence — mark the documents `completed`, move the directory, close the Todo entry — as *the* procedure, and named `complete` only in the preferred-command list, which is exactly the path that bypassed the gates.
 - **`task state in_progress` and `task progress` keep their mid-task behaviour through `--approval-only`.** They must not require a finished Plan — that is what they are working towards — so the shared file answers the narrower question for them rather than gaining a second copy.
+
+### Compatibility
+
+- **One deliberate break, and it is cheap to satisfy.** `task approve` now refuses a Plan whose `## Skills / Tools Used` has no `[Test]` line. A task that is mid-flight when this lands is unblocked by one command, `bash hooks/task unaided Test --considered 'testing strategy'`, which the refusal itself names. Nothing else about an in-flight task changes: the other three stages reconcile exactly as they did in 1.1.7, and `achieved/` is never re-validated because `approve` does not run there.
+- **One rename with no alias, on purpose.** `hooks/install-merge-driver` is now `hooks/install-git-hygiene`. A script, local note, or global settings file that names the old file must be updated; the old name no longer exists, rather than shipping an alias that would keep two names alive. `hooks/session-start` calls the new name itself, so an install that relies on the hooks needs nothing.
+- **No install command changes, and no hook gains an interpreter dependency.** The four manifests keep their shape, every `hooks-*.json` wiring file is untouched, and the new code is `git`, `awk`, `sed`, `grep`, `tr` and POSIX shell builtins. The suite still installs no language runtime on any of the three hosts.
+- **`sessions.md` and `personal.md` stop appearing in `git status`, but only where they are untracked.** The exclude rules live in each clone's own `.git/info/exclude`, written by `hooks/install-git-hygiene` at SessionStart. Git applies no ignore rule to a tracked path, so the eight `sessions.md` copies already committed stay visible and are tracked until `TF-20261025-24d06c` clears them; a clone that deliberately commits one keeps seeing it change.
+- **A desynced capability store is now reported as desynced, and nothing about it is repaired.** The gate's release condition, the shape of `evidence` and `released`, and every write are exactly as they were in 1.1.7. What changed is the message: it names the two numbers and both recoveries instead of calling the store a spent invocation. A store that is already desynced behaves as it did — every stage denies — and the message now says why.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `bash hooks/repository-check .` — `STATUS: pass`, `Orphan task directories: none`, `Stale task worktrees: none`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally, and recorded as skipped**, per the CI-first policy in `CONTRIBUTING.md` and `RELEASE.md`. The release commit's difference from `b2974de` — the last commit on `main` before this release began, CI run [`40198118903`](https://github.com/hkwuks/TaskFlow/actions/runs/40198118903), `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads: no `$repo/README`, `$repo/CHANGELOG`, `$repo/package.json` or `$repo/.*-plugin` path appears anywhere in `hooks/smoke-test`, and its release-surface coverage builds its own manifests and catalogs in a fixture rather than reading the shipped ones. The commit after it moves only the two marketplace catalogs, which `tools/workflow-affected` also does not put in the `smoke` set.
+- The suite ran on all three hosts for every change this release ships: PR #92 run [`39805663545`](https://github.com/hkwuks/TaskFlow/actions/runs/39805663545) at `c8d8b51`, PR #93 run [`40060164765`](https://github.com/hkwuks/TaskFlow/actions/runs/40060164765) at `2167b52`, PR #94 run [`40095975655`](https://github.com/hkwuks/TaskFlow/actions/runs/40095975655) at `0e0dd01`, PR #95 run [`40104992240`](https://github.com/hkwuks/TaskFlow/actions/runs/40104992240) at `1f0ad3e`, PR #96 run [`40160703003`](https://github.com/hkwuks/TaskFlow/actions/runs/40160703003) at `f95e4d0`, PR #97 run [`40165030663`](https://github.com/hkwuks/TaskFlow/actions/runs/40165030663) at `f75d529`, PR #98 run [`40197462748`](https://github.com/hkwuks/TaskFlow/actions/runs/40197462748) at `6e247cd` — all `success`, seven jobs each. The suite grew from 82 sections at `v1.1.7` to 95 here.
+- Each change carries its own local evidence in the Task Plan that landed with it. The gate's desync diagnosis has two: eight mutations on the bash suite — each reddening a named assertion, plus a byte-for-byte comparison of the two unchanged denial branches and the allow path against `main` (519, 510 and 0 bytes) — and five on the Windows suite, run through `run-hook.cmd` on a path with a space and Chinese characters. The TaskFlow Plan also records what those mutations did **not** prove, which is the reason they are worth reading: removing the store path's separator normalization leaves both suites green, because Git Bash never emits backslashes from `--absolute-git-dir`. The exclude rules carry a four-repository contract table, and the pre-write gate's three-way split carries its own (`achieved/2026-10-25-git-hygiene/plan.md`, `achieved/2026-10-25-gate-desync-diagnosis/plan.md`).
+
+### Known limitations
+
+- **The gate reports a desynced store; it does not recover one.** Catching up spends real invocations and starting over discards the release records, and the message states both costs without choosing. `hooks/task unaided` still names only the destructive path when it refuses the same store, because changing both writers' advice in one change would move two contracts at once — `TF-20261025-ef6c18` is where they reconcile.
+- **A desynced store only arises when something outside the hooks damages it.** All three writers maintain the invariant, so the assertions cover a constructed state rather than one reachable in normal use.
+- **A throw in `hooks/smoke-test-windows.ps1` past its launcher section hangs the suite instead of failing it** — measured at 100–500 seconds of silence locally, on `main` as well, so this release neither caused nor fixed it. A red Windows assertion therefore reaches CI as a `smoke (windows-latest)` timeout with no message. Recorded as `TF-20261025-645ef4`.
+- **The pre-write gate's concept-class table is a hand-copied subset of the phase table**, and no assertion compares the two: the gate's PRD class omits `divergent exploration`, which the phase table names and `hooks/task unaided` accepts. `TF-20261009-8abbd6` owns that half.
 
 ## [1.1.7] — 2026-10-21
 
