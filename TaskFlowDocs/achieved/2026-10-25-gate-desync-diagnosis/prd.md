@@ -1,6 +1,6 @@
 # 让 pre-write 门在 store 失步时给出它真正的原因，而不是说错话
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

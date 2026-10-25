@@ -1,6 +1,6 @@
 # Plan — 让 pre-write 门在 store 失步时说出真实原因
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task: one brake in one hook, its wording, and the assertions that pin all three branches.
 
