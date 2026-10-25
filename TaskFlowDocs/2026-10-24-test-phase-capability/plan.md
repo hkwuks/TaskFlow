@@ -125,6 +125,8 @@
 | `git diff --check` | 干净 |
 | `bash -n hooks/task hooks/smoke-test` | 通过 |
 
+CI（PR #96，run [40160494060](https://github.com/hkwuks/TaskFlow/actions/runs/40160494060)，分支 `chore/test-phase-capability` @ `e1f842a`）：7/7 全绿 —— `changes`、`release`、`evals`、`todo-merge-audit`、`smoke (ubuntu-latest)` 20s、`smoke (windows-latest)` 36s、`smoke (macos-latest)` 58s。macOS 那一项是本任务最该看的：`taskflow-macos-bash32-traps` 记的两个坑（heredoc 里的撇号、BSD sed 的 `\|`）都在它上面，新增的 awk 与 `case` 分支没有踩到。
+
 ### 手工四情形（Step 1 的验收依据）
 
 在临时仓库里逐个跑，`cat` 两个 store 对照：
@@ -196,7 +198,8 @@ M7 的断言要求拒绝消息点名两个数字，所以「拒绝但不说清�
 
 - 2026-10-25 Step 1–4 完成。实现上唯一的新语义是 `unaided Test` 的队列消费；其余是加一个 stage 名与一条 `require_stage`。影响 `hooks/task`、`hooks/smoke-test`、四份文档、`CHANGELOG.md`。
 - 2026-10-25 断言缺陷自查并修复：新段最初在失败分支里重跑被断言的命令，导致失败信息报告第二次运行的结果（M2 暴露）。改为只跑一次并捕获。影响 `hooks/smoke-test`。
-- 2026-10-25 用户指出上一轮写的三件事里「2. 修复」「3. 是否需要修复」，据此把两件原本只记进 Follow-ups 的都做了：(a) I1 入口检查 —— 原先判定「修它超出范围」，用户要求修，于是加到 `unaided` 的 stage 分支之上，对四个阶段统一生效，并补 M7 变异与断言；(b) 套件 stdin 阻塞 —— 原先误判为 `reopen`，重新定位为 `session-start` 按契约读 stdin 而两处调用不喂事件，加 `< /dev/null` 并用 open stdin 重跑验证。影响 `hooks/task`、`hooks/smoke-test`、`runtime.md`、`CHANGELOG.md`。
+- 2026-10-25 用户追问上一轮列出的第 2、3 项「需不需要修」，据此把两件原本只记进 Follow-ups 的都做了：(a) I1 入口检查 —— 原先判定「修它超出范围」，重新判断后认为共享的那段恰是唯一该修的地方，加到 `unaided` 的 stage 分支之上对四个阶段统一生效，并补 M7 变异与断言；(b) 套件 stdin 阻塞 —— 原先误判为 `reopen`，重新定位为 `session-start` 按契约读 stdin 而两处调用不喂事件，加 `< /dev/null` 并用 open stdin 重跑验证。影响 `hooks/task`、`hooks/smoke-test`、`runtime.md`、`CHANGELOG.md`。
+- 2026-10-25 用户批准提交并推送 PR。CI 首轮 7/7 全绿后，把 run 链接写进本节的 Verification。落到两个 commit：`bdacb54`（`TF-20261024-b48e56` 那条 todo，与本任务无关，单独一次提交，避免被本任务的改动吞掉）+ `e1f842a`（本任务）。
 
 ## Follow-ups
 
