@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.9] — 2026-10-26
+
 ### Added
 
 - **`hooks/task recover` repairs a capability store instead of requiring it to be thrown away.** `consumed` is the highest sequence in `released` and the queue length is counted in `evidence`, so a store whose evidence was truncated or deleted reads as further along than it is: the gate denies every stage, `unaided` refuses to widen the gap, and `approve` now refuses too. The only recovery was `rm -rf` on the whole store, which discarded every release whose record still existed along with the ones that had none. The repair is arithmetic rather than reconstruction — a release at a sequence past the end of `evidence` points at a record that is gone, and that is the only kind identifiable without guessing — so `recover` drops exactly those rows, keeps the rest, and appends what it dropped to `released.discarded`. It never adds a release and accepts no argument naming rows, because a command that could write a release would be a way to edit the ledger. A healthy store is a read-only no-op: nothing is written and no discard file appears.
@@ -17,6 +19,23 @@
 ### Compatibility
 
 - **One deliberate break: a `released` row written before this version no longer releases anything.** Those rows are five fields and record no task, and the task that wrote one cannot be inferred — the guess "whichever task is active now" is the mistake this change removes, and it was measured wrong on 2026-10-26 (`unaided` named a different task's directory). So they are not migrated, not guessed at, and no compatibility layer makes them work: they are reported as belonging to no task, with the one-time clear (`rm -rf <absolute-git-dir>/taskflow`) named in the refusal, and a task that has one is unblocked by declaring its stages again or re-running the phase. Their sequences are still counted, so nothing is double-spent. A row whose field count is neither five nor six is damage rather than an old format and is refused as such. On a fresh worktree there is no store, and this break never comes up — the repository's own base checkout has none.
+- **No install command changes, no rename, and no hook gains an interpreter dependency.** The four manifests keep their shape, every `hooks-*.json` wiring file is untouched, and the new code is `git`, `awk`, `sed`, `grep`, `tr` and POSIX shell builtins.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `bash hooks/repository-check .` — `STATUS: pass`, `Orphan task directories: none`, `Stale task worktrees: none`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally for the release commit, and recorded as skipped**, per the CI-first policy in `CONTRIBUTING.md` and `RELEASE.md`. The release commit's difference from `617a9d4` — the last commit on `main` before this release began, CI run [`40345109849`](https://github.com/hkwuks/TaskFlow/actions/runs/40345109849), 7/7 `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads: no `$repo/README`, `$repo/CHANGELOG`, `$repo/package.json` or `$repo/.*-plugin` path appears in `hooks/smoke-test`, and its release-surface coverage builds its own manifests and catalogs in a fixture rather than reading the shipped ones. The commit after it moves only the two marketplace catalogs, which `tools/workflow-affected` also does not put in the `smoke` set.
+- The suite ran on all three hosts for every change this release ships: PR #100 run [`40323868240`](https://github.com/hkwuks/TaskFlow/actions/runs/40323868240) at `799383a`, PR #99 run [`40325794821`](https://github.com/hkwuks/TaskFlow/actions/runs/40325794821) at `4ba4746`, PR #101 run [`40344625760`](https://github.com/hkwuks/TaskFlow/actions/runs/40344625760) at `65df8a6` — all `success`, seven jobs each. The merge commit for #101 was re-run as [`40345109849`](https://github.com/hkwuks/TaskFlow/actions/runs/40345109849) on `main`. The suite grew from 95 sections at `v1.1.8` to 98 here.
+- Each change carries its own local evidence in the Task Plan that landed with it (`TaskFlowDocs/achieved/2026-10-25-capability-store-recover/plan.md`, `achieved/2026-10-26-capability-task-identity/plan.md`). The task-identity Plan records eight mutations, each reddening a named assertion, and — the reason they are worth reading — what they did **not** prove: `approve`'s invoke pool being per task is implied by the record lookup refusing first, not observed on its own.
+
+### Known limitations
+
+- **`unaided` still picks the active task by scanning for the first directory with a `plan.md`**, not the task the current directory belongs to. This release makes its output and its write carry the name it actually selected; it does not change the selection. `hooks/task:1140-1145`, recorded as a follow-up in `achieved/2026-10-26-capability-task-identity/plan.md`.
+- **A throw in `hooks/smoke-test-windows.ps1` past its launcher section hangs the suite instead of failing it** — measured at 100–500 seconds of silence locally, on `main` as well, so this release neither caused nor fixed it. A red Windows assertion therefore reaches CI as a `smoke (windows-latest)` timeout with no message. Recorded as `TF-20261025-645ef4`.
+- **The pre-write gate's concept-class table is a hand-copied subset of the phase table**, and no assertion compares the two: the gate's PRD class omits `divergent exploration`, which the phase table names and `hooks/task unaided` accepts. `TF-20261009-8abbd6` owns that half.
 
 ## [1.1.8] — 2026-10-25
 
