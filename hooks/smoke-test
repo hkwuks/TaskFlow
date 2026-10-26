@@ -1754,8 +1754,12 @@ mkdir -p "$ap_store"
 # it directly because what is under test here is approve's reconciliation against
 # the record, and the gate's own section covers how it gets there. `task unaided`
 # is the other writer, and its own section covers that path.
-ap_release() {  # ap_release <store> <version> <stage> <line-no> <kind> <capability>
-  printf '%s|%s|%s|%s|%s\n' "$2" "$3" "$4" "$5" "$6" >> "$1/released"
+# A release row carries the task it belongs to, so the fixture names one. It is
+# the task directory the stage documents live in, which is how the gate derives
+# it, so a fixture that planted a row without it would be planting a row no
+# reader would ever accept.
+ap_release() {  # ap_release <store> <task> <version> <stage> <line-no> <kind> <capability>
+  printf '%s|%s|%s|%s|%s|%s\n' "$2" "$3" "$4" "$5" "$6" "$7" >> "$1/released"
 }
 bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/dev/null
 ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
@@ -1831,9 +1835,9 @@ grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased re
 # its evidence is now refused outright, which is the point of the check, so a
 # fixture that means "these stages were released" has to mean a consistent store.
 printf 'invoke|some:requirements-skill\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_store/evidence"
-ap_release "$ap_store" v1 PRD 1 invoke some:requirements-skill
-ap_release "$ap_store" v1 Plan 2 unaided 'work breakdown'
-ap_release "$ap_store" v1 Test 3 unaided 'testing strategy'
+ap_release "$ap_store" 2026-09-09-approve-smoke v1 PRD 1 invoke some:requirements-skill
+ap_release "$ap_store" 2026-09-09-approve-smoke v1 Plan 2 unaided 'work breakdown'
+ap_release "$ap_store" 2026-09-09-approve-smoke v1 Test 3 unaided 'testing strategy'
 set_skills_body "$ap_task/plan.md" \
   '- [PRD] `other:requirements-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
   "$ap_line_plan" "$ap_line_test"
@@ -1867,7 +1871,7 @@ grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unai
 # now refuses a store whose releases outrun its evidence, so a release added
 # to this fixture has to be backed by a line in the SAME queue position.
 printf 'invoke|later:plan-skill\n' >> "$ap_store/evidence"
-ap_release "$ap_store" v1 Spec 4 invoke 'later:plan-skill'
+ap_release "$ap_store" 2026-09-09-approve-smoke v1 Spec 4 invoke 'later:plan-skill'
 ap_line_prd_mispaired='- [PRD] `later:plan-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
 set_skills_body "$ap_task/plan.md" "$ap_line_prd_mispaired" \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
@@ -1951,10 +1955,10 @@ mkdir -p "$ap_large_store"
 # (`hooks/task`, the two `printf`s at the end of the `unaided)` branch). The
 # fixture has to carry that half too, or `approve` refuses the store outright.
 printf 'unaided|requirements elicitation\nunaided|architecture and design\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_large_store/evidence"
-ap_release "$ap_large_store" v1 PRD 1 unaided 'requirements elicitation'
-ap_release "$ap_large_store" v1 Spec 2 unaided 'architecture and design'
-ap_release "$ap_large_store" v1 Plan 3 unaided 'work breakdown'
-ap_release "$ap_large_store" v1 Test 4 unaided 'testing strategy'
+ap_release "$ap_large_store" 2026-09-09-approve-large v1 PRD 1 unaided 'requirements elicitation'
+ap_release "$ap_large_store" 2026-09-09-approve-large v1 Spec 2 unaided 'architecture and design'
+ap_release "$ap_large_store" 2026-09-09-approve-large v1 Plan 3 unaided 'work breakdown'
+ap_release "$ap_large_store" 2026-09-09-approve-large v1 Test 4 unaided 'testing strategy'
 # PRD+Plan only → missing Spec stage.
 set_skills_body "$ap_large/plan.md" \
   '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
@@ -2884,6 +2888,197 @@ case "$(gds_msg)" in
 esac
 echo ok
 
+echo "== a release row belongs to the task that earned it =="
+# Two tasks in one repository, one store. The gate used to key "already released"
+# on (version, stage) alone, so the second task at the same version was released
+# by the first one's row: allowed, no row written, no evidence spent. Measured
+# 2026-10-26 — task A released PRD in v1, task B (also v1) wrote prd.md and the
+# gate allowed it while `released` stayed at one line and `evidence` still held
+# an unspent record. The row therefore names the task that earned it, and every
+# per-task reader keys on that name.
+xt_repo="$tmp/task-identity/repo"
+mkdir -p "$xt_repo"
+git -C "$xt_repo" init -q
+xt_first="$xt_repo/TaskFlowDocs/2026-01-01-first"
+xt_second="$xt_repo/TaskFlowDocs/2026-01-02-second"
+xt_first_name=2026-01-01-first
+xt_second_name=2026-01-02-second
+mkdir -p "$xt_first" "$xt_second"
+xt_store="$(git -C "$xt_repo" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$xt_store"
+xt_plan() {  # xt_plan <task-dir> <stage-lines...>
+  local xt_dir="$1"; shift
+  {
+    printf '%s\n' '# Plan' '> Task version: v1' '> Status: planning' ''
+    printf '%s\n' '## Skills / Tools Used' ''
+    while [ "$#" -gt 0 ]; do printf '%s\n' "$1"; shift; done
+    printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+      '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
+    printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
+  } > "$xt_dir/plan.md"
+}
+xt_approve() {  # xt_approve <task-name> -> "<exit>|<stderr>"
+  xt_err="$(bash "$HERE/task" approve "$1" --root "$xt_repo" 2>&1 >/dev/null)"
+  printf '%s|%s' "$?" "$xt_err"
+}
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_first/plan.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_second/plan.md"
+printf 'invoke|a:prd\ninvoke|b:prd\n' > "$xt_store/evidence"
+cg_verdict "$xt_first/prd.md" allow
+cg_verdict "$xt_second/prd.md" allow
+[ "$(cat "$xt_store/released")" = "$(printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|PRD|2|invoke|b:prd' "$xt_first_name" "$xt_second_name")" ] \
+  || { echo "FAIL the second task was released by the first task's row"; cat "$xt_store/released"; exit 1; }
+# The reverse assertion, and the reason it is here rather than assumed: a fix
+# that keyed releases by task but stopped reading them per task would pass the
+# check above and break the task that was already working.
+cg_verdict "$xt_first/prd.md" allow           # idempotent for its own row
+[ "$(wc -l < "$xt_store/released" | tr -d ' ')" -eq 2 ] \
+  || { echo "FAIL re-editing the first task's document released it again"; cat "$xt_store/released"; exit 1; }
+
+# `approve` reconciles against the row of *its own* task, and the invoke pool is
+# per task too. Both halves are asserted against a name the other task really
+# released, because a pool that spanned the store — which is what (version) alone
+# buys you — would accept it.
+printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|invoke|a:plan\n%s|v1|Test|3|invoke|a:test\n%s|v1|PRD|4|invoke|b:prd\n%s|v1|Plan|5|invoke|b:plan\n%s|v1|Test|6|invoke|b:test\n' \
+  "$xt_first_name" "$xt_first_name" "$xt_first_name" \
+  "$xt_second_name" "$xt_second_name" "$xt_second_name" > "$xt_store/released"
+printf 'invoke|a:prd\ninvoke|a:plan\ninvoke|a:test\ninvoke|b:prd\ninvoke|b:plan\ninvoke|b:test\n' > "$xt_store/evidence"
+xt_plan "$xt_first" \
+  '- [PRD] `a:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `a:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `a:test` — purpose: x; outcome: succeeded; incorporated: y'
+xt_plan "$xt_second" \
+  '- [PRD] `b:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `b:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+case "$(xt_approve "$xt_first_name")" in
+  "0|"*) ;;
+  *) echo "FAIL approve refused the task whose own record is intact"; xt_approve "$xt_first_name"; exit 1 ;;
+esac
+xt_plan "$xt_second" \
+  '- [PRD] `a:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `b:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+case "$(xt_approve "$xt_second_name")" in
+  *"stage [PRD] does not name a capability invoked in this Task version (b:prd)"*) ;;
+  *) echo "FAIL approve accepted a capability only the other task released"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+xt_plan "$xt_second" \
+  '- [PRD] `b:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `b:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+case "$(xt_approve "$xt_second_name")" in
+  "0|"*) ;;
+  *) echo "FAIL approve refused the second task against its own records"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+
+# A stage that reported two calls has two lines, and the record it must reconcile
+# with may be on either one. `approve` read only the first, so a section written
+# in the order the calls happened was refused for the one reason that was not
+# true: the name was on the second line. Measured 2026-10-26 on a Plan whose
+# second `- [Plan]` line carried the recorded capability.
+xt_plan "$xt_second" \
+  '- [PRD] `b:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `a:plan` — purpose: first call; outcome: succeeded; incorporated: y' \
+  '- [Plan] `b:plan` — purpose: second call; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+case "$(xt_approve "$xt_second_name")" in
+  "0|"*) ;;
+  *) echo "FAIL approve refused a stage whose recorded name was on its second line"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+# And the miss still fails: two lines that between them name no released
+# capability is the same refusal as one, or the loop above would be a way to get
+# a stage through by adding lines.
+xt_plan "$xt_second" \
+  '- [PRD] `b:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `never:one` — purpose: first call; outcome: succeeded; incorporated: y' \
+  '- [Plan] `never:two` — purpose: second call; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+case "$(xt_approve "$xt_second_name")" in
+  *"stage [Plan] does not name a capability invoked in this Task version (b:plan)"*) ;;
+  *) echo "FAIL approve accepted a stage whose lines all name unreleased capabilities"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+xt_plan "$xt_second" \
+  '- [PRD] `b:prd` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `b:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
+
+# `unaided` shares the key. Its idempotence check used to answer "already
+# released" from any row at that (version, stage), so a declaration in one task
+# was satisfied by another task's release and wrote nothing under its own name.
+# The first task's Plan is removed here so the command selects the second one;
+# which task it selects is its own open question, and this asserts only that the
+# name it selects is the name it writes.
+rm -f "$xt_first/plan.md"
+printf '%s|v1|PRD|1|invoke|a:prd\n' "$xt_first_name" > "$xt_store/released"
+printf 'invoke|a:prd\n' > "$xt_store/evidence"
+xt_decl="$(bash "$HERE/task" unaided PRD --considered 'requirements elicitation and framing' --root "$xt_repo" 2>&1)" \
+  || { echo "FAIL unaided refused a stage another task had released"; printf '%s\n' "$xt_decl"; exit 1; }
+case "$xt_decl" in
+  *"in $xt_second_name"*) ;;
+  *) echo "FAIL unaided did not name the task it wrote for"; printf '%s\n' "$xt_decl"; exit 1 ;;
+esac
+grep -q "^$xt_second_name|v1|PRD|2|unaided|" "$xt_store/released" \
+  || { echo "FAIL a declaration inherited another task's release"; cat "$xt_store/released"; exit 1; }
+
+# A five-field row predates the task name, so it belongs to nobody and releases
+# nobody — and, since it still holds its sequence, `consumed` still counts it and
+# the next release continues the queue instead of spending an old record twice.
+# Both halves matter: the first is why this change is a break, the second is why
+# it is not a data loss.
+printf 'invoke|a:prd\ninvoke|a:old\n' > "$xt_store/evidence"
+printf 'v1|PRD|2|invoke|a:old\n' > "$xt_store/released"
+xt_msg="$(cg_event "$xt_second/prd.md" | bash "$cg")"
+case "$xt_msg" in
+  *'"deny"'*) ;;
+  *) echo "FAIL a five-field row still released a stage"; printf '%s\n' "$xt_msg"; exit 1 ;;
+esac
+case "$xt_msg" in
+  *"out of step"*) echo "FAIL a five-field row was counted as unbacked"; printf '%s\n' "$xt_msg"; exit 1 ;;
+esac
+case "$xt_msg" in
+  *'1 row(s)'*'predate the task name'*'rm -rf'*) ;;
+  *) echo "FAIL the gate did not explain the old row"; printf '%s\n' "$xt_msg"; exit 1 ;;
+esac
+printf 'invoke|a:new\n' >> "$xt_store/evidence"
+cg_verdict "$xt_second/prd.md" allow
+grep -qxF "$xt_second_name|v1|PRD|3|invoke|a:new" "$xt_store/released" \
+  || { echo "FAIL the release after a legacy row did not continue the queue"; cat "$xt_store/released"; exit 1; }
+# And `approve` says the same thing rather than reporting a stage that was never
+# released for no stated reason.
+xt_plan "$xt_second" \
+  '- [PRD] `a:old` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Plan] `a:plan` — purpose: x; outcome: succeeded; incorporated: y' \
+  '- [Test] `a:test` — purpose: x; outcome: succeeded; incorporated: y'
+printf 'v1|PRD|2|invoke|a:old\n' > "$xt_store/released"
+printf 'invoke|a:old\ninvoke|a:old\n' > "$xt_store/evidence"
+case "$(xt_approve "$xt_second_name")" in
+  *'was never released'*'predate the task name'*) ;;
+  *) echo "FAIL approve did not explain why a legacy row releases nothing"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+# The sequence still counts. A reader that skipped five-field rows would take
+# their sequences for unspent, so a store whose legacy rows outrun `evidence`
+# would read as healthy here and as broken to the gate — the two disagreeing
+# about the same file. Asserted on `approve` because it is the only reader whose
+# answer a fixture can hold still: the gate's half of the same arithmetic is
+# covered by the desync section above.
+printf 'v1|PRD|9|invoke|a:old\n' > "$xt_store/released"
+printf 'invoke|a:old\n' > "$xt_store/evidence"
+case "$(xt_approve "$xt_second_name")" in
+  *"out of step"*"released reaches seq 9"*"evidence holds 1 line"*) ;;
+  *) echo "FAIL approve did not count a legacy row's sequence"; xt_approve "$xt_second_name"; exit 1 ;;
+esac
+# And `recover` reads the sequence from the same place: a legacy row past the end
+# of `evidence` is discardable, and one inside it is kept. Without both, a
+# version that read `$3` unconditionally and one that read nothing would pass.
+printf 'v1|PRD|1|invoke|a:old\nv1|PRD|2|invoke|a:old\nv1|Plan|3|invoke|a:old\n' > "$xt_store/released"
+printf 'invoke|a:old\ninvoke|a:old\n' > "$xt_store/evidence"
+bash "$HERE/task" recover --root "$xt_repo" >/dev/null 2>&1 \
+  || { echo "FAIL recover refused a store holding only legacy rows"; exit 1; }
+[ "$(cat "$xt_store/released")" = "$(printf 'v1|PRD|1|invoke|a:old\nv1|PRD|2|invoke|a:old')" ] \
+  || { echo "FAIL recover did not read the legacy sequence from the third field"; cat "$xt_store/released"; exit 1; }
+echo ok
+
 echo "== a store holding releases it cannot back is repaired, not thrown away =="
 # `hooks/task recover` exists because the only recovery used to be `rm -rf` on
 # the whole store, which discarded every release whose record still existed
@@ -2909,14 +3104,21 @@ rm -f "$rc_dis"
 # backed release, and it is what makes the boundary of both filters observable.
 # Without it, `>` and `>=` and `<` and `<=` all produce the same output, and the
 # mutation that swaps them stays green.
-printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Spec|3|invoke|a:three\nv1|Test|4|invoke|a:three\nv1|Spec|7|invoke|a:three\n' > "$rc_rel"
+# The rows carry the task name because a release that names no task is a release
+# nobody holds, and `recover` would drop it as unbacked for the wrong reason.
+rc_name=2026-01-01-gds
+printf '%s|v1|PRD|1|invoke|a:one\n%s|v1|Plan|2|invoke|a:two\n%s|v1|Spec|3|invoke|a:three\n%s|v1|Test|4|invoke|a:three\n%s|v1|Spec|7|invoke|a:three\n' \
+  "$rc_name" "$rc_name" "$rc_name" "$rc_name" "$rc_name" > "$rc_rel"
 bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
   || { echo "FAIL recover exited non-zero on a store it could repair"; exit 1; }
-[ "$(cat "$rc_rel")" = "$(printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Spec|3|invoke|a:three')" ] \
+[ "$(cat "$rc_rel")" = "$(printf '%s|v1|PRD|1|invoke|a:one\n%s|v1|Plan|2|invoke|a:two\n%s|v1|Spec|3|invoke|a:three' "$rc_name" "$rc_name" "$rc_name")" ] \
   || { echo "FAIL recover did not keep exactly the backed releases"; cat "$rc_rel"; exit 1; }
-[ "$(grep -c '^v1|' "$rc_dis")" = 2 ] \
+# Both sides of the boundary, because `released` alone cannot see it: swapping
+# `>` for `>=` keeps the same three rows in place and additionally discards the
+# last backed one, so only the discard file says which arithmetic ran.
+[ "$(grep -c "^$rc_name|" "$rc_dis")" = 2 ] \
   || { echo "FAIL recover discarded a different number of rows than were unbacked"; cat "$rc_dis"; exit 1; }
-grep -qxF 'v1|Test|4|invoke|a:three' "$rc_dis" \
+grep -qxF "$rc_name|v1|Test|4|invoke|a:three" "$rc_dis" \
   || { echo "FAIL the discarded releases were not recorded"; cat "$rc_dis"; exit 1; }
 [ "$(awk 'END { print NR }' "$rc_ev")" = 3 ] \
   || { echo "FAIL recover touched the evidence file"; exit 1; }
@@ -2927,16 +3129,15 @@ bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
   || { echo "FAIL recover exited non-zero on an already-repaired store"; exit 1; }
 [ "$rc_sum" = "$(cat "$rc_rel" "$rc_dis" "$rc_ev" | shasum -a 256)" ] \
   || { echo "FAIL a second recover changed a repaired store"; exit 1; }
-
 # A healthy store is a read-only no-op, and in particular does not create the
 # discard file: a file that appears on every run would say a loss happened.
 rm -f "$rc_dis"
-printf 'v1|PRD|1|invoke|a:one\n' > "$rc_rel"
+printf '%s|v1|PRD|1|invoke|a:one\n' "$rc_name" > "$rc_rel"
 bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
   || { echo "FAIL recover exited non-zero on a healthy store"; exit 1; }
 [ ! -e "$rc_dis" ] \
   || { echo "FAIL recover created a discard file on a store it did not change"; exit 1; }
-[ "$(cat "$rc_rel")" = 'v1|PRD|1|invoke|a:one' ] \
+[ "$(cat "$rc_rel")" = "$rc_name|v1|PRD|1|invoke|a:one" ] \
   || { echo "FAIL recover rewrote a healthy store"; exit 1; }
 
 # And it never invents a release to fill a gap: after the repair the gate has to
@@ -2944,7 +3145,7 @@ bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1 \
 # reading the record back.
 bash "$HERE/task" unaided Spec --considered "architecture and design" --root "$gds/repo" >/dev/null 2>&1 \
   || { echo "FAIL recover left the store unusable for a later declaration"; exit 1; }
-grep -q '^v1|Spec|' "$rc_rel" \
+grep -q "^$rc_name|v1|Spec|" "$rc_rel" \
   || { echo "FAIL no release was written after the repair"; cat "$rc_rel"; exit 1; }
 echo ok
 
@@ -2978,7 +3179,8 @@ RC_PLAN
 # block added a record, and a fixture that only rewrote `released` would be in
 # step by coincidence and approve for the wrong reason.
 printf 'invoke|a:one\ninvoke|a:two\ninvoke|a:three\n' > "$rc_ev"
-printf 'v1|PRD|1|invoke|a:one\nv1|Plan|2|invoke|a:two\nv1|Test|4|invoke|a:three\n' > "$rc_rel"
+printf '%s|v1|PRD|1|invoke|a:one\n%s|v1|Plan|2|invoke|a:two\n%s|v1|Test|4|invoke|a:three\n' \
+  "$rc_name" "$rc_name" "$rc_name" > "$rc_rel"
 rc_out="$(bash "$HERE/task" approve 2026-01-01-gds --root "$gds/repo" 2>&1)" && rc_rc=0 || rc_rc=$?
 [ "$rc_rc" -ne 0 ] \
   || { echo "FAIL approve accepted a store whose releases outrun its evidence"; printf '%s\n' "$rc_out"; exit 1; }
@@ -3147,6 +3349,7 @@ printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Sta
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
+ug_name=2026-09-27-declared
 [ -e "$ug_store/released" ] || echo "  (no release record before the declaration, as on a gate-less host)"
 bash "$HERE/task" unaided PRD  --considered "requirements elicitation and framing" --root "$ug" >/dev/null \
   || { echo "FAIL unaided PRD"; exit 1; }
@@ -3163,11 +3366,11 @@ bash "$HERE/task" unaided Test --considered "testing strategy" --root "$ug" >/de
   || { echo "FAIL unaided did not record three evidence lines"; cat "$ug_store/evidence"; exit 1; }
 [ "$(wc -l < "$ug_store/released" | tr -d ' ')" -eq 3 ] \
   || { echo "FAIL unaided did not release three stages"; cat "$ug_store/released"; exit 1; }
-grep -qxF 'v1|PRD|1|unaided|requirements elicitation and framing' "$ug_store/released" \
+grep -qxF "$ug_name|v1|PRD|1|unaided|requirements elicitation and framing" "$ug_store/released" \
   || { echo "FAIL PRD release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
-grep -qxF 'v1|Plan|2|unaided|work breakdown and task decomposition' "$ug_store/released" \
+grep -qxF "$ug_name|v1|Plan|2|unaided|work breakdown and task decomposition" "$ug_store/released" \
   || { echo "FAIL Plan release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
-grep -qxF 'v1|Test|3|unaided|testing strategy' "$ug_store/released" \
+grep -qxF "$ug_name|v1|Test|3|unaided|testing strategy" "$ug_store/released" \
   || { echo "FAIL Test release line is not the paired shape"; cat "$ug_store/released"; exit 1; }
 # The point of the whole section: approve can now reconcile and write the block.
 bash "$HERE/task" approve 2026-09-27-declared --root "$ug" >/dev/null 2>"$ug/approve.err" \
@@ -3208,13 +3411,14 @@ printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Sta
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
+uc_name=2026-09-27-conflict
 printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$uc\",\"tool_input\":{\"skill\":\"some:cap\"}}" | bash "$HERE/capability-evidence"
 printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$uc\",\"tool_input\":{\"file_path\":\"$uc/TaskFlowDocs/2026-09-27-conflict/prd.md\"}}" | bash "$HERE/capability-gate" >/dev/null
-grep -qxF 'v1|PRD|1|invoke|some:cap' "$uc_store/released" \
+grep -qxF "$uc_name|v1|PRD|1|invoke|some:cap" "$uc_store/released" \
   || { echo "FAIL the gate did not release the stage against a real invocation"; cat "$uc_store/released"; exit 1; }
 bash "$HERE/task" unaided PRD --considered "requirements elicitation and framing" --root "$uc" >/dev/null \
   || { echo "FAIL declaring an already-released stage failed"; exit 1; }
-grep -qxF 'v1|PRD|1|invoke|some:cap' "$uc_store/released" \
+grep -qxF "$uc_name|v1|PRD|1|invoke|some:cap" "$uc_store/released" \
   || { echo "FAIL unaided overwrote the gate's own release line"; cat "$uc_store/released"; exit 1; }
 [ "$(wc -l < "$uc_store/released" | tr -d ' ')" -eq 1 ] \
   || { echo "FAIL unaided appended beside the gate's line"; cat "$uc_store/released"; exit 1; }
@@ -5333,6 +5537,7 @@ mkdir -p "$tp/TaskFlowDocs/2026-01-01-tp"
 git -C "$tp" init -q
 tp_plan="$tp/TaskFlowDocs/2026-01-01-tp/plan.md"
 tp_store="$(git -C "$tp" rev-parse --absolute-git-dir)/taskflow"
+tp_name=2026-01-01-tp
 tp_version() {  # tp_version <vN> -- rewrite the Plan's Task version
   TASKFLOW_V="$1" awk '
     BEGIN { v = ENVIRON["TASKFLOW_V"] }
@@ -5361,7 +5566,7 @@ tp_unaided() {  # tp_unaided <class> -> "<exit>|<output>"
 # The gate releases a stage only while evidence holds more lines than that
 # sequence, so a release with no line behind it denies every stage afterwards.
 tp_in_step() {
-  tp_max="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$tp_store/released" 2>/dev/null || echo 0)"
+  tp_max="$(awk -F'|' '{ s = (NF == 6 ? $4 : $3) + 0; if (s > m) m = s } END { print m + 0 }' "$tp_store/released" 2>/dev/null || echo 0)"
   tp_lines=0
   [ -f "$tp_store/evidence" ] && tp_lines="$(awk 'END { print NR }' "$tp_store/evidence")"
   [ "$tp_max" = "$tp_lines" ] || {
@@ -5380,7 +5585,7 @@ case "$tp_res" in
   "0|"*"(recorded as unaided)") ;;
   *) echo "FAIL an empty queue did not record an unaided Test stage"; printf '%s\n' "$tp_res"; exit 1 ;;
 esac
-grep -qxF 'v1|Test|1|unaided|testing strategy' "$tp_store/released" \
+grep -qxF "$tp_name|v1|Test|1|unaided|testing strategy" "$tp_store/released" \
   || { echo "FAIL a test declaration did not write its release line"; cat "$tp_store/released"; exit 1; }
 tp_in_step
 # Idempotent on (version, stage), the key the gate skips by. A second call must
@@ -5404,7 +5609,7 @@ case "$tp_res" in
   "0|"*"(consumed an invocation record: some:test-engineer)") ;;
   *) echo "FAIL an unconsumed invocation was not spent by the declaration"; printf '%s\n' "$tp_res"; exit 1 ;;
 esac
-grep -qxF 'v2|Test|2|invoke|some:test-engineer' "$tp_store/released" \
+grep -qxF "$tp_name|v2|Test|2|invoke|some:test-engineer" "$tp_store/released" \
   || { echo "FAIL the spent record was not written as an invocation"; cat "$tp_store/released"; exit 1; }
 tp_in_step
 # Banked evidence must be spent, not duplicated: the line was already there.
@@ -5423,7 +5628,7 @@ tp_in_step
 # through the same two branches as the other stages — no third code path.
 tp_plan_body '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 tp_version v1
-printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\nv1|Test|3|unaided|testing strategy\n' > "$tp_store/released"
+printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|unaided|testing strategy\n' "$tp_name" "$tp_name" "$tp_name" > "$tp_store/released"
 printf 'invoke|a:prd\nunaided|work breakdown\nunaided|testing strategy\n' > "$tp_store/evidence"
 tp_approve() {  # tp_approve -- "<exit>|stderr"
   tp_err="$(bash "$HERE/task" approve 2026-01-01-tp --root "$tp" 2>&1 >/dev/null)"
@@ -5454,7 +5659,7 @@ case "$tp_res" in
   *) echo "FAIL a Test line could claim an invocation over an unaided record"; printf '%s\n' "$tp_res"; exit 1 ;;
 esac
 # And an invocation agrees only for a capability this Task version released.
-printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\nv1|Test|3|invoke|some:test-engineer\n' > "$tp_store/released"
+printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|invoke|some:test-engineer\n' "$tp_name" "$tp_name" "$tp_name" > "$tp_store/released"
 tp_res="$(tp_approve)"
 case "$tp_res" in
   "0|"*) ;;
@@ -5479,7 +5684,7 @@ git -C "$dsp" init -q
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$dsp/TaskFlowDocs/2026-01-01-ds/plan.md"
 dsp_store="$(git -C "$dsp" rev-parse --absolute-git-dir)/taskflow"
 mkdir -p "$dsp_store"
-printf 'v1|PRD|1|invoke|a:prd\nv1|Plan|2|unaided|work breakdown\n' > "$dsp_store/released"
+printf '2026-01-01-ds|v1|PRD|1|invoke|a:prd\n2026-01-01-ds|v1|Plan|2|unaided|work breakdown\n' > "$dsp_store/released"
 dsp_before="$(digest "$dsp_store/released")"
 for dsp_stage in Test Spec; do
   dsp_res="$(bash "$HERE/task" unaided "$dsp_stage" --considered 'testing strategy' --root "$dsp" 2>&1)" \

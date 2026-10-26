@@ -124,19 +124,44 @@ evidence="$store/evidence"
 released="$store/released"
 
 # Already released for this task version: later edits to the same document are
-# not a new phase, so the gate is idempotent per version and stage.
+# not a new phase, so the gate is idempotent per task version and stage. The
+# task name is part of the key. Without it the store is a queue of releases
+# that belong to nobody, so a second task starting at the same version finds the
+# first one's row, reads it as its own, and is released by a record it never
+# earned. Measured 2026-10-26: two tasks at `v1` in one repository, the second
+# released with no row written and no evidence spent.
 if [ -f "$released" ] \
-   && awk -F'|' -v v="$version" -v s="$stage" '$1 == v && $2 == s { found = 1 } END { exit !found }' "$released"; then
+   && awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" \
+        '$1 == t && $2 == v && $3 == s { found = 1 } END { exit !found }' "$released"; then
   exit 0
 fi
 
 # Consumption is global, not per task version. The evidence file is one
 # timeline: a line a released stage spent is spent, so a Task-version bump
 # cannot be satisfied by evidence an earlier version already used.
+# A row is `<task>|<version>|<stage>|<seq>|<kind>|<capability>`; before the task
+# name was added it was the same row without that first field. `consumed` spans
+# both, because it answers "how much of the evidence queue is spent" and that
+# question has nothing to do with which task spent it. Reading only the new
+# format would turn every old row's sequence back into "unspent" and release
+# evidence a second time. Any other field count prints BAD rather than a number
+# for the same reason: a sequence that silently fell to zero reads as a store
+# with nothing banked. `hooks/task` carries the same awk behind `rel_max_seq` and
+# is where the reasoning lives; this copy is here rather than sourced because a
+# hook is executed standalone, and the two are asserted against the same fixture
+# so they cannot drift.
 consumed=0
 if [ -f "$released" ]; then
-  consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+  consumed="$(awk -F'|' 'NF == 6 { s = $4 + 0 } NF == 5 { s = $3 + 0 }
+      NF != 5 && NF != 6 { bad = 1 }
+      { if (s > m) m = s }
+      END { if (bad) { print "BAD" } else { print m + 0 } }' "$released")"
 fi
+case "$consumed" in
+  ''|*[!0-9]*)
+    deny "TaskFlow pre-write gate: $released holds a line that is neither the current six-field release row nor the five-field one it replaced, so the next sequence cannot be worked out and no stage can be released. This is a store problem, not a rule you broke. Inspect it:  cat $released  — and if the damage is only at the end of the file, bash hooks/task recover"
+    ;;
+esac
 # Evidence is consumed as a queue, oldest first. Taking the newest line instead
 # would strand every invocation banked before the first document — and banking
 # one is a normal way to work: read the task, invoke once for the framing, then
@@ -157,7 +182,7 @@ if [ "$total" -gt "$consumed" ]; then
   kind="${record%%|*}"
   capability="${record#*|}"
   mkdir -p "$store" 2>/dev/null || exit 0
-  printf '%s|%s|%s|%s|%s\n' "$version" "$stage" "$next" "$kind" "$capability" >> "$released" 2>/dev/null || exit 0
+  printf '%s|%s|%s|%s|%s|%s\n' "$task_name" "$version" "$stage" "$next" "$kind" "$capability" >> "$released" 2>/dev/null || exit 0
   exit 0
 fi
 
@@ -252,4 +277,16 @@ else
 fi
 stray="$(stray_evidence "$task_dir" "$git_dir")"
 [ -n "$stray" ] && detail="$detail. $stray Confirm with git branch --show-current and pwd, then re-run the invocation from this working tree or move the work here — see SKILL.md, Isolate before the first document"
-deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'"
+# A five-field row predates the task name on a release. It is not matched — that
+# would revive exactly the cross-task release this format change removes — and it
+# is not silently skipped either: a store that holds rows nobody holds is why
+# this stage reads as unreleased, and the reader is owed that sentence rather
+# than the generic one. Paths are separator-normalized for the reason above.
+old_note=""
+if [ -f "$released" ]; then
+  old_rows="$(awk -F'|' 'NF == 5 { n++ } END { print n + 0 }' "$released")"
+  if [ "$old_rows" -gt 0 ]; then
+    old_note=" Note: $old_rows row(s) in $(printf '%s' "$released" | tr '\134' '/') predate the task name on a release and belong to no task, so they no longer count as anybody's release; they still hold their sequences, so nothing was double-spent. Clear them once with:  rm -rf $(printf '%s' "$store" | tr '\134' '/')"
+  fi
+fi
+deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$old_note"
