@@ -192,6 +192,9 @@ PR [#99](https://github.com/hkwuks/TaskFlow/pull/99)，head `790255c`，run
 （理由见下）。所以这个 pass 证明的是**既有 Windows 断言在我改完 `hooks/task` 之后仍然通过**，不证明 `recover`
 在 Windows 上工作。两者的差别写在 PR 的 Known limitations 里，不在这里抹平。
 
+归档后 head 变成 `b7b82c6`，重跑 run
+[40322947729](https://github.com/hkwuks/TaskFlow/actions/runs/40322947729)：**同样 7/7 pass，无 skipped**（windows 30s、macos 49s、ubuntu 23s）。归档只移动文档，码未动，所以两次结果应当一致，实测一致。
+
 ## 未做
 
 - **Windows 侧断言没有加，也没有本地验证。** 原因不在本条：`hooks/smoke-test-windows.ps1` 在 launcher 段之后的 `throw` 会间歇性挂起（同一次 `throw` 三次里一次挂 88s 无输出、两次 14–18s 正常退出），已经在 `TF-20261025-645ef4`。在没有稳定复现的环境里加一条 PowerShell 断言，我无法把「它绿了」和「它没跑到」区分开，所以不加，也不写成通过。
