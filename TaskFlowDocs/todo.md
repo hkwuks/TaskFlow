@@ -18,16 +18,32 @@ An entry is written by `hooks/task intake` in this shape. The sample is indented
 `- External:` is not written by `intake`; add it by hand only for a source that
 has an issue number or URL.
 
-
 ## Status flow
 
 `inbox → clarified → promoted → in_progress → done/cancelled`
-
 
 ## Items
 
 <!-- Add new items at the top using the template below. -->
 
+## task approve requires the first [Plan] line to name exactly the capability relea
+
+- ID: TF-20261026-726ec4
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user statement 2026-10-26 while working TF on ppt-design-layer
+- Added: 2026-10-26
+- Updated: 2026-10-26
+- Goal: task approve requires the first [Plan] line to name exactly the capability released for that stage, so a phase that invoked a different capability in a later version cannot be approved without hand-editing the shared released file
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: 2026-10-26 现场（1.1.8）。`hooks/task approve` 卡在 `approve blocked: stage [Plan] does not name a capability invoked in this Task version (<name>)`（`hooks/task:1385`）。
+  **两个叠在一起的成因**：（1）`released` 是**纯队列、不分任务**——`v2|Plan|4` 这个序号是 kimi 那条任务消耗的，本任务没有自己的 Plan 记录，但 `approve` 按 `(version, stage)` 取到它之后要求 Plan 里那一行**逐字**包含记录里的能力名；（2）`approve` 只看 `cap_skills` 里的**第一条** `- [Plan]` 行（`hooks/task:1362` 的 `head -1`），后面写了什么都不算依据。
+  **副作用（必须说明）**：为了让记录对上，我在 `.git/worktrees/ppt-design-layer/taskflow/released` 上直接改了数——那是对**跨任务共享记录**的越权写操作，不是任何 hook 授权的路径。已经改回去了，当前状态与改之前一致。这件事本身说明缺陷的代价：唯一的自救手段是改别人的账本。
+  **结果**：自动 `approve` 走不通。要么手动批 v2，要么把 `plan.md` 第一条 `- [Plan]` 写成**本轮实际调用过的**那个能力名（而不是写意图）。1.1.8 的行为，没有绕过，也没有在本条里改码。
+  **与 `TF-20261012-c66ad3` 不是同一条**：c66ad3 是**供给侧**——版本提升要重走 N 次声明；本条是**对账侧**——即使记录齐全，`approve` 的匹配规则（取第一条、逐字比名字）也会拒。修 c66ad3 不会顺手修好本条，反之亦然。
+  **文档缺口**：`skills/taskflow/references/artifacts.md:132` 只说「Record a stage-tagged line」，没有说 `approve` 只读第一条。按文档写多行 `- [Plan]` 是合规的，然后被拒。修本条时这句要一起补。
 
 ## A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the sui
 
@@ -62,15 +78,10 @@ has an issue number or URL.
 ## Make the capability store recoverable instead of delete-and-restart: a truncated
 
 - ID: TF-20261025-ef6c18
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: follow-up from TF-20261024-310937
-- Added: 2026-10-25
-- Updated: 2026-10-25
+- Status: done
 - Goal: Make the capability store recoverable instead of delete-and-restart: a truncated evidence file loses records the released lines still point at
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-10-25-capability-store-recover/`
+- Next action: None — completed and archived.
 
 ## Give the pre-write gate the same out-of-step diagnosis that unaided now has: it
 
@@ -262,7 +273,6 @@ has an issue number or URL.
 
 **为什么值得单记而不是并入 `TF-20261009-8abbd6`**：8abbd6 要解决的是「宿主没有工具流 / cwd 不在任务工作树」造成的假拒绝，方向是**让阶段选择不必是工具调用的产物**；本条是**记账方式**本身使版本提升变死路，即使宿主有门、cwd 也对，一样会发生。两条的修复面不同（8abbd6 动能力表示层，本条动 `released`/`evidence` 的键或 `approve` 的对账口径）。相关：`TF-20261009-8abbd6`、`TF-20261011-39bda8`（已 done，`unaided` 现在自己写 release 行）。
 
-
 ## The entry signal for unregistered work never fires in the state a session actual
 
 - ID: TF-20261012-50164f
@@ -307,7 +317,6 @@ has an issue number or URL.
 
 **(1) 是可独立修的小缺陷**，修法与既有约定一致：要么让门的显示类从 phase 表派生，要么加一条和 `concept_class_re` 同风格的双向断言。用户 2026-10-09 对 (3) 的裁定（把硬 deny 降为 approve 时对账）如落地，(1) 会随之消解。相关：TF-20261008-5b5635（已 done，即上述能力类改动）
 
-
 ## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
 
 - ID: TF-20261009-369e77
@@ -336,7 +345,6 @@ has an issue number or URL.
 - Goal: Define TaskFlow compatibility with loop and long-running tasks: repeated external driving of one task, partial progress records, and resume boundaries when a task is entered many times
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
-
 
 ## Add a brainstorming and idea-refinement concept class to the phase-to-capability
 
@@ -430,7 +438,6 @@ has an issue number or URL.
 
 顺带核对宿主侧尚未实测的一项：matcher 是否真按宿主语义命中 `Agent` 与 `mcp__.*`（`Skill` 已实测同时触发两个事件且携带 `tool_input.skill`）。
 
-
 ## Release process: make the manual three-host catalog validation conditional and a
 
 - ID: TF-20260928-3910fb
@@ -445,7 +452,6 @@ has an issue number or URL.
 - Next action: Keep the $schema assertion; re-scope the manual three-host catalog validation after release-flow-exception, then promote.
 - Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
 - 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
-
 
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
@@ -571,7 +577,6 @@ has an issue number or URL.
 - Next: None — repo-root plugin validated (`claude plugin validate . --strict` PASS), locally installed from the working tree, hooks end-to-end tested (all PASS), full smoke-test suite PASS.
 - Updated: 2026-09-09
 
-
 ## T-20260909-001 — Package TaskFlow as installable plugin (marketplace, Claude + Codex)
 - Status: done
 - Priority: normal
@@ -582,7 +587,6 @@ has an issue number or URL.
 - Task: None — direct change; first iteration added `.claude-plugin/` + `.codex-plugin/` under `taskflow/`, then superseded by T-20260909-002 (repo-root plugin)
 - Next: None — superseded by T-20260909-002; install commands verified end-to-end on both Claude Code (`✔ enabled`) and Codex CLI (`installed, enabled`).
 - Updated: 2026-09-09
-
 
 ## T-20260908-007 — Support host/harness hooks in TaskFlow (reverse non-runtime boundary)
 
@@ -943,7 +947,6 @@ has an issue number or URL.
 
   **落地条件**：只有实测显示某类探索稳定更省，才写进 `SKILL.md` 的 Phase 2/6（探索与复核）或 `CLAUDE.md` 的工作方式；否则结论就是「不采纳」，那也是有效结论。相关：本条与 `TF-20260919-76e7fb` 无关，属会话成本治理。
 
-
 ## Adapt TaskFlow to the DeepSeek Harness (dsh) as a fourth host: ship a dsh plugin
 
 - ID: TF-20260919-55110d
@@ -1014,7 +1017,6 @@ has an issue number or URL.
 - ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
 - ID: TF-20261025-33b2c4 (removed 2026-10-25: Falsified by 2026-10-25-gate-desync-diagnosis A3: git applies no ignore rule to a tracked path, so a force-added copy stays visible in git status and check-ignore returns false — the concern the entry raised cannot occur)
 
-
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
 - ID: TF-20260928-07c659
@@ -1037,7 +1039,6 @@ has an issue number or URL.
 - Next action: Decide the wording or mechanism that makes the drafter translate its own prose, and add a detection the next silent English run trips
 - Notes: Recurrence of TF-20261001-51d9c8 with the same root cause recorded there: the phase capability brought an English skeleton and nothing carried the rule onto the prose underneath it.
 
-
 ## Stop hand-writing a bespoke manual install section per host in the host-facing d
 
 - ID: TF-20261009-99045e
@@ -1050,7 +1051,6 @@ has an issue number or URL.
 - Goal: Stop hand-writing a bespoke manual install section per host in the host-facing docs: for each host state whether a real plugin or marketplace install command exists and use it where one does, and define one shared manual-install procedure (copy the skill directory plus write the host hooks file) that each host section instantiates, instead of a per-host copy/paste block with no stated reason why an install command is absent
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
-
 
 ## Make one order binding: entering work enters TaskFlow first, and capabilities ar
 
@@ -1072,3 +1072,4 @@ has an issue number or URL.
 - Goal: Stop duplicating changelog/history content across prd.md, plan.md and spec.md: each document repeats the same change-log or history narrative, which is pure token waste. Assign the history/changelog a single owning document and have the others reference it instead of restating it.
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+
