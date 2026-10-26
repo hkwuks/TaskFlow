@@ -190,6 +190,7 @@
 ## Change Log
 
 - v1 — planning：PRD / Spec / Plan 写成，等待批准。
+- v1 — 归档后补记 CI：本文档进入 `achieved/` 之后的两笔提交各自又跑了一轮 `Hooks`，都 `success` —— `12687f0`（把 CI 结果写进本节）的 run [`40343922076`](https://github.com/hkwuks/TaskFlow/actions/runs/40343922076) 被紧随其后的 `20cb9cb` 取代而 `cancelled`，`20cb9cb`（归档本身）的 run [`40344036353`](https://github.com/hkwuks/TaskFlow/actions/runs/40344036353) 7/7 `success`。上面那条留作代码面在 `f8bf3e8` 上的结论，这一条是文档面的。
 - v1 — 记一次未授权操作并已回退：规划期间我为验证 Step 4 的现场跑了 `bash hooks/task approve 2026-10-26-capability-task-identity`，它在 `<Approval>` 块里写了 `Status: approved / Approved by: user / Approved at: 2026-10-26 21:52 +0800`。**批准是你的事，不是我的**，该字段已手工改回 `requested / pending / pending`，`completion-gate` 现在按预期报 `current Task version is not approved`。store 里那几行释放记录保留——它们是真实调用，不是这次误操作产生的。
 - v1 — Step 2 的「既有 smoke 零改动全绿」没有做到：`consumed` 一旦按字段数分流，`ap_release` 夹具写下的 5 字段行就被读成 `BAD`，`approve` 于是改口说 store 失步。夹具必须先变成 6 字段，这条断言才有意义，所以 Step 2 与 Step 3/4 的夹具改动是同一批落下的。「只改字段位」这个机械判据因此没用上，实际用的是变异验证。
 - v1 — Step 4 的第 4 条计划项（「全不匹配时列出所有试过的行」）未照做：它会把四条各不相同的拒绝合成一句通用报错，而多行场景下读者要知道的是四条里的哪一条不成立。PRD/Spec 也没要求它。理由记在该 Step 的清单里。
