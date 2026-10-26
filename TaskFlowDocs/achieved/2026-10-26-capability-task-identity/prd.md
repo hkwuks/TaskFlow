@@ -1,6 +1,6 @@
 # PRD — 能力库的释放在任务之间串了线，`approve` 据此拒绝一个本已合规的阶段
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
