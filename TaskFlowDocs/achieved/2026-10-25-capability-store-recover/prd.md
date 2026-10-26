@@ -1,6 +1,6 @@
 # PRD — 让能力库失步后可以真正恢复，而不是只有删库重来
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
