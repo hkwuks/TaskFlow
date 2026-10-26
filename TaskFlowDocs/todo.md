@@ -54,15 +54,10 @@ has an issue number or URL.
 ## Keep sessions.md out of Git: it carries a machine-local session id, working dire
 
 - ID: TF-20261025-24d06c
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user statement 2026-10-25 while archiving TF-20261024-310937
-- Added: 2026-10-25
-- Updated: 2026-10-25
+- Status: done
 - Goal: Keep sessions.md out of Git: it carries a machine-local session id, working directory and timestamps, so a committed copy is stale on every other clone
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-10-25-untrack-sessions/`
+- Next action: None — completed and archived.
 
 ## Make the capability store recoverable instead of delete-and-restart: a truncated
 
