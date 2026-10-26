@@ -160,6 +160,7 @@
 
 ## Verification / Review
 
+- **CI（权威）：PR #101，run [`40342577808`](https://github.com/hkwuks/TaskFlow/actions/runs/40342577808)，`f8bf3e8`，7/7 `success`** —— `smoke (ubuntu-latest)`、`smoke (macos-latest)`、`smoke (windows-latest)`、`release`、`evals`、`todo-merge-audit`、`changes`。三主机全绿，新段的 `cg_event` 与 `printf` 造 store 在三套 shell 上都是同一结论。
 - `bash hooks/smoke-test` — `ALL SMOKE PASSED`（本机 WSL2，bash 5）。新段 `== a release row belongs to the task that earned it ==` 覆盖 A1–A5，`recover` 段补回 A6 的两侧边界，`approve` 段补上 A4。
 - `bash hooks/repository-check .` — `STATUS: pass`；`Orphan task directories: none`，`Stale task worktrees: none`。它对本任务的未跟踪目录给出提示，这是预期：提交前它就还在工作树里。
 - `bash hooks/release-check .` — `STATUS: pass`。
