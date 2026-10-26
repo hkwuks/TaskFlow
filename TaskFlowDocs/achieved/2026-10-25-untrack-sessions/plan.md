@@ -110,6 +110,9 @@ PR [#100](https://github.com/hkwuks/TaskFlow/pull/100)，head `9479cd0`，run
 `TaskFlowDocs/achieved/**/sessions.md` 与 `CHANGELOG.md`，不进 evals 的路径集。PR 上只跑受影响的 job，
 推 main 才跑全部——这是那个工具的既定行为，不是这次改动造成的缺口。
 
+归档后 head 变成 `74e3543`，重跑 run
+[40322941194](https://github.com/hkwuks/TaskFlow/actions/runs/40322941194)：`smoke` 三平台 pass（ubuntu 19s、macos 1m4s、windows 27s），`release` / `changes` / `todo-merge-audit` pass，`evals` 仍为 skipping，同一原因。
+
 ## Change Log
 
 - v1 — planning：PRD 与 Plan 写成，等待批准。
