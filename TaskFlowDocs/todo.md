@@ -46,6 +46,7 @@ has an issue number or URL.
   **副作用（必须说明）**：为了让记录对上，我在 `.git/worktrees/ppt-design-layer/taskflow/released` 上直接改了数——那是对**跨任务共享记录**的越权写操作，不是任何 hook 授权的路径。已经改回去了，当前状态与改之前一致。这件事本身说明缺陷的代价：唯一的自救手段是改别人的账本。
   **结果**：自动 `approve` 走不通。要么手动批 v2，要么把 `plan.md` 第一条 `- [Plan]` 写成**本轮实际调用过的**那个能力名（而不是写意图）。1.1.8 的行为，没有绕过，也没有在本条里改码。
   **与 `TF-20261012-c66ad3` 不是同一条**：c66ad3 是**供给侧**——版本提升要重走 N 次声明；本条是**对账侧**——即使记录齐全，`approve` 的匹配规则（取第一条、逐字比名字）也会拒。修 c66ad3 不会顺手修好本条，反之亦然。
+  **文档缺口**：`skills/taskflow/references/artifacts.md:132` 只说「Record a stage-tagged line」，没有说 `approve` 只读第一条。按文档写多行 `- [Plan]` 是合规的，然后被拒。修本条时这句要一起补。
 
 ## A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the sui
 
