@@ -23,6 +23,52 @@ tmp_pairs="$work/pairs"
 
 fail() { echo "$*" >&2; exit 1; }
 
+# The release ledger's line format, in one place.
+#
+# A row is `<task>|<version>|<stage>|<seq>|<kind>|<capability>` and has six
+# fields. Before the task name it was the same row without that first field, so
+# a five-field row has its sequence at `$3` and a six-field row at `$4`. Every
+# reader needs that number, and spelling the awk out at each read site is what
+# let one field position change miss a reader, so the readers call these.
+#
+# `consumed` counts both shapes: it answers "how much of the evidence queue is
+# spent", a question about the queue and not about which task spent it. Reading
+# only the current shape would turn every old row's sequence back into unspent
+# and release evidence a second time — the one thing the queue exists to
+# prevent. Every other reader is per-task and therefore only ever matches the
+# current shape; `rel_old_note` is how those callers say why.
+#
+# A row of any other length prints `BAD` rather than a number. A sequence that
+# silently fell to zero reads as a store with nothing banked, which is the
+# opposite of the truth.
+rel_max_seq() {  # rel_max_seq <released-file>
+  awk -F'|' 'NF == 6 { s = $4 + 0 } NF == 5 { s = $3 + 0 } NF != 5 && NF != 6 { bad = 1 }
+    { if (s > m) m = s }
+    END { if (bad) { print "BAD" } else { print m + 0 } }' "$1"
+}
+rel_seq_gt() {  # rel_seq_gt <released-file> <threshold> — rows whose seq exceeds it
+  awk -F'|' -v t="$2" '{ s = (NF == 6 ? $4 : $3) + 0; if (s > t + 0) print }' "$1"
+}
+rel_seq_le() {  # rel_seq_le <released-file> <threshold>
+  awk -F'|' -v t="$2" '{ s = (NF == 6 ? $4 : $3) + 0; if (s <= t + 0) print }' "$1"
+}
+# A five-field row predates the task name. It cannot be attributed: the task that
+# wrote it is not recorded anywhere, and guessing "whichever task is active now"
+# is the exact mistake this format change exists to remove. So it never satisfies
+# a per-task check, and the commands that would otherwise report "this stage was
+# never released" say why instead of leaving the reader to find out.
+rel_old_rows() {  # rel_old_rows <released-file> — count of pre-task-name rows
+  awk -F'|' 'NF == 5 { n++ } END { print n + 0 }' "$1"
+}
+rel_old_note() {  # rel_old_note <released-file> — one sentence, or nothing
+  local n
+  [ -f "$1" ] || return 0
+  n="$(rel_old_rows "$1")"
+  [ "$n" -gt 0 ] || return 0
+  printf ' %s row(s) in %s predate the task name on a release and belong to no task, so they no longer count as anybody'"'"'s release; they still hold their sequences, so nothing was double-spent. Clear them once with:  rm -rf %s' \
+    "$n" "$1" "$(dirname "$1")"
+}
+
 # The name rule lives in one file, called the way `capability-gate` calls
 # `json-field`. `promote` is the command that turns the name into a directory,
 # but every other command that takes one resolves it against the same tree, so
@@ -1120,16 +1166,25 @@ case "$command" in
       || fail "cannot read the Plan task version for $active; the stage was not declared"
     released="$git_dir/taskflow/released"
     evidence="$git_dir/taskflow/evidence"
-    # Idempotent per version and stage, the same key the gate uses when it skips
-    # a document whose stage it already released.
+    # Idempotent per task version and stage, the same key the gate uses when it
+    # skips a document whose stage it already released. The task name is part of
+    # that key for the same reason it is in the gate: without it a declaration
+    # here returns "already released" on a row another task wrote, and prints the
+    # other task's name while doing it.
     if [ -f "$released" ] \
-       && awk -F'|' -v v="$unaided_version" -v s="$stage" '$1 == v && $2 == s { found = 1 } END { exit !found }' "$released"; then
+       && awk -F'|' -v t="$active" -v v="$unaided_version" -v s="$stage" \
+            '$1 == t && $2 == v && $3 == s { found = 1 } END { exit !found }' "$released"; then
       printf 'unaided OK: %s in %s -> %s (already released)\n' "$stage" "$active" "$considered"
       exit 0
     fi
     consumed=0
     if [ -f "$released" ]; then
-      consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+      consumed="$(rel_max_seq "$released")"
+      case "$consumed" in
+        ''|*[!0-9]*)
+          fail "$released holds a line that is neither the current six-field release row nor the five-field one it replaced, so the next sequence cannot be worked out; the stage was not declared"
+          ;;
+      esac
     fi
     total=0
     [ -f "$evidence" ] && total="$(awk 'END { print NR }' "$evidence")"
@@ -1164,18 +1219,18 @@ case "$command" in
         spent="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
         spent_kind="${spent%%|*}"
         spent_capability="${spent#*|}"
-        printf '%s|Test|%s|%s|%s\n' "$unaided_version" "$next" "$spent_kind" "$spent_capability" >> "$released"
+        printf '%s|%s|Test|%s|%s|%s\n' "$active" "$unaided_version" "$next" "$spent_kind" "$spent_capability" >> "$released"
         printf 'unaided OK: Test in %s -> %s (consumed an invocation record: %s)\n' \
           "$active" "$considered" "$spent_capability"
         exit 0
       fi
       printf 'unaided|%s\n' "$considered" >> "$evidence"
-      printf '%s|Test|%s|unaided|%s\n' "$unaided_version" "$((consumed + 1))" "$considered" >> "$released"
+      printf '%s|%s|Test|%s|unaided|%s\n' "$active" "$unaided_version" "$((consumed + 1))" "$considered" >> "$released"
       printf 'unaided OK: Test in %s -> %s (recorded as unaided)\n' "$active" "$considered"
       exit 0
     fi
     printf 'unaided|%s\n' "$considered" >> "$evidence"
-    printf '%s|%s|%s|unaided|%s\n' "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
+    printf '%s|%s|%s|%s|unaided|%s\n' "$active" "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
     ;;
 
@@ -1218,7 +1273,7 @@ case "$command" in
     fi
     total=0
     [ -f "$evidence" ] && total="$(awk 'END { print NR }' "$evidence")"
-    consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+    consumed="$(rel_max_seq "$released")"
     # In step already: no file is created and none is touched, so running this on
     # a healthy store is a read-only no-op rather than a rewrite.
     if [ "$consumed" -le "$total" ]; then
@@ -1230,15 +1285,15 @@ case "$command" in
     # store holding seq 1,2,3,5 against 3 evidence lines has a gap of 2 but one
     # row to drop, and a message that reported the gap as a row count would
     # overstate what was thrown away.
-    discarded="$(awk -F'|' -v t="$total" '$3 + 0 > t + 0' "$released" | awk 'END { print NR }')"
+    discarded="$(rel_seq_gt "$released" "$total" | awk 'END { print NR }')"
     [ "$discarded" -gt 0 ] || fail "the store reads as out of step but holds no unsupported release; nothing was changed"
-    awk -F'|' -v t="$total" '$3 + 0 > t + 0' "$released" >> "$released.discarded" \
+    rel_seq_gt "$released" "$total" >> "$released.discarded" \
       || fail "cannot append to $released.discarded; the store was not changed"
-    awk -F'|' -v t="$total" '$3 + 0 <= t + 0' "$released" > "$released.tmp" \
+    rel_seq_le "$released" "$total" > "$released.tmp" \
       && mv "$released.tmp" "$released" \
       || { rm -f "$released.tmp"; fail "cannot rewrite $released; the store was not changed"; }
     kept=0
-    [ -s "$released" ] && kept="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$released")"
+    [ -s "$released" ] && kept="$(rel_max_seq "$released")"
     printf 'recover OK: discarded %s release line(s) whose record is gone; released now reaches seq %s with %s evidence line(s)\n' \
       "$discarded" "$kept" "$total"
     printf 'Every release whose record still exists was kept. The stages those %s line(s) named are unreleased again, so each has to be declared or re-run: bash hooks/task unaided <stage> --considered "<concept class>"\n' "$discarded"
@@ -1317,7 +1372,7 @@ case "$command" in
     cap_evidence="$cap_git_dir/taskflow/evidence"
     cap_consumed=0
     if [ -f "$cap_released" ]; then
-      cap_consumed="$(awk -F'|' '{ if ($3 + 0 > m) m = $3 + 0 } END { print m + 0 }' "$cap_released")"
+      cap_consumed="$(rel_max_seq "$cap_released")"
     fi
     cap_total=0
     [ -f "$cap_evidence" ] && cap_total="$(awk 'END { print NR }' "$cap_evidence")"
@@ -1351,41 +1406,77 @@ case "$command" in
       fi
       record=""
       if [ -f "$cap_released" ]; then
-        record="$(awk -F'|' -v v="$approved_version" -v s="$stage" \
-          '$1 == v && $2 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
+        record="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" \
+          '$1 == t && $2 == v && $3 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
       fi
       if [ -z "$record" ]; then
-        fail "approve blocked: stage [$stage] was never released by the pre-write gate. Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
+        fail "approve blocked: stage [$stage] was never released by the pre-write gate.$(rel_old_note "$cap_released") Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
       fi
-      kind="$(printf '%s' "$record" | cut -d'|' -f4)"
-      capability="$(printf '%s' "$record" | cut -d'|' -f5)"
-      line="$(printf '%s\n' "$stage_lines" | head -1)"
-      case "$line" in
-        *Unaided*)
-          [ "$kind" = "unaided" ] \
-            || fail "approve blocked: stage [$stage] is reported Unaided but was recorded as an invocation ($capability)"
-          printf '%s\n' "$line" | grep -q 'considered:' \
-            || fail "approve blocked: stage [$stage] Unaided needs considered:"
-          printf '%s\n' "$line" | grep -qF -- "$capability" \
-            || fail "approve blocked: stage [$stage] reports a different considered class than the recorded one ($capability)"
-          cap_unaided=$((cap_unaided + 1))
-          ;;
-        *)
-          [ "$kind" = "invoke" ] \
-            || fail "approve blocked: stage [$stage] is reported as an invocation but was recorded as an unaided decision"
-          cap_hit=0
-          cap_pool="$(awk -F'|' -v v="$approved_version" '$1 == v && $4 == "invoke" { print $5 }' "$cap_released")"
-          while IFS= read -r c; do
-            [ -n "$c" ] || continue
-            case "$line" in *"$c"*) cap_hit=1; break ;; esac
-          done <<CAP_POOL
+      kind="$(printf '%s' "$record" | cut -d'|' -f5)"
+      capability="$(printf '%s' "$record" | cut -d'|' -f6)"
+      # Every line the section devotes to this stage is evidence, not just the
+      # first. One phase can invoke more than once -- a stage is recorded as a line
+      # each time a capability helped it -- and reading only the first meant a
+      # section that reported its calls honestly and in order was refused for the
+      # one reason it was not: the name happened to be on the second line.
+      # Measured 2026-10-26.
+      cap_hit=0
+      cap_pool=""
+      if [ -f "$cap_released" ]; then
+        cap_pool="$(awk -F'|' -v t="$task" -v v="$approved_version" \
+          '$1 == t && $2 == v && $5 == "invoke" { print $6 }' "$cap_released")"
+      fi
+      cap_inv_lines=0
+      cap_una_lines=0
+      cap_una_noconsider=0
+      while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        case "$line" in
+          *Unaided*)
+            cap_una_lines=$((cap_una_lines + 1))
+            printf '%s\n' "$line" | grep -q 'considered:' || cap_una_noconsider=1
+            if [ "$kind" = "unaided" ] \
+               && printf '%s\n' "$line" | grep -q 'considered:' \
+               && printf '%s\n' "$line" | grep -qF -- "$capability"; then
+              cap_hit=1
+            fi
+            ;;
+          *)
+            cap_inv_lines=$((cap_inv_lines + 1))
+            if [ "$kind" = "invoke" ]; then
+              while IFS= read -r c; do
+                [ -n "$c" ] || continue
+                case "$line" in *"$c"*) cap_hit=1; break ;; esac
+              done <<CAP_POOL
 $cap_pool
 CAP_POOL
-          [ "$cap_hit" = "1" ] \
-            || fail "approve blocked: stage [$stage] does not name a capability invoked in this Task version ($capability)"
-          cap_invoked=$((cap_invoked + 1))
-          ;;
-      esac
+            fi
+            ;;
+        esac
+        [ "$cap_hit" = "1" ] && break
+      done <<STAGE_LINES
+$stage_lines
+STAGE_LINES
+      if [ "$cap_hit" != "1" ]; then
+        # Four failures, four messages. Collapsing them into one would tell the
+        # reader that something is wrong without telling them which of the four
+        # things it is, and the fix differs for each.
+        if [ "$kind" = "unaided" ]; then
+          [ "$cap_una_lines" -gt 0 ] \
+            || fail "approve blocked: stage [$stage] is reported as an invocation but was recorded as an unaided decision"
+          [ "$cap_una_noconsider" = "0" ] \
+            || fail "approve blocked: stage [$stage] Unaided needs considered:"
+          fail "approve blocked: stage [$stage] reports a different considered class than the recorded one ($capability)"
+        fi
+        [ "$cap_inv_lines" -gt 0 ] \
+          || fail "approve blocked: stage [$stage] is reported Unaided but was recorded as an invocation ($capability)"
+        fail "approve blocked: stage [$stage] does not name a capability invoked in this Task version ($capability)"
+      fi
+      if [ "$kind" = "unaided" ]; then
+        cap_unaided=$((cap_unaided + 1))
+      else
+        cap_invoked=$((cap_invoked + 1))
+      fi
     }
     require_stage PRD
     require_stage Plan
