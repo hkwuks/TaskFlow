@@ -1,6 +1,6 @@
 # PRD — 把 8 个已被跟踪的 sessions.md 移出版本库
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

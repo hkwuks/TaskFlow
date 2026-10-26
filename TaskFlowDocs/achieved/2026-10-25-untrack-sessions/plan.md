@@ -1,6 +1,6 @@
 # Plan — 把 8 个已被跟踪的 sessions.md 移出版本库
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -45,10 +45,10 @@ No spec required — small, self-contained task.
 - Dependencies: 无。
 - Files: 8 个 `TaskFlowDocs/achieved/*/sessions.md`（只改索引，不改工作区）
 - Implementation checklist:
-  - [ ] 记录移出前每个文件的 SHA-256（`shasum -a 256`），写进 Verification。
-  - [ ] `git rm --cached` 这 8 个路径（一次给全参数，不要 `-r`）。
-  - [ ] `git status --porcelain`：应只有 8 条 `D ` 暂存删除，**没有** `??` 未跟踪项。
-  - [ ] 重算 SHA-256，与第一步逐条比对。
+  - [x] 记录移出前每个文件的 SHA-256（`shasum -a 256`），写进 Verification。
+  - [x] `git rm --cached` 这 8 个路径（一次给全参数，不要 `-r`）。
+  - [x] `git status --porcelain`：应只有 8 条 `D ` 暂存删除，**没有** `??` 未跟踪项。
+  - [x] 重算 SHA-256，与第一步逐条比对。
 - Acceptance: A1、A2、A4。
 - Verification: 两张摘要表贴在下面。
 - Rollback: `git reset` 取消暂存，`git checkout -- <path>` 恢复索引。
@@ -64,10 +64,10 @@ No spec required — small, self-contained task.
 - Dependencies: Step 1。
 - Files: `.gitignore`、`CHANGELOG.md`
 - Implementation checklist:
-  - [ ] `.gitignore` 那段注释里「八个副本仍被跟踪」的说法已过期——改注释记录「存量已于 2026-10-25 清空，规则本身未变」。**只改注释，不动规则行。**
-  - [ ] `CHANGELOG.md` `[Unreleased]` 下一条，措辞点明「清理存量，不是改规则」，并点名 R4 的静默丢失面。
-  - [ ] `bash hooks/smoke-test` 全量通过（A3）。
-  - [ ] `bash hooks/repository-check .` 的 `STATUS:` 一行与基线相同。
+  - [x] ~~`.gitignore` 那段注释里「八个副本仍被跟踪」的说法已过期——改注释记录「存量已于 2026-10-25 清空，规则本身未变」。~~ **未改**：读了注释，它说的是规则**为什么**写在 `.gitignore` 而不是别人克隆的 `info/exclude`；关于「八个副本」的那句在 CHANGELOG 1.1.8 里，不在注释里。见下面「一处没有按 Plan 做」。
+  - [x] `CHANGELOG.md` `[Unreleased]` 下一条，措辞点明「清理存量，不是改规则」，并点名 R4 的静默丢失面。
+  - [x] `bash hooks/smoke-test` 全量通过（A3）。
+  - [x] `bash hooks/repository-check .` 的 `STATUS:` 一行与基线相同。
 - Acceptance: A3、A5。
 - Verification: `bash hooks/smoke-test` 末行；`repository-check` 的 `STATUS:` 行。
 - Rollback: `git checkout -- .gitignore CHANGELOG.md`。
