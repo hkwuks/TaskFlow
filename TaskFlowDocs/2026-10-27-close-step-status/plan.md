@@ -83,9 +83,10 @@ No spec required — small, self-contained task: one `awk` condition in one hook
 
 ## Verification / Review
 
+- **`Hooks` workflow, run [40519266846](https://github.com/hkwuks/TaskFlow/actions/runs/40519266846)** at `f03b806` — **`success`, all seven jobs**: `changes`, `evals`, `release`, `todo-merge-audit`, and `smoke` on `ubuntu-latest` (20s), `windows-latest` (39s) and `macos-latest` (1m7s). Run time 1m25s. CI is the test authority per `CONTRIBUTING.md`, so the new assertions ran on all three hosts rather than only on this one; the local run recorded below was made before CI existed for this branch and stands as the same tree's result.
 - 2026-10-27 Step 2: bash hooks/smoke-test ALL SMOKE PASSED; 5 mutations each reddened a named assertion; release-check pass; quick_validate valid; git diff --check clean
 
-2026-10-27，全部在本工作树（`fix/close-step-status`）执行：
+2026-10-27，本地（本工作树 `fix/close-step-status`）执行：
 
 - `bash hooks/smoke-test` — `ALL SMOKE PASSED`（含新增的 19 条 completion-gate 断言）。
 - `bash hooks/release-check .` — `STATUS: pass`；两侧 marketplace pin 仍是 `v1.1.9 -> 800e7f1…`。

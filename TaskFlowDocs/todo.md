@@ -37,7 +37,7 @@ has an issue number or URL.
 - Updated: 2026-10-27
 - Goal: Make `completion-gate` and `hooks/task progress` mean the same thing by a closed Step, so the word `completed` cannot be refused by one and accepted by the other.
 - Task: `TaskFlowDocs/2026-10-27-close-step-status/`
-- Next action: Push the branch, read CI, record the run in plan.md, then archive.
+- Next action: Archive the task; the PR is ready once its documents are in it.
 - Notes: **2026-10-27 measured, and the hole is wider than the two vocabularies.** The two writers disagree — `hooks/task progress` accepts exactly `pending|in_progress|done|blocked` (`hooks/task:1100`) while `hooks/completion-gate:67` treats only `pending|in_progress|blocked` as unfinished — but the real defect is that the gate **fails open on every unrecognized value**. Driven through the gate directly, a Plan whose only Step reads `- Status: complted` / `skipped` / `wip` / empty / a bare `x` returns **exit 0, "finished"**. `completed`, `done (v1)` and `DONE` do the same, so the case that started this item is one instance of a general shape rather than a special one.
 
   **Real Plans already carry the non-canonical spellings:** over 91 achieved Plans, Step statuses are 254 `done`, 6 `pending`, **4 `completed`** (`2026-10-11-gate-host-coverage`), **3 `done (v1)`** (`2026-09-07-repository-standards-and-doc-root`). Both spellings exist because `task progress` refused the word and the Step was hand-edited instead — the validator and the reader disagreeing is what produced them.
