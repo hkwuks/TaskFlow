@@ -56,16 +56,57 @@ plan="$1/plan.md"
 # The Approval fields are matched only inside the `## Approval` section, so a
 # `- Status: approved` written anywhere else cannot stand in for an approval.
 # An end-of-file section needs no special case: `inap` simply stays set.
-result="$(awk -v approval_only="$approval_only" 'BEGIN { bad = 0 }
+result="$(awk -v approval_only="$approval_only" '
+  # A Step block is closed only when it says `- Status: done` in column 0. This
+  # is a whitelist, and that is the point: the previous shape listed the three
+  # words that meant unfinished, so every value it did not know about -- a typo,
+  # `completed`, `done (v1)`, an empty value -- counted as finished. Measured
+  # 2026-10-27: all of those archived. `hooks/task progress` has always accepted
+  # exactly `pending|in_progress|done|blocked`, so `done` is the only word that
+  # can mean closed, and reading anything else as closed is the disagreement
+  # this replaces rather than one it repeats.
+  #
+  # Block location mirrors the writer at `hooks/task` -- any `### Step ` with a
+  # number and no trailing word character opens one, and any `### Step ` or
+  # column-0 `## ` closes it. Deliberately NOT filtered to the `## Steps`
+  # section: two archived Plans carry Step blocks under other headings, and a
+  # reader that skipped them would see a different set of Steps than
+  # `task progress` writes to. That is the split this check exists to remove.
+  #
+  # What this still lets through, and knowingly: a Plan with no `### Step` at
+  # all has nothing to be unfinished, so this check passes it. Closing that
+  # needs a rule about whether a Plan must have Steps, which is a different
+  # question with its own arguments; it is not smuggled in here.
+  function flush() {
+    if (instep && !closed) unfinished = 1
+    instep = 0; closed = 0
+  }
+  BEGIN { bad = 0 }
+  /^## / { flush() }
   /^> Task version: v[0-9][0-9]*$/ { if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) } next }
   /^## Approval$/ { inap = 1; next }
   inap && /^## / { inap = 0 }
   inap && $0 == "- Status: approved" { st = 1 }
   inap && $0 == "- Approved by: pending" { pend = 1 }
   inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
+  /^### Step / {
+    flush()
+    rest = substr($0, 10)
+    if (match(rest, /^[0-9]+/)) {
+      if (substr(rest, RLENGTH + 1, 1) !~ /[A-Za-z0-9_]/) instep = 1
+    }
+    next
+  }
   /^[[:space:]]*- \[ \]/ { unchecked = 1 }
-  /^- Status: (pending|in_progress|blocked)$/ { unfinished = 1 }
+  # Last one wins, which is what "the block says" means when a block carries
+  # two: `task progress` replaces the line it finds rather than adding one, so a
+  # second `- Status:` is a hand edit, and reading the last is the reading a
+  # person makes.
+  instep && /^- Status:/ {
+    closed = ($0 ~ /^- Status:[[:space:]]*done[[:space:]]*$/)
+  }
   END {
+    flush()
     if (ver == "")                     { print "missing Plan Task version"; bad = 1 }
     else if (!st || av != ver || pend) { print "current Task version is not approved"; bad = 1 }
     else if (!approval_only && unchecked)  { print "Plan has unchecked items"; bad = 1 }

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Step counts as closed only when it says `- Status: done`, so a word the gate did not know can no longer archive a Plan that is not finished.** `hooks/completion-gate` read the field as a blacklist — `pending`, `in_progress`, `blocked` were named and everything else was finished — so the word `completed`, a misspelling, an empty value, and a Step with no `- Status:` line at all all passed. Measured 2026-10-27 by driving the gate directly: `completed`, `complted`, `skipped`, `wip`, `DONE`, an empty value and a missing line each returned exit 0 and "finished". `hooks/task progress` has only ever accepted `pending|in_progress|done|blocked`, so those spellings could not have been written by the tool — they are the result of hand edits made precisely because the two sides disagreed. Closed is now a whitelist of one word, and it is the same word the writer accepts. The block is located by its `### Step <number>` heading anywhere in the Plan rather than only under `## Steps`, because that is how `task progress` finds the block it edits; a reader that skipped the other sections would see a different set of Steps than the writer changes. **Knowingly still open, and pinned by an assertion so it stays a decision**: a Plan with no `### Step` block at all is not refused, because "must a Plan have Steps" is a separate rule this change does not make.
+
+### Compatibility
+
+- **Five archived Plans read as unfinished under the new rule, and are not rewritten.** `achieved/` is read-only in place, so nothing here changes them and no task is blocked by them. They are: `2026-09-07-repository-standards-and-doc-root` (three Steps say `done (v1)`), `2026-10-11-gate-host-coverage` (four say `completed`), `2026-09-08-token-efficiency` and `2026-09-14-personal-docs-git-boundary` (their Steps still say `pending` while the Plan header says `completed` — the same disagreement running the other way), and `2026-10-22-taskflow-drift-guard`, whose `## Verification / Review` section reuses `### Step 1` as an ordinary subheading for a table. Recorded rather than repaired: editing history so it passes a check that no longer applies to it would make the record say something untrue. Only two of the five change verdict when the real gate is run over all 91 — the other three were already refused on `main` for reasons that have nothing to do with Steps, so this release does not newly refuse them.
+
 ## [1.1.9] — 2026-10-26
 
 ### Added
