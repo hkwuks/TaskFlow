@@ -1,6 +1,6 @@
 # Plan — 一个 Step 什么时候算「关闭」
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task: one `awk` condition in one hook, its assertions, and three doc lines. No cross-layer contract, no new file, no interface change.
 
@@ -119,3 +119,13 @@ No spec required — small, self-contained task: one `awk` condition in one hook
 ## Version History
 
 - v1 — 初版：白名单 `done`、任意 `### Step N`、归档 5 份不动。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-10-27 measured, and the hole is wider than the two vocabularies.** The two writers disagree — `hooks/task progress` accepts exactly `pending|in_progress|done|blocked` (`hooks/task:1100`) while `hooks/completion-gate:67` treats only `pending|in_progress|blocked` as unfinished — but the real defect is that the gate **fails open on every unrecognized value**. Driven through the gate directly, a Plan whose only Step reads `- Status: complted` / `skipped` / `wip` / empty / a bare `x` returns **exit 0, "finished"**. `completed`, `done (v1)` and `DONE` do the same, so the case that started this item is one instance of a general shape rather than a special one.
+  **Real Plans already carry the non-canonical spellings:** over 91 achieved Plans, Step statuses are 254 `done`, 6 `pending`, **4 `completed`** (`2026-10-11-gate-host-coverage`), **3 `done (v1)`** (`2026-09-07-repository-standards-and-doc-root`). Both spellings exist because `task progress` refused the word and the Step was hand-edited instead — the validator and the reader disagreeing is what produced them.
+  The choice is a user decision, not a tidy-up: a whitelist would refuse those archived Plans' shapes and is the fail-closed side, while the blacklist is what the gate already is. Whichever wins, `task progress` must move with it, or the next hand edit recreates the split.

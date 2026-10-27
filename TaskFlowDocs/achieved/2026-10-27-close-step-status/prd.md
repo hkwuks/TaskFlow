@@ -1,6 +1,6 @@
 # PRD — 一个 Step 什么时候算「关闭」
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
