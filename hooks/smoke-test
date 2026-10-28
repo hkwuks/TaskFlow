@@ -801,7 +801,11 @@ echo ok
 if command -v cmd.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
   echo "== Windows launcher finds Git Bash =="
   win_hook=$(cygpath -w "$HERE/run-hook.cmd")
-  json=$(cd "$tmp" && TASKFLOW_REPO_ROOT="$tmp" cmd.exe //d //c "$win_hook" session-start 2>&1)
+  # `< /dev/null` for the same reason as the PowerShell suite's SessionStart call:
+  # this `session-start` reads its event from stdin, and with no stdin of its own
+  # it inherits the runner's. Measured 2026-10-28 in WSL: with a held-open stdin
+  # this line never returns, and with `< /dev/null` it returns at once.
+  json=$(cd "$tmp" && TASKFLOW_REPO_ROOT="$tmp" cmd.exe //d //c "$win_hook" session-start < /dev/null 2>&1)
   echo "$json" | grep -qE 'additionalContext|additional_context|hookSpecificOutput' || { echo "FAIL Windows launcher"; exit 1; }
   echo ok
 fi
