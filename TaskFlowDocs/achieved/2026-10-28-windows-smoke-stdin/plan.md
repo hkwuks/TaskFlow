@@ -1,6 +1,6 @@
 # Plan — Windows 套件的 stdin 卡死
 > Task version: v1
-> Status: checking
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -172,3 +172,14 @@ Windows runner 根本不跑 `bash hooks/smoke-test`；ubuntu/macos 上又没有 
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-10-28 correction — the entry's original framing was wrong in two ways.** (1) "A throw after the launcher section hangs" measures the hang at the wrong object: throw is how the tester *noticed*, not what blocks. Bisected by injecting `throw` at lines 88/95/97/110/121/142/160/197/208 — the boundary is exactly line 96, `$first = Invoke-SessionStart 'pr'` in the Windows fixture. (2) "wrap the outer try/catch so a throw prints its message" is already true and needs nothing: probes at lines 55/56/111 print their message and exit 1 in 2–17s; `finally` at line 216 only removes the fixture root.
+  **Mechanism, measured:** `hooks/session-start:29` is `event_json="$(cat)"` by contract (also `capability-gate`, `capability-evidence`, `prompt-reminder`). Each of the four returns rc=124 against an idle open stdin and rc=0 against `/dev/null`; `hooks/task`, which reads no stdin, returns immediately. The bash suite already paid for this lesson — `hooks/smoke-test:564-566` carries the comment "`< /dev/null`, not a pipe … inheriting the suite's own stdin makes the read block whenever that stdin stays open" and passes `< /dev/null`. The PowerShell suite is that same fix's unapplied twin.
+  **Why CI has never shown it:** a CI runner's stdin is empty or null, so `cat` sees EOF at once. Only a human running `powershell.exe -File hooks/smoke-test-windows.ps1` from a terminal hits it — which is why every windows-latest job to date is green. Confirmed on `main` as well as on the branch: open stdin rc=124 / 59s, closed stdin rc=0 / 27s, byte-identical suite.
+  **The fix, verified on a copy before writing it:** `$output = '' | & "$here\run-hook.cmd" session-start 2>&1` — open stdin rc=0 / 27s, closed stdin rc=0 / 24s, all four PASSED banners.

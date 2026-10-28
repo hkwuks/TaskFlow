@@ -1,6 +1,6 @@
 # Windows smoke 套件不得因继承 stdin 而卡死
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 
