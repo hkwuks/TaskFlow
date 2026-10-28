@@ -31,14 +31,20 @@ function Invoke-SessionStart {
         # Feed `session-start` an empty event rather than letting it inherit ours.
         # The hook reads its event from stdin by contract (`event_json="$(cat)"`),
         # so with no stdin of its own it takes the runner's — and an idle open
-        # one (a terminal, a held pipe, a FIFO) never reaches EOF, so the read
-        # blocks and this whole suite stops here with nothing printed. Measured
-        # 2026-10-28: the suite hangs at this call and nowhere else; throw
-        # probes at eight later lines all printed and exited 1 in under 14s,
-        # while probes after this line timed out. `hooks/smoke-test:564-566`
-        # carries the same lesson for the bash suite and passes `< /dev/null`.
-        # CI has never shown it because a runner's stdin is empty already.
-        $output = '' | & "$here\run-hook.cmd" session-start 2>&1
+        # one (a terminal, a held pipe) never reaches EOF, so the read blocks and
+        # this whole suite stops here with nothing printed. Measured 2026-10-28:
+        # the suite hangs at this call and nowhere else; throw probes at eight
+        # later lines all printed and exited 1 in under 14s, while probes after
+        # this line timed out. `hooks/smoke-test:564-566` carries the same lesson
+        # for the bash suite and passes `< /dev/null`. CI has never shown the hang
+        # because a runner's stdin is empty already.
+        #
+        # `< nul` through `cmd`, not `'' |`. An empty PowerShell string is not an
+        # empty stdin: it is encoded and written as a line, and what that line is
+        # depends on `$OutputEncoding` — measured 0x0d 0x0a here, and a BOM on the
+        # CI runner, where `session-start` rejected it as invalid JSON and the
+        # suite failed. A redirection is zero bytes on every host.
+        $output = & cmd /c "`"$here\run-hook.cmd`" session-start < nul" 2>&1
         if ($LASTEXITCODE -ne 0) { throw "SessionStart failed: $output" }
         return (($output -join [Environment]::NewLine) | ConvertFrom-Json)
     }

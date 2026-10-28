@@ -98,9 +98,33 @@ No spec required — small, self-contained task.
 
 第一版新断言用 `sleep 60` 作管道写入端。撤销修复后它**通过了**（79s）—— 60 秒时写入端自己退出，卡住的 `cat` 拿到了 EOF，于是整套跑完。写入端必须活得比超时上限更久。改成 `sleep 200` 对 120s 期限后，撤销修复才稳定地在期限点被判红。这条写进断言上方的注释，因为下一个人缩短这个数字时不会有任何提示。
 
+### CI 抓到本地验证的盲点：`'' |` 不是空 stdin（2026-10-28）
+
+第一次推送后 [run 40712165629](https://github.com/hkwuks/TaskFlow/actions/runs/40712165629) 的 `smoke (windows-latest)` **失败**，其余六个 job 通过：
+
+```
+run-hook.cmd : TaskFlow SessionStart error: invalid event JSON: expected a JSON object
+At D:\a\TaskFlow\TaskFlow\hooks\smoke-test-windows.ps1:41 char:24
++         $output = '' | & "$here\run-hook.cmd" session-start 2>&1
+```
+
+**原因**：PowerShell 把空字符串送进管道时不是「零字节」，而是按 `$OutputEncoding` 编码后写一行。实测本机是 `hex=0d 0a`（两个字节），CI runner 上多一个 BOM；`session-start` 把 BOM 当非法 JSON，非零退出，套件 `throw`。
+
+**我本地的漏洞**：我只验证了「加了 `'' |` 后不再卡住」，没有验证「它送进去的是什么字节」。卡死消失这一点是真的，但代价是一个依赖环境编码的输入 —— 这种修复本身就是缺陷。
+
+**改法**：`& cmd /c "`"$here\run-hook.cmd`" session-start < nul" 2>&1`。重定向在任何宿主上都是确定的零字节；本文件 `Invoke-Hook`（`:135`）已经是这个形状。
+
+| 改后验证 | 结果 |
+|---|---|
+| 子套件，stdin `/dev/null` | rc=0，24s，四条 `PASSED` |
+| 子套件，stdin 打开且不写入 | rc=0，25s，四条 `PASSED` |
+| **变异**：还原为继承 stdin | **120s 期限到点被杀，断言判红** |
+| 变异后逐字节恢复 | `diff -q` 一致 |
+
 ## Change Log
 
 - 2026-10-28 — Step 1 完成：`hooks/smoke-test-windows.ps1:41` 给出空 stdin（附理由注释）；`hooks/smoke-test` 的 Windows 段新增端到端断言；`CHANGELOG.md` 记两条。`hooks/smoke-test:735` 是同一缺陷的第二个实例（`cmd.exe //d //c ... session-start` 也继承 stdin），实测本机 rc=124、加 `< /dev/null` 后 rc=0，一并修了 —— 它原本不在 PRD 的 In Scope 里，但在同一个 shard、同一个原因，单独留着就是把已知缺陷留在原地。
+- 2026-10-28 — CI 反馈修正（work revision）：第 41 行的 `'' |` 改为 `cmd /c "... < nul"`。前者在 PowerShell 里按 `$OutputEncoding` 编码后写一行（本机 `0d 0a`，CI 上带 BOM），CI 因此报 `invalid event JSON` 并失败；后者是确定的零字节。同一次修正也补上了我本地验证的盲点记录。
 - 2026-10-28 — 能力账本环境：本会话接线的 pre-write 门来自已安装插件 1.1.8（写五字段 `released` 行），仓库里的 `hooks/task` 是 1.1.9（读六字段）。为不复用一套不相容的账本，首次释放后用仓库版重放同一批阶段。把插件升级到 1.1.9 属项目路径之外的动作，未做。
 
 
