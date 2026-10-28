@@ -1068,3 +1068,53 @@ has an issue number or URL.
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
 
+## Agree on what a closed Step is, so `completed` stops passing one check
+
+- ID: TF-20261027-131c2b
+- Status: done
+- Goal: Make `completion-gate` and `hooks/task progress` mean the same thing by a closed Step, so the word `completed` cannot be refused by one and accepted by the other.
+- Task: `TaskFlowDocs/achieved/2026-10-27-close-step-status/`
+- Next action: None — completed and archived.
+
+## Ask where a conclusion should come from before converging on it
+
+- ID: TF-20261027-e8c6dc
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request
+- Added: 2026-10-27
+- Updated: 2026-10-27
+- Goal: Make TaskFlow ask, before a phase converges, whether the answer depends on a fact from outside this repository — and record the answer either way, instead of leaving external search to a decision that never gets made.
+- Task: Not promoted.
+- Next action: Decide the smallest change that forces the question: a line beside the `inspect` enumeration in `SKILL.md:54`, or a required PRD field. Do not add a gate.
+- Notes: **2026-10-27 re-measured over 91 achieved tasks — worse than the 2026-10-11 figures on [[TF-20260919-90797c]], which owns the measurement.** `## Reference Pointers` holds **365 bullets, 0 containing a URL**. Whole-directory scan: **1 of 91 tasks** cites any third-party host (the 2026-09-10 audit task, 4 URLs). Only **3 of 91** have a `reference/` directory.
+
+  **Three mechanisms, each pointing at a line** (inference, not causation): (1) `SKILL.md:54`'s `inspect` enumerates eight sources and **all eight are inside the repository or the Agent's own state** — nothing outbound; (2) "searching external sources" is only ever listed under Phase 2 (`SKILL.md:172`), and Phase 2 is *optional* with `reference/` as its artifact, so the mental model is "a writing phase" — you do not fetch facts until you have decided to write the note; (3) `hooks/capability-evidence:48-50` counts only `Skill`/`Agent`/`mcp__*`, so `WebSearch`/`WebFetch` are invisible to TaskFlow — excluded deliberately by R12 (`achieved/2026-09-27-capability-pre-write-gate/prd.md:61`) so the gate could not be satisfied by built-in tools. Net effect: search is neither blocked nor rewarded.
+
+  **Why not a gate or a mandate:** the user has stated this is not a request to *require* network search. This repository is largely self-sufficient, which plausibly explains much of 1/91; a mandate would add a compulsory step to the majority of tasks that genuinely do not need one.
+
+  **Coupled to [[TF-20261027-e4ba77]]:** both come from the same root — TaskFlow speaks only at turn boundaries and only about the phase it is in. If the inter-step reminder lands first, this one may be answerable with prose alone.
+
+## Stay present inside a long implementation run, not only at the prompt
+
+- ID: TF-20261027-e4ba77
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request
+- Added: 2026-10-27
+- Updated: 2026-10-27
+- Goal: Keep TaskFlow present between the steps of one implementation run, so a long turn cannot leave the approved Plan behind while nothing in the workflow speaks up again.
+- Task: Not promoted.
+- Next action: Establish which hosts can inject context from a mid-turn hook (a `PostToolUse` hook on every tool, or the host's nearest equivalent) before weighing any design; the whole option set depends on that answer and it is a documentation fact, not a preference.
+- Notes: **2026-10-27 measured on this machine:** across the three most recent session transcripts, tool calls per user turn are median **10–15**, max **197**. `hooks/prompt-reminder` speaks once at the *start* of each turn (`hooks/hooks.json`, `UserPromptSubmit`), and nothing TaskFlow-owned fires for the remaining 10–197 calls. The user's report — "跑着跑着不走流程" — lands in that gap.
+
+  **Four openings named at file:line** (each verified today): (1) `hooks/capability-gate:126-134` returns 0 once a stage is released for this task version, and only matches the basenames `prd.md`/`spec.md`/`plan.md` (`:96-99`), so **no edit after the first Plan write is checked at all**; (2) the gate never reads `## Approval` — recorded history has the failure happening (`achieved/2026-10-23-archive-completion-gate/plan.md:132`, "Steps 1–3 were implemented before the Approval block was filled"); (3) `hooks/task progress` is the only writer of Step status and is bound to **no hook**, so a Step's `- Status:` changes only if the Agent chooses to call it; (4) the record the gate depends on is largely absent — **59 of 91 achieved Plans have zero `## Skills / Tools Used` stage lines**, and 8 have no `## Change Log` section.
+
+  **External evidence for the frequency lever, not for a new gate:** arXiv 2604.12147 (IBM, 21,120 SWE-agent trajectories, SWE-bench Verified + Pro) measures that re-inserting the plan **every five steps** reduces plan violations and raises success, attributing the drift to the plan losing influence as the trajectory grows. That is the same mechanism `prompt-reminder` already uses, at the wrong cadence.
+
+  **Deliberately *not* proposed: extending the gate into the implementation phase.** It would convert a reminder problem into a new hard gate over ordinary refactoring edits, and the false-refusal cost is borne per edit. If it is ever wanted it needs its own evidence, not this item's.
+
+  **Open question the design turns on:** whether a host's mid-turn hook can actually inject text the model reads. If none can, the lever is not a new hook at all but the Plan carrying the current Step where the turn-start reminder can restate it — a smaller change with the same effect at turn granularity only.
+

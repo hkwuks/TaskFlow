@@ -96,11 +96,80 @@ cg_case unchecked 1 'unchecked items' "${cg_approved}### Step 1 — a
 cg_case unfinished 1 'unfinished Steps' "${cg_approved}### Step 1 — a
 - Status: pending
 "
+# Closed is a whitelist, so every word but `done` has to be refused. The list
+# below is not decoration: `completed` was the one measured reaching `achieved/`
+# (2026-10-27), the misspellings and the empty value are what the old blacklist
+# let through for the same reason, and `done (v1)` is a shape two archived Plans
+# still carry. One `cg_case` each, so deleting the whitelist reddens the one it
+# actually removed rather than "something".
+for cg_word in completed 'done (v1)' complted skipped wip DONE; do
+  cg_case "closed-$cg_word" 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: $cg_word
+"
+done
+cg_case closed-empty 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status:
+"
+# A block that never got a Status line is unfinished too: absent is not `done`.
+cg_case closed-missing 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Goal: something
+"
+# ...and the words that already meant unfinished still do. `done` and `pending`
+# are covered above; the other two are here. A whitelist that refused everything
+# would pass all of these, which is why `closed-done` sits beside them.
+cg_case open-in_progress 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: in_progress
+"
+cg_case open-blocked 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: blocked
+"
+cg_case closed-done 0 '' "${cg_approved}### Step 1 — a
+- Status: done
+"
+# Trailing whitespace and a CRLF line ending are written with `printf` rather
+# than typed, so the bytes are visible in the assertion instead of hiding at the
+# end of a quoted line. Both have to count as closed: the repository's
+# `.gitattributes` says `eol=lf`, but a Plan edited on Windows before it is
+# committed carries the `\r`, and refusing it would report a finished Step as
+# unfinished for a reason nobody could see.
+cg_case closed-done-trailing-space 0 '' "$(printf '%s### Step 1 — a\n- Status: done  \n' "$cg_approved")"
+cg_case closed-done-crlf 0 '' "$(printf '%s### Step 1 — a\r\n- Status: done\r\n' "$cg_approved")"
+# Two Steps, one closed and one not: the check is per block, not "does the file
+# contain a `done` anywhere".
+cg_case closed-but-sibling-open 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: done
+### Step 2 — b
+- Status: completed
+"
+# The block reader is not filtered to `## Steps`, on purpose: `hooks/task
+# progress` locates a Step by its heading alone, so a reader that skipped the
+# other sections would see a different set of Steps than the writer edits. Two
+# archived Plans carry Step blocks under `## Approval` and `## Verification /
+# Review`, which is why both sections are pinned here.
+cg_case block-outside-steps-section 1 'unfinished Steps' "${cg_approved}
+### Step 1 — a
+- Status: completed
+"
+cg_case block-outside-steps-section-done 0 '' "${cg_approved}
+### Step 1 — a
+- Status: done
+"
+# Knowingly still fail-open, and pinned so it stays a decision rather than an
+# oversight: a Plan with no `### Step` has nothing to be unfinished. Whether a
+# Plan must have Steps is a different question and is not answered here.
+cg_case no-step-blocks 0 '' "${cg_approved}## Steps
+
+## Checkpoints
+"
 # `--approval-only` is the mid-task question: `state in_progress` and
 # `progress` must not demand a finished Plan, only an approved one.
 cg_case approval-only-unfinished 0 '' "${cg_approved}### Step 1 — a
   - [ ] still working
 - Status: in_progress
+" '--approval-only'
+cg_case approval-only-not-done 0 '' "${cg_approved}## Steps
+### Step 1 — a
+- Status: completed
 " '--approval-only'
 # A promotion that never got a Plan is the case `task complete` can reach,
 # because `task_paths` only requires the directory. The gate says so in words
