@@ -228,6 +228,48 @@ try {
         throw "the desync message lost its numbers on Windows: $reason"
     }
     'WINDOWS PRE-WRITE GATE PASSED'
+
+    # Re-run this whole file with a stdin that is redirected and never written to
+    # or closed — the shape a terminal gives a command a person typed, and the one
+    # CI's own runner does not have. Anything the suite calls without a stdin of
+    # its own inherits that pipe; `session-start` reads its event from stdin, so
+    # the read blocks forever and the suite stops after its first banner with
+    # nothing printed. Measured 2026-10-28: with the `session-start` call left
+    # inheriting, this child never returns and is killed at 90s; with the call
+    # given `< nul`, it exits 0 in about 28s.
+    #
+    # Here rather than in `hooks/smoke-test`, because that suite does not run on
+    # the Windows runner at all (`if: runner.os != 'Windows'`), so an assertion
+    # living there is skipped by every CI job. This file is the only TaskFlow
+    # check a Windows runner executes, which makes it the only place the defect
+    # can be caught automatically.
+    #
+    # `TASKFLOW_STDIN_SELFCHECK` stops the recursion: the child is this same
+    # script and must not spawn a third.
+    if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
+        $self = $MyInvocation.MyCommand.Path
+        $psi = New-Object Diagnostics.ProcessStartInfo
+        $psi.FileName = (Get-Command powershell.exe).Source
+        $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $self + '"'
+        $psi.RedirectStandardInput = $true   # a pipe nobody writes or closes
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.UseShellExecute = $false
+        $psi.EnvironmentVariables['TASKFLOW_STDIN_SELFCHECK'] = '1'
+        $clock = [Diagnostics.Stopwatch]::StartNew()
+        $child = [Diagnostics.Process]::Start($psi)
+        $finished = $child.WaitForExit(90000)
+        $clock.Stop()
+        $elapsed = [int]$clock.Elapsed.TotalSeconds
+        if (-not $finished) {
+            try { $child.Kill() } catch { }
+            throw "the Windows suite blocked for ${elapsed}s with an inherited open stdin — a call to session-start has no stdin of its own and is waiting on the read"
+        }
+        $childOut = $child.StandardOutput.ReadToEnd()
+        if ($child.ExitCode -ne 0) { throw "the Windows suite failed with an inherited open stdin (rc $($child.ExitCode)): $childOut" }
+        if ($childOut -notmatch 'WINDOWS PRE-WRITE GATE PASSED') { throw 'the Windows suite with an inherited open stdin did not reach its last section' }
+        "WINDOWS OPEN STDIN PASSED in ${elapsed}s"
+    }
 }
 finally {
     if ($createdRoot -and (Test-Path $Root)) { Remove-Item -LiteralPath $Root -Recurse -Force }

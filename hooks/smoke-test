@@ -814,52 +814,6 @@ if command -v powershell.exe >/dev/null 2>&1 && command -v cygpath >/dev/null 2>
   echo "== Windows PowerShell/cmd lifecycle with spaces and Chinese =="
   win_smoke=$(cygpath -w "$HERE/smoke-test-windows.ps1")
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$win_smoke"
-
-  # The same suite, run again with a stdin that is open and never written to —
-  # what a terminal hands a command a person typed. `session-start` reads its
-  # event from stdin, so a call that passes none inherits this one, blocks on
-  # `cat`, and the suite stops with nothing printed after its first banner.
-  # Measured 2026-10-28 in WSL: without the fix this run is still silent at 180s
-  # and has to be killed; with it the suite passes in 27s. The CI runner's stdin
-  # is empty, which is why every green windows-latest job has been silent about
-  # this — that condition cannot tell the fix from the bug.
-  #
-  # Bounded on purpose: `wait` on a hung child never returns, so the check has to
-  # be a poll with a deadline, and `kill -0` is the poll because bash reaps the
-  # child and drops its pid once it exits. The stdin is a process substitution —
-  # a pipe whose writer only sleeps, so the read end stays open and silent, which
-  # is the shape a terminal gives a command a person typed but a CI runner does
-  # not. A named pipe was rejected: Git Bash emulates it, and handing an emulated
-  # FIFO to a native `powershell.exe` is exactly the portability bet this check
-  # cannot afford to lose.
-  #
-  # The writer's sleep must outlast the deadline. Measured 2026-10-28 with the
-  # fix reverted: `sleep 60` closed the pipe at 60s, the blocked read got its
-  # EOF, and the whole suite then passed at 79s — the assertion was green while
-  # the defect was present. At `sleep 200` against a 120s deadline the same
-  # reverted build is still silent when the deadline fires, and the fixed one
-  # finishes in 27s.
-  echo "== Windows suite finishes with an open stdin inherited =="
-  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$win_smoke" \
-    < <(sleep 200) >"$tmp/windows-open-stdin.out" 2>&1 &
-  open_stdin_pid=$!
-  waited=0
-  while kill -0 "$open_stdin_pid" 2>/dev/null && [ "$waited" -lt 120 ]; do
-    sleep 1
-    waited=$((waited + 1))
-  done
-  if kill -0 "$open_stdin_pid" 2>/dev/null; then
-    kill -9 "$open_stdin_pid" 2>/dev/null
-    echo "FAIL the Windows suite did not finish in ${waited}s with an open stdin."
-    echo "     Its SessionStart call inherits the runner's stdin and blocks on the read;"
-    echo "     give that call an empty one:  \$output = '' | & \"\$here\\run-hook.cmd\" session-start"
-    cat "$tmp/windows-open-stdin.out"
-    exit 1
-  fi
-  wait "$open_stdin_pid" || { echo "FAIL Windows suite with an open stdin exited non-zero"; cat "$tmp/windows-open-stdin.out"; exit 1; }
-  grep -q 'WINDOWS PRE-WRITE GATE PASSED' "$tmp/windows-open-stdin.out" \
-    || { echo "FAIL Windows suite with an open stdin did not reach its last section"; cat "$tmp/windows-open-stdin.out"; exit 1; }
-  echo ok
 fi
 
 echo "== archive preflight does not move without Todo =="

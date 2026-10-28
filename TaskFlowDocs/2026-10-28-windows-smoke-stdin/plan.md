@@ -123,8 +123,30 @@ At D:\a\TaskFlow\TaskFlow\hooks\smoke-test-windows.ps1:41 char:24
 
 ## Change Log
 
+### CI 抓到第二个问题：新断言在任何 CI 上都不会执行（2026-10-28）
+
+[run 40713839917](https://github.com/hkwuks/TaskFlow/actions/runs/40713839917) 7/7 全绿，但那个绿是假的。查 job 步骤：
+
+```
+Run bash smoke tests   -> skipped     (.github/workflows/hooks.yml:91, runner.os != 'Windows')
+Run Windows smoke tests -> success
+```
+
+Windows runner 根本不跑 `bash hooks/smoke-test`；ubuntu/macos 上又没有 `powershell.exe`/`cygpath`，被守卫跳过。**我把断言放在 `hooks/smoke-test` 里，等于放在任何 CI 都不会执行的位置** —— 而它要复现的现象只在 Windows 上存在。上一轮我在 PR 里声称「撤销修复即判红」，那不假，但判红发生在本机，不在 CI。
+
+**改法**：断言搬进 `hooks/smoke-test-windows.ps1` 自己 —— 那是 windows runner 上唯一执行的 TaskFlow 检查。用 `ProcessStartInfo` + `RedirectStandardInput` 自 spawn 一次，stdin 是一条从不写入也不关闭的管道；`TASKFLOW_STDIN_SELFCHECK` 防递归。`hooks/smoke-test` 那边只留 `< /dev/null` 的一行修复。
+
+| 验证 | 结果 |
+|---|---|
+| 正常跑（含自检） | rc=0，51s，5 条 PASSED（含 `WINDOWS OPEN STDIN PASSED in 25s`） |
+| **变异**：还原为继承 stdin | **rc=1，117s，`blocked for 90s`** |
+| 恢复 | `diff -q` 逐字节一致 |
+
+期限从 180s 缩到 90s：变异那一轮 208s 太长，CI 上一次失败要等三分半才看到原因。
+
 - 2026-10-28 — Step 1 完成：`hooks/smoke-test-windows.ps1:41` 给出空 stdin（附理由注释）；`hooks/smoke-test` 的 Windows 段新增端到端断言；`CHANGELOG.md` 记两条。`hooks/smoke-test:735` 是同一缺陷的第二个实例（`cmd.exe //d //c ... session-start` 也继承 stdin），实测本机 rc=124、加 `< /dev/null` 后 rc=0，一并修了 —— 它原本不在 PRD 的 In Scope 里，但在同一个 shard、同一个原因，单独留着就是把已知缺陷留在原地。
 - 2026-10-28 — CI 反馈修正（work revision）：第 41 行的 `'' |` 改为 `cmd /c "... < nul"`。前者在 PowerShell 里按 `$OutputEncoding` 编码后写一行（本机 `0d 0a`，CI 上带 BOM），CI 因此报 `invalid event JSON` 并失败；后者是确定的零字节。同一次修正也补上了我本地验证的盲点记录。
+- 2026-10-28 — CI 反馈修正二（work revision）：端到端断言从 `hooks/smoke-test` 搬进 `hooks/smoke-test-windows.ps1`。前者在 windows runner 上被 `runner.os != 'Windows'` 跳过、在 ubuntu/macos 上被 `command -v` 守卫跳过，等于任何 CI 都不执行。期限 180s → 90s。
 - 2026-10-28 — 能力账本环境：本会话接线的 pre-write 门来自已安装插件 1.1.8（写五字段 `released` 行），仓库里的 `hooks/task` 是 1.1.9（读六字段）。为不复用一套不相容的账本，首次释放后用仓库版重放同一批阶段。把插件升级到 1.1.9 属项目路径之外的动作，未做。
 
 
