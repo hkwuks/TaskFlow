@@ -123,6 +123,20 @@ At D:\a\TaskFlow\TaskFlow\hooks\smoke-test-windows.ps1:41 char:24
 
 ## Change Log
 
+### CI 结果（最终）
+
+[run 40718420289](https://github.com/hkwuks/TaskFlow/actions/runs/40718420289) @ `9ec581d` — **7/7 pass**：`changes` 5s、`release` 6s、`todo-merge-audit` 6s、`smoke (ubuntu-latest)` 25s、`smoke (macos-latest)` 1m3s、`smoke (windows-latest)` **1m0s**，`evals` skipped（路径过滤，符合预期）。
+
+windows job 日志确认两条新断言**确实被执行**，而不是被跳过：
+
+```
+15:41:21  WINDOWS SCRIPT IS ASCII
+15:41:46  WINDOWS PRE-WRITE GATE PASSED
+15:42:07  WINDOWS OPEN STDIN PASSED in 21s
+```
+
+PR [#103](https://github.com/hkwuks/TaskFlow/pull/103) 已由用户合并为 `125f052`。
+
 ### CI 抓到第二个问题：新断言在任何 CI 上都不会执行（2026-10-28）
 
 [run 40713839917](https://github.com/hkwuks/TaskFlow/actions/runs/40713839917) 7/7 全绿，但那个绿是假的。查 job 步骤：
@@ -147,6 +161,7 @@ Windows runner 根本不跑 `bash hooks/smoke-test`；ubuntu/macos 上又没有 
 - 2026-10-28 — Step 1 完成：`hooks/smoke-test-windows.ps1:41` 给出空 stdin（附理由注释）；`hooks/smoke-test` 的 Windows 段新增端到端断言；`CHANGELOG.md` 记两条。`hooks/smoke-test:735` 是同一缺陷的第二个实例（`cmd.exe //d //c ... session-start` 也继承 stdin），实测本机 rc=124、加 `< /dev/null` 后 rc=0，一并修了 —— 它原本不在 PRD 的 In Scope 里，但在同一个 shard、同一个原因，单独留着就是把已知缺陷留在原地。
 - 2026-10-28 — CI 反馈修正（work revision）：第 41 行的 `'' |` 改为 `cmd /c "... < nul"`。前者在 PowerShell 里按 `$OutputEncoding` 编码后写一行（本机 `0d 0a`，CI 上带 BOM），CI 因此报 `invalid event JSON` 并失败；后者是确定的零字节。同一次修正也补上了我本地验证的盲点记录。
 - 2026-10-28 — CI 反馈修正二（work revision）：端到端断言从 `hooks/smoke-test` 搬进 `hooks/smoke-test-windows.ps1`。前者在 windows runner 上被 `runner.os != 'Windows'` 跳过、在 ubuntu/macos 上被 `command -v` 守卫跳过，等于任何 CI 都不执行。期限 180s → 90s。
+- 2026-10-28 — CI 反馈修正三（work revision）：`hooks/smoke-test-windows.ps1` 恢复纯 ASCII，并新增 `WINDOWS SCRIPT IS ASCII` 自检。PS 5.1 按 ANSI 码页读无 BOM 的 .ps1，我在 throw 消息里写的 em dash 导致整个文件解析失败。同轮把 Populate 了最终 CI 结果。
 - 2026-10-28 — 能力账本环境：本会话接线的 pre-write 门来自已安装插件 1.1.8（写五字段 `released` 行），仓库里的 `hooks/task` 是 1.1.9（读六字段）。为不复用一套不相容的账本，首次释放后用仓库版重放同一批阶段。把插件升级到 1.1.9 属项目路径之外的动作，未做。
 
 
