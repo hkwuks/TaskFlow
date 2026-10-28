@@ -37,16 +37,22 @@ has an issue number or URL.
 ## A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the sui
 
 - ID: TF-20261025-645ef4
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: follow-up from 2026-10-25-gate-desync-diagnosis
 - Added: 2026-10-25
-- Updated: 2026-10-25
-- Goal: A throw in hooks/smoke-test-windows.ps1 after the launcher section hangs the suite instead of failing it: measured 2026-10-25 at 100-500s of silence with nothing printed, on main as well, so a red assertion reaches CI as a smoke (windows-latest) timeout rather than a message
-- Task: Not promoted.
-- Next action: Decide whether the suite should fail loudly: wrap the outer try/catch so a throw prints its message and exits non-zero. First reproduce on main to confirm it predates the branch, then check whether the CI job log shows anything on timeout.
-- Notes: Found while verifying 2026-10-25-gate-desync-diagnosis. Positioning: a throw past the launcher section (after "WINDOWS LAUNCHER ARGS PASSED") hangs; a throw before it exits 1 correctly. Same on main, so not caused by that task. Consequence: the desync assertions added there, if they ever fail, arrive as a windows-latest timeout with no message. Local test: powershell.exe -File hooks/smoke-test-windows.ps1 (Git for Windows lives at D:\Git on this machine).
+- Updated: 2026-10-28
+- Goal: Give hooks/smoke-test-windows.ps1 a stdin for the SessionStart call it makes, so the suite cannot block on an open one: measured 2026-10-28, the hang is line 96's `Invoke-SessionStart 'pr'`, not any throw — `run-hook.cmd session-start` has no stdin of its own, so it inherits the runner's, and `session-start` reads its event with `cat`. A throw is never the cause: injected at eight positions, every one before line 96 exits 1 in under 14s with its message, every one after it hangs.
+- Task: `TaskFlowDocs/2026-10-28-windows-smoke-stdin/`
+- Next action: Approve the PRD and Plan; then fix line 31 and add the end-to-end assertion.
+- Notes: **2026-10-28 correction — the entry's original framing was wrong in two ways.** (1) "A throw after the launcher section hangs" measures the hang at the wrong object: throw is how the tester *noticed*, not what blocks. Bisected by injecting `throw` at lines 88/95/97/110/121/142/160/197/208 — the boundary is exactly line 96, `$first = Invoke-SessionStart 'pr'` in the Windows fixture. (2) "wrap the outer try/catch so a throw prints its message" is already true and needs nothing: probes at lines 55/56/111 print their message and exit 1 in 2–17s; `finally` at line 216 only removes the fixture root.
+
+  **Mechanism, measured:** `hooks/session-start:29` is `event_json="$(cat)"` by contract (also `capability-gate`, `capability-evidence`, `prompt-reminder`). Each of the four returns rc=124 against an idle open stdin and rc=0 against `/dev/null`; `hooks/task`, which reads no stdin, returns immediately. The bash suite already paid for this lesson — `hooks/smoke-test:564-566` carries the comment "`< /dev/null`, not a pipe … inheriting the suite's own stdin makes the read block whenever that stdin stays open" and passes `< /dev/null`. The PowerShell suite is that same fix's unapplied twin.
+
+  **Why CI has never shown it:** a CI runner's stdin is empty or null, so `cat` sees EOF at once. Only a human running `powershell.exe -File hooks/smoke-test-windows.ps1` from a terminal hits it — which is why every windows-latest job to date is green. Confirmed on `main` as well as on the branch: open stdin rc=124 / 59s, closed stdin rc=0 / 27s, byte-identical suite.
+
+  **The fix, verified on a copy before writing it:** `$output = '' | & "$here\run-hook.cmd" session-start 2>&1` — open stdin rc=0 / 27s, closed stdin rc=0 / 24s, all four PASSED banners.
 
 ## Ignore personal.md and sessions.md without the user editing .gitignore: the plug
 

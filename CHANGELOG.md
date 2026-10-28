@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Windows smoke suite no longer stops dead when its stdin is open and silent.** `hooks/smoke-test-windows.ps1` called `run-hook.cmd session-start` with no stdin of its own, so the hook inherited the runner's — and `session-start` reads its event with `cat`. From a terminal that read never reaches EOF, so the suite printed `WINDOWS LAUNCHER ARGS PASSED` and then hung indefinitely; a red assertion reached a person as an unexplained freeze rather than a message. The cause is the inherited stdin, not the throw the report named: probing with `throw` at eight positions, every one before that call printed and exited 1 in under 14s, while every one after it hung — the boundary is exactly `Invoke-SessionStart 'pr'`. The bash suite already carried this lesson for its own `session-start` call (`hooks/smoke-test`, `< /dev/null`); the PowerShell one is now given an empty event the same way. Measured 2026-10-28: before, still silent at 180s and killed; after, four `PASSED` banners in 27s. **CI could never have caught it** — a runner's stdin is empty, so `cat` sees EOF at once and every windows-latest job has been green regardless.
+- **`hooks/smoke-test` now runs the Windows suite again with an open stdin, and fails if it does not finish.** The check is worthless against CI's own empty stdin, so it supplies the condition the defect needs: a pipe whose read end stays open and silent. It polls with a deadline rather than `wait`ing, because `wait` on a hung child never returns, and it names the inheriting call in its failure message. Verified by mutation: with the fix reverted the check is killed at its 120s deadline, and with it in place the suite passes in 27s. **The writer sleeping behind that pipe must outlast the deadline** — the first version used `sleep 60`, and with the fix reverted the pipe closed at 60s, the blocked read got its EOF, and the assertion passed at 79s against a build carrying the defect. At `sleep 200` the same build is still silent when the 120s deadline fires. The comment above the check records this, because shortening the number gives no warning.
+- **The same inherited stdin reached one more `session-start` call, in `hooks/smoke-test` itself.** Its `== Windows launcher finds Git Bash ==` section ran `cmd.exe //d //c ... session-start` with no stdin, so it had the identical failure mode: measured 2026-10-28, it never returned against a held-open stdin and returned at once with `< /dev/null`. Given the empty stdin it now has, the same way and for the same reason.
+
+
 ## [1.1.9] — 2026-10-26
 
 ### Added

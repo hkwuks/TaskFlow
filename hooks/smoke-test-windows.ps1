@@ -28,7 +28,17 @@ function Invoke-SessionStart {
         $env:TASKFLOW_REPO_ROOT = $Root
         $env:TASKFLOW_PHASE = $Phase
         $env:CLAUDE_PLUGIN_ROOT = Split-Path -Parent $here
-        $output = & "$here\run-hook.cmd" session-start 2>&1
+        # Feed `session-start` an empty event rather than letting it inherit ours.
+        # The hook reads its event from stdin by contract (`event_json="$(cat)"`),
+        # so with no stdin of its own it takes the runner's — and an idle open
+        # one (a terminal, a held pipe, a FIFO) never reaches EOF, so the read
+        # blocks and this whole suite stops here with nothing printed. Measured
+        # 2026-10-28: the suite hangs at this call and nowhere else; throw
+        # probes at eight later lines all printed and exited 1 in under 14s,
+        # while probes after this line timed out. `hooks/smoke-test:564-566`
+        # carries the same lesson for the bash suite and passes `< /dev/null`.
+        # CI has never shown it because a runner's stdin is empty already.
+        $output = '' | & "$here\run-hook.cmd" session-start 2>&1
         if ($LASTEXITCODE -ne 0) { throw "SessionStart failed: $output" }
         return (($output -join [Environment]::NewLine) | ConvertFrom-Json)
     }
