@@ -86,6 +86,95 @@ printf -- '- %s: %s\n' "$codex_manifest" "$codex_v"
 printf -- '- %s: %s\n' "$codebuddy_manifest" "$codebuddy_v"
 printf -- '- %s: %s\n' "$dsh_manifest" "$dsh_v"
 printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
+
+# --- $schema declarations --------------------------------------------------
+# A manifest may point at a JSON Schema for editors and validators. Nothing read
+# those pointers, and measured 2026-10-29 both of the ones in this repository
+# resolve to 404: `anthropic.com/claude-code/{marketplace,plugin}.schema.json`
+# each 301 to `www.anthropic.com/...` and then 404. So the assertion here checks
+# what the repository can decide by itself and says nothing about reachability.
+#
+# Deliberately no network. Every other check in this file is offline, and a
+# `curl` here would turn a deterministic check into one that reddens on a DNS
+# blip or a rate limit -- and the reachability answer would be wrong the moment
+# the remote moved, which is exactly how the current two got this way unnoticed.
+#
+# The declaration set is written out rather than read from a file: a second
+# record of the same fact is a second thing to drift, and this one is two lines.
+# It is a pin, not a policy, so the failure it produces is "the set changed" --
+# which is the interesting event either way. Adding a `$schema` to a manifest
+# that has none must edit this list, and deleting one must too.
+schema_expected=".claude-plugin/marketplace.json .claude-plugin/plugin.json"
+schema_seen=""
+for file in "$marketplace" "$claude_manifest" "$codex_manifest" \
+            "$codebuddy_manifest" "$codebuddy_marketplace" "$dsh_manifest"; do
+  [ -f "$file" ] || continue
+  # Presence is the key, not the extracted value: an empty `""` is a declaration
+  # with an empty value and must reach the loop below, where it is its own
+  # failure. Keying on the value instead skipped exactly that case -- measured
+  # 2026-10-29, `"$schema": ""` passed the whole check.
+  grep -q '"\$schema"' "$file" || continue
+  # Every value on every `$schema` line. A duplicate key inside one file is
+  # undefined behaviour for JSON parsers -- which one wins depends on the
+  # implementation -- so two values are reported rather than resolved.
+  values="$(sed -n 's/.*"\$schema"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$file")"
+  count="$(printf '%s\n' "$values" | grep -c . || true)"
+  if [ "$count" -gt 1 ]; then
+    echo "- $file declares \$schema $count times; a JSON parser's choice between them is unspecified"
+    needs=1
+  fi
+  schema_seen="$schema_seen $file"
+  if [ "$count" -eq 0 ]; then
+    # The key is there but carries no string value. `""` and `null` are reported
+    # apart because they are different mistakes: an empty string is a value the
+    # author meant to fill in, a non-string is a shape that was never a URL.
+    if grep -q '"\$schema"[[:space:]]*:[[:space:]]*""' "$file"; then
+      echo "- $file declares an empty \$schema"
+    else
+      echo "- $file has a \$schema key with no string value"
+    fi
+    needs=1
+    continue
+  fi
+  while IFS= read -r value; do
+    [ -n "$value" ] || { echo "- $file declares an empty \$schema"; needs=1; continue; }
+    case "$value" in
+      https://?*) ;;
+      *) echo "- $file \$schema is not an absolute https URL: $value"
+         needs=1 ;;
+    esac
+  done <<EOF
+$values
+EOF
+done
+
+# The pin. Reported as one line naming both sides, because "the set changed" is
+# only actionable when the reader can see what it changed from and to. Paths, not
+# basenames: both marketplaces are called `marketplace.json` and a basename key
+# cannot tell them apart.
+#
+# Only enforced once something declares. A repository that has not adopted
+# `$schema` at all cannot be told it dropped a declaration it never had, and
+# demanding one would make this check fail on every repository that has not —
+# including the three manifests here that legitimately carry none.
+if [ -n "$(printf '%s' "$schema_seen" | tr -d '[:space:]')" ]; then
+  for file in $schema_expected; do
+    case " $schema_seen " in
+      *" $file "*) ;;
+      *) echo "- $file no longer declares a \$schema (pinned: $schema_expected)"
+         needs=1 ;;
+    esac
+  done
+  for seen in $schema_seen; do
+    found=0
+    for file in $schema_expected; do
+      [ "$file" = "$seen" ] && found=1
+    done
+    [ "$found" -eq 1 ] || { echo "- $seen now declares a \$schema and is not in the pinned set ($schema_expected)"
+                            needs=1; }
+  done
+fi
+
 # One line per literal, so a second sample disagreeing with the first is visible
 # in the output rather than averaged away.
 for readme in README.md README.zh-CN.md; do

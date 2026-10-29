@@ -26,6 +26,19 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## Assert the $schema a plugin manifest declares, so a schema URL that stops resolv
+
+- ID: TF-20261029-218fdf
+- Status: in_progress
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-10-29 (TF-20260928-3910fb re-scoped)
+- Added: 2026-10-29
+- Updated: 2026-10-29
+- Goal: Assert the $schema a plugin manifest declares, so a schema URL that stops resolving or a manifest that drops one fails a check instead of shipping
+- Task: `TaskFlowDocs/2026-10-29-schema-check/`
+- Next action: Re-approve v2: A1 now expects STATUS: pass, since the offline assertion cannot detect the two 404 URLs.
+
 ## task approve requires the first [Plan] line to name exactly the capability relea
 
 - ID: TF-20261026-726ec4

@@ -4693,6 +4693,97 @@ set -e
 grep -q 'STATUS: blocked' "$rel/out" || { echo "FAIL missing manifest not blocked"; cat "$rel/out"; exit 1; }
 echo ok
 
+# --- $schema declarations --------------------------------------------------
+# Separate fixture, because the one above has lost its CHANGELOG and is now a
+# blocked repository; these cases need a consistent one to start from.
+#
+# The check asserts what the repository can decide alone: a declared `$schema`
+# must be non-empty and an absolute https URL, may appear once per file, and the
+# set of files declaring one is pinned. Reachability is deliberately NOT checked
+# -- measured 2026-10-29 both of this repository's declarations 404, and no
+# offline assertion can tell. Every case below therefore turns on a fact the
+# file itself carries.
+sch="$tmp/schema-check"
+mkdir -p "$sch/.claude-plugin" "$sch/.codex-plugin" "$sch/.codebuddy-plugin"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/.claude-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$sch/.codex-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$sch/.codebuddy-plugin/plugin.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/package.json"
+printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$sch/CHANGELOG.md"
+printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$sch/README.md"
+cp "$sch/README.md" "$sch/README.zh-CN.md"
+git -C "$sch" init -q
+git -C "$sch" config user.email smoke@example.invalid
+git -C "$sch" config user.name smoke
+git -C "$sch" add -A
+git -C "$sch" commit -qm init
+git -C "$sch" tag v9.9.9
+pin_sha="$(git -C "$sch" rev-parse HEAD)"
+for catalog in .claude-plugin/marketplace.json .codebuddy-plugin/marketplace.json; do
+  printf '{\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.9",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$pin_sha" > "$sch/$catalog"
+done
+# The pinned set names two files, so the fixture starts with no declarations and
+# the FIRST case below asserts that silence passes; the pinned pair is then added
+# by the second case. Written out here rather than via sed so each case reads on
+# its own.
+
+echo "== release-check judges a declared \$schema by what the file says =="
+# No declaration anywhere: pass. The check must not demand one, because three of
+# the five shipped manifests legitimately have none.
+bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1 \
+  || { echo "FAIL a repository with no \$schema was refused"; cat "$sch/out"; exit 1; }
+grep -q 'STATUS: pass' "$sch/out" || { echo "FAIL no-\$schema repository did not pass"; cat "$sch/out"; exit 1; }
+
+# The pinned set with a well-formed declaration on each: still pass.
+for pair in .claude-plugin/marketplace.json .claude-plugin/plugin.json; do
+  sed "s/^{/{\n  \"\$schema\": \"https:\/\/example.invalid\/x.schema.json\",/" \
+    "$sch/$pair" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/$pair"
+done
+bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1 \
+  || { echo "FAIL a well-formed \$schema declaration was refused"; cat "$sch/out"; exit 1; }
+grep -q 'STATUS: pass' "$sch/out" || { echo "FAIL well-formed declarations did not pass"; cat "$sch/out"; exit 1; }
+
+# Empty value.
+sed 's|"\$schema": "[^"]*"|"\$schema": ""|' "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json"
+mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+if bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1; then echo "FAIL empty \$schema accepted"; exit 1; fi
+grep -q 'declares an empty \$schema' "$sch/out" || { echo "FAIL empty \$schema not named"; cat "$sch/out"; exit 1; }
+sed 's|"\$schema": ""|"\$schema": "https://example.invalid/x.schema.json"|' \
+  "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+
+# Plain http, and a relative path: neither can be an absolute https URL.
+for bad in 'http://example.invalid/x.schema.json' './x.schema.json'; do
+  sed "s|\"\$schema\": \"[^\"]*\"|\"\$schema\": \"$bad\"|" "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json"
+  mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+  if bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1; then echo "FAIL non-https \$schema accepted: $bad"; exit 1; fi
+  grep -q 'is not an absolute https URL' "$sch/out" || { echo "FAIL non-https \$schema not named: $bad"; cat "$sch/out"; exit 1; }
+done
+sed 's|"\$schema": "[^"]*"|"\$schema": "https://example.invalid/x.schema.json"|' \
+  "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+
+# Declared twice in one file: which value a parser keeps is unspecified, so the
+# count is the finding rather than either value.
+sed 's|"\$schema": "[^"]*"|"\$schema": "https://example.invalid/a.json",\n  "\$schema": "https://example.invalid/b.json"|' \
+  "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+if bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1; then echo "FAIL duplicate \$schema accepted"; exit 1; fi
+grep -q 'declares \$schema 2 times' "$sch/out" || { echo "FAIL duplicate \$schema not counted"; cat "$sch/out"; exit 1; }
+sed 's|"\$schema": "https://example.invalid/a.json",||; s|^  "\$schema": "https://example.invalid/b.json"|  "\$schema": "https://example.invalid/x.schema.json"|' \
+  "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+
+# The pin, both directions. A declaration removed from a pinned file, and a
+# declaration added to a file that is not pinned -- each is the same event: the
+# set changed and nobody said so.
+sed '/"\$schema"/d' "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+if bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1; then echo "FAIL a pinned declaration was dropped silently"; exit 1; fi
+grep -q 'no longer declares a \$schema' "$sch/out" || { echo "FAIL dropped declaration not named"; cat "$sch/out"; exit 1; }
+sed 's/^{/{\n  "\$schema": "https:\/\/example.invalid\/x.schema.json",/' \
+  "$sch/.claude-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.claude-plugin/plugin.json"
+sed 's/^{/{\n  "\$schema": "https:\/\/example.invalid\/y.schema.json",/' \
+  "$sch/.codex-plugin/plugin.json" > "$sch/tmp.json" && mv "$sch/tmp.json" "$sch/.codex-plugin/plugin.json"
+if bash "$HERE/release-check" "$sch" >"$sch/out" 2>&1; then echo "FAIL an unpinned declaration was accepted silently"; exit 1; fi
+grep -q 'is not in the pinned set' "$sch/out" || { echo "FAIL unpinned declaration not named"; cat "$sch/out"; exit 1; }
+echo ok
+
 echo "== release-version writes every literal, and refuses before it writes any =="
 # The eight literals are one approved version string transcribed into six files,
 # so writing them by hand spends tokens on a mechanical edit and is the step that
