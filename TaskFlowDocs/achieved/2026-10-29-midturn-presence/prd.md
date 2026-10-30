@@ -1,7 +1,7 @@
 # 在一次实现运行的中途保持 TaskFlow 在场，而不只在提示词边界
 
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
