@@ -1,6 +1,6 @@
 # Plan — 断言 manifest 的 `$schema` 声明
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 

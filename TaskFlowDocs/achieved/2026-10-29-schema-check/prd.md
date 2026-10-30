@@ -1,6 +1,6 @@
 # 断言插件 manifest 声明的 `$schema` 可用
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
