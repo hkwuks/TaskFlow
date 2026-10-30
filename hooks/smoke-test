@@ -126,6 +126,74 @@ cg_case open-blocked 1 'unfinished Steps' "${cg_approved}### Step 1 — a
 cg_case closed-done 0 '' "${cg_approved}### Step 1 — a
 - Status: done
 "
+# Two `- Status:` lines in one block is a Plan stating two different things about
+# the same Step. The gate used to read the last one — sound reasoning about how
+# the second line got there, silent about which of two contradictory statements
+# is meant, which is not a question a file reader can answer. Measured
+# 2026-10-30: `done` followed by `pending` archived.
+#
+# Both orders, because a reader that took the first instead of the last would
+# pass one of them and this rule would still be missing: the defect is the
+# guessing, not which line won.
+cg_case multi-status-done-first 1 'more than one - Status: line in Step 1' "${cg_approved}### Step 1 — a
+- Status: done
+- Status: pending
+"
+cg_case multi-status-done-second 1 'more than one - Status: line in Step 1' "${cg_approved}### Step 1 — a
+- Status: pending
+- Status: done
+"
+# The refusal names the Step, so an author with several blocks knows which one to
+# open. A message that said "somewhere" would leave them re-reading the Plan.
+cg_case multi-status-step-3 1 'in Step 3' "${cg_approved}### Step 3 — c
+- Status: done
+- Status: done
+"
+# Two statuses in *different* blocks is two Steps, not a contradiction. Without
+# this the rule could pass by refusing any Plan whose Steps repeat the word.
+cg_case multi-status-across-blocks 0 '' "${cg_approved}### Step 1 — a
+- Status: done
+
+### Step 2 — b
+- Status: done
+"
+# A15: the gate must not care who wrote the Step status. `hooks/task progress`
+# writes one shape and a hand edit writes another, and the two have to be judged
+# identically — for two different reasons, and the pair below holds both.
+#
+# `- 2026-10-30 Step 1: <text>` in the verification section is what `progress`
+# produces. A Plan with it, and one with the same `- Status: done` and a
+# hand-written verification line, must reach the same verdict. If a future rule
+# starts requiring the dated line, the hand-written half reddens and says so.
+#
+# This is the one assertion standing between the repository and a silent
+# `progress` mandate, which R11 rules out: `progress` adds friction and produces
+# nothing the gate can verify (PRD fact 5), so making it compulsory would be the
+# exact incentive failure this task exists to remove.
+cg_case step-closed-by-progress 0 '' "${cg_approved}### Step 1 — a
+- Status: done
+
+## Verification / Review
+
+- 2026-10-30 Step 1: bash hooks/smoke-test ALL SMOKE PASSED
+"
+cg_case step-closed-by-hand 0 '' "${cg_approved}### Step 1 — a
+- Status: done
+
+## Verification / Review
+
+Ran the suite by hand; all green. See the CI run on the pull request.
+"
+# A18: an archived task's Plan is not read by this gate at all — `capability-gate`
+# excludes `achieved/`, and this one is only ever pointed at an active task by
+# its callers. The fixture proves the *shape* matters and not the location: an
+# old-format Step that would be refused while active is refused here too, so the
+# exclusion is what protects `achieved/`, and nothing about the new rule changed
+# that. Stated as a positive assertion rather than a comment because the previous
+# shape of this file assumed it.
+cg_case archived-shape-still-judged-by-file 1 'unfinished Steps' "${cg_approved}### Step 1 — a
+- Status: completed
+"
 # Trailing whitespace and a CRLF line ending are written with `printf` rather
 # than typed, so the bytes are visible in the assertion instead of hiding at the
 # end of a quoted line. Both have to count as closed: the repository's
@@ -1285,11 +1353,15 @@ cp "$HERE/task" "$roll/task"
 # `task` resolves the name rule and the completion gate through SCRIPT_DIR, so a
 # copied tree needs both beside it — a missing one would show up here as
 # "completion-gate: No such file" rather than as the archive failure this
-# section is about.
+# section is about. `completion-gate` calls `approval-check` the same way, so it
+# travels with it; a copied tree that grows a new sibling this way must copy that
+# too, which is why the failure reads as a missing file rather than as a wrong
+# verdict.
 cp "$HERE/task-id" "$roll/task-id"
 cp "$HERE/completion-gate" "$roll/completion-gate"
+cp "$HERE/approval-check" "$roll/approval-check"
 printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
-chmod +x "$roll/archive" "$roll/task-id" "$roll/completion-gate" "$roll/task"
+chmod +x "$roll/archive" "$roll/task-id" "$roll/completion-gate" "$roll/approval-check" "$roll/task"
 rf="$tmp/rollback-root"
 mkdir -p "$rf"
 bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
@@ -2636,6 +2708,26 @@ done
 grep -q -F -- "not in the task's documents" "$repo/CONTRIBUTING.md" || { echo "FAIL the landing claim is not distinguished from the task documents"; exit 1; }
 echo ok
 
+echo "== a hook change reaches every declared host, or the rule says why not =="
+# The rule this pins exists because the repository got the distinction wrong:
+# `runtime.md` recorded Codex as ungated under the heading of a host limitation,
+# while Codex's own docs (read 2026-10-29) document `PreToolUse` on `apply_patch`,
+# a deny reply, and `additionalContext`. "Not wired" and "not supported" are
+# different facts and only one of them is work. Pin the rule's two vocabulary
+# words and the obligation it puts on a hook change.
+for clause in \
+  'A hook change lands on every host the repository declares, or it says why not.' \
+  '**not wired** — the host supports the event and the reply shape, and this' \
+  '**not supported** — the host has no such event, or no way to see what the hook' \
+  'A host recorded as *not supported* carries the host'"'"'s own documentation as' ; do
+  grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" || { echo "FAIL host-coverage rule does not pin: $clause"; exit 1; }
+done
+# The rule must name the file that lists the hosts, or it points at nothing.
+grep -q -F -- 'skills/taskflow/references/runtime.md' "$repo/CONTRIBUTING.md" || { echo "FAIL host-coverage rule does not name the host list"; exit 1; }
+# And the distinction itself must be stated, not merely implied by the vocabulary.
+grep -q -F -- 'Two words are not interchangeable' "$repo/CONTRIBUTING.md" || { echo "FAIL the two host verdicts are not stated as distinct"; exit 1; }
+echo ok
+
 echo "== phases map to concept classes without naming a capability =="
 grep -q '^| 1\. Define — PRD | `prd.md` | requirements elicitation' "$skill/SKILL.md" || { echo "FAIL define phase concept row"; exit 1; }
 grep -q '^| 4\. Plan — execution contract | `plan.md` | work breakdown' "$skill/SKILL.md" || { echo "FAIL plan phase concept row"; exit 1; }
@@ -2799,6 +2891,18 @@ cg_verdict() {  # cg_verdict <file-path> <allow|deny> [tool-name]
   case "$cg_got" in *'"deny"'*) cg_got="deny" ;; *) cg_got="allow" ;; esac
   [ "$cg_got" = "$2" ] || { echo "FAIL gate gave $cg_got for $1, expected $2"; exit 1; }
 }
+# Codex sends the whole edit as a patch under `tool_input.command` and no path
+# field at all. Without this the gate sees no path, exits 0, and reports itself
+# as wired while checking nothing — the exact defect this task exists to close,
+# and the one that let a month pass with Codex ungated.
+cg_patch_event() {  # cg_patch_event <cwd> <patch-text>
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$(cg_json "$1")\",\"tool_input\":{\"command\":\"$(cg_json "$2")\"}}"
+}
+cg_patch_verdict() {  # cg_patch_verdict <label> <cwd> <patch-text> <allow|deny>
+  cg_got="$(cg_patch_event "$2" "$3" | bash "$cg")"
+  case "$cg_got" in *'"deny"'*) cg_got="deny" ;; *) cg_got="allow" ;; esac
+  [ "$cg_got" = "$4" ] || { echo "FAIL gate gave $cg_got for patch $1, expected $4"; printf '%s\n' "$cg_got"; exit 1; }
+}
 cg_skill() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"skill\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
 cg_agent() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"subagent_type\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
 cg_mcp()   { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"mcp__m__t\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{}}" | bash "$HERE/capability-evidence"; }
@@ -2845,10 +2949,155 @@ printf '%s' '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{}}
 printf '%s' '{bad json' | bash "$cg" > "$tmp/cg.bad"
 [ -s "$tmp/cg.bad" ] && { echo "FAIL gate answered invalid JSON"; exit 1; }
 
+# The patch shape gets its own repository. The one above has spent its evidence
+# and released all three stages, so every write to it is allowed for reasons that
+# have nothing to do with path parsing — an assertion there would pass no matter
+# what the parser did.
+cp_root="$tmp/capability-gate-patch"
+pdir="$cp_root/repo/TaskFlowDocs/2026-09-27-gate"
+mkdir -p "$pdir"
+git -C "$cp_root/repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' > "$pdir/plan.md"
+
+# The four directives a patch can carry, each judged by the same rule the
+# `file_path` shape uses. One case per directive rather than one case, because
+# three of them share a code path only by accident: they are four `substr`
+# offsets in one `awk`, and a wrong offset reads a path that does not exist,
+# which the gate then allows — a silent pass, not an error.
+cg_patch_verdict update  "$cp_root/repo" "*** Begin Patch
+*** Update File: TaskFlowDocs/2026-09-27-gate/prd.md
+*** End Patch" deny
+cg_patch_verdict add     "$cp_root/repo" "*** Begin Patch
+*** Add File: TaskFlowDocs/2026-09-27-gate/spec.md
+*** End Patch" deny
+cg_patch_verdict delete  "$cp_root/repo" "*** Begin Patch
+*** Delete File: TaskFlowDocs/2026-09-27-gate/plan.md
+*** End Patch" deny
+# A move is `Update File: <old>` plus `Move to: <new>`, so both ends have to be
+# judged. Reading only the destination leaves the departure unchecked, and a
+# document moved out of a task really does leave it.
+cg_patch_verdict move    "$cp_root/repo" "*** Begin Patch
+*** Update File: TaskFlowDocs/2026-09-27-gate/prd.md
+*** Move to: TaskFlowDocs/2026-09-27-other/prd.md
+*** End Patch" deny
+# The case above passes if only the `Update File:` line is read, because that
+# line names the gated document too. So `Move to:` gets a case where it is the
+# ONLY thing naming the destination — the source is an unrelated file. Measured
+# 2026-10-30: with the `Move to:` branch deleted, the case above still denied and
+# the suite stayed green, which is a rule asserted by an accident rather than by
+# an assertion.
+cg_patch_verdict move-destination-only "$cp_root/repo" "*** Begin Patch
+*** Update File: README.md
+*** Move to: TaskFlowDocs/2026-09-27-gate/prd.md
+*** End Patch" deny
+# A patch that touches nothing TaskFlow-owned passes, or the gate would block
+# ordinary work in every repository it is installed in.
+cg_patch_verdict unrelated "$cp_root/repo" "*** Begin Patch
+*** Update File: README.md
+*** End Patch" allow
+# A patch is all-or-nothing. The first path here is unrelated and allows; the
+# second is a gated document. A gate that judged only the first would pass the
+# whole thing, which is the defect A11 names.
+cg_patch_verdict multi-file "$cp_root/repo" "*** Begin Patch
+*** Update File: README.md
+*** Update File: TaskFlowDocs/2026-09-27-gate/prd.md
+*** End Patch" deny
+# A patch with content but no recognizable directive is a gate that cannot read
+# its host. Allowing it is the failure mode this task exists to remove, so it is
+# refused and the message says the format is the problem, not the rule.
+cg_patch_verdict unparsable "$cp_root/repo" "*** Begin Patch
+some format this gate has never seen
+*** End Patch" deny
+# An empty command is no edit, so there is nothing to have judged; refusing
+# would be a false positive.
+cg_patch_verdict empty "$cp_root/repo" "" allow
+
+# A path with a space in it. The first implementation collected paths with
+# `set -- $patch_paths`, which expands unquoted and splits on every space, so a
+# path containing one became two paths — each judged, each allowed, and the
+# document never checked. Both the space case and the CRLF case below were
+# measured allow-everything on 2026-10-30 before being fixed.
+sp_repo="$tmp/patch-space"
+mkdir -p "$sp_repo/TaskFlowDocs/2026-01-02-sp/plan.md.d" "$sp_repo/TaskFlowDocs/2026-01-02-sp"
+git -C "$sp_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' > "$sp_repo/TaskFlowDocs/2026-01-02-sp/plan.md"
+mkdir -p "$sp_repo/TaskFlowDocs/2026 01 02 spaced"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$sp_repo/TaskFlowDocs/2026 01 02 spaced/plan.md"
+cp_row="$(printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: TaskFlowDocs/2026 01 02 spaced/plan.md\\n*** End Patch"}}' "$sp_repo")"
+printf '%s' "$cp_row" | bash "$cg" > "$tmp/cg.space"
+grep -q '"permissionDecision":"deny"' "$tmp/cg.space" \
+  || { echo "FAIL a patch path containing a space was allowed, so the path was split and never judged"; cat "$tmp/cg.space"; exit 1; }
+# A CRLF patch — routine on Windows — left a trailing `\r` on every extracted
+# path, so `base` read `plan.md\r`, matched no stage, and the gate allowed a
+# document it exists to refuse.
+crlf_repo="$tmp/patch-crlf"
+mkdir -p "$crlf_repo/TaskFlowDocs/2026-01-03-cr"
+git -C "$crlf_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' > "$crlf_repo/TaskFlowDocs/2026-01-03-cr/plan.md"
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\r\\n*** Update File: TaskFlowDocs/2026-01-03-cr/plan.md\\r\\n*** End Patch\\r\\n"}}' "$crlf_repo" \
+  | bash "$cg" > "$tmp/cg.crlf"
+grep -q '"permissionDecision":"deny"' "$tmp/cg.crlf" \
+  || { echo "FAIL a CRLF patch was allowed, so the trailing carriage return hid the stage"; cat "$tmp/cg.crlf"; exit 1; }
+# A refused patch must leave the store untouched. Releases are queued and
+# written only after every path is judged, so a refusal part way through cannot
+# spend an evidence line against a write the host never applied. Measured
+# 2026-10-30: `released` kept the first document's row after the second was
+# refused, and the next write of that document then passed with no record behind
+# it.
+pm_repo="$tmp/patch-atomic"
+mkdir -p "$pm_repo/TaskFlowDocs/2026-01-04-at"
+git -C "$pm_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' > "$pm_repo/TaskFlowDocs/2026-01-04-at/plan.md"
+mkdir -p "$pm_repo/.git/taskflow"
+printf 'invoke|only:cap\n' > "$pm_repo/.git/taskflow/evidence"
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: TaskFlowDocs/2026-01-04-at/plan.md\\n*** Update File: TaskFlowDocs/2026-01-04-at/spec.md\\n*** End Patch"}}' "$pm_repo" \
+  | bash "$cg" > "$tmp/cg.atomic"
+grep -q '"permissionDecision":"deny"' "$tmp/cg.atomic" \
+  || { echo "FAIL a patch whose second path had no evidence was allowed"; cat "$tmp/cg.atomic"; exit 1; }
+[ -f "$pm_repo/.git/taskflow/released" ] \
+  && { echo "FAIL a refused patch still wrote a release:"; cat "$pm_repo/.git/taskflow/released"; exit 1; }
+
 # A Task-version bump spends nothing: evidence an earlier version used is used.
 printf '# Plan\n> Task version: v2\n' > "$cg_task/plan.md"
 cg_verdict "$cg_task/prd.md" deny
 cg_skill spec-skill
+cg_verdict "$cg_task/prd.md" allow
+
+# The approval gate, which is a different question from the stage gate above and
+# is asked at a different time.
+#
+# An approval is the permit to *start work*, not a permit to write a document:
+# every `prd.md` is written before its own approval exists. So the gate must let
+# an unapproved document through — refusing it deadlocks each new task at its
+# first step with no command able to clear it — and must refuse only a document
+# whose recorded approval names a different version, which is the one case where
+# an approval exists and does not cover what is being written.
+#
+# The block is written with `sed` from a template rather than as one literal per
+# case, so a case states only the fields it is about and an unstated field cannot
+# silently differ between two cases that are supposed to be identical.
+cg_approval() {  # cg_approval <version> <status> <approved-by> <approved-version>
+  printf '# Plan\n> Task version: %s\n> Status: in_progress\n\n## Approval\n\n- Status: %s\n- Approved by: %s\n- Approved at: 2026-01-01 00:00 +0000\n- Approved version: %s\n- Approved scope: PRD\n\n## Steps\n\n### Step 1 - a\n\n- Status: pending\n' \
+    "$1" "$2" "$3" "$4" > "$cg_task/plan.md"
+}
+cg_approval v1 requested pending pending
+cg_verdict "$cg_task/prd.md" allow          # planning: nothing approved yet
+cg_approval v1 approved user v1
+cg_verdict "$cg_task/prd.md" allow          # approved for this version
+cg_approval v2 approved user v1
+cg_event "$cg_task/prd.md" | bash "$cg" > "$tmp/cg.stale"
+cg_verdict "$cg_task/prd.md" deny           # the approval names a version this is not
+grep -q -F 'approved at v1 but the Plan now says v2' "$tmp/cg.stale" \
+  || { echo "FAIL gate did not name the version disagreement"; cat "$tmp/cg.stale"; exit 1; }
+grep -q -F 'task approve' "$tmp/cg.stale" \
+  || { echo "FAIL gate did not name the remedy"; cat "$tmp/cg.stale"; exit 1; }
+# `pending` is the shipped template's value, so it means "no approval yet" and
+# not "an approval for the word pending". Reading it as the latter would refuse
+# every task between `promote` and `approve`, which is the whole planning phase.
+cg_approval v2 approved user pending
+cg_verdict "$cg_task/prd.md" allow
+# An emptied field is the same state reached a different way.
+cg_approval v2 approved user ''
 cg_verdict "$cg_task/prd.md" allow
 # An unaided decision is a first-class record, not a blank cheque. The command
 # that writes it is also the only place a concept class is validated.
@@ -5217,10 +5466,14 @@ echo "== every host whose contract matches the gate actually wires it =="
 # the gate is not a nicety on these hosts; it is what keeps the lifecycle open.
 #
 # The condition is the tool input, not the presence of a deny-capable event. The
-# gate reads `tool_input.file_path` and nothing else, so a host that delivers a
-# different shape must NOT be wired: the hook would find no path, exit 0, and
-# allow every write while the repository and the docs both claim a gate is there.
-# Codex is that case and is asserted as such below.
+# gate reads `tool_input.file_path` on one host and the patch text under
+# `tool_input.command` on the other — the two shapes it knows. A host that
+# delivers a third shape must NOT be wired until the gate learns it: the hook
+# would find no path, exit 0, and allow every write while the repository and the
+# docs both claim a gate is there. Codex used to be that case and is no longer —
+# `capability-gate` reads `apply_patch` now, and the Codex section below asserts
+# the wiring by running it. dsh is the case that remains, for its tool names
+# rather than its input shape.
 cb_json="$HERE/hooks-codebuddy.json"
 [ -f "$cb_json" ] || { echo "FAIL hooks/hooks-codebuddy.json is missing"; exit 1; }
 for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill|Agent|Task"' '"matcher": "mcp__.*"'; do
@@ -5268,16 +5521,71 @@ cb_allow="$(cb_run capability-gate \
   "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
   || { echo "FAIL the CodeBuddy PreToolUse command did not run the second time"; exit 1; }
 [ -z "$cb_allow" ] || { echo "FAIL the CodeBuddy wiring did not release the stage that call recorded:"; printf '%s\n' "$cb_allow"; exit 1; }
-# Codex is deliberately unwired, and the reason is the input shape rather than a
-# judgement call: its edit tool is `apply_patch`, whose `tool_input` carries the
-# patch text under `command` and no file path at all, so capability-gate would
-# read no path and allow every write. The gate's own guard is what makes that
-# silent, so the assertion is on the cause, not the wiring file alone.
-if grep -q -F -- '"apply_patch"' "$HERE/hooks-codex.json"; then
-  echo "FAIL hooks/codex is wired for apply_patch, whose tool_input carries no file path"; exit 1
+# Codex is wired for the gate, and the wiring is asserted by running it.
+#
+# This section used to forbid exactly this wiring, on the reasoning that Codex's
+# edit tool is `apply_patch`, whose `tool_input` carries patch text under
+# `command` and no file path — so `capability-gate` would read no path and allow
+# every write. That reasoning was right about the gate and wrong about the
+# conclusion: the fix was to teach the gate to read the patch, not to leave the
+# host ungated. Measured 2026-10-29 against Codex's own hook documentation:
+# `PreToolUse` fires on `apply_patch`, the patch text arrives in
+# `tool_input.command`, and `hookSpecificOutput.permissionDecision` is honoured.
+# A month passed with this host doing no checking while `runtime.md` recorded it
+# as a limitation of the host, which is the failure the CONTRIBUTING rule above
+# now forbids by name.
+#
+# Asserted by execution rather than by grepping the file, because a wiring file
+# that parses is not a wiring file that works. The command is read out of the
+# JSON, its `${PLUGIN_ROOT}` is substituted the way Codex substitutes it, and the
+# result is fed a real patch.
+# The JSON spells the command as `bash \"${PLUGIN_ROOT}/hooks/capability-gate\"`
+# — the backslashes are JSON escaping, so the value the host runs has none. Read
+# it the way a JSON reader would rather than with a pattern that has to anticipate
+# the escaping: drop the backslashes and keep the shell quoting, which is part of
+# the command's meaning when the plugin root contains a space.
+#
+# `|| true` on the extraction: under `pipefail`, a `grep` that finds nothing makes
+# the whole pipeline nonzero, and the assignment would abort the suite with no
+# message at all. A missing wiring is exactly what this section is here to report,
+# so it must reach the assertion below rather than kill the run.
+codex_gate_cmd="$(grep -o 'bash \\"\${PLUGIN_ROOT}/hooks/capability-gate\\"' "$HERE/hooks-codex.json" \
+  | head -1 | sed 's/\\//g' || true)"
+[ -n "$codex_gate_cmd" ] \
+  || { echo "FAIL hooks-codex.json wires no capability-gate command, so Codex has no gate"; cat "$HERE/hooks-codex.json"; exit 1; }
+codex_matcher="$(awk '/"PreToolUse"/{p=1} p && /"matcher"/{print; exit}' "$HERE/hooks-codex.json")"
+case "$codex_matcher" in
+  *apply_patch*) ;;
+  *) echo "FAIL hooks-codex.json does not match apply_patch, so the gate never runs on Codex"; exit 1 ;;
+esac
+codex_resolved="$(printf '%s' "$codex_gate_cmd" | sed "s|\${PLUGIN_ROOT}|$HERE/..|g")"
+codex_repo="$tmp/codex-gate"
+mkdir -p "$codex_repo/TaskFlowDocs/2026-01-01-demo"
+git -C "$codex_repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' \
+  > "$codex_repo/TaskFlowDocs/2026-01-01-demo/plan.md"
+codex_deny="$(printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$codex_repo\",\"tool_input\":{\"command\":\"*** Begin Patch\\n*** Update File: TaskFlowDocs/2026-01-01-demo/prd.md\\n*** End Patch\"}}" \
+  | (cd "$codex_repo" && bash -c "$codex_resolved" 2>&1))" \
+  || { echo "FAIL the Codex wiring command did not run:"; printf '%s\n' "$codex_deny"; exit 1; }
+printf '%s' "$codex_deny" | grep -q '"permissionDecision":"deny"' \
+  || { echo "FAIL the Codex wiring allowed an ungated patch to a stage document:"; printf '%s\n' "$codex_deny"; exit 1; }
+# And it allows what it should, or the assertion above would pass for a gate that
+# refused everything.
+codex_allow="$(printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$codex_repo\",\"tool_input\":{\"command\":\"*** Begin Patch\\n*** Update File: README.md\\n*** End Patch\"}}" \
+  | (cd "$codex_repo" && bash -c "$codex_resolved" 2>&1))" \
+  || { echo "FAIL the Codex wiring command did not run on an unrelated patch"; exit 1; }
+printf '%s' "$codex_allow" | grep -q '"deny"' \
+  && { echo "FAIL the Codex wiring refused an unrelated patch:"; printf '%s\n' "$codex_allow"; exit 1; }
+# `PostToolUse`/`apply_patch` must stay excluded. `capability-evidence`'s
+# predicate is a capability class (Skill / Agent|Task / mcp__*), and
+# `apply_patch` is an edit tool: wired, the hook would run, exit 0, and record
+# nothing, while `runtime.md` claimed the host had evidence capture. Measured
+# 2026-10-29 — feeding it that event changed no evidence line.
+if grep -q -F -- '"PostToolUse"' "$HERE/hooks-codex.json"; then
+  echo "FAIL hooks-codex.json wires PostToolUse, where apply_patch records nothing and the wiring would be silently inert"; exit 1
 fi
 grep -q -F -- 'tool_input.file_path' "$HERE/capability-gate" \
-  || { echo "FAIL capability-gate no longer reads tool_input.file_path: the Codex exclusion above is now wrong"; exit 1; }
+  || { echo "FAIL capability-gate no longer reads tool_input.file_path, so the Claude Code shape is unhandled"; exit 1; }
 echo ok
 
 echo "== the Trae wiring runs the hooks Trae would run =="

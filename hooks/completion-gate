@@ -39,6 +39,8 @@ export LC_ALL
 
 usage="usage: completion-gate [--approval-only] <task-dir>"
 
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
 approval_only=0
 if [ "${1:-}" = "--approval-only" ]; then
   approval_only=1
@@ -49,13 +51,28 @@ fi
 plan="$1/plan.md"
 [ -f "$plan" ] || { echo "plan.md missing; completion not started" >&2; exit 1; }
 
+# The approval half is one line of policy shared with `capability-gate`, which
+# asks the same question from a `PreToolUse` process and cannot source this
+# file. It lives in `approval-check` so there is exactly one implementation;
+# this gate reports its refusal verbatim, so every caller that already matched
+# on "current Task version is not approved" still matches.
+#
+# The approval answer is also the first thing the full check would report, so
+# asking it here rather than inside the `awk` keeps the order callers see — a
+# Plan that is both unapproved and unfinished still fails on the approval.
+bash "$HERE/approval-check" "$plan" || exit 1
+
+# `--approval-only` is the narrower question the two mid-task commands ask (`task
+# state in_progress`, `task progress`): is the current Task version approved?
+# They must not require the Plan to be finished — that is what they are working
+# towards — so the answer is already given above.
+if [ "$approval_only" -eq 1 ]; then exit 0; fi
+
 # One pass, one process, one read. The conditions are checked in the order the
 # Agent would hit them and the first failure wins, so a Plan with two problems
 # reports the earlier one rather than whichever the reader happened to notice.
-#
-# The Approval fields are matched only inside the `## Approval` section, so a
-# `- Status: approved` written anywhere else cannot stand in for an approval.
-# An end-of-file section needs no special case: `inap` simply stays set.
+# Approval has already been answered above, so what remains is whether the Plan
+# is finished.
 result="$(awk -v approval_only="$approval_only" '
   # A Step block is closed only when it says `- Status: done` in column 0. This
   # is a whitelist, and that is the point: the previous shape listed the three
@@ -79,38 +96,51 @@ result="$(awk -v approval_only="$approval_only" '
   # question with its own arguments; it is not smuggled in here.
   function flush() {
     if (instep && !closed) unfinished = 1
-    instep = 0; closed = 0
+    instep = 0; closed = 0; nstat = 0
   }
   BEGIN { bad = 0 }
   /^## / { flush() }
-  /^> Task version: v[0-9][0-9]*$/ { if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) } next }
-  /^## Approval$/ { inap = 1; next }
-  inap && /^## / { inap = 0 }
-  inap && $0 == "- Status: approved" { st = 1 }
-  inap && $0 == "- Approved by: pending" { pend = 1 }
-  inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
   /^### Step / {
     flush()
     rest = substr($0, 10)
     if (match(rest, /^[0-9]+/)) {
-      if (substr(rest, RLENGTH + 1, 1) !~ /[A-Za-z0-9_]/) instep = 1
+      if (substr(rest, RLENGTH + 1, 1) !~ /[A-Za-z0-9_]/) {
+        instep = 1
+        # Named so a refusal can say which block carries two statuses. Without a
+        # number there is nothing to name and nothing to report: the block is not
+        # one `task progress` could have written to.
+        stepnum = substr(rest, 1, RLENGTH)
+      }
     }
     next
   }
   /^[[:space:]]*- \[ \]/ { unchecked = 1 }
-  # Last one wins, which is what "the block says" means when a block carries
-  # two: `task progress` replaces the line it finds rather than adding one, so a
-  # second `- Status:` is a hand edit, and reading the last is the reading a
-  # person makes.
+  # Two `- Status:` lines in one block is a Plan that contradicts itself, and the
+  # previous behaviour — last one wins — was a guess dressed as a reading. The
+  # comment that stood here argued reading the last is "the reading a person
+  # makes" because `task progress` replaces rather than appends, so a second line
+  # must be a hand edit. That reasoning is sound about *how* the second line got
+  # there and silent about what it means: the two lines state different statuses
+  # and either could be the intended one, which is a question this gate has no
+  # basis to answer. Measured 2026-10-30: a Plan with `- Status: done` followed by
+  # `- Status: pending` archived, because the reader took the last.
+  #
+  # Refusing costs an author one deletion. Guessing costs a Plan that archived
+  # while it said it was not finished.
   instep && /^- Status:/ {
+    nstat++
+    if (nstat > 1) dup_step = (dup_step == "") ? stepnum : dup_step ", " stepnum
     closed = ($0 ~ /^- Status:[[:space:]]*done[[:space:]]*$/)
   }
   END {
     flush()
-    if (ver == "")                     { print "missing Plan Task version"; bad = 1 }
-    else if (!st || av != ver || pend) { print "current Task version is not approved"; bad = 1 }
-    else if (!approval_only && unchecked)  { print "Plan has unchecked items"; bad = 1 }
-    else if (!approval_only && unfinished) { print "Plan has unfinished Steps"; bad = 1 }
+    if (approval_only) { exit 0 }
+    # Checked before `unchecked` and `unfinished`, because it is the one failure
+    # whose remedy is different in kind: the others say "finish the work", this
+    # says "the document states two things, delete one".
+    if (dup_step != "") { print "Plan has more than one - Status: line in Step " dup_step; bad = 1 }
+    else if (unchecked)  { print "Plan has unchecked items"; bad = 1 }
+    else if (unfinished) { print "Plan has unfinished Steps"; bad = 1 }
     exit bad
   }
 ' "$plan")" || { printf '%s\n' "$result" >&2; exit 1; }

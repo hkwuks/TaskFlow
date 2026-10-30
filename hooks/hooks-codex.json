@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary and per-prompt in-flight task reminder (Codex CLI plugin form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, per-prompt in-flight task reminder, and the pre-write capability gate (Codex CLI plugin form).",
   "hooks": {
     "SessionStart": [
       {
@@ -20,6 +20,18 @@
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/prompt-reminder\"",
             "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" prompt-reminder"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/capability-gate\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-gate"
           }
         ]
       }

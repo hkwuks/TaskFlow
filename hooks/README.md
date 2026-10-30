@@ -23,6 +23,7 @@ taskflow/hooks/
 ├── capability-gate     # refuses a stage document's first body write (Claude Code only)
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
+├── approval-check      # the one rule for whether a Plan's current version is approved
 ├── completion-gate     # the one rule for what counts as an approved, finished Plan
 ├── task                # explicit intake/promote/unpromote/state/progress/unaided/recover/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
@@ -98,7 +99,10 @@ SessionStart hook automatically:
 - Claude Code auto-loads `hooks/hooks.json` (standard hooks file at the plugin
   root) and runs `run-hook.cmd session-start`.
 - Codex loads the manifest's `hooks` → `hooks/hooks-codex.json`, which points
-  at `session-start` via `${PLUGIN_ROOT}`.
+  at `session-start` and `prompt-reminder` via `${PLUGIN_ROOT}`, and at
+  `capability-gate` on `PreToolUse` matching `apply_patch`. The gate reads the
+  patch text, because Codex's edit tool carries no file path; see
+  `skills/taskflow/references/runtime.md`, **Codex specifics**.
 - CodeBuddy loads the manifest's `hooks` → `hooks/hooks-codebuddy.json`, which
   runs `bash "${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start"`. CodeBuddy's own
   bundled plugins use the `CODEBUDDY_` spelling, and it substitutes the

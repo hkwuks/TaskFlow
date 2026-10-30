@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# approval-check — decide whether a Plan may be written to and closed.
+#
+# Usage: approval-check [--stale-only] <plan.md>
+#   exit 0 — the question's answer is yes
+#   exit 1 — no; one line on stderr names the condition that failed
+#
+# Two callers ask two different questions about the same three fields, so this
+# file answers both rather than each parsing the block for itself:
+#
+#   (default)       Is the current Task version approved?
+#                   No  -> exit 1. This is `completion-gate`'s first condition
+#                          and the reason a Plan may be archived.
+#
+#   --stale-only    May the current Task version still be written?
+#                   Yes when nothing has been approved yet, or when the recorded
+#                   approval names the current version. No only when an approval
+#                   exists for a *different* version — "carrying a v1 nod into a
+#                   v2 document".
+#
+# The second question exists because "is it approved" is the wrong test for a
+# write. Approval is the permit to *start work* (`SKILL.md`: `in_progress` is
+# entered on approval), not a permit to write a document — every `prd.md` is
+# written before its approval by construction. A gate that refused unapproved
+# writes would deadlock each new task at its own first step, with no command
+# able to clear it. So the write gate asks the narrower thing it can actually
+# justify: an approval that has been superseded.
+#
+# Why this is its own file, called with `bash "$SCRIPT_DIR/approval-check"` the
+# way `capability-gate` calls `json-field`, rather than a copy inside each
+# caller: two gates ask it and they sit in different processes. The repository
+# has already paid for asking twice — `hooks/completion-gate`'s header records
+# two readers of the same Plan drifting apart, which is the shape this file
+# removes rather than repeats. It is not a function inside either gate because
+# `capability-gate` runs as a `PreToolUse` hook and `completion-gate` runs from
+# `task complete` / `archive`, so neither can source the other.
+#
+# The conditions, verbatim from the block this was extracted out of, and in the
+# same order — a Plan with two problems reports the earlier one:
+#
+#   1. `- Status: approved`, matched only inside the `## Approval` section, so a
+#      line written anywhere else cannot stand in for an approval.
+#   2. `- Approved by:` must not be `pending`.
+#   3. `- Approved version:` must equal `> Task version:`.
+#
+# The third is the one that is easy to leave out, and leaving it out is what
+# makes an approval cover a document it never saw: `v2`'s text carrying `v1`'s
+# nod is two different documents, and only naming the version tells the reader
+# which one was read.
+#
+# `> Task version:` is read at its first occurrence and the approval fields only
+# between `## Approval` and the next column-0 `## `. Both are matched the way the
+# caller always matched them; this file changes where the decision lives, not
+# what the decision is. That is why step 1 of the task measured the two verdicts
+# against all 93 archived Plans before and after the move — byte for byte on the
+# full verdict and its message, not merely on the exit code.
+#
+# A missing `## Approval` section needs no special case: `inap` never sets, and
+# under the default question the first two conditions fail. Under `--stale-only`
+# a missing section means nothing was approved, which is a permitted write.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+usage="usage: approval-check [--stale-only] <plan.md>"
+
+stale_only=0
+if [ "${1:-}" = "--stale-only" ]; then
+  stale_only=1
+  shift
+fi
+[ "$#" -eq 1 ] || { echo "$usage" >&2; exit 1; }
+
+plan="$1"
+[ -f "$plan" ] || { echo "plan.md missing; approval not checked" >&2; exit 1; }
+
+# One pass, one process, one read, no pipeline. `completion-gate`'s header
+# records why: under `set -o pipefail`, `printf ... | grep -q` fails whenever the
+# text is larger than the pipe buffer and the match comes early, because `grep
+# -q` exits on the first hit, `printf` takes SIGPIPE, and a successful match
+# becomes a failed pipeline. Measured there on a 39 KB approval block, 16 times
+# out of 200. Reading the file once has no such failure mode at any size.
+result="$(awk -v stale_only="$stale_only" '
+  /^## / { inap = 0 }
+  /^> Task version: v[0-9][0-9]*$/ {
+    if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) }
+    next
+  }
+  /^## Approval$/ { inap = 1; next }
+  inap && $0 == "- Status: approved" { st = 1 }
+  inap && $0 == "- Approved by: pending" { pend = 1 }
+  inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
+  END {
+    if (ver == "") { print "missing Plan Task version"; exit 1 }
+    if (stale_only) {
+      # Only a superseded approval blocks a write. `pending` and an absent field
+      # are both "nothing approved yet", which is every task before its first
+      # approval and the planning phase every `prd.md` is written in.
+      if (av == "" || av == "pending" || av == ver) exit 0
+      print "this document was approved at " av " but the Plan now says " ver "; the approval does not cover it. Approve the document as it now stands:  bash hooks/task approve <task-id>"
+      exit 1
+    }
+    if (!st || av != ver || pend) { print "current Task version is not approved"; exit 1 }
+    exit 0
+  }
+' "$plan")" || { printf '%s\n' "$result" >&2; exit 1; }
+
+exit 0

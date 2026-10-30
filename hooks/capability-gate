@@ -43,75 +43,191 @@ deny() {
 
 event_json="$(cat)"
 fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
-  hook_event_name tool_name cwd tool_input.file_path 2>/dev/null)" || exit 0
+  hook_event_name tool_name cwd tool_input.file_path tool_input.command 2>/dev/null)" || exit 0
 
 event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
 tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
 event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
 file_path="$(printf '%s\n' "$fields" | sed -n '4p')"
+patch_text="$(printf '%s\n' "$fields" | sed -n '5,$p')"
 
 [ "$event_name" = "PreToolUse" ] || exit 0
-case "$tool_name" in
-  Write|Edit) ;;
-  *) exit 0 ;;
-esac
-[ -n "$file_path" ] || exit 0
 
-# Separators are normalized before ANY path test below, including the case that
-# immediately follows. On Windows the host delivers `tool_input.file_path` with
-# backslashes (claude-code #83877 and #64432), and every extraction here assumes
-# the other one: `${file_path%/*}` finds no separator, the "cannot find a task
-# directory" guard below then fires, and the write is allowed with no error at
-# all. Measured on 1.1.1 — one file denied with forward slashes and allowed with
-# backslashes, in the same repository. A gate that silently stops gating is worse
-# than no gate, because nothing reports that it stopped, and the caller's path
-# spelling is not something this hook may depend on. `event_cwd` is normalized
-# with it, since a relative path is joined onto that below and a mixed result
-# would be judged as neither form. Octal `\134` is a backslash: `tr '\\'` is
-# ambiguous here, and the pattern form of this character is exactly the kind of
-# escaping that hides.
-file_path="$(printf '%s' "$file_path" | tr '\134' '/')"
+# Two hosts, two shapes, one question. Claude Code names the file in
+# `tool_input.file_path`; Codex sends the edit as a patch under
+# `tool_input.command` and no path field at all, so a gate that only reads the
+# path sees nothing to judge and exits 0 — the host is left ungated while
+# appearing wired. Both resolve to the same thing: a set of target paths that
+# each get the identical decision below.
+#
+# The comparison against `apply_patch` is exact on purpose. Codex's hook matcher
+# accepts the aliases `Edit` and `Write` so that one wiring entry can be reused,
+# but its hook *input* still reports `tool_name: "apply_patch"` — the alias
+# chooses which hook runs, and never rewrites the event. So aliasing here would
+# be a branch nothing can reach.
+if [ "$tool_name" = "apply_patch" ]; then
+  # Directives that name a target. `*** Move to:` needs no separate case: a move
+  # is written as `*** Update File: <old>` followed by `*** Move to: <new>`, so
+  # the old path is already in the list from the Update line and this adds the
+  # new one. Both ends are therefore judged, which is the whole point of a move —
+  # the document really does leave one task and arrive at another, and reading
+  # only the destination would leave the departure unchecked.
+  #
+  # `sub(/\r$/,"",p)` is not tidiness. A patch that arrives with CRLF line
+  # endings — routine on Windows — leaves a trailing `\r` on every extracted
+  # path, so `base` reads `plan.md\r`, matches no stage, and the gate returns 0
+  # on a document it was built to refuse. Measured 2026-10-30: that exact patch
+  # was allowed. The `\r` is a line-ending artefact of the transport, never part
+  # of a path, so stripping it is a statement about the format rather than a
+  # guess about the content.
+  patch_paths="$(printf '%s\n' "$patch_text" | awk '
+    /^\*\*\* Update File: / { p = substr($0, 18); sub(/\r$/, "", p); print p }
+    /^\*\*\* Add File: /    { p = substr($0, 15); sub(/\r$/, "", p); print p }
+    /^\*\*\* Delete File: / { p = substr($0, 18); sub(/\r$/, "", p); print p }
+    /^\*\*\* Move to: /     { p = substr($0, 14); sub(/\r$/, "", p); print p }
+  ')"
+  if [ -z "$patch_paths" ]; then
+    # A patch with no recognizable directive is not "nothing to do" — it is a
+    # gate that cannot read its host. Allowing it would be the failure this
+    # whole task exists to remove: a check that reports itself as present while
+    # silently inspecting nothing. Same class as an unreadable `> Task version:`
+    # below, and refused the same way.
+    #
+    # An empty command is the one exception: no edit happened, so there is
+    # nothing to have judged. The host may send it for a no-op patch, and
+    # refusing would be a false positive that teaches the agent to fight the
+    # gate rather than use it.
+    [ -n "$(printf '%s' "$patch_text" | tr -d '[:space:]')" ] || exit 0
+    deny "TaskFlow pre-write gate: this looked like a patch but carried no Update/Add/Delete/Move directive, so no target path could be read and nothing was checked. This is a gate problem, not a rule you broke - the patch format may have changed. The write was refused rather than allowed because a gate that cannot see its input must not report success. Write the document with the host's plain file-edit tool instead, or report the patch shape at https://github.com/hkwuks/TaskFlow/issues"
+  fi
+  # Collected by reading lines, NOT by `set -- $patch_paths`. Unquoted expansion
+  # splits on every space, so a path containing one becomes two paths that are
+  # each judged and each allowed — a checked-looking write that was never
+  # checked. Measured 2026-10-30: `Task Flow Docs/.../plan.md` was allowed.
+  set --
+  while IFS= read -r target; do
+    [ -n "$target" ] && set -- "$@" "$target"
+  done <<EOF
+$patch_paths
+EOF
+else
+  case "$tool_name" in
+    Write|Edit) ;;
+    *) exit 0 ;;
+  esac
+  [ -n "$file_path" ] || exit 0
+  set -- "$file_path"
+fi
+
+# A patch is judged path by path and `deny` exits on the first refusal, so a
+# patch naming two documents can release the first one's stage and then be
+# refused on the second. The host then applies nothing — but the release and the
+# evidence line it spent are already written, so the next write of that first
+# document passes with no record behind it. Measured 2026-10-30: a patch naming
+# `plan.md` (evidence available) and `spec.md` (none) was refused, and `released`
+# kept the `Plan` row.
+#
+# So a whole patch is judged first and released second. `plan_only` runs the
+# same decision but stops before the release, and the mutating pass happens once
+# at the end, only if every path was allowed. That needs no snapshot, no trap and
+# no rollback: nothing is written until there is nothing left to refuse.
+patch_mode=0
+[ "$tool_name" = "apply_patch" ] && patch_mode=1
+
+# `event_cwd` is normalized once here, because every relative path in the event
+# — `file_path` and each path a patch names — is joined onto it inside
+# `judge_path` below. A mixed result would be judged as neither form. Octal
+# `\134` is a backslash: `tr '\\'` is ambiguous here, and the pattern form of
+# this character is exactly the kind of escaping that hides.
 event_cwd="$(printf '%s' "$event_cwd" | tr '\134' '/')"
 
-# A relative path is resolved against the event cwd, never the hook process cwd:
-# the two are not guaranteed to agree, and a path this hook cannot resolve is a
-# path it silently stops gating.
-case "$file_path" in
-  /*) ;;                    # POSIX absolute
-  [A-Za-z]:[\\/]*) ;;       # drive absolute, D:/ or D:\ (normalized above)
-  *) [ -n "$event_cwd" ] && file_path="$event_cwd/$file_path" ;;
-esac
-
-# The evidence store is not a document. Refusing writes to it is a
-# discipline-level guard and says so in the spec: a Bash write can still reach
-# it, and closing that would need signing, which v1 deliberately does not do.
-case "$file_path" in
-  */taskflow/evidence|*/taskflow/released|*/taskflow/evidence/*|*/taskflow/released/*)
-    deny "TaskFlow capability store is not writable by the agent. Record a stage with:  bash hooks/task unaided STAGE --considered 'concept class'"
-    ;;
-esac
-
-base="${file_path##*/}"
-case "$base" in
+# Everything from here down judges ONE path. It is a function rather than the
+# top-level flow because a patch can name several files, and the decision has to
+# be identical for each — a second copy of this logic for the patch case would be
+# a second place for it to drift, which is the defect this file already carries a
+# note about between it and `hooks/task`.
+#
+# `deny` still exits the script rather than returning. That is deliberate and it
+# is what makes "any rejected path rejects the patch" true without a collector:
+# the first refusal ends the run, so no later path can quietly allow the write.
+# The consequence is the one that matters — a patch is all-or-nothing, and a
+# half-applied patch is not a state either host can be in.
+#
+# `pending_release` accumulates the rows a patch would write. See the dispatch at
+# the end of the file for why a patch queues them instead of writing as it goes.
+pending_release=""
+consumed=0
+store_loaded=0
+judge_path() {
+  local file_path="$1"
+  # Separators are normalized here, before ANY path test below. On Windows the
+  # host delivers the path with backslashes (claude-code #83877 and #64432), and
+  # every extraction here assumes the other one: `${file_path%/*}` finds no
+  # separator, the "cannot find a task directory" guard then returns early, and
+  # the write is allowed with no error at all. Measured on 1.1.1 — one file denied
+  # with forward slashes and allowed with backslashes, in the same repository. A
+  # gate that silently stops gating is worse than no gate, because nothing reports
+  # that it stopped, and the caller's path spelling is not something this hook may
+  # depend on. Octal `\134` is a backslash: `tr '\\'` is ambiguous here, and the
+  # pattern form of this character is exactly the kind of escaping that hides.
+  #
+  # A relative path is resolved against the event cwd, never the hook process
+  # cwd: the two are not guaranteed to agree, and a path this hook cannot resolve
+  # is a path it silently stops gating. This lives in the function rather than
+  # once at the top because a patch gives paths relative to the repository root
+  # and the dispatch hands several of them here; joining an already-absolute path
+  # again is a no-op.
+  file_path="$(printf '%s' "$file_path" | tr '\134' '/')"
+  case "$file_path" in
+    /*) ;;
+    [A-Za-z]:/*) ;;
+    *) [ -n "$event_cwd" ] && file_path="$event_cwd/$file_path" ;;
+  esac
+  base="${file_path##*/}"
+  # The evidence store is not a document. Refusing writes to it is a
+  # discipline-level guard and says so in the spec: a Bash write can still reach
+  # it, and closing that would need signing, which v1 deliberately does not do.
+  case "$file_path" in
+    */taskflow/evidence|*/taskflow/released|*/taskflow/evidence/*|*/taskflow/released/*)
+      deny "TaskFlow capability store is not writable by the agent. Record a stage with:  bash hooks/task unaided STAGE --considered 'concept class'"
+      ;;
+  esac
+  case "$base" in
   prd.md) stage="PRD" ;;
   spec.md) stage="Spec" ;;
   plan.md) stage="Plan" ;;
-  *) exit 0 ;;
+  *) return 0 ;;
 esac
 
 task_dir="${file_path%/*}"
-[ "$task_dir" != "$file_path" ] || exit 0
+[ "$task_dir" != "$file_path" ] || return 0
 task_name="${task_dir##*/}"
 case "$task_name" in
-  achieved|repository-docs) exit 0 ;;
+  achieved|repository-docs) return 0 ;;
 esac
 # The document must sit exactly one level under TaskFlowDocs. That one condition
 # is what excludes an archived task, whose parent is `achieved` — checking the
 # task directory name alone reads `<task>` there and would gate the archive.
 docs_dir="${task_dir%/*}"
-[ "${docs_dir##*/}" = "TaskFlowDocs" ] || exit 0
+[ "${docs_dir##*/}" = "TaskFlowDocs" ] || return 0
 # An active task is one that has a Plan. Anything else is not TaskFlow business.
-[ -f "$task_dir/plan.md" ] || exit 0
+[ -f "$task_dir/plan.md" ] || return 0
+
+# An approval that has been superseded does not cover the document it is written
+# in, so a rewritten version may not be carried into the old nod. This is the
+# narrow question, not "is it approved": approval is the permit to *start work*,
+# and every `prd.md` is written before its own approval, so refusing unapproved
+# writes here would deadlock each new task at its first step with no command
+# able to clear it. `approval-check` holds the reasoning.
+#
+# Deliberately ahead of the released-stage shortcut below. That shortcut means
+# "this stage was paid for once and edits after it are not a new phase" — true
+# of the gate's own condition, and false of an approval, which is a statement
+# about one version's text. A version bump is exactly when the second edit
+# arrives, so skipping the check for it would make the check unreachable.
+if ! stale_msg="$(bash "$HERE/approval-check" --stale-only "$task_dir/plan.md" 2>&1)"; then
+  deny "TaskFlow pre-write gate: $stale_msg"
+fi
 
 version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$task_dir/plan.md" | sed -n '1p')"
 [ -n "$version" ] || deny "TaskFlow pre-write gate: cannot read the Plan task version, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. If the Plan is fine, record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
@@ -123,6 +239,25 @@ store="$git_dir/taskflow"
 evidence="$store/evidence"
 released="$store/released"
 
+# Recomputed once per run, not once per path: a patch queues several releases and
+# the second one must take the next sequence rather than the first one again. The
+# guard is what makes that true — without it every path re-read the file, saw the
+# same highest sequence, and two documents in one patch both claimed seq 1.
+if [ "$store_loaded" -eq 0 ]; then
+  store_loaded=1
+  if [ -f "$released" ]; then
+    consumed="$(awk -F'|' 'NF == 6 { s = $4 + 0 } NF == 5 { s = $3 + 0 }
+        NF != 5 && NF != 6 { bad = 1 }
+        { if (s > m) m = s }
+        END { if (bad) { print "BAD" } else { print m + 0 } }' "$released")"
+  fi
+  case "$consumed" in
+    ''|*[!0-9]*)
+      deny "TaskFlow pre-write gate: $released holds a line that is neither the current six-field release row nor the five-field one it replaced, so the next sequence cannot be worked out and no stage can be released. This is a store problem, not a rule you broke. Inspect it:  cat $released  — and if the damage is only at the end of the file, bash hooks/task recover"
+      ;;
+  esac
+fi
+
 # Already released for this task version: later edits to the same document are
 # not a new phase, so the gate is idempotent per task version and stage. The
 # task name is part of the key. Without it the store is a queue of releases
@@ -133,7 +268,7 @@ released="$store/released"
 if [ -f "$released" ] \
    && awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" \
         '$1 == t && $2 == v && $3 == s { found = 1 } END { exit !found }' "$released"; then
-  exit 0
+  return 0
 fi
 
 # Consumption is global, not per task version. The evidence file is one
@@ -150,18 +285,6 @@ fi
 # is where the reasoning lives; this copy is here rather than sourced because a
 # hook is executed standalone, and the two are asserted against the same fixture
 # so they cannot drift.
-consumed=0
-if [ -f "$released" ]; then
-  consumed="$(awk -F'|' 'NF == 6 { s = $4 + 0 } NF == 5 { s = $3 + 0 }
-      NF != 5 && NF != 6 { bad = 1 }
-      { if (s > m) m = s }
-      END { if (bad) { print "BAD" } else { print m + 0 } }' "$released")"
-fi
-case "$consumed" in
-  ''|*[!0-9]*)
-    deny "TaskFlow pre-write gate: $released holds a line that is neither the current six-field release row nor the five-field one it replaced, so the next sequence cannot be worked out and no stage can be released. This is a store problem, not a rule you broke. Inspect it:  cat $released  — and if the damage is only at the end of the file, bash hooks/task recover"
-    ;;
-esac
 # Evidence is consumed as a queue, oldest first. Taking the newest line instead
 # would strand every invocation banked before the first document — and banking
 # one is a normal way to work: read the task, invoke once for the framing, then
@@ -181,9 +304,29 @@ if [ "$total" -gt "$consumed" ]; then
   record="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
   kind="${record%%|*}"
   capability="${record#*|}"
-  mkdir -p "$store" 2>/dev/null || exit 0
-  printf '%s|%s|%s|%s|%s|%s\n' "$task_name" "$version" "$stage" "$next" "$kind" "$capability" >> "$released" 2>/dev/null || exit 0
-  exit 0
+  row="$(printf '%s|%s|%s|%s|%s|%s' "$task_name" "$version" "$stage" "$next" "$kind" "$capability")"
+  # A patch judges every path before any of them is released, so a refusal on
+  # the second path cannot leave the first path's stage released and its evidence
+  # line spent against a write the host never applied. Measured 2026-10-30: a
+  # patch naming `plan.md` (evidence available) and `spec.md` (none) was refused,
+  # and `released` kept the `Plan` row.
+  #
+  # So a release is queued here and written once, after every path has been
+  # judged. Queuing rather than a deciding pass plus a releasing pass is what
+  # makes it atomic: a second pass that starts writing can still be refused part
+  # way through, which is the same defect one layer along.
+  #
+  # `consumed` is bumped as each row is queued, so a patch naming two documents
+  # gets two distinct records rather than both claiming the next sequence.
+  if [ "$patch_mode" -eq 1 ]; then
+    pending_release="$pending_release$row
+"
+    consumed="$next"
+    return 0
+  fi
+  mkdir -p "$store" 2>/dev/null || return 0
+  printf '%s\n' "$row" >> "$released" 2>/dev/null || return 0
+  return 0
 fi
 
 # Where did the record actually go? Only asked on the deny path below, and only
@@ -290,3 +433,21 @@ if [ -f "$released" ]; then
   fi
 fi
 deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$old_note"
+}
+
+# Judge every target the event named. `deny` exits inside `judge_path`, so a
+# refusal on any path ends the run here before any later path is reached.
+#
+# A patch queues its releases instead of writing them, so nothing reaches the
+# store until every path has been judged — a refusal part way through leaves the
+# store exactly as it was. The write happens here, after the loop, which is the
+# only point at which "no path will be refused" is known.
+for target in "$@"; do
+  judge_path "$target"
+done
+
+if [ -n "$pending_release" ]; then
+  mkdir -p "$store" 2>/dev/null || exit 0
+  printf '%s' "$pending_release" >> "$released" 2>/dev/null || exit 0
+fi
+exit 0
