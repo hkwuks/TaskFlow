@@ -26,6 +26,19 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 个人配置文件（personal.md、sessions.md 等）若出现在 worktree 中
+
+- ID: TF-20261030-15b439
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request
+- Added: 2026-10-30
+- Updated: 2026-10-30
+- Goal: 个人配置文件（personal.md、sessions.md 等）若出现在 worktree 中，归档时可同步到 main 的对应任务路径下，且保持不纳入版本控制。
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## Assert the $schema a plugin manifest declares, so a schema URL that stops resolv
 
 - ID: TF-20261029-218fdf
@@ -1100,22 +1113,7 @@ has an issue number or URL.
 ## Stay present inside a long implementation run, not only at the prompt
 
 - ID: TF-20261027-e4ba77
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request
-- Added: 2026-10-27
-- Updated: 2026-10-27
+- Status: done
 - Goal: Keep TaskFlow present between the steps of one implementation run, so a long turn cannot leave the approved Plan behind while nothing in the workflow speaks up again.
-- Task: Not promoted.
-- Next action: Establish which hosts can inject context from a mid-turn hook (a `PostToolUse` hook on every tool, or the host's nearest equivalent) before weighing any design; the whole option set depends on that answer and it is a documentation fact, not a preference.
-- Notes: **2026-10-27 measured on this machine:** across the three most recent session transcripts, tool calls per user turn are median **10–15**, max **197**. `hooks/prompt-reminder` speaks once at the *start* of each turn (`hooks/hooks.json`, `UserPromptSubmit`), and nothing TaskFlow-owned fires for the remaining 10–197 calls. The user's report — "跑着跑着不走流程" — lands in that gap.
-
-  **Four openings named at file:line** (each verified today): (1) `hooks/capability-gate:126-134` returns 0 once a stage is released for this task version, and only matches the basenames `prd.md`/`spec.md`/`plan.md` (`:96-99`), so **no edit after the first Plan write is checked at all**; (2) the gate never reads `## Approval` — recorded history has the failure happening (`achieved/2026-10-23-archive-completion-gate/plan.md:132`, "Steps 1–3 were implemented before the Approval block was filled"); (3) `hooks/task progress` is the only writer of Step status and is bound to **no hook**, so a Step's `- Status:` changes only if the Agent chooses to call it; (4) the record the gate depends on is largely absent — **59 of 91 achieved Plans have zero `## Skills / Tools Used` stage lines**, and 8 have no `## Change Log` section.
-
-  **External evidence for the frequency lever, not for a new gate:** arXiv 2604.12147 (IBM, 21,120 SWE-agent trajectories, SWE-bench Verified + Pro) measures that re-inserting the plan **every five steps** reduces plan violations and raises success, attributing the drift to the plan losing influence as the trajectory grows. That is the same mechanism `prompt-reminder` already uses, at the wrong cadence.
-
-  **Deliberately *not* proposed: extending the gate into the implementation phase.** It would convert a reminder problem into a new hard gate over ordinary refactoring edits, and the false-refusal cost is borne per edit. If it is ever wanted it needs its own evidence, not this item's.
-
-  **Open question the design turns on:** whether a host's mid-turn hook can actually inject text the model reads. If none can, the lever is not a new hook at all but the Plan carrying the current Step where the turn-start reminder can restate it — a smaller change with the same effect at turn granularity only.
-
+- Task: `TaskFlowDocs/achieved/2026-10-29-midturn-presence/`
+- Next action: None — completed and archived.

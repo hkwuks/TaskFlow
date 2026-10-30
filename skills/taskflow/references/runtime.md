@@ -47,12 +47,12 @@ An environment running any other agent host needs no hooks: it continues with th
 | End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` | `Stop` (with `loop_limit`); no subagent tool event |
 | Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) | none (Trae's SessionStart source is only `startup`) |
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
-| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `apply_patch` carries no file path | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `write`/`edit` are lowercase and the case arms are not | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
+| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | `PreToolUse` (`apply_patch`) → `hookSpecificOutput.permissionDecision: deny`, path read out of the patch text — documented, not yet measured on a real Codex | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `write`/`edit` are lowercase and the case arms are not | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
 | Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired — `skill` is lowercase too | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
 
-Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh exclusions from measured payloads — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
+Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh columns from Codex's own hook documentation (read 2026-10-29) and measured payloads respectively — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
 
-The gate is wired wherever the host delivers a tool-call event carrying **the written file's path in the field the gate reads, under a tool name the scripts already match**. Both halves bind: `capability-gate` decides entirely from `tool_input.file_path`, so a host that reports an edit some other way must not be wired at all — the hook would find no path, exit 0, and allow every write, while the repository and this document both claimed a gate was present. A silent no-op gate is worse than an absent one, which is why Codex is left unwired rather than wired and hoped for. The same applies to a host whose tool names miss the `Write|Edit` arm: the matcher never fires, so the script is not even reached. dsh is that second case, and **dsh specifics** below states it.
+The gate is wired wherever the host delivers **one of the two input shapes `capability-gate` now reads**: the written file's path under `tool_input.file_path` (Claude Code, CodeBuddy, Trae), or the patch text under `tool_input.command` with `tool_name` of `apply_patch` (Codex). A host that reports an edit some other way must not be wired until the gate learns that shape — the hook would find no input, exit 0, and allow every write, while the repository and this document both claimed a gate was present. A silent no-op gate is worse than an absent one, which is why a host is wired only against a shape the script can actually read. The same applies to a host whose tool names miss the matcher arm: the matcher never fires, so the script is not even reached. dsh is that case, and **dsh specifics** below states it.
 
 The recorder's predicate is the tool class (`Skill`, `Agent`/`Task`, `mcp__*`), so it travels to any host that reports those names. Trae has no `Agent`/`Task` tool, so that one evidence path exists only where the host does.
 
@@ -82,6 +82,40 @@ Four properties are worth stating because each one is load-bearing:
 - **A denial also says when the store itself is broken, and that is a third case, not a loud way of saying the second.** `consumed` is the highest sequence in `released` while the queue length is counted in `evidence`, so a store whose evidence was truncated or deleted reads as further along than it is. The gate used to report that as "the most recent invocation was already spent by an earlier document", which is a false statement about the store rather than an imprecise one: the sequences it counts as spent have no record behind them. Measured 2026-10-25 on `released` at seq 5 with an empty `evidence`. The denial now names the two numbers and all three recoveries with their costs — repair the store, which keeps every backed release and re-declares only the discarded stages; produce the missing records, which closes the gap and keeps every release already written; or delete the store and declare each stage again, which discards them. It is still reporting only: the gate releases on `evidence lines > consumed` exactly as before, and the two sound states keep their wording. The three differ in what they cost, which is why none is recommended over the others.
 
 A host without a tool-call hook has no gate at all, and the flow is otherwise unchanged there — the gate is an enforcement, not a step. But one thing does depend on the release record it would have written, and it is not optional: `task approve` reconciles each required stage against `released`, and `approve` is the only sanctioned writer of the Approval block, so `in_progress`, `complete`, and the archive all sit behind it. On such a host the declaration is what supplies the record, which is why `hooks/task unaided` writes `released` itself rather than leaving that to the gate. Before that was true, this paragraph said nothing else depended on a gate and every state beyond approval was unreachable on a host without one — with `approve` recommending, as its remedy, a command that could not help.
+
+### Codex specifics
+
+Codex edits files with `apply_patch`, so the gate's input there is the patch text
+under `tool_input.command` and there is no `file_path` field at all. Three
+properties of that shape are load-bearing, all from Codex's own hooks
+documentation read on 2026-10-29:
+
+- **The matcher takes `Edit`/`Write` as aliases, but the event does not.** Aliasing
+  chooses which hook runs; the hook input still reports
+  `tool_name: "apply_patch"`. `capability-gate` therefore compares the name
+  exactly and has no alias arm — one would be a branch nothing can reach.
+- **The patch text is the only place the paths are.** `capability-gate` reads the
+  four directives that name a target — `*** Update File:`, `*** Add File:`,
+  `*** Delete File:`, `*** Move to:` — and judges each path with the same rule
+  the `file_path` shape uses. A move is `Update File: <old>` plus `Move to: <new>`,
+  so both ends are judged: the document really does leave one task and arrive at
+  another, and reading only the destination would leave the departure unchecked.
+- **A patch with no recognizable directive is refused, not allowed.** An empty
+  command is the one exception — no edit happened. Everything else is a gate that
+  cannot read its host, and allowing it would be the failure this wiring exists to
+  fix. The refusal names the format as the problem.
+
+**This host is documented, not measured.** No real Codex has run this wiring, so
+the column above says so, and it stays that way until a session on a real machine
+confirms the deny reaches the agent — including one `*** Move to:` case, because
+the destination's spelling is the part the documentation leaves least clear.
+
+`PostToolUse` is deliberately not wired: `capability-evidence`'s predicate is a
+capability class (`Skill`, `Agent`/`Task`, `mcp__*`), and `apply_patch` is an edit
+tool. Wired, the hook would run, exit 0, and record nothing, while this document
+claimed the host had evidence capture. Measured 2026-10-29: feeding it that event
+changed no evidence line. Codex's capability records come from `Skill` and MCP
+calls, not from its edits.
 
 ### dsh specifics
 
@@ -311,6 +345,7 @@ repo-root/
         ├── capability-gate              # refuses a stage document's first body write
         ├── json-field                   # shared one-level JSON reader
         ├── task-id                      # the one rule for a legal task name
+        ├── approval-check               # the one rule for whether a Plan's version is approved
         ├── completion-gate              # the one rule for an approved, finished Plan
         ├── task                         # explicit intake/promote/state/progress/unaided/complete
         ├── summarize-state              # shared state-summary generator

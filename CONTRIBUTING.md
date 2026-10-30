@@ -91,6 +91,28 @@ is. A preference for CI is never a reason for something to go unverified, and CI
 that has fallen behind the surface it is supposed to cover is not an authority —
 keep it current, and keep it running on the hosts it declares.
 
+**A hook change lands on every host the repository declares, or it says why not.**
+The hosts are listed in `skills/taskflow/references/runtime.md`, and a hook that
+is wired on one of them and silently absent on another is a defect, not a
+staging decision: the absent host simply does no checking, and nothing reports
+that it stopped. So a hook is not finished until either its behaviour is wired on
+every declared host, or `runtime.md` states for each host which of the two it is
+and why.
+
+Two words are not interchangeable, and conflating them is how Codex went a month
+with no gate while this file recorded it as a limitation of the host:
+
+- **not wired** — the host supports the event and the reply shape, and this
+  repository has not connected it. That is work, not a constraint.
+- **not supported** — the host has no such event, or no way to see what the hook
+  needs. That is a fact about the host, and it must name the mechanism it lacks.
+
+A host recorded as *not supported* carries the host's own documentation as
+evidence, and is re-checked when wiring changes. A host recorded as *not wired*
+belongs in the host's column as outstanding work — and if it stays there across
+releases, this file is where that has to be visible rather than discovered by a
+user whose edits were never checked.
+
 Release-time checks are their own list, in `RELEASE.md`, which states which of
 them CI covers and which it cannot.
 
