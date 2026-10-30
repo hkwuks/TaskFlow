@@ -152,6 +152,12 @@
 
 ## Verification / Review
 
+- 2026-10-30 **CI（PR #105，run [41064647043](https://github.com/hkwuks/TaskFlow/actions/runs/41064647043)）—— 7/7 job pass。** `changes` 4s、`evals` 6s、`release` 5s、`todo-merge-audit` 6s、`smoke (ubuntu-latest)` 26s、`smoke (windows-latest)` 58s、`smoke (macos-latest)` 1m16s。
+
+  **超过本地结论的是两个宿主，不是「多跑了一遍」**：本地只有 Linux/WSL，而本改动的两类风险恰好落在另两个平台上——**CRLF 解析**（Windows 的行尾形态，`*** Update File:` 提取出带 `\r` 的路径会让门禁静默放行）和 **BSD awk/sed 的 `substr`/`sub` 行为**（macOS）。`smoke (windows-latest)` 与 `smoke (macos-latest)` 都过，说明这两条在真实宿主上成立，而不只是在我构造的夹具里成立。
+
+  一处如实说明的偏差：按 `CONTRIBUTING.md` 的顺序应当是「push → 读 CI → 写验证记录 → 归档」，我实际先跑了 `task complete` 再补写本节。记录本身仍在这个 PR 内、没有推送到 base，但顺序确实反了。
+
 - 2026-10-30 **Review 复验（用户要求）：四个「失败即放行」的缺陷，全部实测复现后修复。** 前一轮 smoke 全绿，但绿的是我以为的路径。逐条驱动真实事件才看见它们：
 
   | # | 缺陷 | 触发条件 | 现象 |
