@@ -61,6 +61,10 @@
 - **`released` rows written before 1.1.9 still do not release anything, and this release does not change that.** 1.1.9 deliberately stopped matching five-field rows because the task that wrote one is recorded nowhere. The worktree these changes were made in held three such rows, written by the installed 1.1.8 plugin before the checkout's own code was in use; they were rewritten by hand to six fields with the task name, which was sound there because exactly one task had ever run in that worktree. That is a one-off repair of a store, not a migration path — nothing in the shipped code reads a five-field row, and a store without one needs no action.
 - **Five archived Plans read as unfinished under the new rule, and are not rewritten.** `achieved/` is read-only in place, so nothing here changes them and no task is blocked by them. They are: `2026-09-07-repository-standards-and-doc-root` (three Steps say `done (v1)`), `2026-10-11-gate-host-coverage` (four say `completed`), `2026-09-08-token-efficiency` and `2026-09-14-personal-docs-git-boundary` (their Steps still say `pending` while the Plan header says `completed` — the same disagreement running the other way), and `2026-10-22-taskflow-drift-guard`, whose `## Verification / Review` section reuses `### Step 1` as an ordinary subheading for a table. Recorded rather than repaired: editing history so it passes a check that no longer applies to it would make the record say something untrue. Only two of the five change verdict when the real gate is run over all 91 — the other three were already refused on `main` for reasons that have nothing to do with Steps, so this release does not newly refuse them.
 
+### Release
+
+- **Tag `v1.1.10` names `e53fad4f76c2afc0449eb4d3ec599e508ea35d5d`; the pin commit is `373b3fbe27f4290a5dc592956f3f74f3650c4879`; the GitHub Release is https://github.com/hkwuks/TaskFlow/releases/tag/v1.1.10.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
 ## [1.1.9] — 2026-10-26
 
 ### Added
