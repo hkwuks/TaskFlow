@@ -816,6 +816,11 @@ case "$command" in
 
 ## Acceptance Criteria
 
+## External Facts
+
+- Depends on external facts:
+- Why not:
+
 ## In Scope
 
 ## Out of Scope
@@ -1388,6 +1393,82 @@ case "$command" in
     if [ -z "$(printf '%s' "$cap_skills" | tr -d '[:space:]')" ]; then
       fail "approve blocked: Skills / Tools Used is missing or empty"
     fi
+    # `## External Facts` is the one place a task says whether its conclusion
+    # depends on a fact from outside this repository, and names what it found if
+    # so. It exists because prose could not be checked: measured 2026-10-31 over
+    # 94 archived tasks, `## Reference Pointers` holds 382 bullets and not one
+    # is a URL, and 3 of 94 tasks have a `reference/` directory -- while nothing
+    # in that measurement can say whether any of them should have searched or
+    # none of them needed to, because most work here is internal. So the field
+    # does not demand a search: it demands that the question was answered once,
+    # in a form a reader can check. `no` must carry its reason for the same
+    # reason -- an unexplained `no` is the default the field exists to displace.
+    #
+    # Only `prd.md` carries it. Whether evidence is gathered at all is a
+    # requirements question; the Plan's job is how, not whether.
+    ext_msg="approve blocked: prd.md has no '## External Facts' answer, so it cannot be seen whether this task's conclusions rest on anything outside the repository. Add the section with one of:
+  - Depends on external facts: no
+  - Why not: <what puts every conclusion inside this repository>
+or
+  - Depends on external facts: yes
+  - Source: <absolute https URL>
+  - What it settled: <the conclusion that source changed>"
+    ext_body="$(awk '
+      /^## External Facts$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$prd" 2>/dev/null)" || ext_body=""
+    # No separate "is the section there" test: an absent section and an empty
+    # one reach the `""` arm below with the same message, which is what they
+    # are -- both say nothing. A line that checked for absence first could only
+    # ever fire on a document the arm below would refuse anyway.
+    ext_answer="$(printf '%s\n' "$ext_body" | sed -n 's/^- Depends on external facts:[[:space:]]*\(..*\)[[:space:]]*$/\1/p' | head -1)"
+    case "$ext_answer" in
+      no)
+        printf '%s\n' "$ext_body" | grep -qE '^- Why not:[[:space:]]*[^[:space:]]' \
+          || fail "approve blocked: 'Depends on external facts: no' needs a '- Why not:' line. An unexplained no is the default this field exists to displace. Say what puts the conclusion inside this repository."
+        ;;
+      yes)
+        # One pass over the section, because the three defects have three
+        # different remedies and a reader who is told "invalid" has to guess.
+        ext_bad="$(printf '%s\n' "$ext_body" | awk '
+          { line = $0; sub(/\r$/, "", line) }
+          /^- Source:/ {
+            src++
+            v = line; sub(/^- Source:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v)
+            if (v !~ /^https?:\/\/[^[:space:]]+$/) badurl = (badurl == "" ? v : badurl)
+            next
+          }
+          /^- What it settled:/ {
+            v = line; sub(/^- What it settled:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v)
+            if (v != "") settled++
+            next
+          }
+          END {
+            if (src == 0) { print "none"; exit }
+            if (badurl != "") { print "url\t" badurl; exit }
+            if (settled < src) { print "settled\t" src "\t" settled; exit }
+          }')" || ext_bad=""
+        case "$ext_bad" in
+          "") ;;
+          none)
+            fail "approve blocked: 'Depends on external facts: yes' needs at least one '- Source:' line. If nothing outside the repository settles a conclusion, answer no and give the reason."
+            ;;
+          url*)
+            fail "approve blocked: a '- Source:' is not an absolute http(s) URL: $(printf '%s' "$ext_bad" | cut -f2). A repository path, a tool name, or a sentence is not an external source."
+            ;;
+          settled*)
+            fail "approve blocked: $(printf '%s' "$ext_bad" | cut -f2) '- Source:' line(s) but $(printf '%s' "$ext_bad" | cut -f3) '- What it settled:'. Each source has to say which conclusion it changed; a source that changed nothing did not need fetching."
+            ;;
+        esac
+        ;;
+      "")
+        fail "$ext_msg"
+        ;;
+      *)
+        fail "approve blocked: 'Depends on external facts: $ext_answer' is not an answer. Write exactly 'no' or 'yes'."
+        ;;
+    esac
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0

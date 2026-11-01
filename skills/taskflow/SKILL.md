@@ -207,8 +207,11 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - confirmed background facts;
 - requirements;
 - observable acceptance criteria;
+- whether any conclusion depends on a fact from outside this repository, in `## External Facts`;
 - in-scope and out-of-scope work;
 - risks, deferred items, and only blocking open questions.
+
+`## External Facts` is answered once, and `hooks/task approve` reads it: `- Depends on external facts: no` needs a `- Why not:` line, and `yes` needs at least one `- Source: <absolute http(s) URL>` with a `- What it settled:` line saying which conclusion that source changed. The question is whether a conclusion could be falsified by something outside this repository — a version, a specification, someone else's documented behaviour. Code that is only in this repository, and facts only this repository can settle, belong in `## Reference Pointers` instead. Answering `yes` is a commitment to go and look, not a note that looking might be useful: the phase table's `searching external sources` is what that answer invokes, and a `yes` with no source behind it is refused. Most tasks here are internal and answer `no`; the field exists so that answer is a decision rather than a default.
 
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 

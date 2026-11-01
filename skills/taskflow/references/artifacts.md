@@ -22,7 +22,8 @@ The rule binds the document, not whoever drafts it: prose that arrives from a ca
 
 Hooks parse task documents by exact text, so the lines they match stay English verbatim:
 
-- Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`, `## Reference Pointers`
+- Section headings a hook matches by name: `## Approval`, `## Skills / Tools Used`, `## Verification / Review`, `## Change Log`, `## Items`, `## Removed`, `## Active / Resumable`, `## Closed / Reference Only`, `## Reference Pointers`, `## External Facts`
+- The two answers inside `## External Facts`, which `hooks/task approve` reads at column 0: `- Depends on external facts: no` with a following `- Why not: <reason>`, or `- Depends on external facts: yes` with at least one `- Source: <absolute http(s) URL>` and one `- What it settled: <conclusion>` per source. The field names and the two words `no` / `yes` are read literally; the reasons and conclusions are prose and follow the user's language.
 - The reinforce bullet inside `## Reference Pointers`: `- [Reinforce] \`<path>\` — <reason>`, matched at column 0. The marker, the backticks and the `—` separator are text a hook reads; translating or re-indenting any of them turns the declaration off without an error. The reason after the separator is prose and follows the user's language.
 - The `## Todo Record` heading: not matched by any hook, but it is written by `hooks/archive` and must stay at column 0 in `plan.md` — the same rule that keeps it out of a Todo entry, where a column-0 `## ` line is a section boundary to every hook that splits the file.
 - Entry headings a hook matches by name: `### Step N — <name>`, `### SN — <Agent>`
@@ -61,6 +62,7 @@ TaskFlowDocs/
 ## Background / Confirmed Facts
 ## Requirements
 ## Acceptance Criteria
+## External Facts
 ## In Scope
 ## Out of Scope
 ## Risks / Deferred Items

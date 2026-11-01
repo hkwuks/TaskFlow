@@ -1910,6 +1910,22 @@ bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/de
 ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
 bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --root "$ap" >/dev/null
 ap_task="$ap/TaskFlowDocs/2026-09-09-approve-smoke"
+# Every case below is about stage reconciliation, so the PRD's `## External
+# Facts` answer is filled in once, here, rather than repeated in each fixture.
+# `promote` leaves it unanswered on purpose -- an unanswered skeleton must be
+# refused -- and its own section below covers that.
+set_external_facts() {  # set_external_facts <prd> <body>
+  local prd="$1"; shift
+  TASKFLOW_EXT_BODY="$1" awk '
+    BEGIN { body = ENVIRON["TASKFLOW_EXT_BODY"]; done = 0 }
+    /^## External Facts$/ { print; printf "%s\n", body; done = 1; next }
+    done && /^## / { done = 0 }
+    done { next }
+    { print }
+  ' "$prd" > "$prd.tmp" && mv "$prd.tmp" "$prd"
+}
+set_external_facts "$ap_task/prd.md" '- Depends on external facts: no
+- Why not: the fixture exercises stage reconciliation only.'
 # Missing Approval section: refuse, leave bytes alone.
 ap_bad="$ap/TaskFlowDocs/2026-09-09-approve-bad"
 mkdir -p "$ap_bad"
@@ -2090,6 +2106,8 @@ ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap_large_root/TaskFlowDocs/to
 bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap_large_root" >/dev/null
 ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
+set_external_facts "$ap_large/prd.md" '- Depends on external facts: no
+- Why not: the fixture exercises stage reconciliation only.'
 # The large task is its own worktree, so its records are its own: one task per
 # store is the production shape, and it is what keeps this fixture from being
 # satisfied by the small task's releases.
@@ -2158,6 +2176,73 @@ printf '%s\n' "$approval_fields" | grep -qx -- '- Approved scope: PRD / Spec / P
   || { echo "FAIL approve scope with spec"; printf '%s\n' "$approval_fields"; exit 1; }
 # approve must not rewrite > Status: on the docs
 grep -q '^> Status: in_progress$' "$ap_task/plan.md" || { echo "FAIL approve changed plan doc status"; exit 1; }
+# `## External Facts` is a second refusable answer on the same document, and it
+# is checked before approval is written for the same reason the stage lines are:
+# a refusal that has already touched `## Approval` leaves the Plan saying it was
+# approved. Each of the seven refusals has its own message, so each case reads
+# the message and not only the exit code -- seven branches that all said
+# "invalid" would be one branch with seven names.
+ef_probe="$ap/TaskFlowDocs/2026-09-09-approve-extfacts"
+mkdir -p "$ef_probe"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ef_probe/plan.md"
+ef_case() {  # ef_case <name> <expected message fragment> <body|"">
+  local name="$1" want="$2" body="$3"
+  { printf '# PRD\n> Task version: v1\n> Status: planning\n'
+    [ -n "$body" ] && printf '%s\n' "$body"; } > "$ef_probe/prd.md"
+  if bash "$HERE/task" approve 2026-09-09-approve-extfacts --root "$ap" >/dev/null 2>"$ap/ef.err"; then
+    echo "FAIL external facts accepted: $name"; exit 1
+  fi
+  grep -qF -- "$want" "$ap/ef.err" \
+    || { echo "FAIL external facts message for $name"; cat "$ap/ef.err"; exit 1; }
+}
+ef_case "missing section" "has no '## External Facts' answer" ''
+ef_case "empty section" "has no '## External Facts' answer" '## External Facts'
+ef_case "not no-or-yes" "'Depends on external facts: maybe' is not an answer" '## External Facts
+- Depends on external facts: maybe'
+ef_case "no without a reason" "needs a '- Why not:' line" '## External Facts
+- Depends on external facts: no'
+ef_case "yes without a source" "needs at least one '- Source:' line" '## External Facts
+- Depends on external facts: yes'
+ef_case "source is not a URL" "is not an absolute http(s) URL: hooks/task" '## External Facts
+- Depends on external facts: yes
+- Source: hooks/task
+- What it settled: x'
+ef_case "source settled nothing" "Each source has to say which conclusion it changed" '## External Facts
+- Depends on external facts: yes
+- Source: https://example.invalid/a'
+# A `no` with its reason and a `yes` with one recorded source are both clean.
+# They are checked by where the refusal moves to, not by exit code: the probe
+# has no stage releases, so a clean answer is refused one layer later.
+for ef_ok in '## External Facts
+- Depends on external facts: no
+- Why not: every conclusion is a path in this repository' '## External Facts
+- Depends on external facts: yes
+- Source: http://intranet.example.invalid/doc
+- What it settled: the retention default'; do
+  printf '# PRD\n> Task version: v1\n> Status: planning\n%s\n' "$ef_ok" > "$ef_probe/prd.md"
+  if bash "$HERE/task" approve 2026-09-09-approve-extfacts --root "$ap" >/dev/null 2>"$ap/ef.err"; then
+    echo "FAIL external facts: a clean answer was accepted without stage releases"; exit 1
+  fi
+  grep -q 'External Facts' "$ap/ef.err" \
+    && { echo "FAIL external facts refused a clean answer"; cat "$ap/ef.err"; exit 1; }
+done
+# `promote` leaves the section unanswered, and an unanswered skeleton is refused.
+# This is the half that makes the field mandatory rather than merely available.
+ap_new="$ap/TaskFlowDocs/2026-09-09-approve-skeleton"
+bash "$HERE/task" intake "Approve skeleton goal." "local fixture" --root "$ap" >/dev/null
+bash "$HERE/task" promote "$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")" \
+  2026-09-09-approve-skeleton small --root "$ap" >/dev/null
+grep -qx -- '- Depends on external facts:' "$ap_new/prd.md" \
+  || { echo "FAIL promote did not write an unanswered External Facts skeleton"; sed -n '/^## External Facts/,/^## /p' "$ap_new/prd.md"; exit 1; }
+set_skills_body "$ap_new/plan.md" \
+  '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation' \
+  '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
+  '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
+if bash "$HERE/task" approve 2026-09-09-approve-skeleton --root "$ap" >/dev/null 2>"$ap/ef.err"; then
+  echo "FAIL an unanswered External Facts skeleton was approved"; exit 1
+fi
+grep -q "has no '## External Facts' answer" "$ap/ef.err" \
+  || { echo "FAIL skeleton refusal message"; cat "$ap/ef.err"; exit 1; }
 # The stage gate's wording is pinned behaviourally above: every branch
 # ("missing stage [PRD]", "was never released by the pre-write gate", the two
 # reconciliation mismatches) was just read back out of a real rejection. The three
@@ -3245,6 +3330,11 @@ xt_approve() {  # xt_approve <task-name> -> "<exit>|<stderr>"
 }
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_first/plan.md"
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_second/plan.md"
+# Both PRDs answer `## External Facts` the same way, because what this section
+# measures is which task's release row `approve` reads, not the PRD's content.
+for xt_prd in "$xt_first/prd.md" "$xt_second/prd.md"; do
+  printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: fixture.\n' > "$xt_prd"
+done
 printf 'invoke|a:prd\ninvoke|b:prd\n' > "$xt_store/evidence"
 cg_verdict "$xt_first/prd.md" allow
 cg_verdict "$xt_second/prd.md" allow
@@ -3477,7 +3567,7 @@ echo "== approve refuses a store it cannot reconcile stages against =="
 # `approve OK (user, v1)`; deleting that one row made the same document fail.
 # Whether a task could be approved therefore depended on an unsupported release.
 rc_plan="$gds/repo/$rc_task/plan.md"
-printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$gds/repo/$rc_task/prd.md"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: fixture.\n' > "$gds/repo/$rc_task/prd.md"
 cat > "$rc_plan" <<'RC_PLAN'
 # Plan
 > Task version: v1
@@ -3668,7 +3758,7 @@ ug="$tmp/unaided-gate"
 mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
 git -C "$ug" init -q
 printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
-printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
 ug_name=2026-09-27-declared
@@ -3730,7 +3820,7 @@ uc="$tmp/unaided-conflict"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
 git -C "$uc" init -q
 printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
-printf '# PRD\n\n> Task version: v1\n> Status: planning\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
 uc_name=2026-09-27-conflict
@@ -6008,6 +6098,7 @@ tp="$tmp/test-phase"
 mkdir -p "$tp/TaskFlowDocs/2026-01-01-tp"
 git -C "$tp" init -q
 tp_plan="$tp/TaskFlowDocs/2026-01-01-tp/plan.md"
+printf '# PRD — Test phase fixture\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$tp/TaskFlowDocs/2026-01-01-tp/prd.md"
 tp_store="$(git -C "$tp" rev-parse --absolute-git-dir)/taskflow"
 tp_name=2026-01-01-tp
 tp_version() {  # tp_version <vN> -- rewrite the Plan's Task version
