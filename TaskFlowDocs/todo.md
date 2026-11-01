@@ -450,12 +450,13 @@ has an issue number or URL.
 - Owner: Codex
 - Source: direct user request
 - Added: 2026-09-28
-- Updated: 2026-10-10
+- Updated: 2026-11-01
 - Goal: Release process: make the manual three-host catalog validation conditional and add an automated $schema assertion, since that step is never exercised by CI and its only failure mode is already covered by release-check
 - Task: Not promoted.
-- Next action: Keep the $schema assertion; re-scope the manual three-host catalog validation after release-flow-exception, then promote.
+- Next action: Only the first half is left. Decide whether the manual step at `RELEASE.md:135-136` — "Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling" — should become conditional or go, and what replaces it if anything. Two facts bear on it: `hooks/release-check` already confirms each marketplace `ref` resolves to the commit its `sha` names, and the step is the only thing that exercises a real install end to end, which no CI job does. Do not re-open the `$schema` half; it shipped as `TF-20261029-218fdf`.
 - Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
 - 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
+- 2026-11-01 上述 (1) 与 (2) 都已不成立，本条只剩一半：(1) 是错的——`RELEASE.md:135-136` 那段手工步骤**从来没有被删过**，`git log -S'CodeBuddy tooling' -- RELEASE.md` 只有 `4e497c3` 一次命中，且是新增。当时把「验证清单里那四条」误读成「整份 RELEASE.md 只剩这四条」，两者不在同一节。所以「改条件式」仍有对象，前提没被搬走。(2) 的 `$schema` 断言已作为 `TF-20261029-218fdf` 交付归档，两个 404 URL 也在 2026-11-01 换成了 schemastore.org 的可用 schema。本条因此收窄为前半，Next action 已相应改写。
 
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 
@@ -1020,6 +1021,7 @@ has an issue number or URL.
 - ID: TF-20261008-4d37b2 (removed 2026-10-10: Absorbed into TF-20261008-a4454d: both add guidance beside the same SKILL.md update points and assertions over the same document-vs-hooks reconciliation surface, so a separate task would re-edit the same files)
 - ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
 - ID: TF-20261025-33b2c4 (removed 2026-10-25: Falsified by 2026-10-25-gate-desync-diagnosis A3: git applies no ignore rule to a tracked path, so a force-added copy stays visible in git status and check-ignore returns false — the concern the entry raised cannot occur)
+- ID: TF-20261027-e8c6dc (removed 2026-11-01: superseded by TF-20261031-61b973, which restated and delivered it)
 
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 
@@ -1084,26 +1086,6 @@ has an issue number or URL.
 - Goal: Make `completion-gate` and `hooks/task progress` mean the same thing by a closed Step, so the word `completed` cannot be refused by one and accepted by the other.
 - Task: `TaskFlowDocs/achieved/2026-10-27-close-step-status/`
 - Next action: None — completed and archived.
-
-## Ask where a conclusion should come from before converging on it
-
-- ID: TF-20261027-e8c6dc
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request
-- Added: 2026-10-27
-- Updated: 2026-10-27
-- Goal: Make TaskFlow ask, before a phase converges, whether the answer depends on a fact from outside this repository — and record the answer either way, instead of leaving external search to a decision that never gets made.
-- Task: Not promoted.
-- Next action: Decide the smallest change that forces the question: a line beside the `inspect` enumeration in `SKILL.md:54`, or a required PRD field. Do not add a gate.
-- Notes: **2026-10-27 re-measured over 91 achieved tasks — worse than the 2026-10-11 figures on [[TF-20260919-90797c]], which owns the measurement.** `## Reference Pointers` holds **365 bullets, 0 containing a URL**. Whole-directory scan: **1 of 91 tasks** cites any third-party host (the 2026-09-10 audit task, 4 URLs). Only **3 of 91** have a `reference/` directory.
-
-  **Three mechanisms, each pointing at a line** (inference, not causation): (1) `SKILL.md:54`'s `inspect` enumerates eight sources and **all eight are inside the repository or the Agent's own state** — nothing outbound; (2) "searching external sources" is only ever listed under Phase 2 (`SKILL.md:172`), and Phase 2 is *optional* with `reference/` as its artifact, so the mental model is "a writing phase" — you do not fetch facts until you have decided to write the note; (3) `hooks/capability-evidence:48-50` counts only `Skill`/`Agent`/`mcp__*`, so `WebSearch`/`WebFetch` are invisible to TaskFlow — excluded deliberately by R12 (`achieved/2026-09-27-capability-pre-write-gate/prd.md:61`) so the gate could not be satisfied by built-in tools. Net effect: search is neither blocked nor rewarded.
-
-  **Why not a gate or a mandate:** the user has stated this is not a request to *require* network search. This repository is largely self-sufficient, which plausibly explains much of 1/91; a mandate would add a compulsory step to the majority of tasks that genuinely do not need one.
-
-  **Coupled to [[TF-20261027-e4ba77]]:** both come from the same root — TaskFlow speaks only at turn boundaries and only about the phase it is in. If the inter-step reminder lands first, this one may be answerable with prose alone.
 
 ## Stay present inside a long implementation run, not only at the prompt
 

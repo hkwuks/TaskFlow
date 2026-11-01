@@ -1,5 +1,5 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "taskflow",
   "description": "TaskFlow workflow skill + host/harness hooks for Claude Code and Codex CLI",
   "owner": {

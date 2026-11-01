@@ -90,14 +90,19 @@ printf -- '- CHANGELOG.md (first section): %s\n' "$changelog_v"
 # --- $schema declarations --------------------------------------------------
 # A manifest may point at a JSON Schema for editors and validators. Nothing read
 # those pointers, and measured 2026-10-29 both of the ones in this repository
-# resolve to 404: `anthropic.com/claude-code/{marketplace,plugin}.schema.json`
-# each 301 to `www.anthropic.com/...` and then 404. So the assertion here checks
-# what the repository can decide by itself and says nothing about reachability.
+# resolved to 404: `anthropic.com/claude-code/{marketplace,plugin}.schema.json`
+# each 301 to `www.anthropic.com/...` and then 404. They were replaced on
+# 2026-11-01 with the schemastore.org pair, which are generated from Claude
+# Code's own Zod definitions and answer with a real draft-07 schema.
 #
-# Deliberately no network. Every other check in this file is offline, and a
-# `curl` here would turn a deterministic check into one that reddens on a DNS
-# blip or a rate limit -- and the reachability answer would be wrong the moment
-# the remote moved, which is exactly how the current two got this way unnoticed.
+# The assertion still checks only what the repository can decide by itself and
+# says nothing about reachability -- deliberately no network. Every other check
+# in this file is offline, and a `curl` here would turn a deterministic check
+# into one that reddens on a DNS blip or a rate limit, and the reachability
+# answer would be wrong the moment the remote moved, which is exactly how the
+# current two got this way unnoticed. A wrong URL is now caught by a person
+# reading it, not by this file; what this file catches is a declaration that
+# stopped being a declaration.
 #
 # The declaration set is written out rather than read from a file: a second
 # record of the same fact is a second thing to drift, and this one is two lines.
@@ -281,16 +286,22 @@ done
 # catalogs, whose `ref`/`sha` are the pin itself. Anything else there is a change
 # that shipped under the pin without being in the release commit the tag names.
 #
-# The range ends at the commit that last wrote a catalog, not at HEAD: later work
-# on `main` is not part of the release and comparing against HEAD would report
-# every commit since the release as a stray.
+# The range ends at the commit that last wrote a catalog's pin, not at HEAD and
+# not at whatever commit last touched a catalog: later work on `main` is not part
+# of the release, and a catalog carries more than the pin. Measured 2026-11-01 —
+# pointing `$schema` at a working URL edited `marketplace.json` without moving
+# `ref` or `sha`, and "the newest commit that touched the file" then reported the
+# whole release as having shipped outside its tag. The pin is identified by the
+# commit that wrote the `sha` the file holds now, which is the only property the
+# question "which commit recorded this pin" is actually about.
 #
 # `TaskFlowDocs/` is exempt: task documents are not distributed with the release,
 # so one landing in the window cannot make a pin ship unpublished code. Every
 # other path is named, because "one of the release commits had an extra file" is
 # not something a status line should hide.
 if [ -n "$window_sha" ]; then
-  recorded="$(git log -1 --format=%H -- "$marketplace" "$codebuddy_marketplace" 2>/dev/null || true)"
+  window_pin="$(git rev-parse "$window_sha" 2>/dev/null || true)"
+  recorded="$(git log -1 --format=%H -S"$window_pin" -- "$marketplace" "$codebuddy_marketplace" 2>/dev/null || true)"
   if [ -n "$recorded" ] && [ "$recorded" != "$window_sha" ]; then
     stray=""
     for path in $(git diff --name-only "$window_sha" "$recorded" 2>/dev/null || true); do
