@@ -1121,7 +1121,7 @@ has an issue number or URL.
 - Owner: Claude
 - Source: user request 2026-10-31 (TF-20261027-e8c6dc re-scoped)
 - Added: 2026-10-31
-- Updated: 2026-10-31
+- Updated: 2026-11-01
 - Goal: Make a task record whether its conclusion depends on a fact from outside this repository, and require a real search when it does — so external evidence is either gathered deliberately or explicitly ruled out, never skipped by default
 - Task: `TaskFlowDocs/2026-10-31-external-facts/`
 - Next action: Complete PRD / Spec / Plan and request approval.

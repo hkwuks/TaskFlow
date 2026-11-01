@@ -215,6 +215,8 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
 
+**Before this phase converges, ask where the answer comes from.** A requirement earned from memory is indistinguishable, in the document, from one earned by looking — and everything this phase is told to inspect is inside the repository, so nothing here prompts the question. Ask it once, explicitly: *which of these conclusions would a reader have to check against something outside this repository* — a version, a specification, another project's documented behaviour, a price, a limit. When the answer is none, say so in `## External Facts` and point at where the reasoning is settled inside the repository; when it is not none, go and look before writing the criterion, and the lookup is recorded for you. A `yes` with no lookup behind it is refused by `task approve`, which is the whole point: the field records a decision, and the record makes the decision checkable. Do not answer `no` because the work feels internal — that is the default this question exists to displace.
+
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
 
 **When the goal or the approach is not yet settled, diverge before you converge.** Writing requirements is a converging act: it picks one reading of the request and turns it into criteria, which quietly discards the readings not yet on the table. So when the request leaves the target or the way to reach it undetermined, or more than one workable direction exists, this phase opens with the class above — `divergent exploration` — before `prd.md` is drafted. The condition is the state of the request, so it is answerable from what you have: a request whose goal and approach are both fixed converges directly, and one that is still an idea does not. What the class produces is candidate directions and the trade-offs between them, for the user to choose from; only the chosen ones become requirements, and the rest are recorded as out-of-scope or deferred so the discarded ground is visible rather than lost. As with every class in the table, this names what to look for and never what to use — availability, fit, and the decision to proceed unaided remain yours, and an unaided PRD is a legitimate outcome recorded as one.
@@ -226,6 +228,8 @@ Use `reference/` only when external evidence, codebase investigation, experiment
 Agent suggestions may mark evidence as candidate. Only the Primary Agent or user confirms `verified`, `rejected`, or `superseded` status.
 
 ### 3. Design — Spec decision
+
+**Re-ask the external-facts question here, because this is where it can change.** Phase 1 answered it against the request; this phase answers it against the contract. Defining an interface, an error semantic, or a compatibility boundary is exactly when a "we are only changing our own code" reading stops being true — a status code another service must accept, a field a plugin manifest must declare, a version an operator must install. If Phase 1 answered `no` and this phase turns out to depend on something outside, say so rather than proceeding: the answer changes, `prd.md` changes, and any lookup made now is recorded like any other.
 
 Classify the task before planning:
 
@@ -258,6 +262,8 @@ The `Implementation checklist` is a checkbox list, not prose. A Step cannot be m
 A `## Change Log` in `plan.md` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval. Do not treat a wording or approach clarification as a Task-version event.
 
 Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. `Skills / Tools Used` is required: stage-tagged invoke or Unaided lines as each document starts (see the capability section); do not leave the section blank. `task approve` rejects missing stages and unqualified stage Unaided lines.
+
+**Before requesting approval, read `## External Facts` one last time against the Plan.** The Steps were not written yet when Phase 1 answered, and they are where a task most often discovers it needs to know something the repository does not contain — a tool's actual behaviour, a format another project defines, a limit that is not documented here. A `yes` must have its lookups already done and recorded, because `task approve` refuses one that does not; a `no` must still name where the work is settled inside the repository. If this pass changes the answer, change `prd.md` and note it in the change log rather than approving a document whose facts section no longer describes the work.
 
 Record approval as:
 

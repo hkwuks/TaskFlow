@@ -1427,6 +1427,15 @@ or
       no)
         printf '%s\n' "$ext_body" | grep -qE '^- Why not:[[:space:]]*[^[:space:]]' \
           || fail "approve blocked: 'Depends on external facts: no' needs a '- Why not:' line. An unexplained no is the default this field exists to displace. Say what puts the conclusion inside this repository."
+        # A reason is prose, so the only checkable part is whether it points at
+        # something a reader can open. A backticked path or a `path:line` is that
+        # pointer; "this is an internal refactor" is not, and it is exactly the
+        # sentence an unexamined `no` produces. This does not verify the path
+        # exists -- a Plan may predate a move, and a false MISSING is worse than a
+        # loose reason -- it only requires that the reason names one.
+        ext_why="$(printf '%s\n' "$ext_body" | sed -n 's/^- Why not:[[:space:]]*//p' | head -1)"
+        printf '%s\n' "$ext_why" | grep -qE '`[^`]+`|[A-Za-z0-9_./-]+\.[A-Za-z]+:[0-9]+' \
+          || fail "approve blocked: the '- Why not:' reason names nothing a reader can open. Point at where the conclusion is settled inside this repository — a backticked path such as \`hooks/task\` or \`skills/taskflow/SKILL.md:54\`, or a path with a line number. 'It is an internal change' is the sentence an unexamined no produces, and this field exists to stop that sentence being the default."
         ;;
       yes)
         # One pass over the section, because the three defects have three
@@ -1461,6 +1470,40 @@ or
             fail "approve blocked: $(printf '%s' "$ext_bad" | cut -f2) '- Source:' line(s) but $(printf '%s' "$ext_bad" | cut -f3) '- What it settled:'. Each source has to say which conclusion it changed; a source that changed nothing did not need fetching."
             ;;
         esac
+        # Every `- Source:` has to be backed by a recorded lookup. Without this the
+        # section is a form a task fills in from memory, which is the failure the
+        # whole task exists to prevent: measured 2026-11-01, `achieved/` holds a
+        # Plan whose `## Reference Pointers` names Anthropic's hooks reference and
+        # Codex's hooks guide in prose, with no URL and no date, and nothing in the
+        # repository can tell whether either was ever opened.
+        #
+        # The store is `taskflow/external`, NOT `taskflow/evidence`. `external` is
+        # written by `hooks/external-evidence` from `WebSearch`/`WebFetch`, the two
+        # built-in tools `capability-evidence` deliberately refuses to count, so a
+        # lookup can never release a stage. This check reads it for the opposite
+        # purpose and reads nothing else from it.
+        ext_store="$cap_git_dir/taskflow/external"
+        ext_unbacked=""
+        while IFS= read -r ext_src; do
+          [ -n "$ext_src" ] || continue
+          ext_host="$(printf '%s' "$ext_src" | sed -n 's|^https\{0,1\}://\([^/]*\).*|\1|p')"
+          ext_seen=0
+          if [ -f "$ext_store" ] && [ -n "$ext_host" ]; then
+            while IFS= read -r ext_line; do
+              case "$ext_line" in
+                *"$ext_host"*|*"$ext_src"*) ext_seen=1; break ;;
+              esac
+            done < "$ext_store"
+          fi
+          [ "$ext_seen" = 1 ] || ext_unbacked="$ext_unbacked${ext_unbacked:+, }$ext_src"
+        done <<EXT_SOURCES
+$(printf '%s\n' "$ext_body" | sed -n 's/^- Source:[[:space:]]*\(.*\)$/\1/p')
+EXT_SOURCES
+        # Fail closed on an unreadable store, not open: a missing file is "no
+        # lookups were recorded", which is exactly the claim being refused.
+        if [ -n "$ext_unbacked" ]; then
+          fail "approve blocked: this task says its conclusions depend on facts from outside the repository, but no lookup backs: $ext_unbacked. Either run the search and fetch the source (a WebSearch or WebFetch in this task's working tree records it), or drop the claim and answer no with the reason. A source named from memory is the thing this check exists to catch."
+        fi
         ;;
       "")
         fail "$ext_msg"

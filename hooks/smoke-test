@@ -1925,7 +1925,7 @@ set_external_facts() {  # set_external_facts <prd> <body>
   ' "$prd" > "$prd.tmp" && mv "$prd.tmp" "$prd"
 }
 set_external_facts "$ap_task/prd.md" '- Depends on external facts: no
-- Why not: the fixture exercises stage reconciliation only.'
+- Why not: the fixture settles everything in `hooks/task`.'
 # Missing Approval section: refuse, leave bytes alone.
 ap_bad="$ap/TaskFlowDocs/2026-09-09-approve-bad"
 mkdir -p "$ap_bad"
@@ -2107,7 +2107,7 @@ bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap_l
 ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
 set_external_facts "$ap_large/prd.md" '- Depends on external facts: no
-- Why not: the fixture exercises stage reconciliation only.'
+- Why not: the fixture settles everything in `hooks/task`.'
 # The large task is its own worktree, so its records are its own: one task per
 # store is the production shape, and it is what keeps this fixture from being
 # satisfied by the small task's releases.
@@ -2243,6 +2243,60 @@ if bash "$HERE/task" approve 2026-09-09-approve-skeleton --root "$ap" >/dev/null
 fi
 grep -q "has no '## External Facts' answer" "$ap/ef.err" \
   || { echo "FAIL skeleton refusal message"; cat "$ap/ef.err"; exit 1; }
+# External lookups cannot release a stage, and this is the assertion that says so.
+# A task with two real lookups and no capability record must still be refused, and
+# must be refused for the stage reason -- not because `approve` noticed the
+# external store at all. If a later change ever teaches the gate to count a lookup
+# this keeps failing until the two stores are separated again.
+ap_ex="$ap/TaskFlowDocs/2026-09-09-approve-external"
+mkdir -p "$ap_ex"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_ex/plan.md"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://docs.claude.com/en/docs/claude-code/hooks\n- What it settled: the hook event names\n' > "$ap_ex/prd.md"
+# Its own store, not the shared one the cases above have been mutating: an empty
+# `evidence` beside a `released` holding three sequences is an out-of-step store,
+# and `approve` would refuse for that reason instead of the one under test.
+ap_ex_root="$(mktemp -d)"
+cp -a "$ap/TaskFlowDocs" "$ap_ex_root/TaskFlowDocs"
+ap_ex_git="$(git -C "$ap_ex_root" init -q && git -C "$ap_ex_root" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$ap_ex_git"
+printf 'search|claude code hooks\nfetch|https://docs.claude.com/en/docs/claude-code/hooks\n' > "$ap_ex_git/external"
+: > "$ap_ex_git/evidence"
+: > "$ap_ex_git/released"
+# Capability store intact but holding nothing for this task: the isolation claim is
+# that the lookups above do not stand in for an invocation.
+if bash "$HERE/task" approve 2026-09-09-approve-external --root "$ap_ex_root" >/dev/null 2>"$ap/ex.err"; then
+  echo "FAIL an external lookup released a capability stage"; cat "$ap/ex.err"; exit 1
+fi
+grep -q 'stage \[PRD\] was never released by the pre-write gate' "$ap/ex.err" \
+  || { echo "FAIL external refusal was for the wrong reason"; cat "$ap/ex.err"; exit 1; }
+rm -rf "$ap_ex_root"
+
+# A `yes` needs a lookup behind it. Two stores, two claims: the first `yes` names
+# a host nothing recorded and must be refused naming that host; the second is
+# backed by a real `external` line and must get past this check.
+ef_case "no reason names nothing" "names nothing a reader can open" '## External Facts
+- Depends on external facts: no
+- Why not: this is an internal change'
+
+ap_yes="$ap/TaskFlowDocs/2026-09-09-approve-yes"
+mkdir -p "$ap_yes"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_yes/plan.md"
+printf 'fetch|https://docs.claude.com/en/docs/claude-code/hooks\n' > "$ap_store/external"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://example.invalid/never-fetched\n- What it settled: something\n' > "$ap/TaskFlowDocs/2026-09-09-approve-yes/prd.md"
+if bash "$HERE/task" approve 2026-09-09-approve-yes --root "$ap" >/dev/null 2>"$ap/yes.err"; then
+  echo "FAIL a source with no recorded lookup was accepted"; cat "$ap/yes.err"; exit 1
+fi
+grep -q 'no lookup backs: https://example.invalid/never-fetched' "$ap/yes.err" \
+  || { echo "FAIL the unbacked source was not named"; cat "$ap/yes.err"; exit 1; }
+# Backed: the same claim with a host the `external` store does carry gets past the
+# lookup check (and is refused one layer later, for the stage releases it has none of).
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://docs.claude.com/en/docs/claude-code/hooks\n- What it settled: something\n' > "$ap/TaskFlowDocs/2026-09-09-approve-yes/prd.md"
+if bash "$HERE/task" approve 2026-09-09-approve-yes --root "$ap" >/dev/null 2>"$ap/yes.err"; then
+  echo "FAIL a backed source was accepted with no stage releases"; exit 1
+fi
+grep -q 'no lookup backs' "$ap/yes.err" \
+  && { echo "FAIL a backed source was refused for an unbacked lookup"; cat "$ap/yes.err"; exit 1; }
+
 # The stage gate's wording is pinned behaviourally above: every branch
 # ("missing stage [PRD]", "was never released by the pre-write gate", the two
 # reconciliation mismatches) was just read back out of a real rejection. The three
@@ -2672,6 +2726,38 @@ grep -q -F -- 'TaskFlow is entered before the work' "$repo/hooks/capability-gate
   || { echo "FAIL the gate denial does not state the order"; exit 1; }
 echo ok
 
+echo "== the external-facts question is asked where it can change, and nowhere it cannot =="
+# The field alone does not fix the bias it was added for: every source this file's
+# earlier sections point an Agent at is inside the repository, so nothing prompted
+# the question in the first place. These assertions pin the three places the
+# question is asked -- and pin that the `inspect` enumeration was NOT extended,
+# because adding a judgement question to a list of "open the repo and look" items
+# would dress a decision up as an inspection.
+ef_skill="$skill/SKILL.md"
+for ef_where in 'Before this phase converges, ask where the answer comes from' \
+                'Re-ask the external-facts question here, because this is where it can change' \
+                'Before requesting approval, read `## External Facts` one last time against the Plan'; do
+  grep -q -F -- "$ef_where" "$ef_skill" \
+    || { echo "FAIL the external-facts pause point is missing: $ef_where"; exit 1; }
+done
+# The enumeration is counted rather than quoted: a ninth entry is the change this
+# task decided against, and a silent reword is the other way it could drift. Seven
+# items follow the sentence's own "inspect the repository, " -- that lead is the
+# eighth source, so the count below is 8 only when the lead is included. The `, and `
+# before the last item is the sentence's, not a separate entry.
+ef_inspect="$(sed -n 's/^After the request passes the applicability gate, first record or update its Todo item\. Then inspect the repository, \(.*\)\. Separate findings.*/\1/p' "$ef_skill")"
+[ -n "$ef_inspect" ] || { echo "FAIL the inspect enumeration is gone or was reworded"; exit 1; }
+ef_count="$(printf '%s' "$ef_inspect" | sed 's/, and /, /' | tr ',' '\n' | sed 's/^ *//; s/ *$//' | grep -c .)"
+[ "$ef_count" -eq 7 ] \
+  || { echo "FAIL the inspect enumeration changed size (expected 7 listed plus the sentence's own 'repository'): $ef_inspect"; exit 1; }
+# `artifacts.md` and `runtime.md` have to say where a lookup is recorded and that
+# it releases nothing, or the next reader re-derives the two stores from scratch.
+grep -q 'taskflow/external' "$skill/references/artifacts.md" \
+  || { echo "FAIL artifacts.md does not name the external store"; exit 1; }
+grep -q 'external-evidence' "$skill/references/runtime.md" \
+  || { echo "FAIL runtime.md does not name the external-evidence hook"; exit 1; }
+echo ok
+
 echo "== artifact language rule is documented without contradicting the parsers =="
 # The rule splits one document into prose and machine-read structure. If it ever
 # names a structural line as translatable, the hooks stop finding it, so pin both
@@ -2952,6 +3038,63 @@ printf '{not-json}' | bash "$ce" || { echo "FAIL capability-evidence failed on b
   || { echo "FAIL capability-evidence failed with no cwd field"; exit 1; }
 [ "$(sed -n '4p' "$ce_store")" = "invoke|fallback:cwd" ] \
   || { echo "FAIL the cwd fallback did not record"; exit 1; }
+echo ok
+
+echo "== external capture records lookups, in a store of its own =="
+# The point of this section is the separation, not the recording: a lookup has to
+# be visible without ever becoming something that can release a stage. So every
+# assertion here reads `external`, and the last one reads `evidence` to prove it
+# was never written.
+ee="$HERE/external-evidence"
+ee_root="$tmp/external-evidence"
+mkdir -p "$ee_root/active/TaskFlowDocs/2026-11-01-lookup" \
+         "$ee_root/plain" \
+         "$ee_root/achieved/TaskFlowDocs/achieved/2026-01-01-old"
+for ee_repo in active plain achieved; do git -C "$ee_root/$ee_repo" init -q; done
+printf 'x\n' > "$ee_root/active/TaskFlowDocs/2026-11-01-lookup/plan.md"
+printf 'x\n' > "$ee_root/achieved/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
+ee_git="$(git -C "$ee_root/active" rev-parse --absolute-git-dir)/taskflow"
+ee_store="$ee_git/external"
+ee_ev="$ee_git/evidence"
+ee_fire() {  # ee_fire <repo-name> <event-json>
+  printf '%s' "$2" | bash "$ee" || { echo "FAIL external-evidence exited nonzero"; exit 1; }
+}
+ee_lines() {  # ee_lines <file>
+  [ -f "$1" ] && wc -l < "$1" | tr -d ' ' || printf '0'
+}
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"claude code hooks reference\"}}"
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebFetch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"url\":\"https://docs.claude.com/en/docs/claude-code/hooks\"}}"
+[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL expected 2 external records, got $(ee_lines "$ee_store")"; exit 1; }
+[ "$(sed -n '1p' "$ee_store")" = "search|claude code hooks reference" ] \
+  || { echo "FAIL WebSearch record shape"; cat "$ee_store"; exit 1; }
+[ "$(sed -n '2p' "$ee_store")" = "fetch|https://docs.claude.com/en/docs/claude-code/hooks" ] \
+  || { echo "FAIL WebFetch record shape"; cat "$ee_store"; exit 1; }
+# A built-in that is not one of the two, a non-PostToolUse event, and a tool name
+# hidden inside another field's text. The last one is why `json-field` parses
+# rather than pattern-matches: a regex would read `WebSearch` out of prose.
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"command\":\"curl https://example.invalid\"}}"
+ee_fire active "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"x\"}}"
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"command\":\"echo \\\"tool_name\\\":\\\"WebSearch\\\"\"}}"
+[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL a non-web tool added an external record"; cat "$ee_store"; exit 1; }
+# The separation in one assertion: after two real lookups, the capability store
+# this hook must never touch still does not exist.
+[ ! -e "$ee_ev" ] || { echo "FAIL external-evidence wrote the capability store"; cat "$ee_ev"; exit 1; }
+# No-op outside a repository running TaskFlow, same as capability-evidence.
+ee_fire plain "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/plain\",\"tool_input\":{\"query\":\"x\"}}"
+[ ! -e "$(git -C "$ee_root/plain" rev-parse --absolute-git-dir)/taskflow/external" ] \
+  || { echo "FAIL a non-TaskFlow repository got an external store"; exit 1; }
+ee_fire achieved "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/achieved\",\"tool_input\":{\"query\":\"x\"}}"
+[ ! -e "$(git -C "$ee_root/achieved" rev-parse --absolute-git-dir)/taskflow/external" ] \
+  || { echo "FAIL an achieved-only repository got an external store"; exit 1; }
+# A lookup with no query/url records nothing rather than a bare `search|`.
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{}}"
+[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL an empty WebSearch added a record"; cat "$ee_store"; exit 1; }
+# `|` and newlines cannot reach the record, or one lookup would forge two lines.
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"a|b\"}}"
+[ "$(ee_lines "$ee_store")" -eq 3 ] || { echo "FAIL a pipe split one lookup into two records"; cat "$ee_store"; exit 1; }
+grep -q '^search|a b$' "$ee_store" || { echo "FAIL the pipe was not stripped"; tail -1 "$ee_store"; exit 1; }
+# Bad input is a silent no-op, never a failed tool call.
+printf '{not-json}' | bash "$ee" || { echo "FAIL external-evidence failed on bad JSON"; exit 1; }
 echo ok
 
 echo "== the pre-write gate releases a stage only against real evidence =="
@@ -3333,7 +3476,7 @@ printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_second/plan.md"
 # Both PRDs answer `## External Facts` the same way, because what this section
 # measures is which task's release row `approve` reads, not the PRD's content.
 for xt_prd in "$xt_first/prd.md" "$xt_second/prd.md"; do
-  printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: fixture.\n' > "$xt_prd"
+  printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$xt_prd"
 done
 printf 'invoke|a:prd\ninvoke|b:prd\n' > "$xt_store/evidence"
 cg_verdict "$xt_first/prd.md" allow
@@ -3567,7 +3710,7 @@ echo "== approve refuses a store it cannot reconcile stages against =="
 # `approve OK (user, v1)`; deleting that one row made the same document fail.
 # Whether a task could be approved therefore depended on an unsupported release.
 rc_plan="$gds/repo/$rc_task/plan.md"
-printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: fixture.\n' > "$gds/repo/$rc_task/prd.md"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$gds/repo/$rc_task/prd.md"
 cat > "$rc_plan" <<'RC_PLAN'
 # Plan
 > Task version: v1
@@ -3758,7 +3901,7 @@ ug="$tmp/unaided-gate"
 mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
 git -C "$ug" init -q
 printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
-printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
 ug_name=2026-09-27-declared
@@ -3820,7 +3963,7 @@ uc="$tmp/unaided-conflict"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
 git -C "$uc" init -q
 printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
-printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
 uc_name=2026-09-27-conflict
@@ -6098,7 +6241,7 @@ tp="$tmp/test-phase"
 mkdir -p "$tp/TaskFlowDocs/2026-01-01-tp"
 git -C "$tp" init -q
 tp_plan="$tp/TaskFlowDocs/2026-01-01-tp/plan.md"
-printf '# PRD — Test phase fixture\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: fixture.\n' > "$tp/TaskFlowDocs/2026-01-01-tp/prd.md"
+printf '# PRD — Test phase fixture\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$tp/TaskFlowDocs/2026-01-01-tp/prd.md"
 tp_store="$(git -C "$tp" rev-parse --absolute-git-dir)/taskflow"
 tp_name=2026-01-01-tp
 tp_version() {  # tp_version <vN> -- rewrite the Plan's Task version
