@@ -5414,6 +5414,51 @@ git -C "$rv" commit -q --amend --no-edit
 if bash "$HERE/release-check" "$rv" >"$tmp/rv-out" 2>&1; then echo "FAIL a stray file in the pin window was accepted"; cat "$tmp/rv-out"; exit 1; fi
 grep -q 'carries changes outside the pin: hooks-stray.sh' "$tmp/rv-out" \
   || { echo "FAIL the stray path was not named"; cat "$tmp/rv-out"; exit 1; }
+
+# A commit after the pin that edits a catalog without moving `ref`/`sha` is not a
+# pin commit and must not be treated as one. Measured 2026-11-01: pointing
+# `$schema` at a working URL edited `marketplace.json` this way, and the check
+# reported the entire release as having shipped outside its tag. The cases above
+# cannot catch that -- every one of them is an `--amend`, so no commit ever
+# follows the pin. A fresh fixture rather than a continuation, because the chain
+# above deliberately ends holding a stray file and a TaskFlowDocs path.
+pv="$tmp/release-postpin"
+mkdir -p "$pv/.claude-plugin" "$pv/.codex-plugin" "$pv/.codebuddy-plugin"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/.claude-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codex.20261101"\n}\n' > "$pv/.codex-plugin/plugin.json"
+printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codebuddy.20261101"\n}\n' > "$pv/.codebuddy-plugin/plugin.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/package.json"
+printf '# Changelog\n\n## [9.9.10] — 2026-11-01\n\nNew.\n' > "$pv/CHANGELOG.md"
+printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.10    Status: enabled\n```\n\n```bash\n#     Version: 9.9.10\n```\n' > "$pv/README.md"
+cp "$pv/README.md" "$pv/README.zh-CN.md"
+git -C "$pv" init -q
+git -C "$pv" config user.email smoke@example.invalid
+git -C "$pv" config user.name smoke
+git -C "$pv" add -A
+git -C "$pv" commit -qm release
+git -C "$pv" tag v9.9.10
+pin="$(git -C "$pv" rev-parse HEAD)"
+printf '{\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.10",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$pin" \
+  > "$pv/.claude-plugin/marketplace.json"
+cp "$pv/.claude-plugin/marketplace.json" "$pv/.codebuddy-plugin/marketplace.json"
+git -C "$pv" add -A
+git -C "$pv" commit -qm 'pin the marketplace'
+bash "$HERE/release-check" "$pv" >"$tmp/rv-out" 2>&1 || { echo "FAIL the post-pin fixture did not start from a pass:"; cat "$tmp/rv-out"; exit 1; }
+# Now an ordinary commit that only adds a field beside the pin, in both declared
+# files -- the pin set is a set, so moving one without the other trips a
+# different rule and would mask what this case is about.
+printf '{\n  "$schema": "https://example.invalid/x.json",\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.10",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$pin" \
+  > "$pv/.claude-plugin/marketplace.json"
+# The CodeBuddy catalog is deliberately not in the pinned declaration set, so it
+# keeps the pin without gaining a `$schema`.
+printf '{\n  "plugins": [\n    {\n      "source": {\n        "ref": "v9.9.10",\n        "sha": "%s"\n      }\n    }\n  ]\n}\n' "$pin" \
+  > "$pv/.codebuddy-plugin/marketplace.json"
+printf '{\n  "$schema": "https://example.invalid/y.json",\n  "name": "taskflow",\n  "version": "9.9.10"\n}\n' \
+  > "$pv/.claude-plugin/plugin.json"
+git -C "$pv" add -A
+git -C "$pv" commit -qm 'point $schema at a working URL'
+bash "$HERE/release-check" "$pv" >"$tmp/rv-out" 2>&1 || { echo "FAIL a catalog edit after the pin was reported as a stray:"; cat "$tmp/rv-out"; exit 1; }
+grep -q 'STATUS: pass' "$tmp/rv-out" || { echo "FAIL a post-pin catalog edit did not pass"; cat "$tmp/rv-out"; exit 1; }
 echo ok
 
 echo "== todo-check reports an entry a merge dropped =="
