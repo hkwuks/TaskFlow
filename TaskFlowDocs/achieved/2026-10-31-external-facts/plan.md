@@ -1,6 +1,6 @@
 # Plan — 外部事实：先判断，再取证
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 

@@ -2726,6 +2726,26 @@ grep -q -F -- 'TaskFlow is entered before the work' "$repo/hooks/capability-gate
   || { echo "FAIL the gate denial does not state the order"; exit 1; }
 echo ok
 
+echo "== the archive lands in the task's own pull request, not after the merge =="
+# The ordering rule is prose, so what can be pinned is that the prose says the
+# ordering -- three documents state it, and the failure it prevents (an archive
+# with no branch to live on) is silent until someone tries to land it.
+for arc_doc in "$repo/CONTRIBUTING.md" "$skill/SKILL.md"; do
+  grep -q 'archiving after the merge\|Archiving after the merge' "$arc_doc" \
+    || { echo "FAIL $arc_doc does not warn against archiving after the merge"; exit 1; }
+done
+grep -q 'The archive is not an exception' "$repo/CONTRIBUTING.md" \
+  || { echo "FAIL CONTRIBUTING does not say the archive rides in the same pull request"; exit 1; }
+grep -q 'Run it before the merge, not after' "$skill/SKILL.md" \
+  || { echo "FAIL the Skill does not state when complete runs"; exit 1; }
+# The confusion this rule exists to end: `complete` prints a teardown line that
+# waits for the merge, and reading that as "archive waits for the merge" is what
+# produced a second pull request carrying only bookkeeping. Both documents have to
+# separate the two, or the next reader makes the same inference.
+grep -q 'about the \*\*worktree\*\*' "$skill/SKILL.md" \
+  || { echo "FAIL the Skill does not separate teardown from archiving"; exit 1; }
+echo ok
+
 echo "== the external-facts question is asked where it can change, and nowhere it cannot =="
 # The field alone does not fix the bias it was added for: every source this file's
 # earlier sections point an Agent at is inside the repository, so nothing prompted
