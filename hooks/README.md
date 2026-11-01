@@ -20,6 +20,7 @@ taskflow/hooks/
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
 ├── capability-evidence # records real capability invocations (Claude Code only)
+├── external-evidence   # records WebSearch/WebFetch lookups, in a store of their own (Claude Code only)
 ├── capability-gate     # refuses a stage document's first body write (Claude Code only)
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen

@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# external-evidence — PostToolUse hook: record that this task looked something up
+# outside the repository.
+#
+# The problem this exists for: nothing in TaskFlow can tell "I checked" apart
+# from "it did not occur to me to check". Measured 2026-10-31 over 94 archived
+# tasks, `## Reference Pointers` holds 382 bullets and not one is a URL. That
+# does not prove the framework suppresses search -- most work here is internal --
+# but it does mean a task that never looked and a task that looked and found
+# nothing both leave the same trace: none.
+#
+# So this records the looking. It is deliberately NOT part of the capability
+# evidence store, and the separation is the whole design:
+#
+#   taskflow/evidence  -- what released a stage. `capability-gate` and
+#                         `task approve` read it to decide whether a stage
+#                         document may be written. Only Skill, Agent|Task, and
+#                         mcp__* go in it, so a gate cannot be satisfied by
+#                         running a built-in tool.
+#   taskflow/external  -- what this file writes. It releases nothing, it never
+#                         will, and `capability-evidence` is not modified to
+#                         feed it. `task approve` reads it for the opposite
+#                         purpose: to check that a task claiming outside facts
+#                         actually went and got some.
+#
+# Keeping them in one file with a `kind` column would have been fewer lines and
+# would have put the two meanings back together the first time someone wrote a
+# query that looked like a capability name. Two files, two predicates, two
+# consumers.
+#
+# What this does NOT do, deliberately:
+#   - it never fetches anything. It reads the event the host already delivered;
+#     a reachability check would redden on a DNS blip and still be wrong the
+#     moment the remote moved.
+#   - it writes nothing when the event names another tool. `Bash` running curl
+#     is not a recorded lookup: the host does not say what the command did, and
+#     guessing from the command text is the keyword classifier this repository
+#     rejects everywhere else.
+#   - every error path exits 0. A hook that blocks a search because its own
+#     bookkeeping failed would be worse than the silence it replaces.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+event_json="$(cat 2>/dev/null || true)"
+[ -n "$event_json" ] || exit 0
+
+fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
+  hook_event_name tool_name cwd tool_input.query tool_input.url 2>/dev/null)" || exit 0
+
+event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
+tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
+event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
+lookup_query="$(printf '%s\n' "$fields" | sed -n '4p')"
+lookup_url="$(printf '%s\n' "$fields" | sed -n '5p')"
+
+[ "$event_name" = "PostToolUse" ] || exit 0
+
+# Two tool names, both built in. This is the predicate, and it is a tool class
+# of exactly the kind `capability-evidence` refuses to count -- which is why the
+# two predicates live in two files rather than in one `case` with a shared
+# fall-through.
+case "$tool_name" in
+  WebSearch) record="search|$lookup_query" ;;
+  WebFetch) record="fetch|$lookup_url" ;;
+  *) exit 0 ;;
+esac
+[ -n "${record#*|}" ] || exit 0
+
+root="${event_cwd:-$PWD}"
+
+git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
+[ -n "$git_dir" ] || exit 0
+worktree="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$worktree" ] || exit 0
+
+# No-op outside a repository running TaskFlow. The hook is installed
+# machine-wide, so every unrelated project reaches this script.
+docs="$worktree/TaskFlowDocs"
+[ -d "$docs" ] || exit 0
+active=0
+for dir in "$docs"/*/; do
+  [ -d "$dir" ] || continue
+  name="${dir%/}"
+  name="${name##*/}"
+  case "$name" in achieved|repository-docs) continue ;; esac
+  if [ -f "$dir/plan.md" ]; then active=1; break; fi
+done
+[ "$active" = 1 ] || exit 0
+
+# `|` would forge a field boundary and a newline would forge a line, so both are
+# replaced with a space inside the value -- never in the separator, which is why
+# this cleans the two halves rather than the joined string. The assertion in the
+# smoke suite compares the whole line rather than the count, which is what caught
+# both earlier versions: `tr -d '\r\n'` left the pipe in place so `a|b` recorded
+# with a forged separator, and running `tr` over the whole record ate the
+# separator itself so every line came out space-separated.
+# The cap keeps one pathological query from bloating a file every approve reads.
+ee_kind="${record%%|*}"
+ee_value="${record#*|}"
+ee_value="$(printf '%s' "$ee_value" | tr '|\r\n' '   ' | cut -c1-400)"
+record="$ee_kind|$ee_value"
+[ -n "$ee_value" ] || exit 0
+
+store="$git_dir/taskflow"
+mkdir -p "$store" 2>/dev/null || exit 0
+printf '%s\n' "$record" >> "$store/external" 2>/dev/null || exit 0
+exit 0

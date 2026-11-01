@@ -816,6 +816,11 @@ case "$command" in
 
 ## Acceptance Criteria
 
+## External Facts
+
+- Depends on external facts:
+- Why not:
+
 ## In Scope
 
 ## Out of Scope
@@ -1388,6 +1393,125 @@ case "$command" in
     if [ -z "$(printf '%s' "$cap_skills" | tr -d '[:space:]')" ]; then
       fail "approve blocked: Skills / Tools Used is missing or empty"
     fi
+    # `## External Facts` is the one place a task says whether its conclusion
+    # depends on a fact from outside this repository, and names what it found if
+    # so. It exists because prose could not be checked: measured 2026-10-31 over
+    # 94 archived tasks, `## Reference Pointers` holds 382 bullets and not one
+    # is a URL, and 3 of 94 tasks have a `reference/` directory -- while nothing
+    # in that measurement can say whether any of them should have searched or
+    # none of them needed to, because most work here is internal. So the field
+    # does not demand a search: it demands that the question was answered once,
+    # in a form a reader can check. `no` must carry its reason for the same
+    # reason -- an unexplained `no` is the default the field exists to displace.
+    #
+    # Only `prd.md` carries it. Whether evidence is gathered at all is a
+    # requirements question; the Plan's job is how, not whether.
+    ext_msg="approve blocked: prd.md has no '## External Facts' answer, so it cannot be seen whether this task's conclusions rest on anything outside the repository. Add the section with one of:
+  - Depends on external facts: no
+  - Why not: <what puts every conclusion inside this repository>
+or
+  - Depends on external facts: yes
+  - Source: <absolute https URL>
+  - What it settled: <the conclusion that source changed>"
+    ext_body="$(awk '
+      /^## External Facts$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$prd" 2>/dev/null)" || ext_body=""
+    # No separate "is the section there" test: an absent section and an empty
+    # one reach the `""` arm below with the same message, which is what they
+    # are -- both say nothing. A line that checked for absence first could only
+    # ever fire on a document the arm below would refuse anyway.
+    ext_answer="$(printf '%s\n' "$ext_body" | sed -n 's/^- Depends on external facts:[[:space:]]*\(..*\)[[:space:]]*$/\1/p' | head -1)"
+    case "$ext_answer" in
+      no)
+        printf '%s\n' "$ext_body" | grep -qE '^- Why not:[[:space:]]*[^[:space:]]' \
+          || fail "approve blocked: 'Depends on external facts: no' needs a '- Why not:' line. An unexplained no is the default this field exists to displace. Say what puts the conclusion inside this repository."
+        # A reason is prose, so the only checkable part is whether it points at
+        # something a reader can open. A backticked path or a `path:line` is that
+        # pointer; "this is an internal refactor" is not, and it is exactly the
+        # sentence an unexamined `no` produces. This does not verify the path
+        # exists -- a Plan may predate a move, and a false MISSING is worse than a
+        # loose reason -- it only requires that the reason names one.
+        ext_why="$(printf '%s\n' "$ext_body" | sed -n 's/^- Why not:[[:space:]]*//p' | head -1)"
+        printf '%s\n' "$ext_why" | grep -qE '`[^`]+`|[A-Za-z0-9_./-]+\.[A-Za-z]+:[0-9]+' \
+          || fail "approve blocked: the '- Why not:' reason names nothing a reader can open. Point at where the conclusion is settled inside this repository — a backticked path such as \`hooks/task\` or \`skills/taskflow/SKILL.md:54\`, or a path with a line number. 'It is an internal change' is the sentence an unexamined no produces, and this field exists to stop that sentence being the default."
+        ;;
+      yes)
+        # One pass over the section, because the three defects have three
+        # different remedies and a reader who is told "invalid" has to guess.
+        ext_bad="$(printf '%s\n' "$ext_body" | awk '
+          { line = $0; sub(/\r$/, "", line) }
+          /^- Source:/ {
+            src++
+            v = line; sub(/^- Source:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v)
+            if (v !~ /^https?:\/\/[^[:space:]]+$/) badurl = (badurl == "" ? v : badurl)
+            next
+          }
+          /^- What it settled:/ {
+            v = line; sub(/^- What it settled:[[:space:]]*/, "", v); sub(/[[:space:]]+$/, "", v)
+            if (v != "") settled++
+            next
+          }
+          END {
+            if (src == 0) { print "none"; exit }
+            if (badurl != "") { print "url\t" badurl; exit }
+            if (settled < src) { print "settled\t" src "\t" settled; exit }
+          }')" || ext_bad=""
+        case "$ext_bad" in
+          "") ;;
+          none)
+            fail "approve blocked: 'Depends on external facts: yes' needs at least one '- Source:' line. If nothing outside the repository settles a conclusion, answer no and give the reason."
+            ;;
+          url*)
+            fail "approve blocked: a '- Source:' is not an absolute http(s) URL: $(printf '%s' "$ext_bad" | cut -f2). A repository path, a tool name, or a sentence is not an external source."
+            ;;
+          settled*)
+            fail "approve blocked: $(printf '%s' "$ext_bad" | cut -f2) '- Source:' line(s) but $(printf '%s' "$ext_bad" | cut -f3) '- What it settled:'. Each source has to say which conclusion it changed; a source that changed nothing did not need fetching."
+            ;;
+        esac
+        # Every `- Source:` has to be backed by a recorded lookup. Without this the
+        # section is a form a task fills in from memory, which is the failure the
+        # whole task exists to prevent: measured 2026-11-01, `achieved/` holds a
+        # Plan whose `## Reference Pointers` names Anthropic's hooks reference and
+        # Codex's hooks guide in prose, with no URL and no date, and nothing in the
+        # repository can tell whether either was ever opened.
+        #
+        # The store is `taskflow/external`, NOT `taskflow/evidence`. `external` is
+        # written by `hooks/external-evidence` from `WebSearch`/`WebFetch`, the two
+        # built-in tools `capability-evidence` deliberately refuses to count, so a
+        # lookup can never release a stage. This check reads it for the opposite
+        # purpose and reads nothing else from it.
+        ext_store="$cap_git_dir/taskflow/external"
+        ext_unbacked=""
+        while IFS= read -r ext_src; do
+          [ -n "$ext_src" ] || continue
+          ext_host="$(printf '%s' "$ext_src" | sed -n 's|^https\{0,1\}://\([^/]*\).*|\1|p')"
+          ext_seen=0
+          if [ -f "$ext_store" ] && [ -n "$ext_host" ]; then
+            while IFS= read -r ext_line; do
+              case "$ext_line" in
+                *"$ext_host"*|*"$ext_src"*) ext_seen=1; break ;;
+              esac
+            done < "$ext_store"
+          fi
+          [ "$ext_seen" = 1 ] || ext_unbacked="$ext_unbacked${ext_unbacked:+, }$ext_src"
+        done <<EXT_SOURCES
+$(printf '%s\n' "$ext_body" | sed -n 's/^- Source:[[:space:]]*\(.*\)$/\1/p')
+EXT_SOURCES
+        # Fail closed on an unreadable store, not open: a missing file is "no
+        # lookups were recorded", which is exactly the claim being refused.
+        if [ -n "$ext_unbacked" ]; then
+          fail "approve blocked: this task says its conclusions depend on facts from outside the repository, but no lookup backs: $ext_unbacked. Either run the search and fetch the source (a WebSearch or WebFetch in this task's working tree records it), or drop the claim and answer no with the reason. A source named from memory is the thing this check exists to catch."
+        fi
+        ;;
+      "")
+        fail "$ext_msg"
+        ;;
+      *)
+        fail "approve blocked: 'Depends on external facts: $ext_answer' is not an answer. Write exactly 'no' or 'yes'."
+        ;;
+    esac
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0

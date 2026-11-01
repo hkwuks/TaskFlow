@@ -1112,3 +1112,11 @@ has an issue number or URL.
 - Goal: Keep TaskFlow present between the steps of one implementation run, so a long turn cannot leave the approved Plan behind while nothing in the workflow speaks up again.
 - Task: `TaskFlowDocs/achieved/2026-10-29-midturn-presence/`
 - Next action: None — completed and archived.
+
+## Make a task record whether its conclusion depends on a fact from outside this re
+
+- ID: TF-20261031-61b973
+- Status: done
+- Goal: Make a task record whether its conclusion depends on a fact from outside this repository, and require a real search when it does — so external evidence is either gathered deliberately or explicitly ruled out, never skipped by default
+- Task: `TaskFlowDocs/achieved/2026-10-31-external-facts/`
+- Next action: None — completed and archived.

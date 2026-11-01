@@ -207,10 +207,15 @@ Create `prd.md` before implementation for a non-trivial task. It must state:
 - confirmed background facts;
 - requirements;
 - observable acceptance criteria;
+- whether any conclusion depends on a fact from outside this repository, in `## External Facts`;
 - in-scope and out-of-scope work;
 - risks, deferred items, and only blocking open questions.
 
+`## External Facts` is answered once, and `hooks/task approve` reads it: `- Depends on external facts: no` needs a `- Why not:` line, and `yes` needs at least one `- Source: <absolute http(s) URL>` with a `- What it settled:` line saying which conclusion that source changed. The question is whether a conclusion could be falsified by something outside this repository — a version, a specification, someone else's documented behaviour. Code that is only in this repository, and facts only this repository can settle, belong in `## Reference Pointers` instead. Answering `yes` is a commitment to go and look, not a note that looking might be useful: the phase table's `searching external sources` is what that answer invokes, and a `yes` with no source behind it is refused. Most tasks here are internal and answer `no`; the field exists so that answer is a decision rather than a default.
+
 Record which repository documents were inspected and which apply. If remote PR-rule discovery was attempted, record its sources, result, and incorporated conclusions without storing sensitive payloads.
+
+**Before this phase converges, ask where the answer comes from.** A requirement earned from memory is indistinguishable, in the document, from one earned by looking — and everything this phase is told to inspect is inside the repository, so nothing here prompts the question. Ask it once, explicitly: *which of these conclusions would a reader have to check against something outside this repository* — a version, a specification, another project's documented behaviour, a price, a limit. When the answer is none, say so in `## External Facts` and point at where the reasoning is settled inside the repository; when it is not none, go and look before writing the criterion, and the lookup is recorded for you. A `yes` with no lookup behind it is refused by `task approve`, which is the whole point: the field records a decision, and the record makes the decision checkable. Do not answer `no` because the work feels internal — that is the default this question exists to displace.
 
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
 
@@ -223,6 +228,8 @@ Use `reference/` only when external evidence, codebase investigation, experiment
 Agent suggestions may mark evidence as candidate. Only the Primary Agent or user confirms `verified`, `rejected`, or `superseded` status.
 
 ### 3. Design — Spec decision
+
+**Re-ask the external-facts question here, because this is where it can change.** Phase 1 answered it against the request; this phase answers it against the contract. Defining an interface, an error semantic, or a compatibility boundary is exactly when a "we are only changing our own code" reading stops being true — a status code another service must accept, a field a plugin manifest must declare, a version an operator must install. If Phase 1 answered `no` and this phase turns out to depend on something outside, say so rather than proceeding: the answer changes, `prd.md` changes, and any lookup made now is recorded like any other.
 
 Classify the task before planning:
 
@@ -255,6 +262,8 @@ The `Implementation checklist` is a checkbox list, not prose. A Step cannot be m
 A `## Change Log` in `plan.md` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval. Do not treat a wording or approach clarification as a Task-version event.
 
 Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. `Skills / Tools Used` is required: stage-tagged invoke or Unaided lines as each document starts (see the capability section); do not leave the section blank. `task approve` rejects missing stages and unqualified stage Unaided lines.
+
+**Before requesting approval, read `## External Facts` one last time against the Plan.** The Steps were not written yet when Phase 1 answered, and they are where a task most often discovers it needs to know something the repository does not contain — a tool's actual behaviour, a format another project defines, a limit that is not documented here. A `yes` must have its lookups already done and recorded, because `task approve` refuses one that does not; a `no` must still name where the work is settled inside the repository. If this pass changes the answer, change `prd.md` and note it in the change log rather than approving a document whose facts section no longer describes the work.
 
 Record approval as:
 
@@ -307,6 +316,8 @@ Record each command and result in `plan.md`. Distinguish pre-existing failures, 
 The archive transaction below is the single definition; `artifacts.md` and `versioning-and-recovery.md` reference it rather than restate it.
 
 Run it as one command: `hooks/task complete <task-id> --user-accepted`. It checks the gates, marks the documents `completed`, and hands over to `hooks/archive`, which moves the directory and closes the Todo entry. Doing the steps by hand is what the collapse looked like — the same three gates live in `complete`, and a hand edit of two `> Status:` lines followed by `hooks/archive` used to skip all of them.
+
+**Run it before the merge, not after.** The transaction reads the working tree and never consults the base branch, so nothing about it waits for a pull request to land. The order is: finish and verify, `hooks/task complete`, then commit the code, the documents and the archive together on the task's branch, push, and open the pull request. Archiving after the merge is the mistake to avoid, because the moved directory and the rewritten Todo entry then exist on no branch — and the only ways to land them are the two `CONTRIBUTING.md` forbids: a push to the base outside any pull request, or a second pull request carrying nothing but bookkeeping. The teardown line `complete` prints is about the **worktree**: `git worktree remove` waits for the merge, and that condition is about not deleting a directory that may still hold the only copy of something. It is not a statement about when to archive.
 
 Before that command, confirm all acceptance criteria pass, verification is recorded, the current Task version is consistent across existing core documents, unresolved items are explicit follow-ups, and no other agent is writing core documents. What the command performs: mark the task `completed`, move the entire directory, update the linked Todo item's `Task:` path to `TaskFlowDocs/achieved/<task-id>/`, close it, then verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. If any part fails, record the blocker and do not claim archival completion.
 
