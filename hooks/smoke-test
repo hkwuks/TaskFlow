@@ -5863,13 +5863,13 @@ echo "== every host whose contract matches the gate actually wires it =="
 # rather than its input shape.
 cb_json="$HERE/hooks-codebuddy.json"
 [ -f "$cb_json" ] || { echo "FAIL hooks/hooks-codebuddy.json is missing"; exit 1; }
-for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill|Agent|Task"' '"matcher": "mcp__.*"'; do
+for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill|Agent|Task"' '"matcher": "mcp__.*"' 'external-evidence'; do
   grep -q -F -- "$cb_pat" "$cb_json" \
     || { echo "FAIL hooks/hooks-codebuddy.json is missing $cb_pat"; exit 1; }
 done
 cb_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$cb_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 5 ] \
-  || { echo "FAIL hooks/hooks-codebuddy.json should wire five hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP):"; printf '%s\n' "$cb_cmds"; exit 1; }
+[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 6 ] \
+  || { echo "FAIL hooks/hooks-codebuddy.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$cb_cmds"; exit 1; }
 cb_root="$(cd "$HERE/.." && pwd)"
 cb_run() {  # cb_run <script-name> <event-json>
   cb_cmd="$(printf '%s\n' "$cb_cmds" | grep -F -- "$1" | head -1)"
@@ -5963,14 +5963,19 @@ codex_allow="$(printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"
   || { echo "FAIL the Codex wiring command did not run on an unrelated patch"; exit 1; }
 printf '%s' "$codex_allow" | grep -q '"deny"' \
   && { echo "FAIL the Codex wiring refused an unrelated patch:"; printf '%s\n' "$codex_allow"; exit 1; }
-# `PostToolUse`/`apply_patch` must stay excluded. `capability-evidence`'s
-# predicate is a capability class (Skill / Agent|Task / mcp__*), and
-# `apply_patch` is an edit tool: wired, the hook would run, exit 0, and record
-# nothing, while `runtime.md` claimed the host had evidence capture. Measured
-# 2026-10-29 — feeding it that event changed no evidence line.
-if grep -q -F -- '"PostToolUse"' "$HERE/hooks-codex.json"; then
-  echo "FAIL hooks-codex.json wires PostToolUse, where apply_patch records nothing and the wiring would be silently inert"; exit 1
+# `capability-evidence` must stay unwired here. Its predicate is a capability class
+# (Skill / Agent|Task / mcp__*), and `apply_patch` is an edit tool: wired, the hook
+# would run, exit 0, and record nothing, while `runtime.md` claimed the host had
+# evidence capture. Measured 2026-10-29 — feeding it that event changed no evidence
+# line. `external-evidence` is the opposite case and is wired: its predicate is a
+# URL in the event, so `apply_patch` recording nothing for *capability* evidence
+# says nothing about whether an edit's text carried an outside URL.
+if grep -q -F -- '"capability-evidence"' "$HERE/hooks-codex.json" \
+   && grep -A3 -- '"PostToolUse"' "$HERE/hooks-codex.json" | grep -q 'capability-evidence'; then
+  echo "FAIL hooks-codex.json wires capability-evidence on PostToolUse, where apply_patch records nothing"; exit 1
 fi
+grep -q -F -- '"external-evidence"' "$HERE/hooks-codex.json" \
+  || { echo "FAIL hooks-codex.json does not wire external-evidence; the host would record no lookups"; exit 1; }
 grep -q -F -- 'tool_input.file_path' "$HERE/capability-gate" \
   || { echo "FAIL capability-gate no longer reads tool_input.file_path, so the Claude Code shape is unhandled"; exit 1; }
 echo ok
@@ -5999,14 +6004,14 @@ trae_root="$(cd "$HERE/.." && pwd)"
 # them: left in, `\"path\"` reaches the shell as a word whose characters include
 # two quote marks, and sh reports "not found" for a path that exists.
 trae_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$trae_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 5 ] \
-  || { echo "FAIL hooks/hooks-trae.json should wire five hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP):"; printf '%s\n' "$trae_cmds"; exit 1; }
+[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 6 ] \
+  || { echo "FAIL hooks/hooks-trae.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$trae_cmds"; exit 1; }
 printf '%s\n' "$trae_cmds" | grep -q "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>'" \
   || { echo "FAIL hooks/hooks-trae.json does not set CLAUDE_PLUGIN_ROOT: Trae would discard the SessionStart context silently"; exit 1; }
 # Trae's matcher is a regex on the normalized tool name, so the gate's own names
 # have to be in the file; a later edit that drops one disables the gate on Trae
 # with nothing else to notice it.
-for trae_pat in '"SessionStart"' '"matcher": "startup"' '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill"' '"matcher": "mcp__.*"'; do
+for trae_pat in '"SessionStart"' '"matcher": "startup"' '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher": "Skill"' '"matcher": "mcp__.*"' 'external-evidence'; do
   grep -q -F -- "$trae_pat" "$trae_json" \
     || { echo "FAIL hooks/hooks-trae.json is missing $trae_pat"; exit 1; }
 done
