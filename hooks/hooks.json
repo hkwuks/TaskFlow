@@ -36,6 +36,17 @@
         ]
       }
     ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" external-evidence",
+            "shell": "bash"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Skill|Agent|Task",
@@ -53,16 +64,6 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-evidence",
-            "shell": "bash"
-          }
-        ]
-      },
-      {
-        "matcher": "WebSearch|WebFetch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" external-evidence",
             "shell": "bash"
           }
         ]

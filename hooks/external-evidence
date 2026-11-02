@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# external-evidence — PostToolUse hook: record that this task looked something up
-# outside the repository.
+# external-evidence — record that this task looked something up outside the
+# repository, whatever tool did the looking.
 #
 # The problem this exists for: nothing in TaskFlow can tell "I checked" apart
 # from "it did not occur to me to check". Measured 2026-10-31 over 94 archived
@@ -28,14 +28,44 @@
 # query that looked like a capability name. Two files, two predicates, two
 # consumers.
 #
+# THE PREDICATE IS A URL, NOT A TOOL NAME. Until 1.1.11 this hook matched
+# `WebSearch` and `WebFetch` by name -- a product list, which is exactly the
+# shape R3 of the pre-write gate forbids ("the predicate is a tool class, never a
+# product list"). It was also wrong on measured behaviour: a `WebFetch` that a
+# PreToolUse hook redirects to an MCP tool never fires a `WebFetch` event at all,
+# so on 2026-11-02 two real documentation lookups -- one redirected, one through
+# MCP -- produced eight `invoke|mcp__...` lines in `evidence` and not one line in
+# `external`. A task that genuinely went and looked was indistinguishable from
+# one that did not, which is the exact failure this file exists to remove.
+#
+# So the question became "did any absolute http(s) URL pass through this event",
+# which is answerable without knowing what a tool is called. Any MCP server, any
+# CLI a Skill runs through `Bash` (`dg`, `tvly`, `sxng`, `curl`), and any tool
+# added later is covered with no code change -- which is what "support arbitrary
+# tools" has to mean, because the host exposes no "this tool searches" class and
+# a per-user product list is not something a repository can maintain.
+#
+# BOTH SIDES OF THE EVENT ARE SCANNED, and neither is parsed. The host truncates
+# a large `tool_response` in the middle, while the `curl https://...` on the
+# input side is always complete; scanning only the response would lose the one
+# intact copy exactly when the output is biggest. Object boundaries are not
+# walked for the same reason they are not needed: the question is "is there a
+# URL in this event", not "which field of which tool call holds it", and a
+# structural read would reintroduce the per-tool knowledge this change removes.
+#
 # What this does NOT do, deliberately:
 #   - it never fetches anything. It reads the event the host already delivered;
 #     a reachability check would redden on a DNS blip and still be wrong the
 #     moment the remote moved.
-#   - it writes nothing when the event names another tool. `Bash` running curl
-#     is not a recorded lookup: the host does not say what the command did, and
-#     guessing from the command text is the keyword classifier this repository
-#     rejects everywhere else.
+#   - it records no tool name. A URL is the whole record: the tool that produced
+#     it does not change whether the task looked outside.
+#   - it does not tell a URL fetched from a URL read. A `Read` of a repository
+#     file that happens to quote a URL records that URL. That is a known and
+#     accepted false positive -- the union can only over-record, never under --
+#     and filtering it would mean a `git grep` per URL, which is the cost this
+#     design exists to avoid. The upgrade path is to start recording the tool
+#     name and exclude `Read`/`Grep`/`Glob` in `approve`, if measurement ever
+#     shows the noise matters.
 #   - every error path exits 0. A hook that blocks a search because its own
 #     bookkeeping failed would be worse than the silence it replaces.
 #
@@ -51,27 +81,24 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 event_json="$(cat 2>/dev/null || true)"
 [ -n "$event_json" ] || exit 0
 
+# One parse, two fields, read by position -- the shape the other hooks use. The
+# parser is `json-field` for the reason the id and the cwd must not be read out of
+# prose: a tool's output could quote `"hook_event_name":"PostToolUse"`, and a
+# regex would believe it. Everything else in the event is matched as text below,
+# because nothing else is being interpreted.
 fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
-  hook_event_name tool_name cwd tool_input.query tool_input.url 2>/dev/null)" || exit 0
-
+  hook_event_name cwd 2>/dev/null)" || exit 0
 event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
-tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
-event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
-lookup_query="$(printf '%s\n' "$fields" | sed -n '4p')"
-lookup_url="$(printf '%s\n' "$fields" | sed -n '5p')"
+event_cwd="$(printf '%s\n' "$fields" | sed -n '2p')"
 
-[ "$event_name" = "PostToolUse" ] || exit 0
-
-# Two tool names, both built in. This is the predicate, and it is a tool class
-# of exactly the kind `capability-evidence` refuses to count -- which is why the
-# two predicates live in two files rather than in one `case` with a shared
-# fall-through.
-case "$tool_name" in
-  WebSearch) record="search|$lookup_query" ;;
-  WebFetch) record="fetch|$lookup_url" ;;
+# Two shapes, one question. `PostToolBatch` is Claude Code's once-per-batch event
+# and carries every tool call in `tool_calls`; `PostToolUse` is the per-call event
+# the other hosts deliver. Both are tool events, and both are scanned as text, so
+# no branch below distinguishes them.
+case "$event_name" in
+  PostToolBatch|PostToolUse) ;;
   *) exit 0 ;;
 esac
-[ -n "${record#*|}" ] || exit 0
 
 root="${event_cwd:-$PWD}"
 
@@ -94,21 +121,24 @@ for dir in "$docs"/*/; do
 done
 [ "$active" = 1 ] || exit 0
 
-# `|` would forge a field boundary and a newline would forge a line, so both are
-# replaced with a space inside the value -- never in the separator, which is why
-# this cleans the two halves rather than the joined string. The assertion in the
-# smoke suite compares the whole line rather than the count, which is what caught
-# both earlier versions: `tr -d '\r\n'` left the pipe in place so `a|b` recorded
-# with a forged separator, and running `tr` over the whole record ate the
-# separator itself so every line came out space-separated.
-# The cap keeps one pathological query from bloating a file every approve reads.
-ee_kind="${record%%|*}"
-ee_value="${record#*|}"
-ee_value="$(printf '%s' "$ee_value" | tr '|\r\n' '   ' | cut -c1-400)"
-record="$ee_kind|$ee_value"
-[ -n "$ee_value" ] || exit 0
+# `\/` is JSON's escaped slash and arrives in every URL a serializer wrote, so it
+# is normalized before extraction; without this the common case would extract
+# `https:` and stop. The trailing-punctuation strip is not cosmetic -- a URL in
+# prose usually ends a sentence, and `see https://example.com/x.` must not record
+# a URL whose last character is a period.
+urls="$(printf '%s' "$event_json" \
+  | tr '\n\r' '  ' \
+  | sed 's|\\/|/|g' \
+  | grep -oE 'https?://[^"'"'"'\\ <>]*' \
+  | sed 's/[][)(}{.,;:!?]*$//' \
+  | grep -vE '^https?://(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)([:/]|$)' \
+  | awk '!seen[$0]++' \
+  | head -50 \
+  | cut -c1-400)" || urls=""
+
+[ -n "$urls" ] || exit 0
 
 store="$git_dir/taskflow"
 mkdir -p "$store" 2>/dev/null || exit 0
-printf '%s\n' "$record" >> "$store/external" 2>/dev/null || exit 0
+printf '%s\n' "$urls" >> "$store/external" 2>/dev/null || exit 0
 exit 0

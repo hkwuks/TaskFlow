@@ -49,11 +49,34 @@ An environment running any other agent host needs no hooks: it continues with th
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
 | Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | `PreToolUse` (`apply_patch`) → `hookSpecificOutput.permissionDecision: deny`, path read out of the patch text — documented, not yet measured on a real Codex | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `write`/`edit` are lowercase and the case arms are not | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
 | Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired — `skill` is lowercase too | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
-| External-lookup capture (never releases a stage) | `PostToolUse` (`WebSearch`, `WebFetch`) | not wired | not wired | not wired — no equivalent web tool wired | not wired |
+| External-lookup capture (never releases a stage) | `PostToolBatch` (no matcher) | `PostToolUse` (no matcher) — documented, not yet measured | `PostToolUse` (no matcher) — `tool_response` not confirmed on this host | not supported — the bridge reports lowercase `tool_name` and supplies no batch event | `PostToolUse` (no matcher) — `tool_response` not confirmed on this host |
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh columns from Codex's own hook documentation (read 2026-10-29) and measured payloads respectively — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
 
-**External-lookup capture is documented, not yet measured.** Claude Code's hooks reference (read 2026-11-01) states that `PostToolUse` matches on tool name with the same values as `PreToolUse`, and that `PreToolUse` matches any tool name except `EndConversation`, naming `WebFetch` and `WebSearch` among the built-ins; the same reference gives `WebSearch`'s `tool_input` as `query`, `allowed_domains`, `blocked_domains`. `hooks/external-evidence` reads `tool_input.query` for a search and `tool_input.url` for a fetch. That the events arrive in that shape has not been observed in a running session — the first real task to record a lookup is where it gets checked, and this paragraph moves to *measured* when one has.
+**External-lookup capture is recorded by URL, not by tool name, and is documented
+rather than measured.** The predicate is "did this event carry an absolute
+`http(s)` URL", scanned over the whole event text — both `tool_input` and
+`tool_response` — so it covers `WebSearch`, `WebFetch`, any MCP server, and any
+CLI a Skill runs through `Bash` (`dg`, `tvly`, `sxng`, `curl`) without naming a
+tool. That is deliberate: the host exposes no "this tool searches" class, and
+the 1.1.10 wiring — a `WebSearch|WebFetch` matcher — was a product list, which
+R3 of the pre-write gate forbids and which measurably missed every lookup that
+went through a redirected or MCP path.
+
+The Claude Code wiring uses `PostToolBatch`, whose reference (read 2026-11-02,
+level: documented, not measured) describes it as firing once after every tool
+call in a batch resolves, with no matcher, carrying `tool_calls[]` where each
+entry has `tool_name`, `tool_input` and `tool_response`. The other hosts wired
+above have no batch event, so they use `PostToolUse` with no matcher (omit the
+matcher or set `"*"` to match every tool). On CodeBuddy and Trae the `tool_input`
+fields are the documented Claude Code ones but `tool_response` has not been
+confirmed; if it is absent there, the recorder still sees URLs in the arguments
+and misses URLs that appear only in results. Codex's own hooks documentation
+(read 2026-11-02) gives `tool_name` as `Bash`, `apply_patch` or `mcp__fs__read`
+with a `tool_response` per tool, and lists no batch event. dsh is *not
+supported* rather than not wired: its bridge builds `tool_name` from the
+lowercase `exec.name` with no translation, and offers no batch event to fall back
+on.
 
 The gate is wired wherever the host delivers **one of the two input shapes `capability-gate` now reads**: the written file's path under `tool_input.file_path` (Claude Code, CodeBuddy, Trae), or the patch text under `tool_input.command` with `tool_name` of `apply_patch` (Codex). A host that reports an edit some other way must not be wired until the gate learns that shape — the hook would find no input, exit 0, and allow every write, while the repository and this document both claimed a gate was present. A silent no-op gate is worse than an absent one, which is why a host is wired only against a shape the script can actually read. The same applies to a host whose tool names miss the matcher arm: the matcher never fires, so the script is not even reached. dsh is that case, and **dsh specifics** below states it.
 
@@ -345,7 +368,7 @@ repo-root/
         ├── merge-todo                   # the driver: merges todo.md by entry
         ├── repository-docs-context      # syncs index metadata + derives routes
         ├── capability-evidence          # records real invocations in the worktree store
-        ├── external-evidence            # records WebSearch/WebFetch lookups in a separate store
+        ├── external-evidence            # records outside URLs from any tool event, in a separate store
         ├── capability-gate              # refuses a stage document's first body write
         ├── json-field                   # shared one-level JSON reader
         ├── task-id                      # the one rule for a legal task name

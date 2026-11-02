@@ -95,27 +95,38 @@ is. A preference for CI is never a reason for something to go unverified, and CI
 that has fallen behind the surface it is supposed to cover is not an authority —
 keep it current, and keep it running on the hosts it declares.
 
-**A hook change lands on every host the repository declares, or it says why not.**
-The hosts are listed in `skills/taskflow/references/runtime.md`, and a hook that
-is wired on one of them and silently absent on another is a defect, not a
-staging decision: the absent host simply does no checking, and nothing reports
-that it stopped. So a hook is not finished until either its behaviour is wired on
+**A capability that a host can carry lands on every declared host, or it says why not.**
+The hosts are listed in `skills/taskflow/references/runtime.md`, and the rule is
+about anything the repository can make a host do — a hook, a skill, a command, a
+manifest field, an install instruction — not about hooks alone. A capability
+wired on one host and silently absent on another is a defect, not a staging
+decision: the absent host simply does nothing, and nothing reports that it
+stopped. So a capability is not finished until either its behaviour is wired on
 every declared host, or `runtime.md` states for each host which of the two it is
-and why.
+and why. "Support what we can, and name what we cannot" is the whole rule; the
+host list is what decides how much of it is possible.
 
 Two words are not interchangeable, and conflating them is how Codex went a month
 with no gate while this file recorded it as a limitation of the host:
 
 - **not wired** — the host supports the event and the reply shape, and this
   repository has not connected it. That is work, not a constraint.
-- **not supported** — the host has no such event, or no way to see what the hook
-  needs. That is a fact about the host, and it must name the mechanism it lacks.
+- **not supported** — the host has no such event, or no way to see what the
+  capability needs. That is a fact about the host, and it must name the mechanism
+  it lacks.
 
 A host recorded as *not supported* carries the host's own documentation as
 evidence, and is re-checked when wiring changes. A host recorded as *not wired*
 belongs in the host's column as outstanding work — and if it stays there across
 releases, this file is where that has to be visible rather than discovered by a
 user whose edits were never checked.
+
+`hooks/external-evidence` and its wiring is the worked example of this rule:
+the snapshot at #110 wired it on Claude Code only, so the next task re-wired it
+per host (`PostToolBatch` where a batch event exists, `PostToolUse` with no
+matcher elsewhere) and recorded dsh as *not supported* with the mechanism it
+lacks. Read `runtime.md`'s event map before adding a capability, and extend it
+in the same change.
 
 Release-time checks are their own list, in `RELEASE.md`, which states which of
 them CI covers and which it cannot.

@@ -2297,14 +2297,46 @@ fi
 grep -q 'no lookup backs' "$ap/yes.err" \
   && { echo "FAIL a backed source was refused for an unbacked lookup"; cat "$ap/yes.err"; exit 1; }
 
-# The stage gate's wording is pinned behaviourally above: every branch
-# ("missing stage [PRD]", "was never released by the pre-write gate", the two
-# reconciliation mismatches) was just read back out of a real rejection. The three
-# `grep -q … "$HERE/task"` assertions that used to stand here matched the source of
-# an implementation instead, so they pinned how the check was written rather than
-# what it does — and the concept vocabulary one matched a comment. Nothing replaces
-# them: the vocabulary now has a single entry point, `task unaided`, and the
-# pre-write gate section pins it there where it is enforced.
+# --- the declaration channel, and the difference between it and an observation ---
+# `task external` exists because a fact can be earned with no observable tool
+# event: the user looked it up, the host wires no tool event, or the host's tool
+# names never reach the hook. The assertions below pin three things at once --
+# that invalid input writes nothing, that a declaration does back a source, and
+# that `approve` still reports it as a declaration. The last one is the whole
+# reason for the `declared|` prefix: a store row that cannot be told apart from an
+# observed lookup puts the v1 rubber stamp back.
+ap_x="$ap/TaskFlowDocs/2026-09-09-approve-yes"
+ex_store="$ap_store/external"
+ex_before="$(wc -l < "$ex_store" | tr -d ' ')"
+for ex_bad in "not-a-url --why x" "https://example.invalid/x"; do
+  # shellcheck disable=SC2086
+  if bash "$HERE/task" external $ex_bad --root "$ap" >/dev/null 2>&1; then
+    echo "FAIL task external accepted: $ex_bad"; exit 1
+  fi
+done
+# An empty `--why` is its own case: a word list cannot carry an empty argument, so
+# passing it through the loop above would test a literal `''` instead of nothing.
+if bash "$HERE/task" external https://example.invalid/x --why '' --root "$ap" >/dev/null 2>&1; then
+  echo "FAIL task external accepted an empty --why"; exit 1
+fi
+[ "$(wc -l < "$ex_store" | tr -d ' ')" -eq "$ex_before" ] \
+  || { echo "FAIL a refused declaration still wrote a row"; cat "$ex_store"; exit 1; }
+bash "$HERE/task" external https://declared.example.com/spec --why 'the retry limit it documents' --root "$ap" >/dev/null \
+  || { echo "FAIL task external refused a valid declaration"; exit 1; }
+grep -qF 'declared|https://declared.example.com/spec' "$ex_store" \
+  || { echo "FAIL the declaration row shape"; cat "$ex_store"; exit 1; }
+ex_after="$(wc -l < "$ex_store" | tr -d ' ')"
+bash "$HERE/task" external https://declared.example.com/spec --why 'again' --root "$ap" >/dev/null \
+  || { echo "FAIL a repeated declaration failed"; exit 1; }
+[ "$(wc -l < "$ex_store" | tr -d ' ')" -eq "$ex_after" ] \
+  || { echo "FAIL a repeated declaration wrote a second row"; cat "$ex_store"; exit 1; }
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://declared.example.com/spec\n- What it settled: something\n' > "$ap_x/prd.md"
+if bash "$HERE/task" approve 2026-09-09-approve-yes --root "$ap" >/dev/null 2>"$ap/yes.err"; then
+  echo "FAIL a declared source was accepted with no stage releases"; exit 1
+fi
+grep -q 'no lookup backs' "$ap/yes.err" \
+  && { echo "FAIL a declared source was refused as unbacked"; cat "$ap/yes.err"; exit 1; }
+
 echo ok
 
 echo "== a task name is a single path component, refused before it is joined =="
@@ -2760,6 +2792,22 @@ for ef_where in 'Before this phase converges, ask where the answer comes from' \
   grep -q -F -- "$ef_where" "$ef_skill" \
     || { echo "FAIL the external-facts pause point is missing: $ef_where"; exit 1; }
 done
+# ... and pin that each pause point also says searching is allowed. The three
+# questions above all ask "does this depend on something outside"; none of them
+# said what to do when the answer is yes, and a workflow that only ever asks
+# whether a conclusion is justified from inside the repository reads as a reason
+# not to look. One phrasing per pause point, pinned separately so a reworded or
+# dropped one is a named failure rather than a silent drift.
+for ef_allow in 'Searching is allowed.' \
+                'you are allowed to search, and nothing about this workflow treats a lookup as scope creep' \
+                'searching mid-task is allowed, and it is recorded wherever it happens'; do
+  grep -q -F -- "$ef_allow" "$ef_skill" \
+    || { echo "FAIL a pause point does not say searching is allowed: $ef_allow"; exit 1; }
+done
+# The same permission has to reach the stretch between the pause points, which is
+# where a Step discovers it needs a fact. `prompt-reminder` is the only per-prompt
+# carrier in the workflow, so the sentence is pinned in that section instead of
+# here: it needs an in-flight task to say anything at all.
 # The enumeration is counted rather than quoted: a ninth entry is the change this
 # task decided against, and a silent reword is the other way it could drift. Seven
 # items follow the sentence's own "inspect the repository, " -- that lead is the
@@ -3082,37 +3130,57 @@ ee_fire() {  # ee_fire <repo-name> <event-json>
 ee_lines() {  # ee_lines <file>
   [ -f "$1" ] && wc -l < "$1" | tr -d ' ' || printf '0'
 }
-ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"claude code hooks reference\"}}"
+# The predicate is a URL, not a tool name. Nothing below asserts on `tool_name`,
+# and the fake-name case says so explicitly: if the hook ever starts branching on
+# a tool again, that case is what reddens.
+ee_fire active "{\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"$ee_root/active\",\"tool_calls\":[{\"tool_name\":\"WebSearch\",\"tool_response\":{\"text\":\"https://a.example.com/one and https://a.example.com/one\"}},{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl https://b.example.com/two\"}}]}"
+[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL a batch of two URLs did not record exactly two lines (one deduped), got $(ee_lines "$ee_store")"; cat "$ee_store"; exit 1; }
+[ "$(sed -n '1p' "$ee_store")" = "https://a.example.com/one" ] \
+  || { echo "FAIL batch record 1 shape"; cat "$ee_store"; exit 1; }
+# The second URL sits only in `tool_input`, which is the side that survives a
+# truncated response. This is the assertion that fails if the recorder ever goes
+# back to reading `tool_response` alone.
+[ "$(sed -n '2p' "$ee_store")" = "https://b.example.com/two" ] \
+  || { echo "FAIL a URL in tool_input was not recorded"; cat "$ee_store"; exit 1; }
+# A single-call event, the shape every other host sends.
 ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebFetch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"url\":\"https://docs.claude.com/en/docs/claude-code/hooks\"}}"
-[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL expected 2 external records, got $(ee_lines "$ee_store")"; exit 1; }
-[ "$(sed -n '1p' "$ee_store")" = "search|claude code hooks reference" ] \
-  || { echo "FAIL WebSearch record shape"; cat "$ee_store"; exit 1; }
-[ "$(sed -n '2p' "$ee_store")" = "fetch|https://docs.claude.com/en/docs/claude-code/hooks" ] \
-  || { echo "FAIL WebFetch record shape"; cat "$ee_store"; exit 1; }
-# A built-in that is not one of the two, a non-PostToolUse event, and a tool name
-# hidden inside another field's text. The last one is why `json-field` parses
-# rather than pattern-matches: a regex would read `WebSearch` out of prose.
-ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"command\":\"curl https://example.invalid\"}}"
-ee_fire active "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"x\"}}"
-ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"command\":\"echo \\\"tool_name\\\":\\\"WebSearch\\\"\"}}"
-[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL a non-web tool added an external record"; cat "$ee_store"; exit 1; }
-# The separation in one assertion: after two real lookups, the capability store
-# this hook must never touch still does not exist.
+[ "$(ee_lines "$ee_store")" -eq 3 ] || { echo "FAIL a PostToolUse URL was not recorded"; cat "$ee_store"; exit 1; }
+grep -qxF 'https://docs.claude.com/en/docs/claude-code/hooks' "$ee_store" \
+  || { echo "FAIL PostToolUse record shape"; cat "$ee_store"; exit 1; }
+# JSON's escaped slash, which is how a serializer writes every URL; and a URL at
+# the end of a sentence, whose trailing period is prose rather than address.
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_response\":{\"stdout\":\"see https:\/\/escaped.example.com\/x.\"}}"
+grep -qxF 'https://escaped.example.com/x' "$ee_store" \
+  || { echo "FAIL escaped slash or trailing punctuation was not handled"; cat "$ee_store"; exit 1; }
+# A tool name the hook has never heard of, and a tool name it used to branch on.
+# Both must produce the same record, because neither is consulted.
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"TotallyMadeUpTool9\",\"cwd\":\"$ee_root/active\",\"tool_response\":{\"t\":\"https://c.example.com/three\"}}"
+grep -qxF 'https://c.example.com/three' "$ee_store" \
+  || { echo "FAIL an unknown tool name suppressed a URL"; cat "$ee_store"; exit 1; }
+# Loopback is where a local search backend answers, not an outside fact. Private
+# ranges are kept on purpose: an intranet documentation site is a legitimate
+# source, which v1 of the external-facts task already settled.
+ee_before="$(ee_lines "$ee_store")"
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_response\":{\"stdout\":\"http://localhost:8888/search?q=x http://127.0.0.1:8080/y http://[::1]:9000/z http://0.0.0.0:1/w\"}}"
+[ "$(ee_lines "$ee_store")" -eq "$ee_before" ] || { echo "FAIL a loopback URL was recorded as an outside source"; cat "$ee_store"; exit 1; }
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ee_root/active\",\"tool_response\":{\"stdout\":\"http://192.168.1.10/docs\"}}"
+grep -qxF 'http://192.168.1.10/docs' "$ee_store" \
+  || { echo "FAIL a private-network URL was dropped"; cat "$ee_store"; exit 1; }
+# Neither a non-tool event nor an event with no URL writes anything.
+ee_before="$(ee_lines "$ee_store")"
+ee_fire active "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"WebFetch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"url\":\"https://d.example.com/four\"}}"
+ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Read\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"file_path\":\"/x\"},\"tool_response\":{\"t\":\"plain text\"}}"
+[ "$(ee_lines "$ee_store")" -eq "$ee_before" ] || { echo "FAIL an event with no URL added an external record"; cat "$ee_store"; exit 1; }
+# The separation in one assertion: the capability store this hook must never
+# touch still does not exist after every lookup above.
 [ ! -e "$ee_ev" ] || { echo "FAIL external-evidence wrote the capability store"; cat "$ee_ev"; exit 1; }
 # No-op outside a repository running TaskFlow, same as capability-evidence.
-ee_fire plain "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/plain\",\"tool_input\":{\"query\":\"x\"}}"
+ee_fire plain "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/plain\",\"tool_response\":{\"t\":\"https://e.example.com/five\"}}"
 [ ! -e "$(git -C "$ee_root/plain" rev-parse --absolute-git-dir)/taskflow/external" ] \
   || { echo "FAIL a non-TaskFlow repository got an external store"; exit 1; }
-ee_fire achieved "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/achieved\",\"tool_input\":{\"query\":\"x\"}}"
+ee_fire achieved "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/achieved\",\"tool_response\":{\"t\":\"https://f.example.com/six\"}}"
 [ ! -e "$(git -C "$ee_root/achieved" rev-parse --absolute-git-dir)/taskflow/external" ] \
   || { echo "FAIL an achieved-only repository got an external store"; exit 1; }
-# A lookup with no query/url records nothing rather than a bare `search|`.
-ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{}}"
-[ "$(ee_lines "$ee_store")" -eq 2 ] || { echo "FAIL an empty WebSearch added a record"; cat "$ee_store"; exit 1; }
-# `|` and newlines cannot reach the record, or one lookup would forge two lines.
-ee_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"WebSearch\",\"cwd\":\"$ee_root/active\",\"tool_input\":{\"query\":\"a|b\"}}"
-[ "$(ee_lines "$ee_store")" -eq 3 ] || { echo "FAIL a pipe split one lookup into two records"; cat "$ee_store"; exit 1; }
-grep -q '^search|a b$' "$ee_store" || { echo "FAIL the pipe was not stripped"; tail -1 "$ee_store"; exit 1; }
 # Bad input is a silent no-op, never a failed tool call.
 printf '{not-json}' | bash "$ee" || { echo "FAIL external-evidence failed on bad JSON"; exit 1; }
 echo ok
@@ -5459,6 +5527,27 @@ git -C "$pv" add -A
 git -C "$pv" commit -qm 'point $schema at a working URL'
 bash "$HERE/release-check" "$pv" >"$tmp/rv-out" 2>&1 || { echo "FAIL a catalog edit after the pin was reported as a stray:"; cat "$tmp/rv-out"; exit 1; }
 grep -q 'STATUS: pass' "$tmp/rv-out" || { echo "FAIL a post-pin catalog edit did not pass"; cat "$tmp/rv-out"; exit 1; }
+# The release format is the repository's, and it lives in `RELEASE.md` rather than
+# in a convention people remember: the tag name, the tag subject / release title,
+# and the body's first line. Each is pinned separately because each is a separate
+# thing an operator types, and the 1.0.x/1.1.x split is exactly how one of them
+# drifted unnoticed for eleven releases.
+repo_root="$repo"
+for rel_pin in 'annotated tag named `vX.Y.Z`' \
+               'whose subject line is' \
+               '`TaskFlow X.Y.Z`' \
+               'the release title is' \
+               '`TaskFlow X.Y.Z — YYYY-MM-DD`'; do
+  grep -q -F -- "$rel_pin" "$repo_root/RELEASE.md" \
+    || { echo "FAIL RELEASE.md no longer states the release format: $rel_pin"; exit 1; }
+done
+# The host rule is about capabilities, not hooks, and both documents have to say
+# so: the rule lives in CONTRIBUTING.md and the per-host standing it demands lives
+# in runtime.md. A rewrite that narrows either back to hooks is what this pins.
+grep -q -F -- 'A capability that a host can carry lands on every declared host' "$repo_root/CONTRIBUTING.md" \
+  || { echo "FAIL CONTRIBUTING.md narrowed the host rule back to hooks"; exit 1; }
+grep -q -F -- 'not supported' "$skill/references/runtime.md" \
+  || { echo "FAIL runtime.md does not distinguish not supported"; exit 1; }
 echo ok
 
 echo "== todo-check reports an entry a merge dropped =="
@@ -6064,6 +6153,12 @@ printf '%s\n' "$rem_line" | grep -q -F -- "$(sed -n 's/^- \(2026-10-22-demo | v1
 printf '%s\n' "$rem_line" | grep -q -F 'approval: approved' || { echo "FAIL reminder omits approval"; exit 1; }
 printf '%s\n' "$rem_line" | grep -q -F 'next: Step 1 First' || { echo "FAIL reminder omits the next Step"; exit 1; }
 printf '%s\n' "$rem_ctx" | grep -q -F 'change event' || { echo "FAIL reminder does not ask for classification"; exit 1; }
+# The permission to search belongs here rather than only in the skill: the pause
+# points are three moments, and a Step that discovers mid-run that it needs a fact
+# outside the repository is between them. Read as a field so an escaped copy in
+# the JSON cannot satisfy the assertion.
+printf '%s\n' "$rem_ctx" | grep -q -F 'Searching is allowed' \
+  || { echo "FAIL reminder does not say searching is allowed while a task runs"; exit 1; }
 # `checking` is still in flight -- verification runs there and a defect found in
 # it is the same case.
 write_rem_plan checking

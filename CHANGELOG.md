@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Outside lookups are recorded by URL, so any tool counts — not just the two built-ins that used to be named.** `hooks/external-evidence` matched `WebSearch` and `WebFetch` by name: a product list, which is the shape R3 of the pre-write gate forbids ("the predicate is a tool class, never a product list") and which measurably failed. On 2026-11-02, two real documentation lookups — one `WebFetch` that a `PreToolUse` hook redirected to an MCP tool, one through MCP — produced eight `invoke|mcp__…` lines in `taskflow/evidence` and **not one** line in `taskflow/external`. A task that genuinely went and looked was indistinguishable from one that never did, which is the exact failure the store exists to prevent. The predicate is now "did this event carry an absolute `http(s)` URL", scanned over the whole event — both `tool_input` and `tool_response`, because a large response is truncated mid-body while the `curl https://…` on the input side is always complete. No tool name is read, so any MCP server and any CLI a Skill runs through `Bash` (`dg`, `tvly`, `sxng`, `curl`) is covered without a code change. Merged configs that relied on the retired product list are replaced by the new predicate on every host (see **Changed**).
+
+- **`bash hooks/task external <url> --why '<conclusion>'` records a source earned with no observable tool event.** A fact the user looked up and pasted, a host that wires no tool event, or a host whose tool names never reach the hook could not produce a `- Source:` that `approve` would accept, so those tasks could never be approved. The command appends `declared|<url> — <why>`, and `approve` reports declared sources **separately from observed ones**, because a declaration is not an observation. It is the same trust model as `unaided`: explicit, visible, auditable — rather than a fail-closed rule with no way to satisfy it.
+
+### Changed
+
+- **`external-evidence` runs once per batch on Claude Code instead of once per tool call.** The wiring moved from `PostToolUse` to `PostToolBatch`, which Claude Code's reference describes as firing once after every tool call in a batch resolves, with no matcher, carrying `tool_calls[]` with each entry's `tool_name`, `tool_input` and `tool_response`. One scan per batch instead of one hook process per call, and the whole batch's results arrive together. Codex CLI, CodeBuddy and Trae have no batch event, so each wires `PostToolUse` with the matcher omitted — the documented "match every tool" form. dsh is recorded as **not supported** rather than unwired: its bridge reports lowercase tool names with no translation and offers no batch event to fall back on.
+
+- **Loopback URLs are not outside facts.** `dg` answers from a local SearXNG on `localhost:8888`, so `http://localhost:…`, `127.0.0.1`, `[::1]` and `0.0.0.0` are filtered out of the record. Private ranges are deliberately kept: an intranet documentation site is a legitimate source and v1 of the external-facts task already settled that.
+
+- **The workflow now says searching is allowed.** The three pause points asked only *whether* a conclusion rested on something outside the repository, and never said what to do when the answer was yes — a workflow that repeatedly asks whether a conclusion is justified from inside the repository reads as a reason not to look. Each pause point in `skills/taskflow/SKILL.md` now names the permission, and `hooks/prompt-reminder` carries the same sentence per prompt, which is the only cover the stretch between the pause points has.
+
+- **`CONTRIBUTING.md` states the host rule for capabilities, not hooks.** "A capability that a host can carry lands on every declared host, or it says why not" replaces a rule about hooks alone, and names `runtime.md` as where each host's standing is written. The not-wired / not-supported distinction is unchanged, and `hooks/external-evidence`'s own rewiring is the worked example.
+
+### Fixed
+
+- **`RELEASE.md` now writes down the release format it had been leaving to memory.** Tag names were always `vX.Y.Z`, but the annotated tag subject and the GitHub Release title split two ways: every `1.0.x` says `TaskFlow v1.0.9` and every `1.1.x` says `TaskFlow 1.1.10`. Nothing was ever pinned, so nothing could catch the drift. The tag subject and release title are now both `TaskFlow X.Y.Z` (the eleven-member majority and the most recent), the release body opens with `TaskFlow X.Y.Z — YYYY-MM-DD`, and the four `v1.0.x` titles are left alone: a tag is immutable and moving one needs owner authorization.
+
+### Known limitations
+
+- **A URL read from a repository file counts as an outside fact.** `Read`ing a Plan that quotes `https://docs.claude.com/…` records that URL. The union can only over-record, never under-record, and filtering it would mean a `git grep` per URL — the cost this design exists to avoid. The upgrade path is to start recording the tool name and exclude `Read`/`Grep`/`Glob` in `approve`, if measurement ever shows the noise matters.
+- **`PostToolBatch`'s delivered shape is documented, not measured.** The first real session to write a line into `taskflow/external` is where it gets checked; `runtime.md` says so and moves to *measured* when one has.
+- **CodeBuddy and Trae have `tool_input` confirmed but not `tool_response`.** If the field is absent there, the recorder still sees URLs in arguments and misses ones that appear only in results.
+
 ## [1.1.10] — 2026-11-01
 
 ### Added
