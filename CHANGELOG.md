@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.11] — 2026-11-02
+
 ### Added
 
 - **Outside lookups are recorded by URL, so any tool counts — not just the two built-ins that used to be named.** `hooks/external-evidence` matched `WebSearch` and `WebFetch` by name: a product list, which is the shape R3 of the pre-write gate forbids ("the predicate is a tool class, never a product list") and which measurably failed. On 2026-11-02, two real documentation lookups — one `WebFetch` that a `PreToolUse` hook redirected to an MCP tool, one through MCP — produced eight `invoke|mcp__…` lines in `taskflow/evidence` and **not one** line in `taskflow/external`. A task that genuinely went and looked was indistinguishable from one that never did, which is the exact failure the store exists to prevent. The predicate is now "did this event carry an absolute `http(s)` URL", scanned over the whole event — both `tool_input` and `tool_response`, because a large response is truncated mid-body while the `curl https://…` on the input side is always complete. No tool name is read, so any MCP server and any CLI a Skill runs through `Bash` (`dg`, `tvly`, `sxng`, `curl`) is covered without a code change. Merged configs that relied on the retired product list are replaced by the new predicate on every host (see **Changed**).
