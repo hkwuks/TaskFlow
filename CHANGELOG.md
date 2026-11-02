@@ -50,6 +50,10 @@
 
 - **`repo-rules check` matches by keyword and will both miss and misfire.** Its output says *possible* conflict for that reason, and it never modifies a file. A rule document that forbids pull requests on one line and permits them on the next is a case it cannot decide.
 
+### Release
+
+- **Tag `v1.1.12` names `0521a0bfe7368a9a574cff1fbc6b0c0d70d1e471`; the pin commit is `9d9701e30ed6b16e340b3046ce8eefc319935129`; the GitHub Release is https://github.com/hkwuks/TaskFlow/releases/tag/v1.1.12.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
 
 ## [1.1.11] — 2026-11-02
 
