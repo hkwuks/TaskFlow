@@ -26,6 +26,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## Bind external-fact evidence to any tool class, not the WebSearch|WebFetch produc
+
+- ID: TF-20261102-7a9caa
+- Status: done
+- Goal: Bind external-fact evidence to any tool class, not the WebSearch|WebFetch product list
+- Task: `TaskFlowDocs/achieved/2026-11-02-external-tool-binding/`
+- Next action: None — completed and archived.
+
 ## 个人配置文件（personal.md、sessions.md 等）若出现在 worktree 中
 
 - ID: TF-20261030-15b439
@@ -1022,6 +1030,8 @@ has an issue number or URL.
 - ID: TF-20261008-84a0ce (removed 2026-10-10: Absorbed into TF-20261001-efbc51: same failure mode, landing somewhere other than the assumed place — the hook anchors and the missing move procedure are its two halves, and one task changes both)
 - ID: TF-20261025-33b2c4 (removed 2026-10-25: Falsified by 2026-10-25-gate-desync-diagnosis A3: git applies no ignore rule to a tracked path, so a force-added copy stays visible in git status and check-ignore returns false — the concern the entry raised cannot occur)
 - ID: TF-20261027-e8c6dc (removed 2026-11-01: superseded by TF-20261031-61b973, which restated and delivered it)
+- ID: TF-20261102-d14d22 (removed 2026-11-02: folded into TF-20261102-7a9caa: one task covers the binding, the release format rule and the host-coverage rule)
+- ID: TF-20261102-ee1698 (removed 2026-11-02: folded into TF-20261102-7a9caa: one task covers the binding, the release format rule and the host-coverage rule)
 
 ## 收窄 artifact-language 规则，使非 hook 匹配的章节标题可使用用户语言
 

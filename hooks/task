@@ -649,7 +649,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|recover|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|external|recover|complete ..."
 command="$1"; shift
 
 # The phase-table concept classes. This is the only place a concept class is
@@ -1239,6 +1239,61 @@ case "$command" in
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
     ;;
 
+  external)
+    # The declaration channel for a fact earned with no observable tool event:
+    # the user looked it up and pasted the URL, the host wires no tool event, or
+    # the host's tool names never reach the hook. Without it, `approve` refuses
+    # every such task forever -- a fail-closed rule with no way to satisfy it is
+    # not a check, it is a dead end.
+    #
+    # It is deliberately the same trust model as `unaided`: explicit, visible and
+    # auditable, rather than a check that quietly stops applying. What it is NOT
+    # is observation, so the row is prefixed `declared|` and `approve` reports
+    # those sources separately. Making the two read the same in the store would
+    # put the v1 rubber stamp back, one file over.
+    split_root "$@"
+    ext_usage='usage: task external <absolute http(s) URL> --why "<the conclusion it changed>" [--root <path>]'
+    [ "${#rest[@]}" -eq 3 ] || { echo "$ext_usage" >&2; exit 2; }
+    ext_url="${rest[0]}"
+    ext_why="${rest[2]}"
+    [ "${rest[1]}" = "--why" ] || { echo "$ext_usage" >&2; exit 2; }
+    printf '%s\n' "$ext_url" | grep -qE '^https?://[^[:space:]]+$' \
+      || { printf 'source must be an absolute http(s) URL: %s\n' "$ext_url" >&2; exit 2; }
+    [ -n "$ext_why" ] || { echo "--why must not be empty: it names the conclusion this source changed" >&2; exit 2; }
+    case "$ext_url$ext_why" in
+      *'|'*|*$'\n'*|*$'\r'*)
+        echo "the URL and --why must not contain a pipe or a newline: they would forge a store row" >&2
+        exit 2 ;;
+    esac
+    # Refuse rather than recording a line that `approve` can never read. The same
+    # reason `unaided` refuses outside an active task: the store it would write is
+    # keyed to the task directory's git dir, not to wherever the shell happens to be.
+    active=""
+    for dir in "$root/TaskFlowDocs"/*/; do
+      [ -d "$dir" ] || continue
+      name="${dir%/}"
+      name="${name##*/}"
+      case "$name" in achieved|repository-docs) continue ;; esac
+      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
+    done
+    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; record the source from the task worktree"
+    git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
+      || fail "cannot locate the git directory for $root"
+    store="$git_dir/taskflow"
+    # Idempotent on the URL in any of the three row shapes. A second declaration
+    # would say nothing the first did not, and re-running a command that failed
+    # after it wrote is the ordinary way a duplicate arrives.
+    if [ -f "$store/external" ] && grep -qF -- "$ext_url" "$store/external"; then
+      printf 'external OK: %s already recorded\n' "$ext_url"
+      exit 0
+    fi
+    ext_why="$(printf '%s' "$ext_why" | tr '|\r\n' '   ' | cut -c1-400)"
+    mkdir -p "$store" || fail "cannot create the external store under $git_dir"
+    printf 'declared|%s — %s\n' "$ext_url" "$ext_why" >> "$store/external" \
+      || fail "could not append to $store/external"
+    printf 'external OK: declared %s (a declaration, not an observed lookup)\n' "$ext_url"
+    ;;
+
   recover)
     # The one repair for a store whose `evidence` fell behind `released`. Both
     # other writers take the next sequence from `released` alone, so a store in
@@ -1484,26 +1539,42 @@ or
         # purpose and reads nothing else from it.
         ext_store="$cap_git_dir/taskflow/external"
         ext_unbacked=""
+        ext_declared=""
         while IFS= read -r ext_src; do
           [ -n "$ext_src" ] || continue
           ext_host="$(printf '%s' "$ext_src" | sed -n 's|^https\{0,1\}://\([^/]*\).*|\1|p')"
           ext_seen=0
+          ext_by_declaration=0
           if [ -f "$ext_store" ] && [ -n "$ext_host" ]; then
             while IFS= read -r ext_line; do
               case "$ext_line" in
-                *"$ext_host"*|*"$ext_src"*) ext_seen=1; break ;;
+                *"$ext_host"*|*"$ext_src"*)
+                  ext_seen=1
+                  # A `declared|` line was written by `task external`, not
+                  # observed from a tool event. It backs the claim -- otherwise a
+                  # host with no tool events could never approve a task that
+                  # needed an outside fact -- but it is not the same evidence,
+                  # and the success line below says which one it was.
+                  case "$ext_line" in declared\|*) ext_by_declaration=1 ;; esac
+                  break
+                  ;;
               esac
             done < "$ext_store"
           fi
-          [ "$ext_seen" = 1 ] || ext_unbacked="$ext_unbacked${ext_unbacked:+, }$ext_src"
+          if [ "$ext_seen" = 0 ]; then
+            ext_unbacked="$ext_unbacked${ext_unbacked:+, }$ext_src"
+          elif [ "$ext_by_declaration" = 1 ]; then
+            ext_declared="$ext_declared${ext_declared:+, }$ext_src"
+          fi
         done <<EXT_SOURCES
 $(printf '%s\n' "$ext_body" | sed -n 's/^- Source:[[:space:]]*\(.*\)$/\1/p')
 EXT_SOURCES
         # Fail closed on an unreadable store, not open: a missing file is "no
         # lookups were recorded", which is exactly the claim being refused.
         if [ -n "$ext_unbacked" ]; then
-          fail "approve blocked: this task says its conclusions depend on facts from outside the repository, but no lookup backs: $ext_unbacked. Either run the search and fetch the source (a WebSearch or WebFetch in this task's working tree records it), or drop the claim and answer no with the reason. A source named from memory is the thing this check exists to catch."
+          fail "approve blocked: this task says its conclusions depend on facts from outside the repository, but no lookup backs: $ext_unbacked. Either run the search and fetch the source (any tool's result recording an absolute URL in this task's working tree counts, as does: bash hooks/task external <url> --why '<what it settled>' when no tool event can be observed), or drop the claim and answer no with the reason. A source named from memory is the thing this check exists to catch."
         fi
+        [ -z "$ext_declared" ] || printf 'external facts: backed by declaration, not observation: %s\n' "$ext_declared"
         ;;
       "")
         fail "$ext_msg"

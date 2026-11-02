@@ -35,6 +35,17 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/external-evidence\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" external-evidence"
+          }
+        ]
+      }
     ]
   }
 }

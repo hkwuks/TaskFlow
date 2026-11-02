@@ -118,7 +118,19 @@ After the release scope is merged to the intended base (or the optional Release 
 1. Check out the exact merged base commit and confirm a clean working tree.
 2. Verify manifest versions and release notes again — the `CHANGELOG.md` section
    must already be in this commit, because the tag names it.
-3. Create an annotated tag such as `vX.Y.Z` on that commit.
+3. Create an annotated tag named `vX.Y.Z` on that commit, whose subject line is
+   `TaskFlow X.Y.Z` — no `v` in the subject, because the `v` belongs to the tag
+   name and not to the release. This is the established format: every tag since
+   `v1.1.0` reads `TaskFlow 1.1.10`, and the eleven `1.1.x` releases are what the
+   format is taken from, against four `1.0.x` releases that still carried the
+   `v`. New releases follow the majority and the most recent, and the `v1.0.x`
+   titles are left alone — a tag is immutable and rewriting one needs the owner
+   authorization under Rollback.
+
+   ```bash
+   git tag -a vX.Y.Z -m "TaskFlow X.Y.Z"
+   ```
+
 4. Update both marketplace entries so each Git source uses the release tag as `ref`
    and the exact tagged commit as `sha`, then commit that edit locally. It carries
    only those four literals — `ref` is the tag name and `sha` is
@@ -132,8 +144,11 @@ After the release scope is merged to the intended base (or the optional Release 
 
    The pin commit must carry nothing else, and the push must carry no other refs.
 6. Run `bash hooks/release-check .` again on the pushed `main`, and create the
-   GitHub Release from the tag with the approved notes. Validate the catalog
-   entry with Claude Code, Codex, and CodeBuddy tooling.
+   GitHub Release from the tag with the approved notes. The release title is
+   `TaskFlow X.Y.Z` — the same string as the tag subject, so the two never have to
+   be reconciled by a reader — and the body opens with
+   `TaskFlow X.Y.Z — YYYY-MM-DD` before the summary and the release record below.
+   Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling.
 7. Record the result in the release notes: the tag, the release URL, the commit, and the two marketplace pins.
 
 Steps 3–4 make a release two commits, by construction: the tag cannot be created
