@@ -6846,6 +6846,170 @@ for pair in "hooks/README.md:" "skills/taskflow/references/runtime.md:hooks"; do
 done
 echo ok
 
+echo "== repo-rules offers a default rule set, and only writes when asked =="
+# A repository that has never carried a rule document has nothing to read at the
+# three moments a rule is actually needed. Measured 2026-11-02, a repository
+# holding only a README gets `Document CONTRIBUTING.md: missing` from
+# `repository-check`, while `repository-docs-context` already routes to both
+# paths -- so a new user is pointed at two files that do not exist.
+#
+# The three subcommands are split so that "written only with consent" is a
+# property of the command rather than a habit of the caller: `show` cannot write,
+# `create` refuses an existing file, and `check` never writes at all. Each
+# property is asserted below rather than described.
+rr="$tmp/repo-rules"
+mkdir -p "$rr/empty" "$rr/conflicting" "$rr/clean"
+
+# `show` prints the template and touches nothing. Without this the only way to
+# learn what would be installed is to install it, which is the decision the
+# command exists to defer.
+before="$(ls -A "$rr/empty")"
+show_out="$(bash "$HERE/repo-rules" show CONTRIBUTING --root "$rr/empty" 2>&1)" \
+  || { echo "FAIL repo-rules show failed"; printf '%s\n' "$show_out"; exit 1; }
+[ "$before" = "$(ls -A "$rr/empty")" ] \
+  || { echo "FAIL repo-rules show wrote something"; ls -A "$rr/empty"; exit 1; }
+printf '%s\n' "$show_out" | grep -q '^# Contributing' \
+  || { echo "FAIL repo-rules show did not print the template"; exit 1; }
+
+# The templates carry the generic rules and nothing about this repository's own
+# workflow: a user who installs one must not inherit `achieved/`, the capability
+# store, or any other TaskFlow implementation detail.
+for tpl in CONTRIBUTING CODE_STYLE; do
+  body="$(bash "$HERE/repo-rules" show "$tpl" --root "$rr/empty" 2>&1)"
+  printf '%s' "$body" | grep -q 'TaskFlowDocs/achieved' \
+    && { echo "FAIL $tpl template names achieved/"; exit 1; }
+  printf '%s' "$body" | grep -qi 'capability' \
+    && { echo "FAIL $tpl template names the capability store"; exit 1; }
+done
+
+# An unknown name is refused rather than joined into a path.
+if bash "$HERE/repo-rules" show ../../etc/passwd --root "$rr/empty" >/dev/null 2>&1; then
+  echo "FAIL repo-rules accepted a path as a rule name"; exit 1
+fi
+
+# `create` writes, then refuses on the second run. Refusing is the point: an
+# existing file is somebody's decision, and overwriting it would replace a rule
+# the repository already chose.
+bash "$HERE/repo-rules" create CONTRIBUTING --root "$rr/empty" >/dev/null 2>&1 \
+  || { echo "FAIL repo-rules create failed on an empty repository"; exit 1; }
+[ -f "$rr/empty/CONTRIBUTING.md" ] || { echo "FAIL repo-rules create wrote nothing"; exit 1; }
+cmp -s "$HERE/templates/CONTRIBUTING.md" "$rr/empty/CONTRIBUTING.md" \
+  || { echo "FAIL created file differs from the template"; exit 1; }
+set +e
+bash "$HERE/repo-rules" create CONTRIBUTING --root "$rr/empty" >/dev/null 2>&1
+rr_rc=$?
+set -e
+[ "$rr_rc" -eq 2 ] || { echo "FAIL repo-rules create did not refuse an existing file (exit $rr_rc)"; exit 1; }
+
+# `check` names the line and the reason, and changes nothing. The fixture is
+# written rather than borrowed from this repository, because this repository's
+# own rules deliberately do not collide with TaskFlow's.
+cat > "$rr/conflicting/CONTRIBUTING.md" <<'RULES'
+# Contributing
+
+All changes must go through a pull request.
+
+Use prefix `[FEAT]` for commits.
+
+Commit directly to main when convenient.
+RULES
+digest_before="$(cksum "$rr/conflicting/CONTRIBUTING.md")"
+check_out="$(bash "$HERE/repo-rules" check --root "$rr/conflicting" 2>&1)"
+[ "$(cksum "$rr/conflicting/CONTRIBUTING.md")" = "$digest_before" ] \
+  || { echo "FAIL repo-rules check modified the rule document"; exit 1; }
+# One per conflict, each naming its line, so a reader can go and look.
+for want in 'CONTRIBUTING.md:3:' 'CONTRIBUTING.md:5:' 'CONTRIBUTING.md:7:'; do
+  printf '%s\n' "$check_out" | grep -q "$want" \
+    || { echo "FAIL repo-rules check did not name $want"; printf '%s\n' "$check_out"; exit 1; }
+done
+# "possible conflict", never "conflict": these are keyword matches, and a rule
+# document can say the opposite on the next line.
+printf '%s\n' "$check_out" | grep -q 'possible conflict — ' \
+  || { echo "FAIL repo-rules check did not hedge its finding"; exit 1; }
+
+# A document that names an exception, or mentions a prefix about something other
+# than commits, is not the rule being looked for. Without this the check would
+# report a conflict against every repository that thinks about wording.
+cat > "$rr/clean/CONTRIBUTING.md" <<'RULES'
+# Contributing
+
+All changes go through a pull request, except releases.
+
+The filename prefix `v` marks a versioned asset.
+RULES
+clean_out="$(bash "$HERE/repo-rules" check --root "$rr/clean" 2>&1)"
+printf '%s\n' "$clean_out" | grep -q 'no conflicts found' \
+  || { echo "FAIL repo-rules check reported a conflict it should not have"; printf '%s\n' "$clean_out"; exit 1; }
+
+# No rule document at all is not a conflict either.
+empty_out="$(bash "$HERE/repo-rules" check --root "$rr/empty" 2>&1)" || true
+if printf '%s\n' "$empty_out" | grep -q 'possible conflict'; then
+  echo "FAIL repo-rules check invented a conflict with no rule document"
+  exit 1
+fi
+echo ok
+
+echo "== the default-rules reminder fires where a rule is needed and nowhere else =="
+# The reminder rides `prompt-reminder`, which already runs on every prompt. What
+# decides whether it says anything is the Step the Plan is on -- not the wording
+# of the prompt, because a keyword classifier over free text is wrong in both
+# directions and would make the reminder depend on how a sentence was phrased.
+#
+# Every case below is a real Plan written into a real task directory, because
+# the hook reads its Step from `plan.md` and nothing else.
+dr="$tmp/default-rules-reminder"
+mkdir -p "$dr/TaskFlowDocs/repository-docs"
+printf '# Catalog\n' > "$dr/TaskFlowDocs/repository-docs/index.md"
+git -C "$dr" init -q
+git -C "$dr" config user.email smoke@example.invalid
+git -C "$dr" config user.name smoke
+
+# dr_case <name> <step-title> <expect: yes|no> — run the hook and look for the
+# reminder. The task is approved and in progress, which is the state the hook
+# answers at all.
+dr_case() {
+  local name="$1" title="$2" expect="$3" dir="$dr/TaskFlowDocs/2026-01-01-$1"
+  # One task at a time: `summarize-state` prints a line that does not split into
+  # fields when two are active, and the hook then falls through to silence. The
+  # first version left each case's directory behind, so only the alphabetically
+  # last case could ever have passed -- measured 2026-11-01.
+  #
+  # `|| true` because an unmatched glob reaches `rm` as its literal text, which
+  # fails under `set -e` -- and it fails on the first case, before there is any
+  # directory to remove.
+  rm -rf "$dr"/TaskFlowDocs/2026-01-01-* || true
+  mkdir -p "$dir"
+  {
+    printf '# Plan\n> Task version: v1\n> Status: in_progress\n\n## Approval\n\n'
+    printf -- '- Status: approved\n- Approved by: user\n- Approved at: 2026-01-01 00:00 +0000\n'
+    printf -- '- Approved version: v1\n- Approved scope: PRD / Spec / Plan\n\n## Steps\n\n'
+    printf '### Step 1 — %s\n\n- Status: in_progress\n' "$title"
+  } > "$dir/plan.md"
+  local out
+  out="$(printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s"}' "$dr" \
+    | TASKFLOW_REPO_ROOT="$dr" bash "$HERE/prompt-reminder" 2>&1)" || true
+  if [ "$expect" = yes ]; then
+    printf '%s' "$out" | grep -q 'no .*\.md' \
+      || { echo "FAIL '$name' did not offer the default rules"; printf '%s\n' "$out"; exit 1; }
+  else
+    # `&&` as the function's last statement would return 1 here -- correctly, since
+    # the reminder is absent -- and `set -e` would then end the suite with no
+    # message. The `if` form keeps a passing absence from reading as a failure.
+    if printf '%s' "$out" | grep -q 'no .*\.md'; then
+      echo "FAIL '$name' offered the default rules where it should not"
+      printf '%s\n' "$out"
+      exit 1
+    fi
+  fi
+}
+
+# The three moments the user named, plus one Step that is none of them.
+dr_case branch   'Create the branch and worktree'                       yes
+dr_case commit   'Decide where the commit lands'                        yes
+dr_case code     'Implement the parser'                                 yes
+dr_case review   'Review the recorded evidence'                         no
+echo ok
+
 echo "== an achieved Task version has its old/ directory for every version below it =="
 # The half this entry absorbed from TF-20261008-4d37b2. `hooks/version` writes
 # `old/vN/` before bumping the root to `vN+1`, so a missing directory means a
