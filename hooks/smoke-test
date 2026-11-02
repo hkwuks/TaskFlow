@@ -2955,9 +2955,9 @@ echo "== a hook change reaches every declared host, or the rule says why not =="
 # different facts and only one of them is work. Pin the rule's two vocabulary
 # words and the obligation it puts on a hook change.
 for clause in \
-  'A hook change lands on every host the repository declares, or it says why not.' \
+  'A capability that a host can carry lands on every declared host, or it says why not.' \
   '**not wired** — the host supports the event and the reply shape, and this' \
-  '**not supported** — the host has no such event, or no way to see what the hook' \
+  '**not supported** — the host has no such event, or no way to see what the' \
   'A host recorded as *not supported* carries the host'"'"'s own documentation as' ; do
   grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" || { echo "FAIL host-coverage rule does not pin: $clause"; exit 1; }
 done
