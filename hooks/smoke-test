@@ -6280,7 +6280,11 @@ write_rein_plan '- [Reinforce] `docs/rule.md` — 跨 Step 生效
 rein_out="$(rein_ctx)"
 [ "$(printf '%s\n' "$rein_out" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md, docs/guide.md" ] \
   || { echo "FAIL reinforce line is not the second line or not in Plan order"; exit 1; }
-[ "$(printf '%s\n' "$rein_out" | sed -n '3p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '3p')" ] \
+# The question is the last line in both shapes: the reinforce line, when present,
+# goes between the state line and it, and the search permission sits directly
+# above it. Compare by position from the end so adding a line above the question
+# does not move what this assertion points at.
+[ "$(printf '%s\n' "$rein_out" | tail -1)" = "$(printf '%s\n' "$rein_baseline" | tail -1)" ] \
   || { echo "FAIL the classification question no longer follows the reinforce line"; exit 1; }
 [ "$(printf '%s\n' "$rein_out" | sed -n '1p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '1p')" ] \
   || { echo "FAIL the state line changed when a reinforce line was added"; exit 1; }
