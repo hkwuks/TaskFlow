@@ -2,6 +2,55 @@
 
 ## [Unreleased]
 
+## [1.1.12] — 2026-11-02
+
+### Added
+
+- **A new check reports which repository each remote names, whether this clone can push to it, and which base a pull request should target.** `git remote -v` gives names and URLs, and neither carries a role — a fork's `origin` may be the author's own fork or the upstream, and Git constrains neither. `CONTRIBUTING.md` already required the receiving repository be verified rather than inferred from a remote name; nothing produced the evidence. `hooks/remote-topology` does: per remote, one `GET /repos/{owner}/{repo}` gives the repository, whether it is a fork, its direct parent, the default branch, and whether the current credentials can push. The base is read rather than guessed — a fork targets the repository it was forked from, a non-fork targets itself — and the output ends with the two commands it exists for, `git push <remote>` and `gh pr create --head/--base`.
+
+  It is the first script in this repository that uses the network, in a set of checks that are otherwise entirely offline, so three boundaries are asserted in the smoke suite rather than described: it is never wired into any host's event list, it writes no file and issues only `GET /repos/*`, and it always exits 0. The last one matters because `repository-check`'s `2` and `3` are verdicts about the repository, and "gh is not installed" is not one. The four ways the lookup can fail are reported apart — gh not found, not logged in, cannot reach the API, rate limit — because each calls for a different action, and they cannot be separated by exit code: an unauthenticated `gh` and an unreachable network both exit 1, measured 2026-11-02, so authentication is asked first and the response body distinguishes the rest. The timeout budget covers the whole run, so a clone with many remotes is still bounded at ten seconds.
+
+- **A repository that has never carried a rule document can now be given one, and is asked before it is.** Measured 2026-11-02, a repository holding only a `README.md` gets `Document CONTRIBUTING.md: missing` and `Document CODE_STYLE.md: missing` from `hooks/repository-check`, while `hooks/repository-docs-context` already routes to both paths — so a new user is pointed at two files that do not exist and offered no way to create them. `hooks/templates/` now carries a default `CONTRIBUTING.md` and `CODE_STYLE.md` taken from the generic half of this repository's own: branch prefixes, commit shape, pull-request order, Markdown and shell style. The TaskFlow-specific half does not come along — no `achieved/`, no capability store, no `hooks/task` — and the suite asserts that.
+
+  `hooks/repo-rules` splits three operations so that "written only with consent" is a property of the command rather than a habit of the caller: `show` prints the template and writes nothing, so the decision is made on the actual text; `create` installs it and refuses when the file exists, because an existing rule is somebody's decision; `check` names the file and line where an existing rule would disagree with this workflow — a rule requiring every change to go through a pull request, a commit prefix other than `<type>: `, a rule that commits straight to the main branch. Those are keyword matches, so the output says *possible* conflict and never resolves one.
+
+- **The default-rules reminder speaks at the three moments a rule is actually needed, and nowhere else.** It rides the existing `prompt-reminder` hook rather than adding infrastructure. What decides whether it speaks is the Step the Plan is on, not the wording of the prompt — a keyword classifier over free text is wrong in both directions and would make the reminder depend on how somebody phrased a sentence. A Step titled none of the three stays silent, and a repository that already has both files hears nothing unless `check` finds a conflict.
+
+### Changed
+
+- **`hooks/repo-rules` refuses a path in place of a rule name.** Only `CONTRIBUTING` and `CODE_STYLE` are accepted; anything else is refused rather than joined into a path, which is what makes the command not a general-purpose file writer.
+
+### Fixed
+
+- **The `remote-topology` slug kept the host, and the script blamed the network for its own mistake.** It built `repos/github.com/owner/repo`, which `gh` reported as unreachable, and the failure was reported as `cannot reach the GitHub API` — the one message that sends a reader to check something unrelated.
+
+- **The hook-inventory assertion did not cover `hooks.json` itself.** The loop ran over `hooks-*.json`, which does not match the plain name — Claude Code's own wiring, and the host this plugin is primarily loaded by. Adding a `SessionStart` entry to `hooks.json` passed the glob-only version.
+
+- **`repo-rules check` reported nothing for all three of its rules.** `$(grep ...)` under `set -e` takes the whole function with it, and `grep` exits 1 whenever it finds nothing — the ordinary case for a rule document with no conflict. The commit-prefix rule also matched only `commit.*prefix`, missing "Use prefix X for commits", where the word comes first.
+
+- **Two assertions in the new smoke sections could not have failed.** One fixture left each task directory behind, so `summarize-state` saw several active tasks and the hook went silent; the other used `&&` as a function's last statement, turning a correct absence into `set -e` ending the suite with no message. Both are the same shape: an assertion that silently does not run looks exactly like one that passed.
+
+### Verification
+
+- `bash hooks/smoke-test` — `ALL SMOKE PASSED`, three new sections: the remote-topology output and its four absence modes, `repo-rules` show/create/check, and the reminder's three trigger points plus one that must stay silent. Every case is offline: the networked check is driven by a stub `gh`, and the reminder by plans written into fixture task directories.
+
+- Every new condition was mutated and restored byte-identically (`cmp`), each reddening its own named assertion: forcing `fork=no`, merging the "not logged in" message into "unreachable", not separating the rate limit, forcing `can_push=yes`, hardcoding the default branch, wiring the script into `hooks.json`, letting `create` overwrite, leaking `TaskFlowDocs/achieved/` into a template, ignoring the Step title in the reminder, and dropping the missing-file names from it.
+
+- **Where this release stands on CI.** `a1cb4e7` is the last commit on `main` before the release began, and [run 41467398001](https://github.com/hkwuks/TaskFlow/actions/runs/41467398001) is green on it for `changes`, `evals`, `todo-merge-audit`, and `smoke` on `ubuntu-latest`, `macos-latest` and `windows-latest` (`release` skipped, no matching paths). The release commit differs from that commit only in the four manifests, the two README samples and this section — the version literals. The commit after it moves the two marketplace catalogs' `ref`/`sha`. Neither falls inside what `hooks/smoke-test` exercises.
+
+- **One CI observation, recorded because it cost time.** The run before that one queued `smoke (macos-latest)` for twelve minutes and then ended `cancelled` with no steps and no runner, and `gh pr checks` rendered it as `fail` while exiting 0, because its exit code reflects the last row rather than the aggregate. No code changed; the matrix was re-run on an empty commit and passed.
+
+### Compatibility
+
+- **No install command changes, and no existing behaviour is altered.** Both additions are opt-in: `remote-topology` is never wired to an event and must be invoked, `repo-rules` writes only when `create` is called, and the reminder adds one line to a hook that already ran on every prompt. A repository that has both rule documents and no conflict hears nothing from it.
+
+- **`remote-topology` is the first networked script in this repository, and it needs `gh` to say anything.** Without `gh`, without a login, without the network, or under a rate limit, it reports one `unchecked (…)` line per remote and exits 0 — it never blocks, and it never participates in `repository-check`'s status. Users who never call it are unaffected.
+
+- **The default rule documents are a snapshot of this repository's generic rules, not a live link.** Editing `CONTRIBUTING.md` here does not update `hooks/templates/CONTRIBUTING.md`; each template names the version it came from, and a change to the generic half is a reason to re-extract rather than an automatic one.
+
+- **`repo-rules check` matches by keyword and will both miss and misfire.** Its output says *possible* conflict for that reason, and it never modifies a file. A rule document that forbids pull requests on one line and permits them on the next is a case it cannot decide.
+
+
 ## [1.1.11] — 2026-11-02
 
 ### Added

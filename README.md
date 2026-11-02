@@ -204,7 +204,7 @@ Verify it loaded:
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.1.11    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.1.12    Status: ✔ enabled
 ```
 
 To update an existing installation:
@@ -262,7 +262,7 @@ Verify it loaded:
 ```bash
 codebuddy plugin list
 #   > taskflow@taskflow
-#     Version: 1.1.11
+#     Version: 1.1.12
 #     Scope: user
 #     Status: enabled
 ```
