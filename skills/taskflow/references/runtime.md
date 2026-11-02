@@ -382,6 +382,8 @@ repo-root/
         ├── release-version              # write the mechanical release version literals
         ├── release-check                # version literals + marketplace pin agree
         ├── repository-check             # governance and fork readiness check (read-only)
+        ├── repo-rules                   # show / install / check default repository rules
+        ├── templates                    # the default CONTRIBUTING.md and CODE_STYLE.md
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests

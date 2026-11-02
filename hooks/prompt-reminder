@@ -213,8 +213,58 @@ REINFORCE
   [ -z "$parts" ] || reinforce_line="- Reinforce while this task runs: $parts"
 fi
 
+# --- default repository rules ---------------------------------------------
+# A repository that has never carried a rule document has nothing to read at the
+# three moments a rule is actually needed: choosing a branch prefix, deciding
+# where a commit lands, and starting to write code. `hooks/repo-rules` holds a
+# default set, but installing it is the user's decision -- this hook only says it
+# exists, at the moment the absence is about to matter.
+#
+# Which moment this is comes from the Step the Plan is on, not from the prompt
+# wording: a keyword classifier over free text is wrong in both directions, and
+# would make the reminder depend on how somebody phrased a sentence. A Step whose
+# title names none of the three is not one of them, and silence is the right
+# answer there -- a reminder that fires on every prompt is one a reader learns to
+# skip.
+#
+# Every path here exits 0 with no output on its own failure: `repo-rules` missing
+# or unreadable is not something the reader of a prompt needs to be told.
+rules_line=""
+step_title=""
+if [ -f "$plan_doc" ]; then
+  step_title="$(awk '
+    /^```/ { fence = !fence; next }
+    fence { next }
+    /^### Step[[:space:]]/ { line = $0; sub(/^### Step[[:space:]]*[0-9]+[[:space:]]*[—:-][[:space:]]*/, "", line); print line; exit }
+  ' "$plan_doc" 2>/dev/null)" || step_title=""
+fi
+if [ -n "$step_title" ] && [ -x "$HERE/repo-rules" ]; then
+  want_rules=""
+  case "$step_title" in
+    *[Bb]ranch*|*[Ww]orktree*)   want_rules="branch" ;;
+    *[Cc]ommit*|*[Pp]ull\ request*|*[Ll]and*) want_rules="commit" ;;
+    *[Ii]mplement*|*[Cc]ode*|*[Ww]rite*)      want_rules="code" ;;
+  esac
+  if [ -n "$want_rules" ]; then
+    missing=""
+    [ -f "$worktree/CONTRIBUTING.md" ] || missing="CONTRIBUTING"
+    [ -f "$worktree/CODE_STYLE.md" ]   || missing="${missing:+$missing }CODE_STYLE"
+    if [ -n "$missing" ]; then
+      rules_line="- This repository has no ${missing// /.md, }.md. A default is available — show it with \`bash hooks/repo-rules show <name>\`, write it only if the user agrees (\`bash hooks/repo-rules create <name>\`). Do not create it unasked."
+    else
+      conflicts="$(bash "$HERE/repo-rules" check --root "$worktree" 2>/dev/null)" || conflicts=""
+      case "$conflicts" in
+        *"no conflicts found"*|"") ;;
+        *) rules_line="- The repository rules may disagree with TaskFlow:
+${conflicts}" ;;
+      esac
+    fi
+  fi
+fi
+
 context="$line${reinforce_line:+
-$reinforce_line}
+$reinforce_line}${rules_line:+
+$rules_line}
 Searching is allowed: if this step needs a fact from outside this repository — a version, a spec, another project's behaviour — go and look, with any tool. The lookup is recorded for you.
 This instruction is a TaskFlow change event and must be classified before you act on it: does it change what this task promised to deliver, or only how it is delivered?
 If it changes the promise, archive this Task version, bump every core document to vN+1, and return the task to ready for re-approval. Otherwise it is a work revision: update the affected documents and add one line to the Plan change log. When it is not obvious, take the work revision."

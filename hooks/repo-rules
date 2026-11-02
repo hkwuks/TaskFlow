@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# repo-rules — show, install, and check a default set of repository rules.
+# Usage:
+#   repo-rules show <CONTRIBUTING|CODE_STYLE>   [--root <path>]
+#   repo-rules create <CONTRIBUTING|CODE_STYLE> [--root <path>]
+#   repo-rules check                            [--root <path>]
+#
+# A repository that has never carried a rule document has nothing to read when a
+# phase needs one: which branch prefixes exist, how a commit message is shaped,
+# where a change may land. TaskFlow's own answer is `CONTRIBUTING.md` and
+# `CODE_STYLE.md`, and a new user's repository has neither — measured 2026-11-02,
+# a repository holding only a README gets `Document CONTRIBUTING.md: missing` and
+# `Document CODE_STYLE.md: missing` from `hooks/repository-check`.
+#
+# The three subcommands are deliberately split so that "written only with consent"
+# is a property of the command rather than a habit of the caller:
+#
+#   show    prints the template and writes nothing, so a reader can decide on the
+#           actual text rather than on a description of it.
+#   create  refuses when the file exists. A repository that already has rules owns
+#           them; overwriting one would replace a decision somebody made.
+#   check   reports places where an existing rule and TaskFlow's own procedure
+#           would disagree, and changes nothing.
+#
+# `create` accepts only the two known names. This is not a general-purpose file
+# writer, and a name argument that reached a path unchecked would be one.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+templates="$HERE/templates"
+
+usage() {
+  echo "usage: repo-rules show|create <CONTRIBUTING|CODE_STYLE> [--root <path>]" >&2
+  echo "       repo-rules check [--root <path>]" >&2
+  exit 2
+}
+
+# template_for <name> — the template file for a known rule name, or empty. The
+# name is matched here and nowhere else, so no argument ever reaches a path
+# without having been on this list.
+template_for() {
+  case "$1" in
+    CONTRIBUTING) printf '%s' "$templates/CONTRIBUTING.md" ;;
+    CODE_STYLE)   printf '%s' "$templates/CODE_STYLE.md" ;;
+    *)            printf '' ;;
+  esac
+}
+
+cmd="${1:-}"
+[ -n "$cmd" ] || usage
+shift || true
+
+root=""
+name=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --root) root="${2:-}"; shift 2 || usage ;;
+    -*)     usage ;;
+    *)      [ -n "$name" ] && usage; name="$1"; shift ;;
+  esac
+done
+
+if [ -z "$root" ]; then
+  root="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+fi
+[ -d "$root" ] || { echo "repo-rules: no such directory: $root" >&2; exit 3; }
+
+case "$cmd" in
+  show)
+    [ -n "$name" ] || usage
+    file="$(template_for "$name")"
+    [ -n "$file" ] || { echo "repo-rules: unknown rule document: $name" >&2; exit 2; }
+    [ -f "$file" ] || { echo "repo-rules: template missing: $file" >&2; exit 3; }
+    cat "$file"
+    ;;
+
+  create)
+    [ -n "$name" ] || usage
+    file="$(template_for "$name")"
+    [ -n "$file" ] || { echo "repo-rules: unknown rule document: $name" >&2; exit 2; }
+    [ -f "$file" ] || { echo "repo-rules: template missing: $file" >&2; exit 3; }
+    target="$root/$name.md"
+    if [ -e "$target" ]; then
+      # Refusing is the whole point: an existing file is somebody's decision.
+      echo "repo-rules: $name.md already exists at $target; leaving it alone" >&2
+      exit 2
+    fi
+    cp "$file" "$target"
+    echo "repo-rules: wrote $target"
+    ;;
+
+  check)
+    # Three disagreements that can be decided by looking at a line, each paired
+    # with the TaskFlow rule it would contradict. They are keyword matches, so
+    # they both miss and misfire: a document can require pull requests and grant
+    # releases an exception on the next line, and a `prefix` in a sentence about
+    # something else is not a commit convention. The output therefore says
+    # "possible conflict — confirm", never "conflict".
+    #
+    # Conflict 1: every change goes through a pull request, with no exception.
+    #   TaskFlow's release procedure tags the base commit and pushes the pin
+    #   directly (RELEASE.md), which is not a pull request.
+    # Conflict 2: a commit-message prefix that is not `<type>: `.
+    #   TaskFlow writes `<type>: <imperative description>`.
+    # Conflict 3: commits land on the main branch.
+    #   TaskFlow works one task per branch in its own worktree.
+    found=0
+    report() {  # report <file> <line> <text> <why>
+      found=1
+      printf '%s:%s: possible conflict — %s\n' "$1" "$2" "$4"
+      printf '  %s\n' "$3"
+    }
+
+    contributing="$root/CONTRIBUTING.md"
+    if [ -f "$contributing" ]; then
+      # Read through a process substitution rather than a heredoc built from
+      # `$(grep ...)`: a command substitution that exits non-zero under `set -e`
+      # takes the whole function with it, and `grep` exits 1 whenever it finds
+      # nothing -- which is the normal case for a rule document that has no
+      # conflict at all. Measured 2026-11-01: three conflicts in one fixture
+      # produced "no conflicts found".
+      while IFS= read -r hit; do
+        [ -n "$hit" ] || continue
+        lineno="${hit%%:*}"
+        text="${hit#*:}"
+        # Only when it excludes every change. A line that names an exception is
+        # not the rule this looks for.
+        if printf '%s' "$text" | grep -qiE '(all|every|each)[[:space:]]+(change|commit|pull request)'; then
+          if printf '%s' "$text" | grep -qi 'pull request' \
+             && ! printf '%s' "$text" | grep -qi 'except\|release'; then
+            report "$contributing" "$lineno" "$text" \
+              'requires a pull request for every change, but RELEASE.md tags the base commit and pushes the pin directly'
+          fi
+        fi
+        # `prefix` may sit either side of `commit` in the sentence -- "use prefix
+        # X for commits" and "commits must start with X" say the same thing, and
+        # the first version only matched the second.
+        if printf '%s' "$text" | grep -qiE 'prefix|must (start|begin)' \
+           && printf '%s' "$text" | grep -qi 'commit'; then
+          if ! printf '%s' "$text" | grep -q '<type>'; then
+            report "$contributing" "$lineno" "$text" \
+              'states a commit prefix; TaskFlow writes <type>: <imperative description>'
+          fi
+        fi
+        if printf '%s' "$text" | grep -qiE '(commit|push)[[:space:]]+(directly[[:space:]]+)?(to|on|into)[[:space:]]+(the[[:space:]]+)?(main|master)'; then
+          report "$contributing" "$lineno" "$text" \
+            'commits directly to the main branch; TaskFlow works one task per branch in its own worktree'
+        fi
+      done < <(grep -n '' "$contributing" 2>/dev/null || true)
+    fi
+
+    if [ "$found" -eq 0 ]; then
+      echo "repo-rules: no conflicts found"
+    fi
+    ;;
+
+  *)
+    usage
+    ;;
+esac
+
+exit 0

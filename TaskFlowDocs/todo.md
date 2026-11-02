@@ -193,15 +193,10 @@ has an issue number or URL.
 ## Extract a set of default working rules from CODE_STYLE.md / CONTRIBUTING.md and
 
 - ID: TF-20261021-4950fc
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-21
-- Added: 2026-10-21
-- Updated: 2026-10-21
+- Status: done
 - Goal: Extract a set of default working rules from CODE_STYLE.md / CONTRIBUTING.md and similar docs, and make sure the defaults never override or violate the user's own habits
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-11-02-default-working-rules/`
+- Next action: None — completed and archived.
 
 ## Make the Hooks workflow skip the jobs a change cannot affect, so a task archive
 
