@@ -5535,9 +5535,9 @@ grep -q 'STATUS: pass' "$tmp/rv-out" || { echo "FAIL a post-pin catalog edit did
 repo_root="$repo"
 for rel_pin in 'annotated tag named `vX.Y.Z`' \
                'whose subject line is' \
-               '`TaskFlow X.Y.Z`' \
-               'the release title is' \
-               '`TaskFlow X.Y.Z — YYYY-MM-DD`'; do
+               'The release title is' \
+               'before the summary and the release record below' \
+               'the eleven `1.1.x` releases are what the' ; do
   grep -q -F -- "$rel_pin" "$repo_root/RELEASE.md" \
     || { echo "FAIL RELEASE.md no longer states the release format: $rel_pin"; exit 1; }
 done
