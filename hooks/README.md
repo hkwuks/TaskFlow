@@ -33,6 +33,7 @@ taskflow/hooks/
 ├── release-version     # write the eight mechanical release version literals
 ├── release-check       # version literals + marketplace pin agree
 ├── repository-check    # read-only governance and fork readiness check; names removable worktrees
+├── remote-topology     # per-remote fork topology + push permission (networked, opt-in, never wired to an event)
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
