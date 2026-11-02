@@ -5974,7 +5974,7 @@ if grep -q -F -- '"capability-evidence"' "$HERE/hooks-codex.json" \
    && grep -A3 -- '"PostToolUse"' "$HERE/hooks-codex.json" | grep -q 'capability-evidence'; then
   echo "FAIL hooks-codex.json wires capability-evidence on PostToolUse, where apply_patch records nothing"; exit 1
 fi
-grep -q -F -- '"external-evidence"' "$HERE/hooks-codex.json" \
+grep -q -F -- 'hooks/external-evidence' "$HERE/hooks-codex.json" \
   || { echo "FAIL hooks-codex.json does not wire external-evidence; the host would record no lookups"; exit 1; }
 grep -q -F -- 'tool_input.file_path' "$HERE/capability-gate" \
   || { echo "FAIL capability-gate no longer reads tool_input.file_path, so the Claude Code shape is unhandled"; exit 1; }
