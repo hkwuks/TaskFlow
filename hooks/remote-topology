@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# remote-topology — report which repository each remote names, whether this clone
+# can push to it, and which base a pull request should target.
+# Usage: remote-topology [repository-root]
+#
+# `git remote -v` gives names and URLs, and neither carries a role: a fork's
+# `origin` may be the author's own fork or the upstream, and Git constrains
+# neither. `CONTRIBUTING.md` requires the target repository be verified rather
+# than inferred from a remote name, and until now nothing produced the evidence.
+# This is that evidence.
+#
+# Three boundaries hold this script's place in a repository whose hooks are
+# otherwise entirely offline (`hooks/release-check` states that rule in its own
+# comments). Each is asserted in `hooks/smoke-test` rather than left to prose:
+#
+#   1. It is never wired into any `hooks-*.json`. It is a query, not an event
+#      handler, and a networked call inside SessionStart would make every session
+#      wait on GitHub.
+#   2. It writes no file and issues only `GET /repos/*`.
+#   3. It always exits 0. Every other check here uses 2 and 3 to mean something
+#      about the repository; this one has nothing to say about the repository
+#      when `gh` is missing, and an exit code would make that look like a verdict.
+#
+# The four ways a lookup can fail are reported apart because they call for four
+# different actions — install gh, log in, wait for the network, wait for the rate
+# limit to reset. Collapsing them into "could not check" would tell a reader that
+# something is wrong without telling them what to do.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+root="${1:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+if [ -z "$root" ] || ! git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "remote-topology: not inside a Git repository (nothing to check)"
+  exit 0
+fi
+
+cd "$root"
+
+remote_names="$(git remote 2>/dev/null || true)"
+if [ -z "$remote_names" ]; then
+  echo "remote-topology: no remotes configured (nothing to check)"
+  exit 0
+fi
+
+# `timeout` is coreutils; macOS ships it only through `gtimeout`. Probe once and
+# carry the choice in one variable rather than repeating the condition, and say
+# so in the output when neither exists — an unbounded network call is the thing
+# this guard exists to prevent, so its absence must not be silent.
+#
+# The budget is for the whole run, not per request. A per-request timeout makes
+# the worst case `10s x remotes`, so a clone with four remotes and no network
+# would make a reader wait 40 seconds for "cannot reach the API" — measured
+# 2026-11-02 at 20s for two remotes. Each call gets whatever is left of the
+# deadline, which bounds the command at one timeout however many remotes exist.
+deadline_seconds=10
+run_started=$SECONDS
+timeout_base=""
+if command -v timeout >/dev/null 2>&1; then
+  timeout_base="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_base="gtimeout"
+fi
+
+# bounded — print the command prefix for one call with the time left. With no
+# `timeout` available the prefix is empty and the note below says so.
+bounded() {
+  [ -n "$timeout_base" ] || return 0
+  local left=$(( deadline_seconds - (SECONDS - run_started) ))
+  [ "$left" -gt 0 ] || left=1
+  printf '%s %s' "$timeout_base" "$left"
+}
+
+# slug_of <url> — the owner/repo a remote URL names, or empty when the URL is not
+# GitHub-shaped. A local path, a `file://` URL, or another host yields nothing and
+# is reported as skipped rather than guessed at.
+#
+# The host is dropped: `gh api` takes `repos/owner/repo`, not the URL's authority.
+# Measured 2026-11-02 — keeping it built `repos/github.com/owner/repo`, which `gh`
+# reported as unreachable, and the check blamed the network for its own mistake.
+slug_of() {
+  local url="$1" path
+  case "$url" in
+    *://*) path="${url#*://}"; path="${path#*@}" ;;
+    *@*:*) path="${url#*:}" ;;
+    *)     printf ''; return 0 ;;
+  esac
+  # Drop the host when the first segment contains a dot and there are at least
+  # three segments; `owner/repo` has no host to drop.
+  case "$path" in
+    */*/*) path="${path#*/}" ;;
+  esac
+  case "$path" in
+    */*) ;;
+    *)   printf ''; return 0 ;;
+  esac
+  printf '%s' "$path" | sed 's|/$||; s|\.git$||'
+}
+
+# One line per remote naming what could not be determined, then carry on. Kept as
+# a function so all four reasons cannot drift apart in wording or in what they do.
+unchecked() {
+  printf -- '- %s: unchecked (%s)\n' "$1" "$2"
+}
+
+# The login check has to come before any request: an unauthenticated `gh` and an
+# unreachable network both exit 1, so the exit code alone cannot tell them apart.
+# Measured 2026-11-02.
+gh_missing=0
+gh_logged_out=0
+if ! command -v gh >/dev/null 2>&1; then
+  gh_missing=1
+elif ! $(bounded) gh auth status >/dev/null 2>&1; then
+  gh_logged_out=1
+fi
+
+echo "Remote topology for: $root"
+if [ -z "$timeout_base" ]; then
+  echo "- note: no 'timeout' or 'gtimeout' on PATH; requests are unbounded"
+fi
+
+while IFS= read -r remote; do
+  [ -n "$remote" ] || continue
+  url="$(git remote get-url "$remote" 2>/dev/null || true)"
+  slug="$(slug_of "$url")"
+
+  if [ -z "$slug" ]; then
+    unchecked "$remote" "not a GitHub remote"
+    continue
+  fi
+  if [ "$gh_missing" = 1 ]; then
+    unchecked "$remote" "gh not found"
+    continue
+  fi
+  if [ "$gh_logged_out" = 1 ]; then
+    unchecked "$remote" "gh not logged in"
+    continue
+  fi
+
+  status=0
+  response="$($(bounded) gh api "repos/$slug" 2>&1)" || status=$?
+  if [ "$status" -ne 0 ]; then
+    # A rate limit arrives as HTTP 403 with a message naming it; anything else that
+    # fails is reported as unreachable. Reading the body rather than the code is
+    # the only way to separate the two, since `gh` exits 1 for both.
+    case "$response" in
+      *"rate limit"*|*"rate_limit"*) unchecked "$remote" "API rate limit" ;;
+      *) unchecked "$remote" "cannot reach the GitHub API" ;;
+    esac
+    continue
+  fi
+
+  # `json-field` prints strings only — a boolean comes back as an empty line — so
+  # `fork` and `permissions.push` are read from the raw body instead. Both are
+  # top-level and unambiguous in this response: measured 2026-11-02, `"fork":true`
+  # appears only at the top level, and `permissions` is the only object holding
+  # `"push"`.
+  full_name="$(printf '%s' "$response" | bash "$HERE/json-field" full_name 2>/dev/null || true)"
+  branch="$(printf '%s' "$response" | bash "$HERE/json-field" default_branch 2>/dev/null || true)"
+  parent="$(printf '%s' "$response" | bash "$HERE/json-field" parent.full_name 2>/dev/null || true)"
+  source_rel="$(printf '%s' "$response" | bash "$HERE/json-field" source.full_name 2>/dev/null || true)"
+
+  is_fork=no
+  printf '%s' "$response" | grep -q '"fork"[[:space:]]*:[[:space:]]*true' && is_fork=yes
+  can_push=no
+  printf '%s' "$response" | grep -q '"push"[[:space:]]*:[[:space:]]*true' && can_push=yes
+
+  [ -n "$full_name" ] || full_name="$slug"
+  [ -n "$branch" ] || branch="main"
+
+  printf -- '- %s: %s  fork=%s  push=%s' "$remote" "$full_name" "$is_fork" "$can_push"
+  [ -z "$parent" ] || printf '  parent=%s' "$parent"
+  printf '  default=%s\n' "$branch"
+
+  # The base is read, not inferred: a fork targets the repository it was forked
+  # from, and a repository that is not a fork targets itself. A network with more
+  # than one level is the one case a reader has to decide, because `parent` and
+  # `source` differ there and which one a pull request should name is a choice.
+  if [ -z "$parent" ]; then
+    base_repo="$full_name"
+  else
+    base_repo="$parent"
+    if [ -n "$source_rel" ] && [ "$source_rel" != "$parent" ]; then
+      printf '  (network has more than one level: source=%s; base shown is the direct parent)\n' "$source_rel"
+    fi
+  fi
+
+  if [ "$can_push" = yes ]; then
+    printf '  -> git push %s <branch>\n' "$remote"
+  else
+    printf '  -> push to %s is not permitted with the current credentials\n' "$remote"
+  fi
+
+  owner="${base_repo%%/*}"
+  if [ -z "$parent" ]; then
+    printf '  -> gh pr create --base %s --head %s:<branch>\n' "$branch" "$owner"
+  else
+    printf '  -> gh pr create --base %s --head %s:<branch>   (opens against %s)\n' \
+      "$branch" "${full_name%%/*}" "$base_repo"
+  fi
+done <<EOF
+$remote_names
+EOF
+
+exit 0
