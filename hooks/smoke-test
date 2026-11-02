@@ -6264,11 +6264,13 @@ rein_ctx() {  # rein_ctx -- the injected context for the fixture as written
     | bash "$HERE/prompt-reminder" \
     | bash "$HERE/json-field" hookSpecificOutput.additionalContext
 }
-# A plan that declares nothing is the baseline: the three lines every task that
-# does not use this feature must keep seeing, byte for byte.
+# A plan that declares nothing is the baseline: the four lines every task that
+# does not use this feature must keep seeing, byte for byte. Four rather than
+# three since the search permission joined the classification question: the state
+# line, that permission, and the two classification lines.
 write_rein_plan ""
 rein_baseline="$(rein_ctx)"
-[ "$(printf '%s\n' "$rein_baseline" | wc -l | tr -d ' ')" = "3" ] \
+[ "$(printf '%s\n' "$rein_baseline" | wc -l | tr -d ' ')" = "4" ] \
   || { echo "FAIL an undeclared Plan changed the reminder's line count"; exit 1; }
 
 # A1 -- both resolvable entries, in Plan order, between the state line and the
@@ -6278,7 +6280,7 @@ write_rein_plan '- [Reinforce] `docs/rule.md` — 跨 Step 生效
 rein_out="$(rein_ctx)"
 [ "$(printf '%s\n' "$rein_out" | sed -n '2p')" = "- Reinforce while this task runs: docs/rule.md, docs/guide.md" ] \
   || { echo "FAIL reinforce line is not the second line or not in Plan order"; exit 1; }
-[ "$(printf '%s\n' "$rein_out" | sed -n '3p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '2p')" ] \
+[ "$(printf '%s\n' "$rein_out" | sed -n '3p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '3p')" ] \
   || { echo "FAIL the classification question no longer follows the reinforce line"; exit 1; }
 [ "$(printf '%s\n' "$rein_out" | sed -n '1p')" = "$(printf '%s\n' "$rein_baseline" | sed -n '1p')" ] \
   || { echo "FAIL the state line changed when a reinforce line was added"; exit 1; }
