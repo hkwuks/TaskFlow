@@ -4314,6 +4314,159 @@ printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/detached" \
   && { echo "FAIL a detached worktree was reported"; printf '%s\n' "$out"; exit 1; }
 echo ok
 
+echo "== remote-topology reads the facts a push decision needs, and never guesses =="
+# `git remote -v` gives names and URLs, and neither carries a role: a fork's
+# `origin` may be the author's own fork or the upstream. This check is the
+# evidence `CONTRIBUTING.md` says to establish, so every assertion here is about
+# whether the answer is read from the API or invented.
+#
+# It is the only networked hook in the repository, so three boundaries are
+# asserted rather than described: it is never wired into an event, it writes
+# nothing, and it exits 0 whatever happens -- a missing `gh` says something
+# about the reader's machine, not about their repository.
+rt="$tmp/remote-topology"
+mkdir -p "$rt/bin" "$rt/repo"
+git -C "$rt/repo" init -q
+git -C "$rt/repo" config user.email smoke@example.invalid
+git -C "$rt/repo" config user.name smoke
+
+# A stub `gh` rather than a real request: the four failure modes cannot be
+# produced on demand otherwise (a rate limit is not something a test can wait
+# for), and a suite that needs the network is a suite that reddens on a DNS blip.
+# `auth status` is answered separately because the script asks it first -- an
+# unauthenticated `gh` and an unreachable network both exit 1, measured
+# 2026-11-02, so the exit code alone cannot tell them apart.
+cat > "$rt/bin/gh" <<'STUB'
+#!/usr/bin/env bash
+if [ "$1" = "auth" ]; then
+  case "$SMOKE_GH_MODE" in
+    logged-out) exit 1 ;;
+    *) exit 0 ;;
+  esac
+fi
+case "$SMOKE_GH_MODE" in
+  rate-limit) printf '{"message":"API rate limit exceeded for 1.2.3.4."}\n'; exit 1 ;;
+  unreachable) printf 'dial tcp: lookup api.github.com: no such host\n'; exit 1 ;;
+  *) cat "$SMOKE_GH_JSON"; exit 0 ;;
+esac
+STUB
+chmod +x "$rt/bin/gh"
+
+rt_run() {  # rt_run <mode> [json] — run the check with the stub in front of PATH
+  local mode="$1" json="${2:-}"
+  if [ -n "$json" ]; then
+    printf '%s\n' "$json" > "$rt/response.json"
+  fi
+  ( cd "$rt/repo" && PATH="$rt/bin:$PATH" SMOKE_GH_MODE="$mode" \
+      SMOKE_GH_JSON="$rt/response.json" bash "$HERE/remote-topology" . 2>&1 )
+}
+
+NONFORK='{"full_name":"hkwuks/TaskFlow","fork":false,"default_branch":"main","parent":null,"source":null,"permissions":{"push":true}}'
+FORK='{"full_name":"hxhy00/TaskFlow","fork":true,"default_branch":"main","parent":{"full_name":"hkwuks/TaskFlow"},"source":{"full_name":"hkwuks/TaskFlow"},"permissions":{"push":true}}'
+NOPUSH='{"full_name":"hkwuks/TaskFlow","fork":false,"default_branch":"main","parent":null,"source":null,"permissions":{"push":false}}'
+NESTED='{"full_name":"b/TaskFlow","fork":true,"default_branch":"trunk","parent":{"full_name":"a/TaskFlow"},"source":{"full_name":"root/TaskFlow"},"permissions":{"push":true}}'
+
+# A1 / A2 — a repository that is not a fork targets itself; a fork targets the
+# repository it was forked from. Both come from fields, not from the remote name.
+git -C "$rt/repo" remote add origin https://github.com/hkwuks/TaskFlow.git
+out="$(rt_run ok "$NONFORK")"
+printf '%s\n' "$out" | grep -q '^- origin: hkwuks/TaskFlow  fork=no  push=yes  default=main$' \
+  || { echo "FAIL non-fork line wrong:"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- '-> gh pr create --base main --head hkwuks:<branch>' \
+  || { echo "FAIL non-fork PR arguments wrong:"; printf '%s\n' "$out"; exit 1; }
+
+git -C "$rt/repo" remote set-url origin https://github.com/hxhy00/TaskFlow.git
+out="$(rt_run ok "$FORK")"
+printf '%s\n' "$out" | grep -q '^- origin: hxhy00/TaskFlow  fork=yes  push=yes  parent=hkwuks/TaskFlow  default=main$' \
+  || { echo "FAIL fork line wrong:"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- '--head hxhy00:<branch>' \
+  || { echo "FAIL fork head owner wrong:"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- '(opens against hkwuks/TaskFlow)' \
+  || { echo "FAIL fork base repository not named:"; printf '%s\n' "$out"; exit 1; }
+
+# The default branch is read, not assumed to be `main`.
+git -C "$rt/repo" remote set-url origin https://github.com/b/TaskFlow.git
+out="$(rt_run ok "$NESTED")"
+printf '%s\n' "$out" | grep -q 'default=trunk' \
+  || { echo "FAIL default branch not read from the response:"; printf '%s\n' "$out"; exit 1; }
+# More than one level: `parent` and `source` disagree, and which one a pull
+# request should name is the reader's choice, so both are shown and the base
+# stays the direct parent.
+printf '%s\n' "$out" | grep -q 'source=root/TaskFlow' \
+  || { echo "FAIL nested fork did not name its source:"; printf '%s\n' "$out"; exit 1; }
+
+# `push=false` is reported as a fact about this identity, not as a failure.
+git -C "$rt/repo" remote set-url origin https://github.com/hkwuks/TaskFlow.git
+out="$(rt_run ok "$NOPUSH")"
+printf '%s\n' "$out" | grep -q 'push=no' \
+  || { echo "FAIL push=false not reported:"; printf '%s\n' "$out"; exit 1; }
+
+# A3 — every remote gets its own line. Two remotes naming the same repository are
+# not merged: which name is writable is exactly what the reader came to find out.
+git -C "$rt/repo" remote add upstream https://github.com/hkwuks/TaskFlow.git
+git -C "$rt/repo" remote add mirror /srv/git/mirror.git
+out="$(rt_run ok "$NONFORK")"
+[ "$(printf '%s\n' "$out" | grep -c '^  -> gh pr create')" -eq 2 ] \
+  || { echo "FAIL each GitHub remote did not get its own PR arguments:"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- '- mirror: unchecked (not a GitHub remote)' \
+  || { echo "FAIL a non-GitHub remote was not skipped explicitly:"; printf '%s\n' "$out"; exit 1; }
+git -C "$rt/repo" remote remove upstream
+git -C "$rt/repo" remote remove mirror
+
+# A4 / A5 / A6 / A7 — the four ways the lookup can fail, four different
+# messages, because each calls for a different action: install gh, log in, wait
+# for the network, wait for the rate limit. All exit 0: none of them is a verdict
+# about the repository.
+for case in "missing:gh not found" "logged-out:gh not logged in" \
+            "unreachable:cannot reach the GitHub API" "rate-limit:API rate limit"; do
+  mode="${case%%:*}"; want="${case#*:}"
+  if [ "$mode" = missing ]; then
+    # A PATH with the tools the script uses but without `gh`, rather than a stub
+    # that pretends to be absent: `command -v` is what the script asks.
+    mkdir -p "$rt/no-gh"
+    for tool in bash git sed awk grep cat printf dirname; do
+      p="$(command -v "$tool" 2>/dev/null)" && ln -sf "$p" "$rt/no-gh/$tool"
+    done
+    out="$( cd "$rt/repo" && PATH="$rt/no-gh" bash "$HERE/remote-topology" . 2>&1 )"
+  else
+    out="$(rt_run "$mode" "$NONFORK")"
+  fi
+  printf '%s\n' "$out" | grep -q -- "- origin: unchecked ($want)" \
+    || { echo "FAIL absence '$mode' did not report '$want':"; printf '%s\n' "$out"; exit 1; }
+  # The four messages have to be distinguishable, which is the whole point.
+  printf '%s\n' "$out" | grep -q -- '-> gh pr create' \
+    && { echo "FAIL absence '$mode' still printed PR arguments"; printf '%s\n' "$out"; exit 1; }
+done
+
+# A9 — `repository-check` keeps its own output and exit code. The networked
+# check is a separate script precisely so the offline one cannot become flaky.
+set +e
+rc_before=$(bash "$HERE/repository-check" "$rt/repo" 2>&1); rc_status=$?
+set -e
+printf '%s\n' "$rc_before" | grep -q '^STATUS: ' \
+  || { echo "FAIL repository-check no longer reports a STATUS line"; exit 1; }
+
+# A10 — it is a query, not an event handler. Wiring it into any host's event
+# list would put a network round trip in front of every session.
+#
+# `hooks.json` is named explicitly because the `hooks-*.json` glob does not match
+# it: the plain name is Claude Code's own wiring, and leaving it out checked every
+# host except the one this plugin is primarily loaded by. Measured 2026-11-01 —
+# adding a SessionStart entry to `hooks.json` passed the glob-only version.
+for wiring in "$HERE/hooks.json" "$HERE"/hooks-*.json; do
+  [ -f "$wiring" ] || continue
+  grep -q 'remote-topology' "$wiring" \
+    && { echo "FAIL remote-topology is wired into $(basename "$wiring")"; exit 1; }
+done
+
+# R6 — read-only. No redirection into a file anywhere in the script. `2>/dev/null`
+# and the `->` arrow in printed text are not writes, so the pattern has to name a
+# target that is a path rather than a device or a quoted string.
+printf '%s\n' "$(grep -nE '>>?[[:space:]]*[^ &|>/]*$' "$HERE/remote-topology" || true)" \
+  | grep -vE 'dev/null|^$' \
+  && { echo "FAIL remote-topology appears to write a file"; exit 1; }
+echo ok
+
 echo "== todo merge driver keeps both branches' entries =="
 # A real repository, so the assertion exercises `git merge` rather than a
 # simulation of it. The driver is installed the way a user gets it, by the hook.

@@ -3,7 +3,7 @@
 ## Before you start
 
 - Work from a short-lived feature, fix, docs, or chore branch based on the intended base branch.
-- For fork work, verify the target repository and base branch; remote names alone are not evidence.
+- For fork work, verify the target repository and base branch; remote names alone are not evidence. `bash hooks/remote-topology .` prints that evidence — each remote's repository, whether it is a fork, whether you can push to it, and the `--head`/`--base` a pull request should use. It needs `gh` and exits 0 either way, reporting `unchecked (…)` when it cannot look.
 - Read `README.md`, `TaskFlowDocs/repository-docs/index.md`, and applicable TaskFlow task documents.
 - Run `bash hooks/repository-check .` for governance, fork, or pull-request work.
 

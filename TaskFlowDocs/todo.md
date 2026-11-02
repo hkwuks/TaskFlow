@@ -166,16 +166,10 @@ has an issue number or URL.
 ## Before pushing a PR, establish which repository receives it: a fork's branch is
 
 - ID: TF-20261021-d5c738
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-21, verified against gh api + gh pr create head/base semantics
-- Added: 2026-10-21
-- Updated: 2026-10-21
+- Status: done
 - Goal: Before pushing a PR, establish which repository receives it: a fork's branch is pushed to the writable fork (head), while the PR targets the original author's repository (base) — cannot push to upstream without write permission. Record the checkable facts (isFork/parent/source via gh api, .permissions.push per candidate, branch protection) instead of inferring repo role from a remote named origin/upstream
-- Task: Not promoted.
-- Next action: Decide whether to extend hooks/repository-check to report fork topology (fork/parent/source) and per-remote push permission, or keep it as a rule in CONTRIBUTING
-- Notes: repository-check:18-31 currently lists remote names+URLs only; it reports neither isFork/parent/source nor permissions.push. Verified facts: gh api repos/X -> .fork/.parent.full_name/.source.full_name/.permissions.push; gh pr create --head <owner>:<branch> is the writable head, --base is the upstream branch to merge into; gh api .../branches/<b>/protection returns 404 when unprotected.
+- Task: `TaskFlowDocs/achieved/2026-11-02-fork-topology/`
+- Next action: None — completed and archived.
 
 ## Refine the worktree rules: changes the author does not want to commit (local edi
 
@@ -1107,3 +1101,4 @@ has an issue number or URL.
 - Goal: Make a task record whether its conclusion depends on a fact from outside this repository, and require a real search when it does — so external evidence is either gathered deliberately or explicitly ruled out, never skipped by default
 - Task: `TaskFlowDocs/achieved/2026-10-31-external-facts/`
 - Next action: None — completed and archived.
+
