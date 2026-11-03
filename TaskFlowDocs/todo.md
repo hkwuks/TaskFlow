@@ -251,28 +251,10 @@ has an issue number or URL.
 ## Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task
 
 - ID: TF-20261012-c66ad3
-- Status: promoted
-- Priority: normal
-- Owner: Claude
-- Source: user report 2026-10-12: a v13 approval could not be written because the evidence queue was exhausted
-- Added: 2026-10-12
-- Updated: 2026-11-03
+- Status: done
 - Goal: Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task version bump repeat the capability bookkeeping: hooks/task approve requires every stage to appear in <absolute-git-dir>/taskflow/released, and a stage is released only while evidence lines > max(seq), so each new Task version needs one fresh release per stage it writes and seq never resets. Corrected 2026-10-18: this is repeated work, not a dead end — the earlier claim that once consumed reaches the line count no later version can be released is false, because hooks/task unaided appends its own evidence line and then its own release line (hooks/task:1042-1043), so a host with a gate is never blocked by an exhausted queue. What remains true is that every version bump repeats N declarations or calls (N = stages to write); only a host without a gate actually needs real invocations
-- Task: `TaskFlowDocs/2026-11-03-version-bump-bookkeeping/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: 2026-10-12 用户报告：某任务的 v13 已获批准，但 `hooks/task approve` 写不进文件。
-
-**用户给的现场**：approve 拒了，理由是 pre-write 门的证据账本**全局单调**——已消费到第 34 条，v12 把可用证据用尽，第 35 条之后再没产生过；`approve` 与 `unaided` 两条路都试过；失败原因已写进该任务的 `plan.md`；用户给的恢复路径是「新会话里做一次 MCP/Skill 调用 + 用 Write/Edit 碰一次 plan.md，门就会释放 v13 的三个阶段」。
-
-**2026-10-18 更正：我在这一点上判错了，用户是对的。** 原文写「按 1.1.5 的码读，做不到」。实测（干净探针：34 条证据全部消费，`evidence > consumed` 为假，门自己已无法释放任何阶段）：连续三次 `hooks/task unaided PRD|Spec|Plan` → `stages released by the gate: 0 invoked, 3 unaided` → `approve OK (user, v13)`。**零工具调用就能恢复**，因为 `hooks/task unaided` 在版本提升后会往 `evidence` **自己追加一行**再写 release 行（`hooks/task:1042-1043`，由 `2026-10-11-gate-host-coverage` 加入）。我漏掉了这条路径，只按门的供给条件（`evidence 行数 > max(seq)`）推，而 `unaided` 不受它限制。用户给的恢复路径（新会话做一次 MCP/Skill 调用）也能用，但**不需要三次真实调用**：一次真实调用释放一个阶段，剩下两个用 `unaided` 声明即可。顺序那半句仍然成立：先补证据再动文档，反了会被门拦下。
-
-**本条的真正缺陷（与「证据用尽」这个现场分开记）**：`seq` 是**全局**计数器，而 `release` 的幂等键是 **(version, stage)**（`capability-gate:126-131`）。两个键不同源，于是任何一次 Task 版本提升都会**要求重新走一遍**，无论旧证据是否还能证明「这个阶段确实调用过能力」——代价是**重复劳动**（每次重走 N 次声明或调用，N = 所需阶段数），不是死锁。用户现场里 v12→v13 只是把版本号从 12 提到 13，需求、阶段、可用能力都没变，却要重新走一遍能力选择——这正是 `TF-20261009-8abbd6`「把阶段的能力选择与宿主工具流解耦」想要消除的那件事，现在多了一个机械版本：**版本提升与证据消耗被同一个全局队列绑死**。
-
-**在「全局单调」这一条上我不认为是缺陷**：它买的是「一个已花掉的调用不能被第二个文档再花一次」（`capability-gate:133-135` 的注释），以及「版本提升不能拿旧版本用剩的证据来满足」。这两件都是真的、且值得。问题只在**它没有与版本提升的语义对齐**（2026-10-18 更正：对齐的缺口的代价是重复劳动，不是「版本提升变死路」——`unaided` 自写 release 行使零调用恢复成为可能）——`approve` 对账的是「本版本每个阶段都有 release 行」，而 release 行的**供给**是全仓库一条队列。
-
-**可核验的机械事实（本次实测 1.1.5，仓库根）**：`git rev-parse --absolute-git-dir` = `.git`，**本仓库根没有证据库**（`.git/taskflow/` 不存在）；六个链接工作树各有自己的库，`evidence`/`consumed` 分别为 4/2、3/2、3/2、2/2、2/2、3/3，即**每一个都处于或接近耗尽**（`evidence > consumed` 才算可释放）。这符合设计（库随工作树分开，见 `capability-gate:160-178`），但也说明「耗尽」在本仓库不是偶发：六个工作树里四个耗尽、两个各只剩 1 条。
-
-**为什么值得单记而不是并入 `TF-20261009-8abbd6`**：8abbd6 要解决的是「宿主没有工具流 / cwd 不在任务工作树」造成的假拒绝，方向是**让阶段选择不必是工具调用的产物**；本条是**记账方式**本身使版本提升变死路，即使宿主有门、cwd 也对，一样会发生。两条的修复面不同（8abbd6 动能力表示层，本条动 `released`/`evidence` 的键或 `approve` 的对账口径）。相关：`TF-20261009-8abbd6`、`TF-20261011-39bda8`（已 done，`unaided` 现在自己写 release 行）。
+- Task: `TaskFlowDocs/achieved/2026-11-03-version-bump-bookkeeping/`
+- Next action: None — completed and archived.
 
 ## The entry signal for unregistered work never fires in the state a session actual
 

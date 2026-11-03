@@ -1,7 +1,7 @@
 # 版本提升不再强制重走一遍能力记账
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 
