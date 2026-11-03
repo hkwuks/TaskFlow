@@ -1063,6 +1063,115 @@ bash "$HERE/archive" 2026-09-08-tear-base "$tear" > "$tear_base_out" 2>&1 \
   || { echo "FAIL archive from the main working tree:"; cat "$tear_base_out"; exit 1; }
 grep -qi 'worktree remove' "$tear_base_out" \
   && { echo "FAIL archive told a main working tree to remove itself"; cat "$tear_base_out"; exit 1; }
+
+echo "== archive carries clone-local files to the base checkout =="
+# `sessions.md` is excluded rather than tracked, so it is not in the commit that
+# lands the archive. It travels inside the directory instead — and a linked
+# worktree's directory is deleted after the merge, by a `git worktree remove`
+# that does not treat an ignored file as a reason to refuse. Measured 2026-11-03:
+# the record was gone afterwards, with nothing reporting it. The base checkout is
+# where the archived directory outlives the tree, so that is where the copy goes.
+lcl="$tmp/archive-local-only"
+lcl_task=2026-09-08-localonly
+mkdir -p "$lcl/TaskFlowDocs/$lcl_task" "$lcl/TaskFlowDocs/achieved"
+cat > "$lcl/TaskFlowDocs/$lcl_task/prd.md" <<'EOF'
+# Local only
+> Task version: v1
+> Status: completed
+EOF
+cp "$tmp/approved-plan.md" "$lcl/TaskFlowDocs/$lcl_task/plan.md"
+cat > "$lcl/TaskFlowDocs/todo.md" <<'EOF'
+# Todo inbox
+## Local only
+- ID: T-20260908-localonly
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-localonly/`
+EOF
+(
+  cd "$lcl" || exit 1
+  git init -q .
+  git config user.email smoke@example.invalid
+  git config user.name smoke
+  git add -A && git commit -qm base
+  git worktree add -q .worktrees/local-task -b chore/local-task
+  # The rule the real flow installs on every session start. Without it the
+  # fixture proves only that archive does not commit the file, which nobody
+  # doubted; the claim is that it survives *and* stays out of commit material.
+  printf 'TaskFlowDocs/**/sessions.md\n' >> .git/info/exclude
+) || { echo "FAIL local-only fixture worktree"; exit 1; }
+lcl_wt="$lcl/.worktrees/local-task"
+lcl_plan_body='# Sessions — local only
+- Session ID: smoke-local
+'
+# The record is written in the worktree, the way a session there would leave it.
+printf '%s' "$lcl_plan_body" > "$lcl_wt/TaskFlowDocs/$lcl_task/sessions.md"
+lcl_out="$tmp/archive-local-only-out"
+bash "$HERE/archive" "$lcl_task" "$lcl_wt" > "$lcl_out" 2>&1 \
+  || { echo "FAIL archive with a clone-local file:"; cat "$lcl_out"; exit 1; }
+[ -f "$lcl/TaskFlowDocs/achieved/$lcl_task/sessions.md" ] \
+  || { echo "FAIL archive did not carry sessions.md to the base checkout"; cat "$lcl_out"; exit 1; }
+[ "$(cat "$lcl/TaskFlowDocs/achieved/$lcl_task/sessions.md")" = "${lcl_plan_body%?}" ] \
+  || { echo "FAIL the carried copy differs from the record"; exit 1; }
+# And it is still not commit material: the reason it is clone-local did not change.
+# Asked of the archived path, not of the whole tree: the fixture keeps its
+# worktree under `.worktrees/`, which the real repository ignores and this bare
+# one does not, so a whole-tree assertion would be about the fixture.
+git -C "$lcl" status --porcelain -- "TaskFlowDocs/achieved/$lcl_task" > "$tmp/lcl.status" 2>&1 || true
+[ -s "$tmp/lcl.status" ] \
+  && { echo "FAIL the carried copy showed up in the base checkout's git status:"; cat "$tmp/lcl.status"; exit 1; }
+# Nothing to carry means nothing said, and no empty directory left behind in the
+# base checkout on behalf of a file that does not exist.
+lcl2_task=2026-09-08-nolocal
+mkdir -p "$lcl_wt/TaskFlowDocs/$lcl2_task" "$lcl/TaskFlowDocs/achieved"
+cat > "$lcl_wt/TaskFlowDocs/$lcl2_task/prd.md" <<'EOF'
+# No local file
+> Task version: v1
+> Status: completed
+EOF
+cp "$tmp/approved-plan.md" "$lcl_wt/TaskFlowDocs/$lcl2_task/plan.md"
+cat >> "$lcl_wt/TaskFlowDocs/todo.md" <<'EOF'
+## No local file
+- ID: T-20260908-nolocal
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-nolocal/`
+EOF
+lcl2_out="$tmp/archive-nolocal-out"
+bash "$HERE/archive" "$lcl2_task" "$lcl_wt" > "$lcl2_out" 2>&1 \
+  || { echo "FAIL archive without a clone-local file:"; cat "$lcl2_out"; exit 1; }
+grep -q 'archive note' "$lcl2_out" \
+  && { echo "FAIL archive reported a copy it did not make"; cat "$lcl2_out"; exit 1; }
+[ ! -e "$lcl/TaskFlowDocs/achieved/$lcl2_task" ] \
+  || { echo "FAIL archive created a base directory for a file that does not exist"; exit 1; }
+# A copy that cannot be written is reported and does not fail the archive: the
+# transaction is the directory move and the Todo entry, and a resume record is
+# neither. Nothing else in the output changes.
+lcl3_task=2026-09-08-nocopy
+mkdir -p "$lcl_wt/TaskFlowDocs/$lcl3_task"
+cat > "$lcl_wt/TaskFlowDocs/$lcl3_task/prd.md" <<'EOF'
+# Cannot copy
+> Task version: v1
+> Status: completed
+EOF
+cp "$tmp/approved-plan.md" "$lcl_wt/TaskFlowDocs/$lcl3_task/plan.md"
+cat >> "$lcl_wt/TaskFlowDocs/todo.md" <<'EOF'
+## Cannot copy
+- ID: T-20260908-nocopy
+- Status: in_progress
+- Task: `TaskFlowDocs/2026-09-08-nocopy/`
+EOF
+printf 'x\n' > "$lcl_wt/TaskFlowDocs/$lcl3_task/sessions.md"
+chmod a-w "$lcl/TaskFlowDocs/achieved"
+lcl3_out="$tmp/archive-nocopy-out"
+lcl3_rc=0
+bash "$HERE/archive" "$lcl3_task" "$lcl_wt" > "$lcl3_out" 2>&1 || lcl3_rc=$?
+chmod u+w "$lcl/TaskFlowDocs/achieved"
+[ "$lcl3_rc" -eq 0 ] \
+  || { echo "FAIL an unwritable base target failed the archive (rc $lcl3_rc):"; cat "$lcl3_out"; exit 1; }
+grep -q 'archive note: could not copy sessions.md' "$lcl3_out" \
+  || { echo "FAIL the failed copy was not reported"; cat "$lcl3_out"; exit 1; }
+grep -q 'archive OK' "$lcl3_out" \
+  || { echo "FAIL the archive did not report success"; cat "$lcl3_out"; exit 1; }
+echo ok
 echo ok
 
 echo "== archive compacts the entry and touches nothing else =="
