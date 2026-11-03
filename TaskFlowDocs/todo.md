@@ -37,15 +37,10 @@ has an issue number or URL.
 ## 个人配置文件（personal.md、sessions.md 等）若出现在 worktree 中
 
 - ID: TF-20261030-15b439
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request
-- Added: 2026-10-30
-- Updated: 2026-10-30
+- Status: done
 - Goal: 个人配置文件（personal.md、sessions.md 等）若出现在 worktree 中，归档时可同步到 main 的对应任务路径下，且保持不纳入版本控制。
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-11-03-archive-local-files/`
+- Next action: None — completed and archived.
 
 ## Assert the $schema a plugin manifest declares, so a schema URL that stops resolv
 

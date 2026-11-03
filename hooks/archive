@@ -74,12 +74,74 @@ rollback() {  # rollback <moved> <todo-bak> <plan-bak>
 moved=0
 todo_bak="$(mktemp "$docs/.taskflow-archive.XXXXXX")"
 cp "$todo" "$todo_bak"
+# The clone-local files are read before the move, because the move takes them
+# with it and these paths stop existing. They are never committed — the exclude
+# rules in `install-git-hygiene` keep Git from seeing them — so `git add -A`
+# leaves them out and they travel in the *directory*: from a linked worktree
+# that directory is then deleted by `git worktree remove`, which does not treat
+# an ignored file as a reason to refuse, and from the base checkout a merge
+# leaves the file behind in a directory that no longer exists elsewhere. Both
+# ends lose the record and neither reports it. Measured 2026-11-03, both paths.
+LOCAL_ONLY_FILES='sessions.md'
+local_only_src=""
+for local_f in $LOCAL_ONLY_FILES; do
+  if [ -f "$docs/$task/$local_f" ]; then
+    local_only_src="$local_only_src$local_f
+"
+  fi
+done
 if ! mv "$docs/$task" "$docs/achieved/$task"; then
   rm -f "$todo_bak"
   echo "archive FAILED: could not move $docs/$task"
   exit 1
 fi
 moved=1
+
+# 2b. carry the clone-local files to the base checkout.
+#
+# `mv` put them in this tree's achieved/ directory, which is the right place
+# only while this tree exists. A task worktree is deleted after the merge, so
+# the same record has to exist in the base checkout, where the archived
+# directory outlives it. Not a `git add`: the exclude rules apply there too, so
+# the copy stays out of the commit exactly as the original did.
+#
+# Best-effort by design. Archiving is a transaction over the directory move and
+# the Todo entry; a clone-local resume record is neither, and a copy that cannot
+# be written must not make a finished task look unarchived.
+if [ -n "$local_only_src" ]; then
+  base_root=""
+  git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [ -n "$git_dir" ]; then
+    # A linked worktree's git dir is `<common>/worktrees/<name>`, so `commondir`
+    # is Git's own answer for where the base checkout is. Absent the file, this
+    # *is* the base checkout and `root` already is it.
+    if [ -f "$git_dir/commondir" ]; then
+      common="$(cd "$git_dir" 2>/dev/null && cd "$(cat commondir)" 2>/dev/null && pwd -P 2>/dev/null)" || common=""
+      if [ -n "$common" ]; then base_root="$(cd "$common/.." 2>/dev/null && pwd -P 2>/dev/null)" || true; fi
+    else
+      base_root="$(cd "$root" 2>/dev/null && pwd -P 2>/dev/null)"
+    fi
+  fi
+  # The target directory does not exist in the base checkout yet: the archived
+  # documents arrive there with the merge, which happens after this runs. That
+  # is the case this copy exists for — the worktree is deleted before the merge,
+  # so waiting for the directory to appear would mean never copying. Creating it
+  # is safe: `git status` ignores an empty directory, and the merge fills it.
+  if [ -n "$base_root" ] && [ "$base_root" != "$root" ]; then
+    local_only_list="$local_only_src"
+    while IFS= read -r local_f; do
+      [ -n "$local_f" ] || continue
+      # Already there means the record predates this archive; believe it over
+      # this tree's copy, which may be the stale one.
+      if [ -f "$base_root/TaskFlowDocs/achieved/$task/$local_f" ]; then continue; fi
+      mkdir -p "$base_root/TaskFlowDocs/achieved/$task" 2>/dev/null || true
+      cp -p "$docs/achieved/$task/$local_f" "$base_root/TaskFlowDocs/achieved/$task/$local_f" 2>/dev/null \
+        || echo "archive note: could not copy $local_f to the base checkout at $base_root; it now exists only in this working tree"
+    done <<EOF
+$local_only_list
+EOF
+  fi
+fi
 
 # 3. move the entry's prose into the achieved Plan, then compact the entry.
 #
