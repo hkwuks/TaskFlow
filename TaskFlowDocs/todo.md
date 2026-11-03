@@ -251,15 +251,15 @@ has an issue number or URL.
 ## Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task
 
 - ID: TF-20261012-c66ad3
-- Status: inbox
+- Status: promoted
 - Priority: normal
 - Owner: Claude
 - Source: user report 2026-10-12: a v13 approval could not be written because the evidence queue was exhausted
 - Added: 2026-10-12
-- Updated: 2026-10-18
+- Updated: 2026-11-03
 - Goal: Bookkeeping the stage ledger by a globally monotonic evidence queue makes a Task version bump repeat the capability bookkeeping: hooks/task approve requires every stage to appear in <absolute-git-dir>/taskflow/released, and a stage is released only while evidence lines > max(seq), so each new Task version needs one fresh release per stage it writes and seq never resets. Corrected 2026-10-18: this is repeated work, not a dead end — the earlier claim that once consumed reaches the line count no later version can be released is false, because hooks/task unaided appends its own evidence line and then its own release line (hooks/task:1042-1043), so a host with a gate is never blocked by an exhausted queue. What remains true is that every version bump repeats N declarations or calls (N = stages to write); only a host without a gate actually needs real invocations
-- Task: Not promoted.
-- Next action: Clarify whether to remove the repeated per-version bookkeeping (the remaining half), by reusing the previous version's kind and capability name per (version, stage) rather than changing seq.
+- Task: `TaskFlowDocs/2026-11-03-version-bump-bookkeeping/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 2026-10-12 用户报告：某任务的 v13 已获批准，但 `hooks/task approve` 写不进文件。
 
 **用户给的现场**：approve 拒了，理由是 pre-write 门的证据账本**全局单调**——已消费到第 34 条，v12 把可用证据用尽，第 35 条之后再没产生过；`approve` 与 `unaided` 两条路都试过；失败原因已写进该任务的 `plan.md`；用户给的恢复路径是「新会话里做一次 MCP/Skill 调用 + 用 Write/Edit 碰一次 plan.md，门就会释放 v13 的三个阶段」。
