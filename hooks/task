@@ -52,6 +52,28 @@ rel_seq_gt() {  # rel_seq_gt <released-file> <threshold> — rows whose seq exce
 rel_seq_le() {  # rel_seq_le <released-file> <threshold>
   awk -F'|' -v t="$2" '{ s = (NF == 6 ? $4 : $3) + 0; if (s <= t + 0) print }' "$1"
 }
+# The record a version bump may inherit, or nothing.
+#
+# The idempotence key is (task, version, stage) while the evidence queue behind
+# it is global and monotonic, so every bump demanded a fresh record per stage for
+# a changed version number and nothing else: measured 2026-11-03, v1 through v3
+# spent twelve evidence lines that way. A bump is not a phase re-entered, so the
+# record this task wrote for the stage at the highest version below this one
+# stands in. Same task only, never another task's.
+#
+# Highest *version*, not highest sequence: that is what "the previous version"
+# means, and a row written later at an older version is still that older
+# document's record. The current version is excluded by construction, so a
+# version that has its own record is never answered for by an older one.
+rel_inherit() {  # rel_inherit <released-file> <task> <version> <stage>
+  [ -f "$1" ] || return 0
+  awk -F'|' -v t="$2" -v v="$3" -v s="$4" '
+    $1 == t && $3 == s && NF == 6 {
+      cur = $2; sub(/^v/, "", cur)
+      if (cur + 0 < (substr(v, 2) + 0) && cur + 0 > best + 0) { best = cur; row = $0 }
+    }
+    END { if (row != "") print row }' "$1"
+}
 # A five-field row predates the task name. It cannot be attributed: the task that
 # wrote it is not recorded anywhere, and guessing "whichever task is active now"
 # is the exact mistake this format change exists to remove. So it never satisfies
@@ -1604,8 +1626,15 @@ EXT_SOURCES
         record="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" \
           '$1 == t && $2 == v && $3 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
       fi
+      # A version bump does not re-enter the phase, so the record this task last
+      # wrote for the stage still stands.
+      inherited=""
       if [ -z "$record" ]; then
-        fail "approve blocked: stage [$stage] was never released by the pre-write gate.$(rel_old_note "$cap_released") Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
+        inherited="$(rel_inherit "$cap_released" "$task" "$approved_version" "$stage")"
+        record="$inherited"
+      fi
+      if [ -z "$record" ]; then
+        fail "approve blocked: stage [$stage] was never released by the pre-write gate, and no earlier version of this task released it either.$(rel_old_note "$cap_released") Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
       fi
       kind="$(printf '%s' "$record" | cut -d'|' -f5)"
       capability="$(printf '%s' "$record" | cut -d'|' -f6)"
@@ -1671,6 +1700,12 @@ STAGE_LINES
         cap_unaided=$((cap_unaided + 1))
       else
         cap_invoked=$((cap_invoked + 1))
+      fi
+      # Named, not silent: an inherited stage wrote no row at this version, so a
+      # reader comparing `released` with the Plan would otherwise find a stage
+      # that passed with nothing behind it and read that as a hole.
+      if [ -n "$inherited" ]; then
+        printf 'stage [%s] inherited from %s (no record in %s)\n' "$stage" "$(printf '%s' "$inherited" | cut -d'|' -f2)" "$approved_version"
       fi
     }
     require_stage PRD

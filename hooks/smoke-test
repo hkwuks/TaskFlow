@@ -4042,6 +4042,160 @@ fi
   || { echo "FAIL a version-less declaration wrote to the store"; exit 1; }
 echo ok
 
+echo "== a version bump inherits the previous version's stage records =="
+# The idempotence key is (task, version, stage) while the evidence queue behind
+# it is global and monotonic, so a bump demanded one fresh record per stage for
+# a changed version number and nothing else. Measured 2026-11-03: v1 through v3
+# spent twelve evidence lines that way. A bump is not a phase re-entered, so the
+# last record this task wrote for the stage at a lower version stands in.
+vb="$tmp/version-inherit"
+mkdir -p "$vb/TaskFlowDocs/2026-09-27-inherit"
+git -C "$vb" init -q
+vb_name=2026-09-27-inherit
+vb_plan() {  # vb_plan <version>
+  cat > "$vb/TaskFlowDocs/$vb_name/plan.md" <<EOF
+# Plan
+
+> Task version: $1
+> Status: planning
+
+## Approval
+
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
+
+## Skills / Tools Used
+
+- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing
+- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition
+- [Test] Unaided — no capability applied to this phase; considered: testing strategy
+
+## Steps
+
+### Step 1 — work
+
+- Status: pending
+EOF
+}
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$vb/TaskFlowDocs/$vb_name/prd.md"
+printf '# Todo\n\n## Items\n\n## Inherit\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: inherit fixture\n- Task: `TaskFlowDocs/2026-09-27-inherit/`\n- Next action: Approve.\n' > "$vb/TaskFlowDocs/todo.md"
+vb_store="$(git -C "$vb" rev-parse --absolute-git-dir)/taskflow"
+
+# v1: declare the three stages and approve, the ordinary path.
+vb_plan v1
+for s in "PRD:requirements elicitation and framing" "Plan:work breakdown and task decomposition" "Test:testing strategy"; do
+  bash "$HERE/task" unaided "${s%%:*}" --considered "${s#*:}" --root "$vb" >/dev/null \
+    || { echo "FAIL v1 unaided ${s%%:*}"; exit 1; }
+done
+bash "$HERE/task" approve "$vb_name" --root "$vb" >/dev/null 2>"$vb/approve.err" \
+  || { echo "FAIL v1 approve:"; cat "$vb/approve.err"; exit 1; }
+vb_evidence_v1="$(wc -l < "$vb_store/evidence" | tr -d ' ')"
+vb_seq_v1="$(awk -F'|' 'NF == 6 { s = $4 + 0 } { if (s > m) m = s } END { print m + 0 }' "$vb_store/released")"
+
+# v2: change the version and nothing else. Approve must now pass with no new
+# declaration, and it must say which stages it inherited — a stage that passes
+# with no row in `released` at this version reads as a hole otherwise.
+vb_plan v2
+sed 's/^> Task version: v1$/> Task version: v2/' "$vb/TaskFlowDocs/$vb_name/prd.md" > "$vb/p.tmp"
+mv "$vb/p.tmp" "$vb/TaskFlowDocs/$vb_name/prd.md"
+vb_out="$tmp/version-inherit-approve.out"
+bash "$HERE/task" approve "$vb_name" --root "$vb" > "$vb_out" 2>&1 \
+  || { echo "FAIL approve refused a bumped version with unchanged stages:"; cat "$vb_out"; exit 1; }
+grep -qx -- '- Status: approved' "$vb/TaskFlowDocs/$vb_name/plan.md" \
+  || { echo "FAIL inherited approve did not write the block"; exit 1; }
+grep -q 'stage \[PRD\] inherited from v1' "$vb_out" \
+  || { echo "FAIL an inherited stage was not named as inherited:"; cat "$vb_out"; exit 1; }
+# Inheritance spends nothing: the queue and the highest sequence are untouched.
+[ "$(wc -l < "$vb_store/evidence" | tr -d ' ')" = "$vb_evidence_v1" ] \
+  || { echo "FAIL an inherited approve wrote an evidence line"; exit 1; }
+[ "$(awk -F'|' 'NF == 6 { s = $4 + 0 } { if (s > m) m = s } END { print m + 0 }' "$vb_store/released")" = "$vb_seq_v1" ] \
+  || { echo "FAIL an inherited approve wrote a release row"; cat "$vb_store/released"; exit 1; }
+# The invariant the gate and `unaided` both check: nothing was released that no
+# evidence line backs.
+[ "$(wc -l < "$vb_store/evidence" | tr -d ' ')" -eq "$(awk -F'|' 'NF == 6 { s = $4 + 0 } { if (s > m) m = s } END { print m + 0 }' "$vb_store/released")" ] \
+  || { echo "FAIL inheritance broke highest-seq == evidence-line-count"; exit 1; }
+
+# A stage with its own record in the new version uses it, not the old one. A
+# different class at v3 proves which record answered: the Plan line has to match.
+vb_plan v3
+sed 's/^> Task version: v2$/> Task version: v3/' "$vb/TaskFlowDocs/$vb_name/prd.md" > "$vb/p.tmp"
+mv "$vb/p.tmp" "$vb/TaskFlowDocs/$vb_name/prd.md"
+sed 's|considered: requirements elicitation and framing$|considered: divergent exploration|' \
+  "$vb/TaskFlowDocs/$vb_name/plan.md" > "$vb/p.tmp"
+mv "$vb/p.tmp" "$vb/TaskFlowDocs/$vb_name/plan.md"
+bash "$HERE/task" unaided PRD --considered "divergent exploration" --root "$vb" >/dev/null \
+  || { echo "FAIL v3 PRD declaration"; exit 1; }
+vb_out3="$tmp/version-inherit-v3.out"
+bash "$HERE/task" approve "$vb_name" --root "$vb" > "$vb_out3" 2>&1 \
+  || { echo "FAIL v3 approve with one fresh stage:"; cat "$vb_out3"; exit 1; }
+grep -q 'stage \[PRD\] inherited' "$vb_out3" \
+  && { echo "FAIL a stage with its own record was reported as inherited"; cat "$vb_out3"; exit 1; }
+grep -q 'stage \[Plan\] inherited from v1' "$vb_out3" \
+  || { echo "FAIL the unchanged stage did not inherit:"; cat "$vb_out3"; exit 1; }
+# Which record answered, proved rather than inferred from silence: the v3 PRD
+# row records `divergent exploration` while v1's records the framing class. The
+# approve above passed with the Plan saying `divergent exploration`, so the v3
+# row is what answered. Put the Plan line back to the framing class and the same
+# approve must now fail on the mismatch — if an older row could answer instead,
+# it would pass, and that is exactly what an unversioned lookup does.
+sed 's|considered: divergent exploration$|considered: requirements elicitation and framing|' \
+  "$vb/TaskFlowDocs/$vb_name/plan.md" > "$vb/p.tmp"
+mv "$vb/p.tmp" "$vb/TaskFlowDocs/$vb_name/plan.md"
+if bash "$HERE/task" approve "$vb_name" --root "$vb" >"$vb/o" 2>&1; then
+  echo "FAIL an older version's record answered for a stage that had its own"; cat "$vb/o"; exit 1
+fi
+grep -q 'reports a different considered class than the recorded one (divergent exploration)' "$vb/o" \
+  || { echo "FAIL the refusal did not name the current version's record:"; cat "$vb/o"; exit 1; }
+sed 's|considered: requirements elicitation and framing$|considered: divergent exploration|' \
+  "$vb/TaskFlowDocs/$vb_name/plan.md" > "$vb/p.tmp"
+mv "$vb/p.tmp" "$vb/TaskFlowDocs/$vb_name/plan.md"
+
+# The ceiling is what makes it "the previous version": with rows at v1 and v4,
+# a v3 must inherit v1, never v4. Without it the lookup takes the highest row
+# and a version is answered for by one that does not exist yet — the exact row a
+# later bump will legitimately spend. Asked of the helper directly: building a
+# whole task around it would test the fixture more than the rule.
+ri_rows="$tmp/rel-inherit-rows"
+printf 'T|v1|PRD|1|unaided|alpha\nT|v4|PRD|9|invoke|delta\nT|v1|Plan|2|unaided|beta\n' > "$ri_rows"
+ri_src="$(sed -n '/^rel_inherit()/,/^}/p' "$HERE/task")"
+[ -n "$ri_src" ] || { echo "FAIL could not read rel_inherit from hooks/task"; exit 1; }
+ri_got="$(bash -c "$ri_src
+rel_inherit \"\$1\" T v3 PRD" _ "$ri_rows")"
+[ "$ri_got" = "T|v1|PRD|1|unaided|alpha" ] \
+  || { echo "FAIL rel_inherit did not pick the highest version below this one: $ri_got"; exit 1; }
+ri_got="$(bash -c "$ri_src
+rel_inherit \"\$1\" T v2 PRD" _ "$ri_rows")"
+[ "$ri_got" = "T|v1|PRD|1|unaided|alpha" ] \
+  || { echo "FAIL rel_inherit from v2: $ri_got"; exit 1; }
+ri_got="$(bash -c "$ri_src
+rel_inherit \"\$1\" T v1 PRD" _ "$ri_rows")"
+[ -z "$ri_got" ] || { echo "FAIL rel_inherit produced a row at the same version: $ri_got"; exit 1; }
+ri_got="$(bash -c "$ri_src
+rel_inherit \"\$1\" T v9 Plan" _ "$ri_rows")"
+[ "$ri_got" = "T|v1|Plan|2|unaided|beta" ] \
+  || { echo "FAIL rel_inherit is not per stage: $ri_got"; exit 1; }
+ri_got="$(bash -c "$ri_src
+rel_inherit \"\$1\" Other v9 PRD" _ "$ri_rows")"
+[ -z "$ri_got" ] || { echo "FAIL rel_inherit produced another task's row: $ri_got"; exit 1; }
+
+# A stage no version ever released is still refused, and the message says that
+# it looked at earlier versions too rather than implying nobody ever declared it.
+vb2="$tmp/version-inherit-none"
+mkdir -p "$vb2/TaskFlowDocs/2026-09-27-none"
+git -C "$vb2" init -q
+printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$vb2/TaskFlowDocs/2026-09-27-none/prd.md"
+cp "$vb/TaskFlowDocs/$vb_name/plan.md" "$vb2/TaskFlowDocs/2026-09-27-none/plan.md"
+printf '# Todo\n\n## Items\n\n## None\n\n- ID: TF-20260927-cccccc\n- Status: promoted\n- Owner: Claude\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: none fixture\n- Task: `TaskFlowDocs/2026-09-27-none/`\n' > "$vb2/TaskFlowDocs/todo.md"
+if bash "$HERE/task" approve 2026-09-27-none --root "$vb2" >"$vb2/o" 2>&1; then
+  echo "FAIL a stage no version released was approved"; cat "$vb2/o"; exit 1
+fi
+grep -q 'no earlier version of this task released it either' "$vb2/o" \
+  || { echo "FAIL the refusal does not say it looked at earlier versions:"; cat "$vb2/o"; exit 1; }
+echo ok
+
 echo "== an unaided declaration never overwrites the gate's own release =="
 # The two writers share one file, so the overlap has to be defined rather than
 # left to whoever runs last. A stage the gate released against a real invocation
