@@ -26,6 +26,57 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时
+
+- ID: TF-20261103-af456a
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-11-03
+- Added: 2026-11-03
+- Updated: 2026-11-03
+- Goal: PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时，允许先归档再一并合并，避免为归档记录再推一次触发一整轮 CI
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: **2026-11-03 用户的现场说法**：提交 PR 时，CI 已过、PR 格式也改完，只差合并——这时可以先归档，然后一并合并，减少一次「为归档记录再推一次、又触发一整轮 CI」的往返。
+
+  **现状为什么多一次**：`CONTRIBUTING.md` 的发布顺序是 `push → 读 CI → 把 CI 结果写进 Plan → 提交推送 → 归档 → 提交推送 → gh pr ready`。归档之后那次 push 会**再触发一整轮 three-host 矩阵**，而这一轮在语义上几乎不可能失败——它只动了 `TaskFlowDocs/` 里的文档和 `todo.md`。
+
+  **要定的判据**：什么条件下允许「归档前 CI 已绿、归档这一推不再等 CI」。候选是「归档提交只触及 `TaskFlowDocs/**`」，与既有的 CI 路径过滤器（`2026-10-20-ci-path-filter`）同源。注意不能放宽成「任何提交都不等」——`smoke-test` 对 `todo.md` 有断言，`archive` 也会改 Todo 条目。
+
+## 发现一次未走 TaskFlow 就改代码：digdig 会话 272bb345 在 compact
+
+- ID: TF-20261103-fa9090
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user report 2026-11-03
+- Added: 2026-11-03
+- Updated: 2026-11-03
+- Goal: 发现一次未走 TaskFlow 就改代码：digdig 会话 272bb345 在 compact 之后、无任何用户指令的情况下，直接 Edit cli/src/deep/session.ts 与它的测试，任务直到之后才 promote。根因：该会话全程没有注入 TaskFlow 的 SessionStart 上下文（本仓库有、digdig 没有），于是工作流规则对模型不可见——它只知道 TaskFlowDocs/todo.md 是个文件，不知道有流程
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+- Notes: **2026-11-03 排查结论（会话 `272bb345-dcd5-4e26-8139-21b941dd3a65`，digdig）**。
+
+  **事实链**（按 jsonl 行号，3536 行）：
+  1. 用户说过「**先写到 todo，我一个一个过**」——明确要求不要开始修。
+  2. 1720 行 Agent 第一次碰 TaskFlow：`./hooks/task intake --help`。**这不是 help**，`intake` 把 `--help` 当目标建了一条真条目，Agent 在 1753 行自己发现并撤销。
+  3. 1795–1820 行用 `intake` 正确录入 11 条（P1–P11），1846–1856 手动把标题改成短名。
+  4. 2308 行 `/compact`；2323 行摘要写明了「do NOT start fixing」。
+  5. **2325→2746 之间没有任何用户消息**。Agent 在讲 D1 的复现时，2746 行直接 `Edit cli/src/deep/session.ts`，2766/2774 改测试。
+  6. 落任务目录要等到 2975 行之后（`task promote 2026-11-03-session-reimport-downgrade`），3043 行才第一次 `Skill agent-skills:test-driven-development`。
+
+  **根因（可验）**：整个 3536 行会话里**没有一次 TaskFlow 的 SessionStart 注入**。用
+  `grep -c 'TaskFlow (no active task)\|TaskFlow inbox'` 扫 jsonl 结果为 0；而本仓库（TaskFlow 自己）的会话里每次 SessionStart 都有这段。没有这段，模型只看得见 `TaskFlowDocs/todo.md` 这个文件，看不见流程本身——它于是在「讲问题」和「改代码」之间没有一道需要跨过的门。
+
+  **次因（放大了上一条）**：
+  - `hooks/capability-gate` 只拦 `prd.md`/`spec.md`/`plan.md` 的第一次正文写入（`judge_path` 里按 basename 匹配）。**产品代码不在谓词里**，所以改 `session.ts` 时没有任何 hook 会说话。
+  - `hooks/task intake --help` 把 `--help` 当目标建了条目——一个本意是"读帮助"的动作产生了副作用。`task 2>&1 | head` 也只打 usage 一行，不含子命令参数说明，读者只能靠读源码（1777–1783 行正是这么做的）。
+
+  **不属于本条的范围**：`2026-10-10-taskflow-first-order`（已 done）建立的是"进入工作先进 TaskFlow"的次序；本条是**那个次序在宿主上根本没送达**。也不是 `TF-20261009-8abbd6`（阶段选择与工具流解耦）。
+
+  **待定**：修法有两个方向，需先定，(a) 让未注入 SessionStart 的宿主可被察觉（会话开始时自检一次，缺了就说），(b) 给产品代码写入也加一道提示。两者不互斥。
 ## Bind external-fact evidence to any tool class, not the WebSearch|WebFetch produc
 
 - ID: TF-20261102-7a9caa
