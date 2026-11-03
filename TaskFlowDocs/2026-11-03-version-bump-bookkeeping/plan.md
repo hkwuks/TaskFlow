@@ -80,9 +80,8 @@ No spec required — small, self-contained task.
 
 ## Verification / Review
 
-- 2026-11-03 Step 1: 见 Verification / Review
-
-- [x] `bash hooks/smoke-test` 全绿（ALL SMOKE PASSED）
+- [x] CI `Hooks` 工作流 three-host 矩阵全绿：smoke ubuntu 25s / windows 1m2s / macos 1m16s，changes 与 todo-merge-audit 通过（run 41663686400，PR #115）
+- [x] `bash hooks/smoke-test` 本地全绿（ALL SMOKE PASSED）
 - [x] 变异验证：删继承→A1 红；去版本上限→辅助断言红；无记录→拒绝且文案点名
 - [x] 端到端：v1 申报四次并 approve，升 v2 后零申报 approve 通过，evidence 仍 4 行
 
