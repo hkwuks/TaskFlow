@@ -88,13 +88,8 @@ No spec required — small, self-contained task.
 
 ## Verification / Review
 
-- 2026-11-03 Step 3: 见 ## Verification / Review
-
-- 2026-11-03 Step 2: 见 ## Verification / Review
-
-- 2026-11-03 Step 1: 见 ## Verification / Review
-
-- [x] `bash hooks/smoke-test` 全绿（ALL SMOKE PASSED，108 个 ok 段）
+- [x] CI `Hooks` 工作流 three-host 矩阵全绿：smoke ubuntu 30s / windows 52s / macos 1m24s，changes 与 todo-merge-audit 通过（run 41663579521，PR #114）
+- [x] `bash hooks/smoke-test` 本地全绿（ALL SMOKE PASSED，108 个 ok 段）
 - [x] 变异验证两次：删掉 `cp` → 「archive did not carry sessions.md to the base checkout」变红；无条件建 base 目录 → 「archive created a base directory for a file that does not exist」变红
 - [x] `git diff --check`
 - [x] 幽灵目录已清理：`TaskFlowDocs/2026-10-29-schema-check/` 不存在，记录已到 `achieved/2026-10-29-schema-check/sessions.md`
