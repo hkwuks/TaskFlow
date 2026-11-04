@@ -88,9 +88,9 @@ Git 擅长记录机械修改；TaskFlow 增加的是**语义历史**：只有目
 | 状态、批准、交接、回滚和恢复记录 | 替换编辑器、Git、测试工具或其他 Skills |
 | 重大决策的语义版本边界 | 强制 Agent 模型、编程语言、框架或工具链 |
 
-在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。在 Claude Code、CodeBuddy 与 Trae 上，`prd.md`、`spec.md`、`plan.md` 的首次正文写入会被拒绝，直到该阶段确实调用过某项能力——记录来自工具调用本身而不是文档，因此没有任何措辞可以替代一次并未发生的调用。证据账本是一条按「最早优先」消费的队列，阶段是门释放文档时贴上去的，所以哪个阶段花掉哪条调用记录，取决于文档被写的先后，而不是调用的先后；`approve` 因此校验每个阶段行点名的能力**属于本 Task 版本释放过的调用**，而 `Unaided` 阶段仍要求逐字等于声明的类别。确实没有值得调用的能力时，改用显式声明：`hooks/task unaided <stage> --considered "<概念类别>"`。
+在任一阶段开始实质工作前，Agent 都会检查宿主当前可用的 Skill、工具、MCP Server 和 Agent，并自由判断是否有能力能提供实质帮助。TaskFlow 的产物名称是它自己的，因此阶段与能力按「产物对应的概念类别」匹配，而不是按 TaskFlow 的名称匹配。TaskFlow 不强制选择任何特定能力，也不限定名称、提供方、调用链、能力类别或数量。Agent 一旦选择使用某项能力，就先通过宿主机制真实调用或加载，再采用其工作流或输出；发现或选择本身不算调用。所有输出都先审阅再纳入，`plan.md` 只记录真实调用尝试及其结果。在 Claude Code、Codex、CodeBuddy 与 Trae 上，`prd.md`、`spec.md`、`plan.md` 的首次正文写入会被拒绝，直到该阶段凭已记录的能力被释放——记录来自工具调用本身而不是文档，因此没有任何措辞可以替代一次并未发生的调用；在 Codex 上有门但不记录能力调用，该阶段用 `hooks/task unaided` 释放。证据账本是一条按「最早优先」消费的队列，阶段是门释放文档时贴上去的，所以哪个阶段花掉哪条调用记录，取决于文档被写的先后，而不是调用的先后；`approve` 因此校验每个阶段行点名的能力**属于本 Task 版本释放过的调用**，而 `Unaided` 阶段仍要求逐字等于声明的类别。确实没有值得调用的能力时，改用显式声明：`hooks/task unaided <stage> --considered "<概念类别>"`。
 
-TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy、dsh 与 Trae）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。在 Claude Code、CodeBuddy 与 Trae 上，hook 还会记录真实的能力调用，并在该阶段尚无调用时拒绝阶段文档的首次正文写入。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态——写前门只能拒绝，不能批准。
+TaskFlow 还可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy、dsh 与 Trae）协作：会话启动时，hook 只确定性维护 `repository-docs/index.md` 的路由元数据，并注入当前阶段适用的源文档路径和状态。Agent 先读 index，再读取其中导流的权威源文档，并把采用的路径和结论记录进 Plan。在 Claude Code、CodeBuddy 与 Trae 上，hook 还会记录真实的能力调用；在 Claude Code、Codex、CodeBuddy 与 Trae 上，它会在该阶段尚无记录时拒绝阶段文档的首次正文写入——Codex 上有门但不记录能力调用，该阶段用 `hooks/task unaided` 释放。hook 不复制规则正文，不修改源规则、核心任务文档或审批，也不改变 Git 或托管平台状态——写前门只能拒绝，不能批准。
 
 ## 防止设计丢失的一条规则
 
@@ -192,7 +192,7 @@ codex plugin add taskflow@taskflow
 
 Codex 与 Claude Code 使用同一个固定版本条目；manifest 版本、Git tag 和固定 commit 共同标识已安装的稳定构建。
 
-依赖这些 hook 之前，先在 Codex 的 `/hooks` 里复核并信任该插件的 hook：Codex 只运行用户已复核并信任的 hook，未复核的安装会显示为 enabled 而 hook 实际不生效。TaskFlow 在 Codex 上只接 SessionStart——写前门要等到它能解析 `apply_patch` 的补丁文本才谈得上接线（见 runtime 参考的 **Codex specifics**），在该宿主上放行阶段用 `hooks/task unaided`。
+依赖这些 hook 之前，先在 Codex 的 `/hooks` 里复核并信任该插件的 hook：Codex 只运行用户已复核并信任的 hook，未复核的安装会显示为 enabled 而 hook 实际不生效。TaskFlow 在 Codex 上接入 SessionStart、每轮提醒、`PreToolUse`（匹配 `apply_patch`）的写前门，以及 `PostToolUse` 的外部查证记录。写前门从补丁文本里解析目标路径，因为 Codex 的编辑工具不提供文件路径（已文档化，尚未在真实 Codex 上实测，见 runtime 参考的 **Codex specifics**）。Codex 不记录能力调用，因此该宿主上的阶段用 `hooks/task unaided` 释放。
 
 验证是否加载成功：
 
