@@ -1040,8 +1040,18 @@ grep -q 'chore/tear-task' "$tear_out" \
   || { echo "FAIL teardown instruction did not name the branch that gates it"; cat "$tear_out"; exit 1; }
 grep -qi 'merged into the base' "$tear_out" \
   || { echo "FAIL teardown instruction did not state its condition"; cat "$tear_out"; exit 1; }
+# The branch is deleted in the same step, and only with `-d`. `-d` is the safety
+# property, not a detail: it refuses an unmerged branch, so the pair of commands
+# is safe without the reader judging anything. `-D` would delete exactly the
+# branch the old wording was protecting. Both halves are asserted — naming `-d`
+# and never naming `-D` — because a mutation to `-D` passes a `-d` assertion
+# written as a substring match on `branch`.
+grep -q "git branch -d 'chore/tear-task'" "$tear_out" \
+  || { echo "FAIL teardown did not delete the merged branch in the same step"; cat "$tear_out"; exit 1; }
+grep -q 'git branch -D' "$tear_out" \
+  && { echo "FAIL teardown offered the force-delete the -d guard exists to prevent"; cat "$tear_out"; exit 1; }
 grep -qi 'branch survives' "$tear_out" \
-  || { echo "FAIL teardown did not say the branch outlives the directory"; cat "$tear_out"; exit 1; }
+  && { echo "FAIL teardown still says the branch outlives the directory"; cat "$tear_out"; exit 1; }
 # The same repository's main working tree is not a task tree, so archiving from
 # there prints none of it. This fixture is a real Git repository on purpose: the
 # plain archive fixture above is a bare directory, where the git-dir lookup
@@ -4654,6 +4664,47 @@ out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
 set -e
 printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/detached" \
   && { echo "FAIL a detached worktree was reported"; printf '%s\n' "$out"; exit 1; }
+# A merged branch with no worktree left to hold it. This is the state the
+# previous section's own remedy produces: `git worktree remove` never deletes the
+# branch, so following its instruction moved the leftover out of every report.
+# Measured 2026-11-04: three such branches in this repository, named by nothing.
+#
+# Three exclusions carry the safety of the section, so all three are asserted
+# rather than assumed: the base branch (never a leftover — and on this fixture
+# it is `main`, which no worktree in the list owns once the check runs from a
+# task tree), a branch a worktree still has checked out (its own section owns
+# it), and an unmerged branch (`-d` would refuse it anyway; reporting it would
+# invite `-D`).
+(
+  cd "$wt_root" || exit 1
+  git branch -q chore/loose-merged
+  # Built from a commit of its own, not from HEAD: a branch created at the base
+  # tip is already merged, and a fixture that mistakes it for an unmerged one
+  # asserts nothing about the ancestry test.
+  git worktree add -q .worktrees/loose-build -b chore/loose-unmerged
+  cd .worktrees/loose-build || exit 1
+  printf 'loose\n' > loose.txt && git add -A && git commit -qm loose
+  cd "$wt_root" || exit 1
+  git worktree remove .worktrees/loose-build
+) || { echo "FAIL loose branch fixture"; exit 1; }
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+[ "$rc" -eq 0 ] || { echo "FAIL a leftover branch changed the verdict: $rc"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/loose-merged" \
+  || { echo "FAIL a merged branch with no worktree was not reported"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/loose-unmerged" \
+  && { echo "FAIL an unmerged branch was reported for deletion"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- main$" \
+  && { echo "FAIL the base branch itself was reported as a leftover"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/merged" \
+  && { echo "FAIL a branch a worktree still holds was reported by both sections"; printf '%s\n' "$out"; exit 1; }
+# The remedy is `-d`, and it says so. The force flag belongs nowhere near a
+# report whose entire safety argument is that Git refuses the unsafe case.
+printf '%s\n' "$out" | grep -q 'git branch -d <branch>' \
+  || { echo "FAIL the leftover report did not name the safe delete"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q 'git branch -D' \
+  && { echo "FAIL the leftover report offered a force delete"; printf '%s\n' "$out"; exit 1; }
 echo ok
 
 echo "== remote-topology reads the facts a push decision needs, and never guesses =="

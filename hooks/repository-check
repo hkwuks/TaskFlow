@@ -186,10 +186,50 @@ EOF
   else
     printf 'Stale task worktrees:\n%s' "$stale"
     echo "  Branch already in $base_ref and nothing uncommitted: the worktree has nothing left to protect."
-    echo "  Remove each with: git worktree remove <path>   (the branch survives)"
+    echo "  Remove each with: git worktree remove <path>, then delete the branch: git branch -d <branch>"
   fi
 else
   echo "Stale task worktrees: unknown (no upstream base to compare against)"
+fi
+
+# A branch whose worktree is already gone. The section above only sees a
+# worktree; `git worktree remove` never deletes the branch, so removing one is
+# what makes its branch invisible — it leaves every other report at once and
+# accumulates silently afterwards. Measured 2026-11-04: three merged branches
+# were sitting in this repository with nothing naming them.
+#
+# Same judgement as above, and the same two reasons for it. Ancestry only, so a
+# squash- or rebase-merged branch is not reported — a false negative, which is
+# the safe direction, because a false positive would invite deleting a branch
+# that still holds the only copy of a commit. And report only, never delete, and
+# never set `needs`: housekeeping is not a workflow verdict.
+#
+# Excluded, each for its own reason: the base branch itself (never a leftover);
+# every branch some worktree still has checked out (that worktree's own section
+# owns it, and deleting it out from under a checkout fails anyway); and a
+# repository with no upstream, which has no base to compare against.
+checked_out=""
+if [ -n "$base_ref" ]; then
+  checked_out="$(printf '%s\n' "$worktrees" | sed -n 's/^branch //p')"
+  loose_branches=""
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    [ "$candidate" != "$base_ref" ] || continue
+    printf '%s\n' "$checked_out" | grep -qxF "refs/heads/$candidate" && continue
+    git merge-base --is-ancestor "$candidate" "$base_ref" 2>/dev/null || continue
+    loose_branches="$loose_branches- $candidate
+"
+  done <<EOF
+$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)
+EOF
+  if [ -z "$loose_branches" ]; then
+    echo "Merged branches without a worktree: none"
+  else
+    printf 'Merged branches without a worktree:\n%s' "$loose_branches"
+    echo "  Already in $base_ref, with no worktree left to hold them. Delete each with: git branch -d <branch>"
+  fi
+else
+  echo "Merged branches without a worktree: unknown (no upstream base to compare against)"
 fi
 
 if [ "$needs" -eq 1 ]; then
