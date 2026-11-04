@@ -26,6 +26,33 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only
+
+- ID: TF-20261104-d3ac3c
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user question 2026-11-04
+- Added: 2026-11-04
+- Updated: 2026-11-04
+- Goal: README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only and the pre-write gate cannot be wired there, which stopped being true at af8719a (2026-10-30, shipped in v1.1.10)
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: **2026-11-04 核对结论**。用户问「D1 的门控修复 Codex 也修了吗」，答：**修了**，因为 `hooks/capability-gate` 是宿主无关的共享脚本，`stage_classes()` 的修复对所有接了它的宿主同时生效。
+
+  **真正的问题在文档**：`README.md:229` 与 `README.zh-CN.md:196` 都还写着「Codex 只接 SessionStart，写前门要等到能解析 `apply_patch` 的补丁文本才谈得上接线」。这句话在 `af8719a feat: wire the pre-write gate on Codex and stop four silent allows`（2026-10-30，随 **v1.1.10** 发布）之后就已经不成立。
+
+  **证据**：
+  - `hooks/hooks-codex.json` 有 `PreToolUse` / `matcher: "apply_patch"` → `hooks/capability-gate`。
+  - `hooks/capability-gate:84-128` 正是读 `tool_input.command` 里的 patch 文本、提取 `*** Update File:` / `*** Add File:` / `*** Delete File:` / `*** Move to:` 的那段——也就是 README 说「还做不到」的那件事。
+  - `skills/taskflow/references/runtime.md:50` 的 Codex 列**已经更新**，写明 `PreToolUse`（`apply_patch`）→ deny，路径从 patch 文本读出。所以只有两份 README 落后。
+
+  **危害属于误导而非崩溃**：读者会以为 Codex 上闸门不可用，从而用 `task unaided` 去绕过一个**其实存在**的检查。而 `task unaided` 写的是「声明该阶段无能力可用」，用它来绕开一个能用的门，会让证据记录失真。
+
+  **要做**：两份 README 的同一段都改成「Codex 的 `PreToolUse`/`apply_patch` 已接写前门」，并保留其中仍然正确的是：「先在 `/hooks` 复核并信任，否则 enabled 但 hook 不生效」。中文那份要同步。
+
+  **顺带核对**：同类陈述是否还有其他宿主版本（CodeBuddy 曾有过一样的过时说法，`7dcde8c` 修过一次）。修的时候应该一次性扫一遍五宿主 × 两份 README × runtime.md 是否互相一致。
+
 ## Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github
 
 - ID: TF-20261104-e151e6
