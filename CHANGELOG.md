@@ -51,7 +51,7 @@
 
 ### Release
 
-- **Tag `v1.1.14` names `TAG_COMMIT_SHA`; the pin commit is `PIN_COMMIT_SHA`; the GitHub Release is `RELEASE_URL`.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+- **Tag `v1.1.14` names `ca2d42e9aa4fdf4eedde3d73e3db7e5da271763c`; the pin commit is `9893567`; the GitHub Release is https://github.com/hkwuks/TaskFlow/releases/tag/v1.1.14.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
 
 ## [1.1.13] — 2026-11-04
 
