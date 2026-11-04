@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+## [1.1.13] — 2026-11-04
+
+### Fixed
+
+- **The pre-write gate's block message now names every concept class its phase offers, not just the first.** `hooks/capability-gate` kept a hand-written `stage_class` that returned one class per stage, while the phase table in `skills/taskflow/SKILL.md` offers two for PRD: `requirements elicitation and framing` and `divergent exploration`. Measured 2026-11-03 while writing a task's own PRD — the gate blocked the write and offered only the converging class, so an agent set up to diverge was told to converge, which is the one instruction that makes the phase produce the wrong document. The block message is the only place the rule reaches an agent at the moment it matters, so a class the function omits is a class that phase cannot find. `stage_classes()` now returns the table's full list for PRD, Spec and Plan, and `stage_class()` takes its first entry, because `--considered` records the one class that actually applied and the copy-pasteable escape command still has to carry exactly one. Both block messages append the full list beside that command, and only when the stage offers more than one — the single-class stages, Spec and Plan, read byte-identically to before.
+
+  `hooks/smoke-test` now compares the function against the phase table in both directions, the same way the vocabulary beside it is checked: a class in the table but not in the message is unreachable at the moment of writing, and one in the message but not in the table sends an agent after a phase that does not exist. Each stage row is located by its artifact cell rather than its phase number, because the document is what decides the stage.
+
+- **A Task-version bump no longer demands a fresh stage record per stage for a changed version number and nothing else.** The idempotence key is `(task, version, stage)` while the evidence queue behind it is global and monotonic, so every bump spent N new evidence lines. Measured 2026-11-03 on a probe repository: v1 through v3 spent twelve evidence lines, eight of them duplicates, and not one a real capability invocation. `hooks/task approve` now falls back to `rel_inherit`, which returns the record this task wrote for the stage at the highest version **below** the current one — same task only, never a later version, never another task's row. It prints `stage [PRD] inherited from v1 (no record in v2)`, named rather than silent, because a stage that passes with no row at this version otherwise reads as a hole to anyone comparing `released` with the Plan. Inheritance spends nothing: no evidence line and no release row, so `highest released sequence == evidence line count` still holds and `recover` and `unaided`'s guard are unaffected. The refusal now says it looked at earlier versions too, rather than implying nobody ever declared the stage.
+
+  The gate deliberately does **not** inherit, and the split is the point. Its rule is *one invocation cannot serve two stages*: within a single version the gate answers "has this stage been paid for", and inheriting there lets the second document of a version free-ride on the first one's call. `released` carries nothing that distinguishes "a new version" from "the second document of this version", so the gate cannot make the distinction and must not try. The residual cost is one real call or one declaration for the first document a bump actually touches — not N per stage.
+
+- **A task's clone-local `sessions.md` now reaches the base checkout when the task is archived.** The file is excluded from Git rather than tracked, so it never enters the archive commit. It travelled inside the directory instead, and both ways that can end lose the record without reporting it: from a task worktree, `git worktree remove` deletes the directory and does not treat an ignored file as a reason to refuse; from the base checkout, a merge leaves the file behind in a directory that no longer exists elsewhere — a ghost `git status` cannot show. Both reproduced 2026-11-03, and this repository already had one ghost (`TaskFlowDocs/2026-10-29-schema-check/`), whose archive commit landed while its record did not. After the `mv`, `hooks/archive` now copies the named clone-local files to the base checkout, located through `commondir` in the absolute git dir, creating the base `achieved/<task>/` directory if absent — it does not exist until the merge, and the worktree is deleted before that, so waiting would mean never copying. The step is best-effort by design: an unwritable target prints one `archive note:` line and leaves the exit code alone, because archiving is a transaction over the directory move and the Todo entry and a resume record is neither. A task with no clone-local file produces no extra output and no empty base directory, and the carried copy stays out of `git status` exactly as the original did.
+
+### Compatibility
+
+- **No install command changes, no rename, and no hook gains an interpreter dependency.** The four manifests keep their shape, every `hooks-*.json` wiring file is untouched, and the new code is `git`, `awk`, `sed`, `grep`, `tr`, `cp`, `mkdir` and POSIX shell builtins.
+
+- **An existing capability store needs no migration, in either direction.** `rel_inherit` only reads rows already written in the six-field format that shipped in 1.1.9, and it never adds one. A store with a five-field row still reports it as belonging to no task, unchanged.
+
+- **`hooks/archive`'s file list is one explicit entry, `sessions.md`.** It is not "everything the exclude rules match": discovering that automatically needs `git check-ignore`, which answers per clone and so answers differently in a different checkout. A second clone-local file is a one-line addition to `LOCAL_ONLY_FILES`, recorded as deferred in the archived task PRD.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass`.
+- `bash hooks/repository-check .` — `STATUS: pass`, `Orphan task directories: none`, `Stale task worktrees: none`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally for the release commit, and recorded as skipped**, per the CI-first policy in `CONTRIBUTING.md` and `RELEASE.md`. The release commit's difference from `b6f3ae9` — the last commit on `main` before this release began, CI run [`41763283779`](https://github.com/hkwuks/TaskFlow/actions/runs/41763283779), 7/7 `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads: no `$repo/README`, `$repo/CHANGELOG`, `$repo/package.json` or `$repo/.*-plugin` path appears in `hooks/smoke-test`, and its release-surface coverage builds its own manifests and catalogs in a fixture rather than reading the shipped ones. The commit after it moves only the two marketplace catalogs, which `tools/workflow-affected` also does not put in the `smoke` set.
+- The suite ran on all three hosts for every change this release ships, on the merge commits themselves: `b6f3ae9` (capability gate), `494f509` (archive), `fd8210c` (version-bump inheritance) — `smoke` on `ubuntu-latest`, `macos-latest` and `windows-latest`, plus `changes`, `release`, `evals` and `todo-merge-audit`. Each change also carries its own local evidence and mutation table in the Task Plan that landed with it (`TaskFlowDocs/2026-11-03-gate-stage-class/plan.md`, `TaskFlowDocs/achieved/2026-11-03-archive-local-files/plan.md`, `TaskFlowDocs/achieved/2026-11-03-version-bump-bookkeeping/plan.md`); every mutation reddened its own named assertion.
+
+### Known limitations
+
+- **The concept-class list still exists three times.** `stage_classes` in `hooks/capability-gate`, `concept_class_re` in `hooks/task`, and the phase table in `SKILL.md` are hand-kept copies. This release makes the gate's copy agree with the table and adds an assertion that keeps the two in step; it does not merge them into one source. That is a larger change, and `concept_class_re`'s own looseness is a separate problem — recorded as deferred in `TaskFlowDocs/2026-11-03-gate-stage-class/prd.md`.
+- **`approve`'s inheritance is per task and per stage only.** A stage whose *class actually changed* between versions is not detected by the store. `approve` still reconciles the Plan's `Skills / Tools Used` line against the record, so a bump that really changed the class is refused there — that reconciliation is what makes the inheritance safe rather than blanket.
+
 ## [1.1.12] — 2026-11-02
 
 ### Added
