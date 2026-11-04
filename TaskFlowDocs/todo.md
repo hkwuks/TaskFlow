@@ -47,44 +47,11 @@ has an issue number or URL.
 ## 收到「修D1」后跳过全部 TaskFlow 阶段直接改产品代码，且改在 base checkout
 
 - ID: TF-20261103-fa9090
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user report 2026-11-03
-- Added: 2026-11-03
-- Updated: 2026-11-03
+- Status: done
 - Goal: 用户下「修D1」后，Agent 跳过整个 TaskFlow 阶段直接改产品代码，且改在 main 的 base checkout 上；TaskFlow 对此没有任何拦截。要查的是：规则送达了、违反也发生了，为什么中间没有一道门
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/achieved/2026-11-04-skip-guard/`
+- Next action: None — completed and archived.
 
-- Notes: **2026-11-03 排查结论（会话 `272bb345-dcd5-4e26-8139-21b941dd3a65`，3536 行，digdig）**。
-
-  **先更正一条我起初写错的判断**：我先前说「该会话全程没有注入 TaskFlow 的 SessionStart 上下文」，**这是错的**。逐条读 `attachment.hookName` 可见注入发生了两次：line 4（startup，`# Active tasks - 2026-11-02-release-tag-fix`）与 line 2341（compact 之后，5161 字符，含 `# TaskFlow (no active task)` 与全部 inbox 条目）。版本也无关——`v1.1.10` 与 `v1.1.12` 的 `hooks/session-start` 与 `hooks/summarize-state` 逐字节相同，`diff` 为空。
-
-  **真实时序**（用户消息全程只有三句）：
-  - 2347「第一个问题是什么问题」→ Agent 逐条讲解 P1…D1；
-  - 2449「我说的是D1」；
-  - **2688「修D1」**——明确指令。
-  - Agent 在 **2746** 改 `cli/src/deep/session.ts`，2766/2774 改测试，2846 报告「D1 修好了」。
-  - **2867 用户发现**：「你说得对，两个问题都在：没进 TaskFlow，直接在 main 工作区改」。
-  - 2879 Agent 承认违规；2914 移到 worktree；2975+ 才 `promote` 建任务。
-
-  **所以违规不是「自作主张改代码」**——用户确实说了「修D1」。违规是**执行时跳过了全部阶段**：没有 promote、没有 PRD/Plan、没有 approve、没有 worktree，直接在 base checkout 改产品代码。
-
-  **为什么没有一道门拦住**（这是本条真正要修的）：
-  1. `hooks/capability-gate` 的 `judge_path` 按 basename 只认 `prd.md`/`spec.md`/`plan.md`。**产品代码（`cli/src/deep/session.ts`）不在谓词里**，改它时没有任何 hook 会说话。
-  2. `hooks/task promote` 只在被调用时才检查 worktree；**没有人调用它就不发生检查**。
-  3. SessionStart 注入的是**状态**（有/无活动任务、inbox 列表），不是**门**。它说了「applicable work is recorded first」，但这话在 2688 那一刻没有可执行的强制力——它是一条散文，而对话里紧接着就是一句「修D1」。
-  4. 真正起作用的拦截来自用户本人（2867），不是任何 hook。
-
-  **与既有条目的关系**：`2026-10-10-taskflow-first-order`（已 done）确立的是「进入工作先进 TaskFlow」的次序；本条是**那个次序在真实会话里没有任何机械执行点**。`TF-20261027-e4ba77`（已 done，midturn-presence）解决的是「长实现过程里 TaskFlow 不再发声」，本条的入口更早——**第一行产品代码写入**。不是 `TF-20261009-8abbd6`（阶段选择与工具流解耦）。
-
-  **待定的修法方向**（三者不互斥）：
-  (a) 给产品代码的首次写入加一道提示，与 `capability-gate` 同构，但**不能拒绝**（会毁掉所有非 TaskFlow 场景），只能提示并指向 `task promote`；
-  (b) 让 `promote`/`state` 之外多一个可检的「本仓库有未 promote 的活跃工作」信号；
-  (c) 收窄 SessionStart 的措辞，让「进入工作先进 TaskFlow」带上一个可执行动作而不是一句陈述。
-
-  需要先定方向再 promote。
 ## Bind external-fact evidence to any tool class, not the WebSearch|WebFetch produc
 
 - ID: TF-20261102-7a9caa
