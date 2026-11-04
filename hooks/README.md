@@ -19,9 +19,9 @@ taskflow/hooks/
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
-├── capability-evidence # records real capability invocations (Claude Code only)
-├── external-evidence   # records outside URLs from any tool's result, in a store of their own (every host that reports tool events)
-├── capability-gate     # refuses a stage document's first body write (Claude Code only)
+├── capability-evidence # records real capability invocations (Claude Code, CodeBuddy, Trae)
+├── external-evidence   # records outside URLs from any tool's result, in a store of their own (every host whose tool events are wired: all but dsh)
+├── capability-gate     # refuses a stage document's first body write (Claude Code, Codex CLI, CodeBuddy, Trae)
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
 ├── approval-check      # the one rule for whether a Plan's current version is approved
@@ -230,8 +230,11 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   Plan — the state line still comes from `summarize-state` — and a Plan that marks
   nothing produces the same three lines it always did.
   `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
-- `capability-evidence` and `capability-gate` are the pre-write gate pair, wired
-  for Claude Code, CodeBuddy, and Trae. The first appends one `kind|capability`
+- `capability-evidence` and `capability-gate` are the pre-write gate pair, but the
+  two halves are not wired on the same hosts. The recorder runs on Claude Code,
+  CodeBuddy, and Trae; the gate runs on those three plus Codex CLI, where it
+  matches `PreToolUse` on `apply_patch` and reads the target paths out of the
+  patch text. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;
   the second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
   active task directory until that stage can be released against such a line,
@@ -247,12 +250,13 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   directory — they must be, because `~/.claude/settings.json` hooks are
   machine-global and fire in unrelated repositories and concurrent sessions.
   Neither writes a core document; the gate can only deny, never approve.
-- The gate needs **two** things from a host, and a deny-capable event is only the
-  first: the event must carry the written file's path in the field the gate reads,
-  under a tool name the scripts already match. Codex has the event but not the
-  path (`apply_patch` sends the patch text), and dsh has both but names its tools
-  `write`/`edit` while every `case` arm is case-sensitive. Neither is wired, because
-  a hook that matches nothing allows every write while the docs claim a gate.
+- The gate needs one of **two input shapes** from a host, not merely a
+  deny-capable event: the written file's path under `tool_input.file_path` with a
+  tool name the scripts already match, or Codex's patch text under
+  `tool_input.command` with `tool_name: "apply_patch"`. Codex is wired on the
+  second shape. dsh delivers `tool_input.file_path` but names its tools
+  `write`/`edit` while every `case` arm is case-sensitive, so it is not wired: a
+  hook that matches nothing allows every write while the docs claim a gate.
   What does not depend on a gate is `hooks/task unaided`: it
   writes its own `released` line, so a stage can be declared on any host. That is
   also the whole carrier for `Test`, the one stage with no document: its
