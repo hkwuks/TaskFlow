@@ -29,20 +29,10 @@ has an issue number or URL.
 ## PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时
 
 - ID: TF-20261103-af456a
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-03
-- Added: 2026-11-03
-- Updated: 2026-11-03
+- Status: done
 - Goal: PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时，允许先归档再一并合并，避免为归档记录再推一次触发一整轮 CI
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-03 用户的现场说法**：提交 PR 时，CI 已过、PR 格式也改完，只差合并——这时可以先归档，然后一并合并，减少一次「为归档记录再推一次、又触发一整轮 CI」的往返。
-
-  **现状为什么多一次**：`CONTRIBUTING.md` 的发布顺序是 `push → 读 CI → 把 CI 结果写进 Plan → 提交推送 → 归档 → 提交推送 → gh pr ready`。归档之后那次 push 会**再触发一整轮 three-host 矩阵**，而这一轮在语义上几乎不可能失败——它只动了 `TaskFlowDocs/` 里的文档和 `todo.md`。
-
-  **要定的判据**：什么条件下允许「归档前 CI 已绿、归档这一推不再等 CI」。候选是「归档提交只触及 `TaskFlowDocs/**`」，与既有的 CI 路径过滤器（`2026-10-20-ci-path-filter`）同源。注意不能放宽成「任何提交都不等」——`smoke-test` 对 `todo.md` 有断言，`archive` 也会改 Todo 条目。
+- Task: `TaskFlowDocs/achieved/2026-11-04-ci-skip-archive/`
+- Next action: None — completed and archived.
 
 ## 收到「修D1」后跳过全部 TaskFlow 阶段直接改产品代码，且改在 base checkout
 
