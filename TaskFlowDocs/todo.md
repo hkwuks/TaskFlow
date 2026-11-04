@@ -294,22 +294,10 @@ has an issue number or URL.
 ## Decouple stage capability selection from the host tool-call stream: the PreToolU
 
 - ID: TF-20261009-8abbd6
-- Status: promoted
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-09, found while writing the trae-host PRD
-- Added: 2026-10-09
-- Updated: 2026-11-03
+- Status: done
 - Goal: Decouple stage capability selection from the host tool-call stream: the PreToolUse gate refuses the first write of prd/spec/plan unless a Skill/Agent/MCP call already matched, so a host that has no such call, or a session driven from a different cwd than the task worktree, forces either a throwaway invocation like skill(sxng) for a PRD already researched, or the unaided declaration for a phase that really did use a capability. Give the phase a way to record its selection that is not a tool-call artifact
-- Task: `TaskFlowDocs/2026-11-03-gate-stage-class/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: **2026-10-11 用户裁定并入本条（不新建）**：用户指出「头脑风暴类的引导，按理应由引导工具 lead 调研和编写文档的方向，TaskFlow 只规定流程」，要查是否如此。查到两处，都属本条的能力表示层。
-
-**(1) 门在正确时机投递的概念类，是 phase 表的一个子集 —— 可复现的机械缺陷。** `hooks/capability-gate` 的 `stage_class()` 是手抄的第二份表，PRD 只写 `requirements elicitation and framing`；而 `SKILL.md:167` phase 1 的类是 `requirements elicitation and framing; divergent exploration`（`divergent` 在 SKILL.md 出现 2 次，在 gate 里 0 次）。`divergent exploration` 在 `hooks/task:606` 的词表里、`unaided` 接受它，但**门的拒绝消息从不提它**。这是唯一「在正要写文档那一刻、无法忽略」的投递渠道（R7 的原始动机，见 `achieved/2026-09-27-capability-pre-write-gate/prd.md`），而它在 PRD 这一格只广播 converge 一个方向。`smoke-test:1740-1742` 只断言消息含 stage/类/逃生舱三要素，**没有任何断言比较 stage_class 与 phase 表**——而 phase 表与 `concept_class_re` 之间是有双向断言钉住的（`smoke-test:1596-1621`），两份手抄表只钉了一份。`achieved/2026-10-08-capability-concept-classes/prd.md` A5 明确要求 `stage_class()` 逐字不变，所以那次改动**故意**没碰它。
-
-**(2) 交付物 schema 先于能力定死，能力只能「折进」（设计层观测）。** `prd.md` 必备小节、Plan 每 Step 的 acceptance/verification/rollback、`task approve` 的 stage 对账（`hooks/task:1055-1092`）、change-log 只能进 `plan.md`（`SKILL.md:252`）——这些在咨询任何引导工具之前就已经固定。引导工具的产出按类被折入（`SKILL.md:177`：requirements → prd.md，design → spec.md，breakdown → plan.md Steps）。设计声明是「能力供专业、TaskFlow 供流程」（`SKILL.md:8`、`159`、`163` 都写了），但强制预算全在流程侧，能力侧只有无预算的散文。历史旁证：`idea-refine` / `brainstorming` 真被用过（`achieved/2026-09-23-capability-invoke-gate/plan.md:22`），`2026-10-08-capability-concept-classes/prd.md:27` 却记录它们「没有回流成引导」。
-
-**(1) 是可独立修的小缺陷**，修法与既有约定一致：要么让门的显示类从 phase 表派生，要么加一条和 `concept_class_re` 同风格的双向断言。用户 2026-10-09 对 (3) 的裁定（把硬 deny 降为 approve 时对账）如落地，(1) 会随之消解。相关：TF-20261008-5b5635（已 done，即上述能力类改动）
+- Task: `TaskFlowDocs/achieved/2026-11-03-gate-stage-class/`
+- Next action: None — completed and archived.
 
 ## Adapt TaskFlow to Trae IDE as a fifth host: ship hooks/hooks-trae.json and a doc
 

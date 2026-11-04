@@ -1,7 +1,7 @@
 # 门拒绝提示只广播了阶段的一半概念类
 
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 
