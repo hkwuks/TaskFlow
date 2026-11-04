@@ -26,6 +26,19 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a mer
+
+- ID: TF-20261104-b1681b
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user report 2026-11-04 during PR #117
+- Added: 2026-11-04
+- Updated: 2026-11-04
+- Goal: The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a merge when its caller times out: the interrupted run leaves %A as ours, so the merge commits one side's file with no driver result and no error
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时
 
 - ID: TF-20261103-af456a
