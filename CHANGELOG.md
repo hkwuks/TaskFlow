@@ -2,6 +2,57 @@
 
 ## [Unreleased]
 
+## [1.1.14] — 2026-11-04
+
+### Added
+
+- **A prompt with no task in flight now states the entrance rule, in the one place a line can arrive with the instruction.** `hooks/prompt-reminder` previously spoke only while a task was `in_progress` or `checking`, and was silent for the state that actually preceded the failure it exists for. Measured 2026-11-03, session `272bb345`: the session had been given the task state twice (startup and after a compaction), the user then said *"修D1"*, and the Agent skipped intake, promotion, PRD/Plan, approval and the worktree, editing a tracked source file in the base checkout. Every other hook was silent for a structural reason rather than by oversight — the capability gate judges by stage-document basename, and `task promote` checks the tree only when somebody calls it. `SessionStart` injects *state*, not a gate, and the sentence that was supposed to cover it ("applicable work is recorded first") is prose at the top of a long session, which a terse instruction displaces.
+
+  When `summarize-state` reports `# TaskFlow (no active task)` — which it prints only for a repository that records work — the hook now names both commands (`task intake`, then `git worktree add`) and exempts read-only work. The reminder says "this work tree", not "this repository", because a base checkout whose task lives in `.worktrees/<slug>` looks exactly like this state and both readings are then true. A repository that has never used TaskFlow, one with a task at any phase, a cwd outside a repository, a non-`UserPromptSubmit` event and unparseable input all stay silent, which is the contract the hook already had.
+
+### Changed
+
+- **`CONTRIBUTING.md` releases the last push before a merge from waiting on CI, when every changed path is under `TaskFlowDocs/`.** A task's closing sequence ends with two pushes — the verification record and the archive — and each triggered a full three-host matrix over a diff the suite has nothing to say about. The rule is stated as a path set rather than a judgement, and it requires the code commit's CI to be green and named in the pull request body; a push to `main` still runs the full matrix. What it removes is the wait on the pull request, not the check.
+
+  The path set includes `todo.md`, which an earlier draft excluded on the belief that the suite reads it as a general input. It does not: `hooks/smoke-test` reads `todo.md` at exactly two places, both inside the `## Item template` section, and `hooks/archive` rewrites entries under `## Items` and never touches the template. Excluding it would have released the rule from the only case it exists for.
+
+### Fixed
+
+- **The Todo merge driver resolves in one awk process instead of roughly a thousand, and leaves `%A` alone when it does not finish.** It was correct and unusably slow: every lookup was answered by a `grep | head | cut` pipeline, so a 125-entry `todo.md` across three sides cost about a thousand process starts — measured 2026-11-04 on Windows/Git Bash at 154–227 seconds for one merge. That is long enough for a caller to time it out, and an interrupted run left `%A` exactly as Git handed it over, so `git merge` reported success with one side's file and **no driver result**. Measured on the merge of PR #117: that merge commit's `todo.md` was byte-identical to the ours side, which cost a hand-written repair commit on `main`.
+
+  Now at 1 second on the same input, with output byte-identical to the old implementation's on both the real merge inputs and a synthetic 125-entry fixture. The result is built beside `%A` and copied in only after the whole decision is made, so a run that dies partway leaves Git's original content where it was and its nonzero exit reports the failure. The matching rules themselves are unchanged: identity by ID token then heading, `## Removed` keyed `head:Removed`, deletion beating a lone live copy, tombstone bodies unioned by ID, order ours-then-theirs-only, and a record both sides changed still gets conflict markers and exit 1.
+
+  Four implementation defects were found and fixed while getting there, each red before green: awk has no `k in arr[i]` slice test (flat `SUBSEP` keys instead); `next` on `FNR==1` swallowed each side's first line, which in this file is the `## Item template` heading; the heading key was prefixed `head:` twice; and splitting a whole record on spaces left `\n-` on every ID, so a tombstone could not match the live entry it replaces. The last one was caught by the existing smoke section, not by a new assertion.
+
+- **A task that reached `main` without its archive was archived, and the record reconciled.** `2026-11-03-gate-stage-class` merged as PR #113 without running `task complete`, so the directory stayed active with both documents at `planning`. It is now under `achieved/`, its Todo entry is closed and linked.
+
+### Compatibility
+
+- **No install command changes, no rename, and no hook gains an interpreter dependency.** The four manifests keep their shape, every `hooks-*.json` wiring file is untouched, and the new code is POSIX shell and POSIX awk.
+- **`prompt-reminder` adds one line to a hook that already ran on every prompt.** A repository with a task in flight sees byte-identical output. A repository that does not record work in TaskFlow sees nothing at all.
+- **The merge driver's contract is unchanged.** Same argument order, same `%A`, same exit-code semantics, same matching rules — a repository already configured for `taskflow-todo` needs no reconfiguration.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass` (re-run on the pushed `main`).
+- `bash hooks/repository-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally for the release commit, and recorded as skipped.** The release commit's difference from `aaaf4cb` — the last commit on `main` before this release began, CI run [`41816966078`](https://github.com/hkwuks/TaskFlow/actions/runs/41816966078), 7/7 `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads. The commit after it moves only the two marketplace catalogs.
+- Every change this release ships ran the full matrix on its own pull request: #116 (`1b86905`, run [`41786276755`](https://github.com/hkwuks/TaskFlow/actions/runs/41786276755)), #117 (`35b8151`, run [`41788317606`](https://github.com/hkwuks/TaskFlow/actions/runs/41788317606), then `e110454` on the reconciled tree), #118 (`560ec0a`, run [`41814555598`](https://github.com/hkwuks/TaskFlow/actions/runs/41814555598)) — `smoke` on ubuntu, macos and windows each time, plus `changes` and `todo-merge-audit`.
+- Mutation checks are recorded in each task's Plan: the entrance reminder (invert the state test; delete the read-only exemption), the merge driver (slow `emit()`; truncate `%A` on the refusal path). Every mutation reddened its own named assertion and was restored byte-identically.
+
+### Known limitations
+
+- **The entrance reminder does not refuse anything.** It replaces no signal at all with a signal. A hard gate at `PreToolUse` was offered and deliberately not chosen — recorded in `TaskFlowDocs/achieved/2026-11-04-skip-guard/prd.md` — and the upgrade path if the line proves too noisy is to fire only when the cwd is the base checkout.
+- **The merge driver's failure assertion injects a refusal, not a kill.** `timeout 0` is not reliable on Git Bash, and a killed run and a refused run leave the same evidence — `%A` unchanged, nonzero exit — because both depend on the same write-once shape. The assertion tests that shape.
+- **The CI-release rule is applied by a person, not by CI.** No job can tell whether a merge was covered by it, so it depends on the author checking `git diff --name-only <base>...HEAD`. Promoting it to a machine check is deferred.
+- **Merged branches accumulate.** `hooks/task complete` and `hooks/archive` remove the worktree and deliberately leave the branch, which is right — the branch may hold the only copy of a commit, and `-d` is what refuses an unmerged one. But nothing reports the leftovers, and this release's own three branches were still present after their merges. Recorded as `TF-20261104-d535ae`.
+
+### Release
+
+- **Tag `v1.1.14` names `TAG_COMMIT_SHA`; the pin commit is `PIN_COMMIT_SHA`; the GitHub Release is `RELEASE_URL`.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
 ## [1.1.13] — 2026-11-04
 
 ### Fixed
