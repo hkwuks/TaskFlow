@@ -38,6 +38,11 @@
 - **The concept-class list still exists three times.** `stage_classes` in `hooks/capability-gate`, `concept_class_re` in `hooks/task`, and the phase table in `SKILL.md` are hand-kept copies. This release makes the gate's copy agree with the table and adds an assertion that keeps the two in step; it does not merge them into one source. That is a larger change, and `concept_class_re`'s own looseness is a separate problem — recorded as deferred in `TaskFlowDocs/2026-11-03-gate-stage-class/prd.md`.
 - **`approve`'s inheritance is per task and per stage only.** A stage whose *class actually changed* between versions is not detected by the store. `approve` still reconciles the Plan's `Skills / Tools Used` line against the record, so a bump that really changed the class is refused there — that reconciliation is what makes the inheritance safe rather than blanket.
 
+### Release
+
+- **Tag `v1.1.13` names `9c56e81f5b500397d25b394d35bff1f22f627df2`; the pin commit is `ae5db2a`; the GitHub Release is https://github.com/hkwuks/TaskFlow/releases/tag/v1.1.13.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
+
 ## [1.1.12] — 2026-11-02
 
 ### Added
