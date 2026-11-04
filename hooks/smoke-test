@@ -6722,6 +6722,63 @@ rem_nocwd "$rem_repo" | grep -q -F 'additionalContext' \
   || { echo "FAIL a cwd-less event did not fall back to the working directory"; exit 1; }
 echo ok
 
+echo "== prompt-reminder states the entrance rule when no task is in flight =="
+# Measured 2026-11-03, session `272bb345`: the session held the state twice, and
+# "fix D1" then skipped intake, promotion, PRD/Plan, approval and the worktree,
+# editing a tracked file in the base checkout. Every other hook was silent for a
+# reason that is structural rather than accidental -- the capability gate's
+# predicate is a stage document's basename, and `task promote` checks the tree
+# only when somebody calls it. This hook runs on every prompt, so it is the only
+# place a line can arrive *with* the instruction. What is asserted is the
+# delivery condition, not the wording: silence is a real case here too, and a
+# one-sided assertion would be satisfied by a hook that never shut up.
+ent="$tmp/entrance"
+ent_repo="$ent/repo"
+mkdir -p "$ent_repo/TaskFlowDocs"
+( cd "$ent_repo" && git init -q . && git config user.email smoke@example.invalid \
+    && git config user.name smoke )
+# `todo.md` is what makes the repository "recorded rather than not started", and
+# that distinction is the whole admission rule: a repository that has never used
+# TaskFlow must not be nagged about using it.
+printf '# Todo inbox\n' > "$ent_repo/TaskFlowDocs/todo.md"
+ent_event() {  # ent_event <cwd>
+  printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s","prompt":"fix D1"}\n' "$1"
+}
+ent_out="$(ent_event "$ent_repo" | bash "$HERE/prompt-reminder")"
+ent_ctx="$(printf '%s' "$ent_out" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
+ent_ev="$(printf '%s' "$ent_out" | bash "$HERE/json-field" hookSpecificOutput.hookEventName)"
+[ "$ent_ev" = "UserPromptSubmit" ] || { echo "FAIL entrance reminder named the wrong event: $ent_ev"; exit 1; }
+# Both commands the rule needs, because a line that says "record it" without the
+# command is the same prose that was already being ignored.
+printf '%s\n' "$ent_ctx" | grep -q -F 'hooks/task intake' \
+  || { echo "FAIL entrance reminder does not name the intake command"; exit 1; }
+printf '%s\n' "$ent_ctx" | grep -q -F 'git worktree add' \
+  || { echo "FAIL entrance reminder does not name the isolation command"; exit 1; }
+# The exclusion is what keeps the line from firing on a question. A reminder that
+# has to be read and dismissed on every prompt is one a reader learns to skip.
+printf '%s\n' "$ent_ctx" | grep -q -F 'Read-only work' \
+  || { echo "FAIL entrance reminder does not exempt read-only work"; exit 1; }
+# `(no active task)` is the state. It must stop being the state once one exists,
+# even one that is still being planned: the four-line in-flight reminder owns
+# `in_progress`/`checking`, and a `planning` task is work already recorded.
+mkdir -p "$ent_repo/TaskFlowDocs/2026-11-04-demo"
+printf '# Plan - demo\n> Task version: v1\n> Status: planning\n' \
+  > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
+rem_silent "a planning task" "$(ent_event "$ent_repo")"
+rm -rf "$ent_repo/TaskFlowDocs/2026-11-04-demo"
+# Not started in this repository: `summarize-state` says so, and this hook must
+# not add a second opinion about a repository that has no TaskFlow record.
+ent_bare="$ent/bare"
+mkdir -p "$ent_bare/TaskFlowDocs"
+( cd "$ent_bare" && git init -q . && git config user.email smoke@example.invalid \
+    && git config user.name smoke )
+rem_silent "a repository with no TaskFlow record" "$(ent_event "$ent_bare")"
+# The base checkout of a repository whose task lives in a worktree looks exactly
+# like this, which is why the reminder says "this work tree" rather than "this
+# repository": both readings are then true.
+rem_silent "a cwd outside any repository, entrance" "$(ent_event "$rem_norepo")"
+echo ok
+
 echo "== prompt-reminder carries the material the Plan asks to be reminded of =="
 # The routed document list is injected at SessionStart and never again, so a Plan
 # that names material it must keep consulting has no per-prompt carrier except
