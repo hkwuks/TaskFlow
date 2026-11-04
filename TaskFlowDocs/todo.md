@@ -89,24 +89,10 @@ has an issue number or URL.
 ## Task archive should delete the local branch once it is merged: today archive rem
 
 - ID: TF-20261104-d535ae
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-04
-- Added: 2026-11-04
-- Updated: 2026-11-04
+- Status: done
 - Goal: Task archive should delete the local branch once it is merged: today archive removes the worktree and explicitly leaves the branch, so merged branches accumulate and nothing reports them
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-04 用户的疑问**：合并完发现本地还留着 `fix/2026-11-04-skip-guard`、`-ci-skip-archive`、`-merge-todo-speed` 三条分支。它们**不是** worktree 的产物——`git worktree add -b` 创建的是仓库级 ref，worktree 只是它的检出目录，`git worktree remove` 从不删分支。所以拆掉 worktree 之后分支就留在那里了。
-
-  **现状为什么没人清**：`hooks/archive` 在 teardown 提示里明说 `(the branch survives; deleting it is a separate decision)`，这是刻意的——分支可能还持有唯一一份提交，`-d` 恰好也会拒绝未合并的。但「刻意」和「没人做」之间的差额就是这三条分支。
-
-  **要定的判据**：只有**已合并进 base** 的分支才可以删，而且删除只能发生在合并之后——`archive` 本身跑在 push 之前（`CONTRIBUTING.md` 的次序是 `task complete` → commit → push → PR → merge），那一刻分支必然还没合并。所以删除不能放进 `archive` 的归档事务里，只能出现在**合并之后的 teardown 步骤**。
-
-  **候选**：(a) 在 `archive` 的 teardown 提示里加一行 `git branch -d <branch>`，与 `git worktree remove` 并列，让读者一次做完两件事；(b) 加一个独立小命令，枚举所有已合并的本地分支并逐个 `git branch -d`，由 teardown 提示指向它；(c) `repository-check` 报告已合并的残留分支（只是报告，不改状态）。
-
-  注意 `-d` 与 `-D` 的区别是这道题的安全边界：`-d` 在未合并时拒绝，正是想要的。
+- Task: `TaskFlowDocs/achieved/2026-11-04-teardown-branch/`
+- Next action: None — completed and archived.
 
 ## The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a mer
 

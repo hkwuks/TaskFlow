@@ -336,10 +336,13 @@ After completion, promote only verified, cross-task rules into the project's sha
 **Tear the working tree down once its work is in the base.** The task's branch has to be pushed and merged before the directory can go — `complete` runs first, so the removal is the step after the merge, not part of `complete`. The condition is two facts you can check: the branch is merged into the base branch, and the tree has nothing uncommitted (`git status --porcelain` empty). Then remove it from the base checkout:
 
 ```bash
-git worktree remove <path>     # the branch survives; deleting it is a separate decision
+git worktree remove <path>
+git branch -d <branch>        # -d, never -D: it refuses a branch that is not merged
 ```
 
-`git worktree remove` deletes the directory and never the branch, so removing the directory and deleting the branch are two acts, and the second is deliberate. Merging and archiving do not remove it for you: `.worktrees/` is ignored, so a leftover one costs nothing visible until the directory listing gets long. `bash hooks/repository-check .` reports every worktree whose branch is already in the base with a clean tree, and that report is informational — it does not change the check's exit code.
+**The two commands are one step, in that order, and `-d` is the whole safety argument.** `git worktree remove` deletes the directory and never the branch — `git worktree` only owns the checkout — so stating only the removal is what let merged branches accumulate: nine on one machine by 2026-10-18, three more by 2026-11-04, and once the directory is gone nothing reported them any more. `-d` refuses an unmerged branch with `not fully merged`, so running the pair on a merged branch succeeds and on an unmerged one stops and says why; `-D` would delete exactly the branch that still holds the only copy of a commit. The order matters for the same reason: the branch is still checked out by the worktree until the first command runs, and Git refuses to delete a branch that is checked out.
+
+Merging and archiving do not remove either for you: `.worktrees/` is ignored, so a leftover worktree costs nothing visible until the directory listing gets long. `bash hooks/repository-check .` reports two things — every worktree whose branch is already in the base with a clean tree, and every such branch with no worktree left — and both reports are informational: they do not change the check's exit code, and neither deletes anything.
 
 Host/harness hooks may run as side effects during the flow but are bounded by [runtime.md](references/runtime.md): they never write core documents, never approve, and only update Todo triage metadata or inject derived context. Do not let a hook's presence skip the approval gate or expand scope.
 
