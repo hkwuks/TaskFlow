@@ -3131,6 +3131,85 @@ END {
   cat "$tmp/concept.reconcile"
   exit 1
 fi
+# The gate's block message carries a third copy of the same column, and nothing
+# compared it with the table: it named one class per stage while phase 1 offers
+# two, so an agent set up to diverge was told to converge. The message is the
+# only place the rule reaches an agent at the moment it matters, which is why a
+# class the function omits is a class that phase cannot find. Both directions
+# are checked, the same way the vocabulary above is: a class in the table but
+# not in the function is unreachable at the moment of writing, and one in the
+# function but not in the table advertises a phase that does not exist.
+gate_fn="$(sed -n '/^stage_classes()/,/^}/p' "$HERE/capability-gate")"
+[ -n "$gate_fn" ] || { echo "FAIL could not read stage_classes from hooks/capability-gate"; exit 1; }
+# Called, not parsed: the function is shell, and reading its quotes with awk is
+# a second parser to keep correct. A subshell gets three plain answers.
+gate_list() { bash -c "$gate_fn"'
+stage_classes "$1"' _ "$1"; }
+# Phase table row per stage, keyed by the artifact cell: the document is what
+# decides the stage, so the phase number never has to be trusted.
+awk -F'|' '
+  /^\| Phase \| Artifact \| Equivalent concept class/ { intable = 1; next }
+  intable && /^\| *[0-9]\./ {
+    # Contains, not equals: the Spec row names the document beside an
+    # alternative, and the document name is what decides the stage either way.
+    art = $3
+    if (index(art, "prd.md")) st = "PRD"
+    else if (index(art, "spec.md")) st = "Spec"
+    else if (index(art, "plan.md")) st = "Plan"
+    else next
+    cls = $4; gsub(/^[ \t]+|[ \t]+$/, "", cls)
+    print st "\t" cls
+    next
+  }
+  intable && !/^\|/ { intable = 0 }
+' "$skill/SKILL.md" > "$tmp/concept.table"
+[ "$(wc -l < "$tmp/concept.table" | tr -d ' ')" -eq 3 ] \
+  || { echo "FAIL phase table did not yield three gated stages"; cat "$tmp/concept.table"; exit 1; }
+# Both directions, and the same "root + optional suffix" convention the
+# vocabulary check above uses: a table class the message omits is unreachable at
+# the moment of writing, and one it invents sends an agent after a phase that
+# does not exist.
+concept_cmp() {  # concept_cmp <stage> <table-list> <gate-list>
+  local s="$1" tl="$2" gl="$3" t g hit
+  local IFS=';'
+  for t in $tl; do
+    t="$(printf '%s' "$t" | sed 's/^[ \t]*//; s/[ \t]*$//')"
+    [ -n "$t" ] || continue
+    hit=0
+    for g in $gl; do
+      g="$(printf '%s' "$g" | sed 's/^[ \t]*//; s/[ \t]*$//')"
+      [ -n "$g" ] || continue
+      case "$g" in "$t"*|*"$t") hit=1 ;; esac
+      case "$t" in "$g"*|*"$g") hit=1 ;; esac
+    done
+    [ "$hit" = "1" ] || { echo "phase table offers a class the gate message omits for $s: $t"; return 1; }
+  done
+  for g in $gl; do
+    g="$(printf '%s' "$g" | sed 's/^[ \t]*//; s/[ \t]*$//')"
+    [ -n "$g" ] || continue
+    hit=0
+    for t in $tl; do
+      t="$(printf '%s' "$t" | sed 's/^[ \t]*//; s/[ \t]*$//')"
+      [ -n "$t" ] || continue
+      case "$g" in "$t"*|*"$t") hit=1 ;; esac
+      case "$t" in "$g"*|*"$g") hit=1 ;; esac
+    done
+    [ "$hit" = "1" ] || { echo "the gate message names a class the phase table does not offer for $s: $g"; return 1; }
+  done
+  return 0
+}
+: > "$tmp/concept.gate"
+while IFS='	' read -r cg_stage cg_table; do
+  cg_gate="$(gate_list "$cg_stage")"
+  [ -n "$cg_gate" ] || { echo "the gate message names no class for $cg_stage" >> "$tmp/concept.gate"; continue; }
+  concept_cmp "$cg_stage" "$cg_table" "$cg_gate" >> "$tmp/concept.gate" || true
+done < "$tmp/concept.table"
+if [ -s "$tmp/concept.gate" ]; then
+  echo "FAIL the gate block message and the phase table disagree:"
+  cat "$tmp/concept.gate"
+  exit 1
+fi
+echo ok
 # The pre-write gate replaced the old advice to append a stage line *before*
 # drafting the document — that ordering was unenforceable prose, which is the
 # whole reason the gate exists. What replaces it is a fact plus a report: SKILL.md

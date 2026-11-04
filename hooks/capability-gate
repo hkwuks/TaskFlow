@@ -23,15 +23,31 @@ export LC_ALL
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# The concept class each stage is looking for, so the block message names what
-# to look for instead of leaving the agent to guess. Never a product: the
-# phase table says what class fits, the host decides what fills it.
-stage_class() {
+# The concept classes each stage is looking for, as the phase table in
+# `skills/taskflow/SKILL.md` words them. Never a product: the phase table says
+# what class fits, the host decides what fills it.
+#
+# This is a hand-kept copy of one column of that table, and `concept_class_re`
+# in `hooks/task` is a third. Only the table is authoritative. Measured
+# 2026-11-03: PRD is offered `divergent exploration` in the table, this function
+# named only the converging class, and the block message therefore told an agent
+# that should have opened with ideation the one class that did not fit. The
+# block message is the only place the rule reaches an agent at the moment it
+# matters, so a class this function omits is a class that phase cannot find.
+# `hooks/smoke-test` now compares this against the table in both directions.
+stage_classes() {
   case "$1" in
-    PRD) printf '%s' 'requirements elicitation and framing' ;;
+    PRD) printf '%s' 'requirements elicitation and framing; divergent exploration' ;;
     Spec) printf '%s' 'architecture and design specification' ;;
     Plan) printf '%s' 'work breakdown and task decomposition' ;;
   esac
+}
+
+# The single class the copy-pasteable escape command takes: `--considered`
+# records which class actually applied, so it can only carry one. The full list
+# is what the message offers; this is what the command says.
+stage_class() {
+  stage_classes "$1" | sed 's/;.*//'
 }
 
 # A denial the model reads. The message is kept free of double quotes and
@@ -388,6 +404,17 @@ stray_evidence() {  # stray_evidence <task-dir> <this-store's-git-dir>
 }
 
 class="$(stage_class "$stage")"
+# One class, or several? Every message below offers the escape command with
+# exactly one `--considered`, and that is right: the declaration records which
+# class actually applied. But when the phase offers more than one, naming only
+# the first is what told an agent set up for ideation to converge instead. So
+# the list is offered beside the command, and appears only when it says more
+# than the command already does.
+classes_all="$(stage_classes "$stage")"
+classes_note=""
+case "$classes_all" in
+  *'; '*) classes_note=" This phase's concept classes are: $classes_all — name the one that applies." ;;
+esac
 # Three causes, three messages, and they are not interchangeable. `consumed` comes
 # from `released` alone while `total` counts `evidence`, so a store whose evidence
 # was truncated or deleted reads as already past the end of the queue. Reporting
@@ -411,7 +438,7 @@ class="$(stage_class "$stage")"
 if [ "$total" -lt "$consumed" ]; then
   store_shown="$(printf '%s' "$store" | tr '\134' '/')"
   gap=$((consumed - total))
-  deny "TaskFlow pre-write gate blocked stage [$stage]: the capability store is out of step, so this is not about whether a capability was invoked. $store_shown/released reaches seq $consumed while $store_shown/evidence holds $total line(s) — $gap record(s) the releases still point at are gone, and no release can be written until the two agree again. Three ways forward, with their costs. Repair:  bash hooks/task recover  — it discards only the releases whose record is gone, keeping every stage whose record still exists, and those discarded stages then have to be declared again. Catch up: produce $((gap + 1)) more capability record(s), after which this gate allows again and every release already in released survives. Start over: remove $store_shown and declare each stage again, which works but discards those releases. The records themselves cannot be recovered. The concept class for this stage is '$class'."
+  deny "TaskFlow pre-write gate blocked stage [$stage]: the capability store is out of step, so this is not about whether a capability was invoked. $store_shown/released reaches seq $consumed while $store_shown/evidence holds $total line(s) — $gap record(s) the releases still point at are gone, and no release can be written until the two agree again. Three ways forward, with their costs. Repair:  bash hooks/task recover  — it discards only the releases whose record is gone, keeping every stage whose record still exists, and those discarded stages then have to be declared again. Catch up: produce $((gap + 1)) more capability record(s), after which this gate allows again and every release already in released survives. Start over: remove $store_shown and declare each stage again, which works but discards those releases. The records themselves cannot be recovered. The concept class for this stage is '$class'.$classes_note"
 fi
 if [ "$consumed" -gt 0 ]; then
   detail="the most recent invocation was already spent by an earlier document"
@@ -432,7 +459,7 @@ if [ -f "$released" ]; then
     old_note=" Note: $old_rows row(s) in $(printf '%s' "$released" | tr '\134' '/') predate the task name on a release and belong to no task, so they no longer count as anybody's release; they still hold their sequences, so nothing was double-spent. Clear them once with:  rm -rf $(printf '%s' "$store" | tr '\134' '/')"
   fi
 fi
-deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$old_note"
+deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$classes_note$old_note"
 }
 
 # Judge every target the event named. `deny` exits inside `judge_path`, so a

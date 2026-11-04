@@ -337,15 +337,15 @@ has an issue number or URL.
 ## Decouple stage capability selection from the host tool-call stream: the PreToolU
 
 - ID: TF-20261009-8abbd6
-- Status: inbox
+- Status: promoted
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-10-09, found while writing the trae-host PRD
 - Added: 2026-10-09
-- Updated: 2026-10-11
+- Updated: 2026-11-03
 - Goal: Decouple stage capability selection from the host tool-call stream: the PreToolUse gate refuses the first write of prd/spec/plan unless a Skill/Agent/MCP call already matched, so a host that has no such call, or a session driven from a different cwd than the task worktree, forces either a throwaway invocation like skill(sxng) for a PRD already researched, or the unaided declaration for a phase that really did use a capability. Give the phase a way to record its selection that is not a tool-call artifact
-- Task: Not promoted.
-- Next action: Clarify and promote when ready; fold in the two 2026-10-11 findings recorded in Notes (gate stage_class vs phase table mismatch; schema-leads-capability)
+- Task: `TaskFlowDocs/2026-11-03-gate-stage-class/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-10-11 用户裁定并入本条（不新建）**：用户指出「头脑风暴类的引导，按理应由引导工具 lead 调研和编写文档的方向，TaskFlow 只规定流程」，要查是否如此。查到两处，都属本条的能力表示层。
 
 **(1) 门在正确时机投递的概念类，是 phase 表的一个子集 —— 可复现的机械缺陷。** `hooks/capability-gate` 的 `stage_class()` 是手抄的第二份表，PRD 只写 `requirements elicitation and framing`；而 `SKILL.md:167` phase 1 的类是 `requirements elicitation and framing; divergent exploration`（`divergent` 在 SKILL.md 出现 2 次，在 gate 里 0 次）。`divergent exploration` 在 `hooks/task:606` 的词表里、`unaided` 接受它，但**门的拒绝消息从不提它**。这是唯一「在正要写文档那一刻、无法忽略」的投递渠道（R7 的原始动机，见 `achieved/2026-09-27-capability-pre-write-gate/prd.md`），而它在 PRD 这一格只广播 converge 一个方向。`smoke-test:1740-1742` 只断言消息含 stage/类/逃生舱三要素，**没有任何断言比较 stage_class 与 phase 表**——而 phase 表与 `concept_class_re` 之间是有双向断言钉住的（`smoke-test:1596-1621`），两份手抄表只钉了一份。`achieved/2026-10-08-capability-concept-classes/prd.md` A5 明确要求 `stage_class()` 逐字不变，所以那次改动**故意**没碰它。
