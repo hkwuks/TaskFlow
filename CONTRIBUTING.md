@@ -145,3 +145,22 @@ gh pr ready <number>
 ```
 
 A draft pull request still runs CI, so the matrix is not deferred by opening one. What it defers is the merge, and that is the point: "do not merge yet" is then a state GitHub enforces and a reader sees, where a sentence in the body is only a request. The merge that arrives before the documents do is the one that leaves them behind.
+
+### When the last push does not have to wait for CI
+
+Both closing pushes — the verification record and the archive — trigger a full three-host matrix, and that round is nearly impossible to fail. One case is released from waiting on it, and the condition is a path set rather than a judgement:
+
+**The last push before the merge may be merged without waiting for its CI run when every changed path is under `TaskFlowDocs/`.** Check it against the base, not against memory:
+
+```bash
+git diff --name-only <base>...HEAD
+```
+
+Two conditions, and both are required:
+
+- **The code commit's CI is green, and the pull request body names that run.** This releases the wait on the documentation commit; it never releases the wait on the code. A branch whose last tested code commit is red has nothing to land, whatever its remaining diff says.
+- **Every changed path is under `TaskFlowDocs/`** — the task directory, `achieved/` once archived, and `todo.md`.
+
+That is the case the rule exists for: the archive transaction moves the task directory and rewrites its Todo entry, and those land as one commit. The path set is exactly what the suite has nothing to say about. `tools/workflow-affected` already classifies `TaskFlowDocs/*/*` as affecting no job, and `todo.md` is read by the suite in one place — the `## Item template` section (`hooks/smoke-test:2786,2808`) — which `hooks/archive` never edits: it rewrites entries under `## Items` and leaves the template alone. A diff under this path is therefore not a smoke input even when it touches the Todo.
+
+What this does not do is turn CI off: a push to `main` still runs the full matrix. What it removes is the wait on the pull request, and only for a diff the matrix has nothing to say about.
