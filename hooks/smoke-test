@@ -6462,8 +6462,10 @@ grep -q -F -- 'capability-gate' "$HERE/../hooks/README.md" \
   || { echo "FAIL hooks/README.md does not name capability-gate"; exit 1; }
 grep -q -F -- 'capability-evidence' "$HERE/../hooks/README.md" \
   || { echo "FAIL hooks/README.md does not name capability-evidence"; exit 1; }
-# And the two hosts that are deliberately unwired must stay named as such, so a
-# later wiring edit cannot land without this section being revisited.
+# And the host that is deliberately unwired must stay named as such, so a later
+# wiring edit cannot land without this section being revisited. Codex used to be
+# the second name here; it gained the gate in 1.1.10, and this assertion now
+# pins only the dsh reason.
 grep -q -F -- 'Codex' "$HERE/../skills/taskflow/references/runtime.md" \
   || { echo "FAIL runtime.md no longer names Codex; the exclusion note is missing"; exit 1; }
 grep -q -F -- 'lowercase' "$HERE/../skills/taskflow/references/runtime.md" \

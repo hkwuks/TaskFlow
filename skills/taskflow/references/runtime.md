@@ -96,7 +96,7 @@ Only `consumed` reads across tasks, and it reads both line shapes: it is the hig
 
 `unaided` is also the only writer that checks that invariant before writing. Its sequence comes from `released` alone, so a store whose `evidence` was deleted or truncated reads as already past the end of the queue; writing then widens the gap instead of closing it, and every stage is denied from that point on with no way back. A declaration now refuses that store and says both numbers, rather than adding the release that makes the desync permanent. The records themselves cannot be rebuilt, so the recovery is `bash hooks/task recover`: it discards only the releases whose sequence points past the end of `evidence` — the ones that can be identified without guessing — keeps every release whose record still exists, and appends what it discarded to `released.discarded` rather than erasing the only remaining statement of which stages had been released. Deleting `<absolute-git-dir>/taskflow` also works and throws away every release, not only the unbacked ones. `approve` refuses the same store for the same reason: it reconciles stages against `released` alone, so an unsupported row would let a stage pass on a record that is gone, and whether a task could be approved would depend on damage.
 
-The gate is wired wherever the host exposes a tool-call hook whose tool names match the ones both scripts branch on. On Claude Code, CodeBuddy, and Trae that is `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does.
+The gate is wired wherever the host exposes a tool-call hook in one of the two input shapes `capability-gate` reads. On Claude Code, CodeBuddy, and Trae that shape is the written file's path under `tool_input.file_path`, with `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does. On Codex the shape is the patch text under `tool_input.command` with `tool_name` of `apply_patch`: the gate matches it, and the recorder is not wired there, so a stage on Codex is released by `hooks/task unaided` rather than by a recorded invocation.
 
 Four properties are worth stating because each one is load-bearing:
 
@@ -140,8 +140,10 @@ the destination's spelling is the part the documentation leaves least clear.
 capability class (`Skill`, `Agent`/`Task`, `mcp__*`), and `apply_patch` is an edit
 tool. Wired, the hook would run, exit 0, and record nothing, while this document
 claimed the host had evidence capture. Measured 2026-10-29: feeding it that event
-changed no evidence line. Codex's capability records come from `Skill` and MCP
-calls, not from its edits.
+changed no evidence line. Capability records, where a host records them at all,
+come from `Skill` and MCP calls and never from an edit; Codex records none while
+its `PostToolUse` capability capture stays unwired, so its stage evidence can
+only come from a `hooks/task unaided` declaration.
 
 ### dsh specifics
 
@@ -176,8 +178,9 @@ an installed dsh rather than assumed:
   compares case-sensitively, so `Write|Edit` against `write` is false while
   `write|edit` against it is true. Wiring dsh therefore means lowercase arms
   inside `capability-gate` and `capability-evidence`, not a wiring-file edit;
-  until that exists, `hooks-dsh.json` carries SessionStart only and `hooks/task
-  unaided` is how a stage is released there.
+  until that exists, `hooks-dsh.json` carries no tool-call event (SessionStart
+  and UserPromptSubmit only) and `hooks/task unaided` is how a stage is released
+  there.
 
 ### CodeBuddy specifics
 
@@ -283,7 +286,7 @@ Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and
 
 ## Single-command transitions
 
-Run explicitly by the Agent as one operation. Only SessionStart summary injection, the per-prompt reminder, the sessions index, and the Claude Code pre-write gate are automatically wired; no write command binds to `UserPromptSubmit`, `PostToolUse`, or `Stop`. `UserPromptSubmit` is bound, but only to `prompt-reminder`, which reads state and emits context — it is not a write command and it changes nothing.
+Run explicitly by the Agent as one operation. Only SessionStart summary injection, the per-prompt reminder, the sessions index, and the pre-write gate (Claude Code, Codex CLI, CodeBuddy, and Trae) are automatically wired; no write command binds to `UserPromptSubmit`, `PostToolUse`, or `Stop`. `UserPromptSubmit` is bound, but only to `prompt-reminder`, which reads state and emits context — it is not a write command and it changes nothing.
 
 `prompt-reminder` exists because the workflow speaks exactly once otherwise, at SessionStart, and a long implementation runs entirely inside the window before the next compaction. `SessionStart` already fires on `compact`, so post-compaction is covered; what was uncovered is the turn in between. The hook derives its line from `summarize-state` rather than reading `plan.md` again — one derivation, already covered by the suite — and emits only while the single active task is `in_progress` or `checking`. A worktree with no task, two active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unparseable input all produce silence, and the phase gate is the only rate limit: there is no marker file and no per-session counter, because the second and third instructions of a long session are exactly where drift accumulates.
 
@@ -355,11 +358,11 @@ repo-root/
     │   └── references/                  # runtime.md, artifacts.md, versioning-and-recovery.md
     └── hooks/
         ├── README.md                    # install + run instructions for every host
-        ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit; auto-loaded)
-        ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit)
-        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit)
+        ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse/PostToolBatch evidence; auto-loaded)
+        ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit + PreToolUse apply_patch gate + PostToolUse external-evidence)
+        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
         ├── hooks-dsh.json               # dsh wiring (SessionStart + UserPromptSubmit)
-        ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + the gate pair)
+        ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── prompt-reminder              # UserPromptSubmit: in-flight task + reinforce pointers + classification question
