@@ -5000,6 +5000,85 @@ grep -q 'TF-20260101-0b (removed' "$merged" || { echo "FAIL union lost tombstone
 grep -q '^<<<<<<<' "$merged" && { echo "FAIL tombstone union conflicted"; exit 1; }
 echo ok
 
+echo "== todo merge driver finishes a real-size file before a caller times out =="
+# The driver is correct but was answering every lookup with a `grep | head | cut`
+# pipeline: 125 entries x 3 sides is roughly a thousand process starts, measured
+# 2026-11-04 at 154-227 seconds on Windows/Git Bash. A caller with a two-minute
+# timeout kills it, and a killed run leaves %A exactly as Git handed it over — so
+# `git merge` reports success with one side's file and no merge at all. Measured
+# on PR #117: that merge commit's todo.md was byte-identical to the ours side.
+#
+# The budget is wall-clock and therefore machine-dependent, so it is set at the
+# order of magnitude that matters rather than tight to the measurement: anything
+# under this is comfortably inside an ordinary merge timeout, and anything over
+# it is the subprocess regression coming back.
+ms="$tmp/merge-speed"
+mkdir -p "$ms"
+speed_entry() {  # speed_entry <n> <status> <note>
+  printf '## Entry %03d\n\n- ID: TF-20260101-%04d\n- Status: %s\n- Goal: goal %d\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n' "$1" "$1" "$2" "$1"
+  [ -z "$3" ] || printf -- '- Notes: %s\n' "$3"
+}
+{
+  printf '# Todo inbox\n\n## Item template\n\n    - ID: TF-yyyymmdd-xxxxxx\n'
+  n=1; while [ "$n" -le 125 ]; do speed_entry "$n" inbox ""; n=$((n + 1)); done
+} > "$ms/base.md"
+# Disjoint on purpose: even entries are ours, odd are theirs, so no record is
+# changed by both sides and the run ends without a conflict. That is the shape a
+# real merge spends its time on.
+{
+  printf '# Todo inbox\n\n## Item template\n\n    - ID: TF-yyyymmdd-xxxxxx\n'
+  n=1; while [ "$n" -le 125 ]; do
+    if [ $((n % 2)) -eq 0 ]; then speed_entry "$n" done ""; else speed_entry "$n" inbox ""; fi
+    n=$((n + 1))
+  done
+} > "$ms/ours.md"
+{
+  printf '# Todo inbox\n\n## Item template\n\n    - ID: TF-yyyymmdd-xxxxxx\n'
+  n=1; while [ "$n" -le 125 ]; do
+    if [ $((n % 2)) -eq 1 ]; then speed_entry "$n" done "their note $n"; else speed_entry "$n" inbox ""; fi
+    n=$((n + 1))
+  done
+} > "$ms/theirs.md"
+cp "$ms/ours.md" "$ms/out.md"
+speed_start="$(date +%s)"
+bash "$HERE/merge-todo" "$ms/base.md" "$ms/out.md" "$ms/theirs.md" \
+  || { echo "FAIL merge driver refused a disjoint 125-entry merge"; exit 1; }
+speed_elapsed=$(( $(date +%s) - speed_start ))
+[ "$speed_elapsed" -le 10 ] \
+  || { echo "FAIL merge driver took ${speed_elapsed}s on 125 entries; the budget is 10s"; exit 1; }
+[ "$(grep -c '^- ID:' "$ms/out.md")" -eq 125 ] \
+  || { echo "FAIL merge driver changed the entry count: $(grep -c '^- ID:' "$ms/out.md")"; exit 1; }
+# Both sides' edits have to survive: ours marked the even entries done, theirs the
+# odd ones. A driver that picked one side wholesale would still finish fast.
+[ "$(grep -c '^- Status: done' "$ms/out.md")" -eq 125 ] \
+  || { echo "FAIL merge driver lost a side's edits: $(grep -c '^- Status: done' "$ms/out.md") of 125 done"; exit 1; }
+echo ok
+
+echo "== todo merge driver leaves %A untouched when it fails =="
+# The failure this locks is the one that cost PR #117 a hand-written repair: a run
+# that did not finish must not look like one that did. The result is built beside
+# %A and copied in only after the whole decision is made, so a failed run leaves
+# Git's original content where it was — and the nonzero exit is what tells Git the
+# merge did not happen.
+#
+# The failure is injected by omitting a required argument rather than by killing
+# the process: `timeout` is not reliably available at sub-second resolution on
+# every host the suite runs on, and a killed run and a refused run leave the same
+# evidence — %A unchanged and a nonzero status. The write-once shape is what both
+# depend on, so this asserts the shape.
+killed="$tmp/merge-failed"
+mkdir -p "$killed"
+cp "$ms/ours.md" "$killed/out.md"
+cp "$killed/out.md" "$killed/expect.md"
+# The refusal under test is a nonzero exit, which `set -e` would act on before
+# the assertion could read it. `|| true` is what lets the status be examined.
+kill_rc=0
+bash "$HERE/merge-todo" "$ms/base.md" "$killed/out.md" 2>/dev/null || kill_rc=$?
+[ "$kill_rc" -ne 0 ] || { echo "FAIL merge-todo reported success with a missing argument"; exit 1; }
+cmp -s "$killed/out.md" "$killed/expect.md" \
+  || { echo "FAIL a refused run rewrote %A; it must leave Git's content alone"; exit 1; }
+echo ok
+
 echo "== merge driver installation is local, idempotent, and silent =="
 install_root="$tmp/install"
 mkdir -p "$install_root"

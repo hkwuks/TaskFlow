@@ -32,279 +32,224 @@
 # The ancestor is consulted only to tell "we changed it" from "they did". A live
 # Todo entry disappears only by moving into `## Removed` (hooks/task remove);
 # that move must survive a merge rather than resurrect on the other side.
+#
+# ONE awk PROCESS, DELIBERATELY. The first implementation split the three sides
+# and then answered every lookup with a `grep | head | cut` pipeline, so a
+# 125-entry file cost roughly a thousand process starts. Measured 2026-11-04 on
+# Windows/Git Bash: 154-227 seconds for one merge, against ~150 ms per process.
+# That is not merely slow — it is long enough for a caller to time the merge out,
+# and an interrupted run leaves %A exactly as Git handed it over, so `git merge`
+# reports success with one side's file and no driver result. Measured on PR #117:
+# that merge commit's todo.md was byte-identical to the ours side. The rules
+# above are therefore evaluated in memory, over one pass per side.
+#
+# WRITE ONCE, AT THE END. The result is built beside %A and copied over only
+# after the whole decision is made, so a run that dies partway leaves %A holding
+# Git's original content. A nonzero exit then tells Git the merge failed, which
+# is the honest report; a half-written %A is the silent one. The conflict case is
+# the exception the format requires: the markers go into %A and the exit code
+# says the merge needs a human.
+#
+# Extensionless, like every other TaskFlow hook, so Claude Code Windows
+# auto-detection never interferes.
+
 set -euo pipefail
 LC_ALL=C
 export LC_ALL
 
 # Git passes them in this order: ancestor, ours, theirs.
+[ "$#" -eq 3 ] || { echo "usage: merge-todo <ancestor> <ours> <theirs>" >&2; exit 2; }
 base="$1"; ours="$2"; theirs="$3"
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+result="$work/result"
+flag="$work/conflict"
 
-# Split a todo file into a preamble and one record per `## ` entry. Entries are
-# written to `entry.N`; `key.N` holds the heading, which is the fallback identity.
-split_todo() {  # split_todo <file> <outdir>
-  mkdir -p "$2"
-  awk -v dir="$2" '
-    # Entry text is written without its separating blank line; emit() adds it back,
-    # so the separator is uniform whether or not the source had one.
-    function flush() {
-      if (idx == 0) return
-      sub(/\n+$/, "", buf)
-      printf "%s", buf > (dir "/entry." idx)
-      close(dir "/entry." idx)
-    }
-    /^## / {
-      flush()
-      idx++
-      key = $0
-      sub(/^##[ \t]*/, "", key)
-      sub(/[ \t\r]+$/, "", key)
-      printf "%s\n", key > (dir "/key." idx)
-      close(dir "/key." idx)
-      buf = $0 "\n"
-      next
-    }
-    { if (idx == 0) { pre = pre $0 "\n" } else { buf = buf $0 "\n" } }
-    END {
-      flush()
-      printf "%s", pre > (dir "/preamble")
-      close(dir "/preamble")
-      printf "%d\n", idx > (dir "/count")
-      close(dir "/count")
-    }
-  ' "$1"
-}
+# One pass per side, no subprocesses. Sides are read in the order base, ours,
+# theirs, so FNR==1 marks a new side.
+#
+# Every index is one flat array keyed `side SUBSEP key`. The 2-D spelling
+# `idx[side, key]` is the same array, but `k in idx[side]` — which the first
+# draft of this file used — names a *slice* no awk implements, and gawk aborts
+# the whole merge with "attempt to use a scalar value as array". SUBSEP is what
+# makes that membership test expressible in POSIX awk.
+#
+# The separator between records is `\n\n` after a body whose trailing newlines
+# were stripped — how the previous implementation's emit() normalized it.
+awk -v ofile="$result" -v flagfile="$flag" '
+  function trim(s) { sub(/^[ \t\r]+/, "", s); sub(/[ \t\r]+$/, "", s); return s }
 
-# A richer key than the heading, when the entry has an ID: two branches can pick
-# the same heading text for different items, but the ID is what Todo commands
-# resolve against. It is emitted alongside the heading so an entry whose ID one
-# side has not written yet still matches its counterpart.
-#
-# The ID key is the first whitespace token only. A tombstone line is
-# `- ID: TF-x (removed …)`; taking the whole suffix made that a different key
-# from the live entry's `id:TF-x`, so a deletion never matched and the other
-# side's live copy was kept as "only they have it".
-#
-# `## Removed` is one section holding every tombstone, so it never keys off the
-# first record's ID — always `head:Removed`.
-key_of() {  # key_of <entryfile> <headingkey>
-  if [ "$2" = "Removed" ]; then
-    printf '%s\n' "head:Removed"
+  # The first `- ID:` value in a record, as its first whitespace token. A
+  # tombstone line is `- ID: TF-x (removed …)`, so taking the first token is what
+  # lets a deletion match the live entry it replaces.
+  #
+  # The separator is `[ \t\r\n]+`, not `[ \t]+`: a whole record is passed in, so
+  # the ID is followed by a newline, and a token split that ignores newlines
+  # returns `TF-x\n-` — an ID that matches nothing, including its own tombstone.
+  function first_id(text,   t, p, v, a) {
+    t = text
+    while ((p = index(t, "- ID:")) > 0) {
+      t = substr(t, p + 1)
+      v = trim(substr(t, 6))
+      if (v != "") { split(v, a, /[ \t\r\n]+/); return a[1] }
+    }
+    return ""
+  }
+
+  function flush(s) {
+    if (n[s] == 0) return
+    body[s, n[s]] = buf[s]
+    sub(/\n+$/, "", body[s, n[s]])
+  }
+
+  # `hk` arrives already prefixed (`"head:" heading`), because that is the shape
+  # the heading index stores. Prefixing it again would key every lookup to
+  # `head:head:…` and silently match nothing.
+  function match_of(k, hk) {
+    if ((3 SUBSEP k) in kidx) return kidx[3 SUBSEP k]
+    if ((3 SUBSEP hk) in hidx) return hidx[3 SUBSEP hk]
     return 0
-  fi
-  # One key per entry, no more: `exit` still runs END in awk, so the fallback has
-  # to be suppressed by a flag rather than by exiting early. An extra line here
-  # would shift every later key against its entry.
-  awk -v fallback="$2" '
-    /^- ID:/ {
-      v = substr($0, 7)
-      sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
-      split(v, a, /[ \t]+/)
-      if (a[1] != "" && !found) { print "id:" a[1]; found = 1 }
-    }
-    END { if (!found) print "head:" fallback }
-  ' "$1"
-}
+  }
+  function base_of(k, hk) {
+    if ((1 SUBSEP k) in kidx) return kidx[1 SUBSEP k]
+    if ((1 SUBSEP hk) in hidx) return hidx[1 SUBSEP hk]
+    return 0
+  }
+  function id_of(k) { return (substr(k, 1, 3) == "id:") ? substr(k, 4) : "" }
+  function emit(text) { printf "%s\n\n", text > ofile }
 
-# Emit one entry as a block: its text, then the blank line that separates it from
-# whatever follows. flush() strips trailing newlines, so the separator is uniform
-# whether or not the source entry had one.
-emit() {  # emit <entryfile>
-  cat "$1" >> "$work/result"
-  printf '\n\n' >> "$work/result"
-}
-
-# Tombstone IDs recorded in a side's `## Removed` section, one token per line.
-collect_removed() {  # collect_removed <outdir> <count> <outfile>
-  local i=1
-  : > "$3"
-  while [ "$i" -le "$2" ]; do
-    if [ "$(cat "$1/key.$i")" = "Removed" ]; then
-      awk '/^- ID:/ {
-        v = substr($0, 7)
-        sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
-        split(v, a, /[ \t]+/)
-        if (a[1] != "") print a[1]
-      }' "$1/entry.$i" >> "$3"
-    fi
-    i=$((i + 1))
-  done
-}
-
-# id:TF-x -> TF-x; heading keys yield nothing.
-id_of_key() {  # id_of_key <key>
-  case "$1" in
-    id:*) printf '%s\n' "${1#id:}" ;;
-  esac
-}
-
-# True when the other side's Removed set already names this ID.
-other_removed() {  # other_removed <id> <removed-file>
-  [ -n "$1" ] && [ -s "$2" ] && grep -qxF -- "$1" "$2"
-}
-
-# Union tombstone lines: ours first, then theirs-only IDs, still under one
-# `## Removed` heading (the entry file already starts with that heading).
-union_removed() {  # union_removed <our-entry> <their-entry> <outfile>
-  local ours_t="$work/union.ours_tombs" theirs_t="$work/union.theirs_tombs"
-  local line id
-  awk '/^- ID:/ { print }' "$1" > "$ours_t"
-  awk '/^- ID:/ { print }' "$2" > "$theirs_t"
+  # A new side starts at FNR==1, but the line itself still belongs to it: it is
+  # either the first line of the preamble or a `## ` heading. Taking `next` here
+  # would drop the first line of every side, and this file opens with
+  # `## Item template`, so that one line is the whole template heading. The
+  # previous side is flushed first, or its last entry is dropped the same way.
+  FNR == 1 {
+    if (side > 0) flush(side)
+    side++
+    n[side] = 0
+    pre[side] = ""
+    buf[side] = ""
+  }
+  /^## / {
+    flush(side)
+    n[side]++
+    h = $0
+    sub(/^##[ \t]*/, "", h)
+    h = trim(h)
+    head[side, n[side]] = h
+    # `## Removed` is one section holding every tombstone, so it never keys off
+    # its first record: always the literal heading key.
+    ekey[side, n[side]] = (h == "Removed") ? "head:Removed" : "id:" first_id($0)
+    buf[side] = $0 "\n"
+    next
+  }
   {
-    cat "$1"
-    # Blank line after our body only if we already had tombstones; emit() adds
-    # the section separator, so keep the block tight: header + our lines + new.
-    # Re-read structure: entry file is `## Removed` + blank? + lines. We append
-    # missing tombstones after our last line.
-    while IFS= read -r line; do
-      id="$(printf '%s\n' "$line" | awk '{
-        v = substr($0, 7)
-        sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v)
-        split(v, a, /[ \t]+/)
-        print a[1]
-      }')"
-      [ -n "$id" ] || continue
-      grep -qxF -- "$id" "$ours_t" && continue
-      printf '%s\n' "$line"
-    done < "$theirs_t"
-  } > "$3"
-}
+    if (n[side] == 0) pre[side] = pre[side] $0 "\n"
+    else              buf[side] = buf[side] $0 "\n"
+  }
 
-split_todo "$ours"   "$work/ours"
-split_todo "$theirs" "$work/theirs"
-split_todo "$base"   "$work/base"
-no="$(cat "$work/ours/count")"
-nt="$(cat "$work/theirs/count")"
-nb="$(cat "$work/base/count")"
+  END {
+    flush(side)
+    # A heading line cannot carry an ID, so a key that came out as bare "id:" is
+    # resolved from the body now that the whole record is known. Falling back to
+    # the heading is what keeps an entry without an ID matchable at all.
+    for (s = 1; s <= 3; s++) {
+      for (i = 1; i <= n[s]; i++) {
+        k = ekey[s, i]
+        if (k == "id:") {
+          k = first_id(body[s, i])
+          ekey[s, i] = (k != "") ? "id:" k : "head:" head[s, i]
+        }
+      }
+    }
 
-collect_removed "$work/ours"   "$no"   "$work/removed.ours"
-collect_removed "$work/theirs" "$nt"   "$work/removed.theirs"
+    for (s = 1; s <= 3; s++) {
+      for (i = 1; i <= n[s]; i++) {
+        k = ekey[s, i]
+        if (!((s SUBSEP k) in kidx)) kidx[s SUBSEP k] = i
+        hk = "head:" head[s, i]
+        if (!((s SUBSEP hk) in hidx)) hidx[s SUBSEP hk] = i
+      }
+      # Tombstone IDs on this side, for the "deletion wins" rule. Every `- ID:`
+      # in the section, because one `## Removed` holds all of them.
+      for (i = 1; i <= n[s]; i++) {
+        if (head[s, i] != "Removed") continue
+        t = body[s, i]
+        while ((p = index(t, "- ID:")) > 0) {
+          t = substr(t, p + 1)
+          v = trim(substr(t, 6))
+          if (v == "") continue
+          split(v, a, /[ \t\r\n]+/)
+          tomb[s SUBSEP a[1]] = 1
+        }
+      }
+    }
 
-# Index a side's entry files by key and heading, so a lookup is a grep over a list
-# rather than a scan of the entries themselves (an entry's body can contain a line
-# that looks like another entry's key).
-index_side() {  # index_side <outdir> <count> <keysfile> <headsfile>
-  local i=1
-  : > "$3"
-  : > "$4"
-  while [ "$i" -le "$2" ]; do
-    key_of "$1/entry.$i" "$(cat "$1/key.$i")" >> "$3"
-    printf 'head:%s\n' "$(cat "$1/key.$i")" >> "$4"
-    i=$((i + 1))
-  done
-}
+    printf "%s", pre[2] > ofile
+    conflict = 0
 
-index_side "$work/ours"   "$no" "$work/keys.ours"   "$work/heads.ours"
-index_side "$work/theirs" "$nt" "$work/keys.theirs" "$work/heads.theirs"
-index_side "$work/base"   "$nb" "$work/keys.base"   "$work/heads.base"
+    for (i = 1; i <= n[2]; i++) {
+      k = ekey[2, i]
+      hk = "head:" head[2, i]
+      j = match_of(k, hk)
+      if (j == 0) {
+        # Only we have it: we added it, or they removed it. Deletion wins — a
+        # live copy whose ID sits in their `## Removed` must not come back.
+        id = id_of(k)
+        if (id != "" && ((3 SUBSEP id) in tomb)) continue
+        emit(body[2, i])
+        continue
+      }
+      if (body[2, i] == body[3, j]) { emit(body[2, i]); continue }
+      b = base_of(k, hk)
+      if (hk == "head:Removed") {
+        if (b != 0 && body[2, i] == body[1, b]) { emit(body[3, j]); continue }
+        if (b != 0 && body[3, j] == body[1, b]) { emit(body[2, i]); continue }
+        # Both sides added or edited tombstones: union by ID under our heading,
+        # which is not a conflict — parallel removes are ordinary.
+        out = body[2, i]
+        t = body[3, j]
+        while ((p = index(t, "- ID:")) > 0) {
+          t = substr(t, p + 1)
+          line = t
+          q = index(t, "\n")
+          if (q > 0) line = substr(t, 1, q - 1)
+          v = trim(substr(line, 6))
+          if (v == "") continue
+          split(v, a, /[ \t\r\n]+/)
+          if (!((2 SUBSEP a[1]) in tomb)) out = out "\n" line
+        }
+        emit(out)
+        continue
+      }
+      if (b != 0 && body[2, i] == body[1, b]) { emit(body[3, j]); continue }
+      if (b != 0 && body[3, j] == body[1, b]) { emit(body[2, i]); continue }
+      # Both sides changed this record, or it is new on both sides under one
+      # key. Report it the way Git would, so the normal conflict-review workflow
+      # applies instead of a silent pick.
+      conflict = 1
+      printf "<<<<<<< ours\n%s\n=======\n%s\n>>>>>>> theirs\n\n", body[2, i], body[3, j] > ofile
+    }
 
-conflict=0
-: > "$work/result"
-cat "$work/ours/preamble" >> "$work/result"
+    for (i = 1; i <= n[3]; i++) {
+      k = ekey[3, i]
+      hk = "head:" head[3, i]
+      if (((2 SUBSEP k) in kidx) || ((2 SUBSEP hk) in hidx)) continue
+      id = id_of(k)
+      if (id != "" && ((2 SUBSEP id) in tomb)) continue
+      emit(body[3, i])
+    }
 
-# `grep` exits 1 when it finds nothing, which under `set -o pipefail` would abort
-# the whole merge on the ordinary "only we have this entry" case. The lookups are
-# therefore explicitly allowed to fail.
-lookup() {  # lookup <needle> <listfile>
-  local out
-  out="$(grep -nxF -- "$1" "$2" 2>/dev/null | head -1 | cut -d: -f1)" || true
-  printf '%s' "$out"
-}
-has() {  # has <needle> <listfile>
-  grep -qxF -- "$1" "$2" 2>/dev/null
-}
+    close(ofile)
+    printf "%d\n", conflict > flagfile
+    close(flagfile)
+  }
+' "$base" "$ours" "$theirs"
 
-# Their entry matching ours, by ID when both have one and by heading otherwise.
-# The second lookup is what keeps an entry that one side gave an ID to from being
-# appended a second time as a new entry.
-match_of() {  # match_of <our-key> <our-head>
-  local j
-  j="$(lookup "$1" "$work/keys.theirs")"
-  if [ -z "$j" ]; then j="$(lookup "$2" "$work/heads.theirs")"; fi
-  printf '%s' "$j"
-}
-
-# The ancestor's copy of our entry, so a one-sided change is not mistaken for a
-# two-sided one. Without this, the branch that archived a task while another
-# branch left the same entry alone would conflict for no reason.
-base_of() {  # base_of <our-key> <our-head>
-  local b
-  b="$(lookup "$1" "$work/keys.base")"
-  if [ -z "$b" ]; then b="$(lookup "$2" "$work/heads.base")"; fi
-  printf '%s' "$b"
-}
-
-i=1
-while [ "$i" -le "$no" ]; do
-  key="$(sed -n "${i}p" "$work/keys.ours")"
-  head="$(sed -n "${i}p" "$work/heads.ours")"
-  entry="$work/ours/entry.$i"
-  j="$(match_of "$key" "$head")"
-  if [ -z "$j" ]; then
-    # Only we have it: we added it, or they removed it. Deletion wins — a live
-    # copy whose ID sits in their ## Removed must not come back.
-    id="$(id_of_key "$key")"
-    if other_removed "$id" "$work/removed.theirs"; then
-      :
-    else
-      emit "$entry"
-    fi
-  else
-    other="$work/theirs/entry.$j"
-    if cmp -s "$entry" "$other"; then
-      emit "$entry"
-    else
-      b="$(base_of "$key" "$head")"
-      if [ "$key" = "head:Removed" ] || [ "$head" = "head:Removed" ]; then
-        if [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
-          emit "$other"        # only they changed Removed
-        elif [ -n "$b" ] && cmp -s "$other" "$work/base/entry.$b"; then
-          emit "$entry"        # only we changed Removed
-        else
-          # Both added or edited tombstones: union by ID, not a conflict.
-          union_removed "$entry" "$other" "$work/union.removed"
-          emit "$work/union.removed"
-        fi
-      elif [ -n "$b" ] && cmp -s "$entry" "$work/base/entry.$b"; then
-        emit "$other"        # only they changed it
-      elif [ -n "$b" ] && cmp -s "$other" "$work/base/entry.$b"; then
-        emit "$entry"        # only we changed it
-      else
-        # Both sides changed this entry, or it is new on both sides under one key.
-        # Report it the way Git would, so the normal conflict-review workflow
-        # applies instead of a silent pick.
-        conflict=1
-        {
-          printf '<<<<<<< ours\n'
-          cat "$entry"
-          printf '\n=======\n'
-          cat "$other"
-          printf '\n>>>>>>> theirs\n'
-        } >> "$work/result"
-      fi
-    fi
-  fi
-  i=$((i + 1))
-done
-
-# Entries only they have, in their order, after ours. Both keys are consulted so
-# an entry matched by heading above is not appended here as well.
-i=1
-while [ "$i" -le "$nt" ]; do
-  key="$(sed -n "${i}p" "$work/keys.theirs")"
-  head="$(sed -n "${i}p" "$work/heads.theirs")"
-  if ! has "$key" "$work/keys.ours" && ! has "$head" "$work/heads.ours"; then
-    id="$(id_of_key "$key")"
-    if other_removed "$id" "$work/removed.ours"; then
-      : # we already recorded this ID as deleted; do not resurrect their live copy
-    else
-      emit "$work/theirs/entry.$i"
-    fi
-  fi
-  i=$((i + 1))
-done
-
-cp "$work/result" "$ours"
-exit "$conflict"
+# One write, after the decision: a run that died above left %A as Git gave it,
+# and this line never ran.
+cp "$result" "$ours"
+# The markers are in %A now, so the caller's conflict-review path applies; the
+# nonzero exit is what makes `git merge` report the conflict at all.
+[ "$(cat "$flag")" = "0" ]

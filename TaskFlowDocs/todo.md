@@ -29,24 +29,10 @@ has an issue number or URL.
 ## The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a mer
 
 - ID: TF-20261104-b1681b
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user report 2026-11-04 during PR #117
-- Added: 2026-11-04
-- Updated: 2026-11-04
+- Status: done
 - Goal: The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a merge when its caller times out: the interrupted run leaves %A as ours, so the merge commits one side's file with no driver result and no error
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-04 实测**。`hooks/merge-todo` 在一份 125 条目的真实 `todo.md` 上跑一次要 **180 秒**（`%O`/`%A`/`%B` 取自 `eed6fdf` / `35b8151` / `8953f72`，即 #117 合并的三方）。同一组输入它**结果是对的**（两侧条目各自取正确的一侧），所以这不是逻辑错误。
-
-  **真正的问题是中断后的行为**：#117 的首次 `git merge` 被 120 秒超时杀掉，driver 写到一半，`%A` 停在「ours」原样；随后清掉 `index.lock` 重跑，那次合并落下的 merge commit 里 `TaskFlowDocs/todo.md` **与 ours 逐字节相同**——一方的结果被静默丢弃，`git merge` 报告成功。取证：`git show 7d9d979:TaskFlowDocs/todo.md` 与 `git show 35b8151:` 的 `cmp` 相同。
-
-  **代价**：main 上 `fa9090` 的 done 被覆盖成 inbox，`af456a` 的 Notes 丢失，靠手工提交 `e110454` 修正。
-
-  **复杂度来源**：`index_side`/`match_of`/`base_of` 每条目一次 `grep -nxF | head -1 | cut -d: -f1` 子进程，125 条目 × 3 侧 → 近千次进程启动。Windows/Git Bash 上每次 ~150ms。
-
-  **要定的方向**：(a) 把三方索引与匹配搬进单个 awk 进程（一次性 split + 内存 dict），去掉逐条目子进程；(b) 保持实现不变，只给 driver 加超时保护与「未完成就走 Git 内置冲突」的显式失败；(c) 两者都做。(a) 是根因，(b) 是安全网。
+- Task: `TaskFlowDocs/achieved/2026-11-04-merge-todo-speed/`
+- Next action: None — completed and archived.
 
 ## PR 流程可以少一次提交：CI 已过、PR body 已改完、只差合并时
 
