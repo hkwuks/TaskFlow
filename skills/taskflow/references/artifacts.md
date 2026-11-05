@@ -86,6 +86,18 @@ TaskFlowDocs/
 ## Open Questions
 ```
 
+**Two of those sections carry the task's model of the system, and they are what make a coarse requirement tractable.** Without them an Agent can only see where a symptom appears, not where it is caused — and a requirement stated at the level of "this behaviour is wrong" has no filename attached to it.
+
+`## Architecture Boundaries and Responsibilities` must answer, for every layer the change touches:
+
+- what that layer is responsible for;
+- **what it is explicitly not responsible for** — the section that stops a fix from landing one layer away from its cause;
+- which direction the dependencies run, so a change's blast radius is visible before it is made.
+
+`## Interfaces, Data Flow, and Contracts` must give, for every boundary the change touches, the input and output contract in both directions: what the producing layer guarantees, and what the consuming layer is therefore entitled to assume. A contract written this way is also what makes an intermediate value checkable — a downstream layer that only reads a value it was promised cannot tell whether the value is right, but a reader of the contract can.
+
+Do not restate the directory layout in these sections. `## Project Structure / Affected Files` already lists paths; the architecture sections exist to say what the paths mean, not where they are.
+
 ## Plan outline
 
 ```markdown
