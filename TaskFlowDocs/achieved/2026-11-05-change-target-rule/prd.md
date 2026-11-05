@@ -1,6 +1,6 @@
 # 开发本仓库前先判定改动目标属于哪一类
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

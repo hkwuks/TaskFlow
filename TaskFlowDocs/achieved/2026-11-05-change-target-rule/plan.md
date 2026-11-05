@@ -1,6 +1,6 @@
 # Plan — 开发本仓库前先判定改动目标属于哪一类
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -78,8 +78,13 @@ No spec required — small, self-contained task.
 | 变异：删掉整节 | 删除 `## Decide which rules…` 到 `## TaskFlow workflow` | caught — `FAIL CONTRIBUTING does not ask which rule set a change belongs to` |
 | 全量 smoke | `bash hooks/smoke-test` | `ALL SMOKE PASSED`，exit 0 |
 | 空白检查 | `git diff --check` | 通过 |
+| CI 三宿主矩阵 | PR #122，run [42049076206](https://github.com/hkwuks/TaskFlow/actions/runs/42049076206) | `smoke` macOS / Ubuntu / Windows、`changes`、`todo-merge-audit` 全部 pass；`release` 按预期 skipping |
 
-CI 三宿主矩阵在推送后读取；本地 smoke 只是预检。
+本地 smoke 只是预检，CI 是判定。
+
+**变更记录**
+
+- 2026-11-05 — 用户指出未收到 CI 后台通知。改为直接查询 `gh pr checks 122`，确认六项全过；属工作方式修正，不改交付内容，记为 work revision。
 
 
 ## Change Log
@@ -93,3 +98,19 @@ CI 三宿主矩阵在推送后读取；本地 smoke 只是预检。
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- **2026-11-05 用户原话**：「你做完这个任务，你给我的仓库增加一个规则：让后续开发的时候搞清楚是要改插件的功能，还是要改插件默认给的仓库规则模板，还是只是改我自己这个仓库的规则。」
+  **为什么会有这条**：同一个仓库里存在三个**效力范围完全不同**的落点，而 Agent 容易把它们混成「都是改规则」：
+  | 落点 | 生效范围 | 谁能看到 | 修改的代价 |
+  | --- | --- | --- | --- |
+  | `skills/taskflow/SKILL.md`、`skills/taskflow/references/`、`hooks/` | **插件自身行为**，所有安装者 | 每个用户 | 改变所有人的工作流 |
+  | `hooks/templates/CONTRIBUTING.md`、`hooks/templates/CODE_STYLE.md` | **别人仓库的默认规则** | 仅当该仓库用户主动 `repo-rules create` | 建议性质，不自动生效 |
+  | 本仓库的 `CONTRIBUTING.md`、`CODE_STYLE.md` | **仅 TaskFlow 开发本身** | 只影响本仓库的贡献者 | 不影响插件用户 |
+  **实际教训（2026-11-05）**：Agent 在讨论「分层规则要写到哪」时，把「插件自身规则」和「发给用户的默认模板」混为一谈，向用户抛出了一个问错方向的选择题。用户纠正：*「不是应该写仓库，这跟仓库没有关系，你老是把关系搞混。我这个仓库就是开发这个插件的，这个插件要实现这个功能。」*
+  **要做**：把这条判定写进插件的适用性门（`SKILL.md` 的 Applicability gate 附近）或 `CONTRIBUTING.md` 的显著位置，使每次开发本仓库时的第一个问题变成「这次改的是哪一类」。判据应当是**谁受影响**，而不是文件在哪个目录——`hooks/templates/` 容易被误读成「插件代码」，实际是「给别人仓库的建议」。

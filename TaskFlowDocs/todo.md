@@ -29,28 +29,10 @@ has an issue number or URL.
 ## 开发本仓库前先判定改动目标属于哪一类：插件自身能力（sk
 
 - ID: TF-20261105-77051f
-- Status: in_progress
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-05
-- Added: 2026-11-05
-- Updated: 2026-11-05
+- Status: done
 - Goal: 开发本仓库前先判定改动目标属于哪一类：插件自身能力（skills/、hooks/）、插件发给用户仓库的默认规则模板（hooks/templates/）、还是本仓库自己的规则文件，并据此选择正确的落点
-- Task: `TaskFlowDocs/2026-11-05-change-target-rule/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: **2026-11-05 用户原话**：「你做完这个任务，你给我的仓库增加一个规则：让后续开发的时候搞清楚是要改插件的功能，还是要改插件默认给的仓库规则模板，还是只是改我自己这个仓库的规则。」
-
-  **为什么会有这条**：同一个仓库里存在三个**效力范围完全不同**的落点，而 Agent 容易把它们混成「都是改规则」：
-
-  | 落点 | 生效范围 | 谁能看到 | 修改的代价 |
-  | --- | --- | --- | --- |
-  | `skills/taskflow/SKILL.md`、`skills/taskflow/references/`、`hooks/` | **插件自身行为**，所有安装者 | 每个用户 | 改变所有人的工作流 |
-  | `hooks/templates/CONTRIBUTING.md`、`hooks/templates/CODE_STYLE.md` | **别人仓库的默认规则** | 仅当该仓库用户主动 `repo-rules create` | 建议性质，不自动生效 |
-  | 本仓库的 `CONTRIBUTING.md`、`CODE_STYLE.md` | **仅 TaskFlow 开发本身** | 只影响本仓库的贡献者 | 不影响插件用户 |
-
-  **实际教训（2026-11-05）**：Agent 在讨论「分层规则要写到哪」时，把「插件自身规则」和「发给用户的默认模板」混为一谈，向用户抛出了一个问错方向的选择题。用户纠正：*「不是应该写仓库，这跟仓库没有关系，你老是把关系搞混。我这个仓库就是开发这个插件的，这个插件要实现这个功能。」*
-
-  **要做**：把这条判定写进插件的适用性门（`SKILL.md` 的 Applicability gate 附近）或 `CONTRIBUTING.md` 的显著位置，使每次开发本仓库时的第一个问题变成「这次改的是哪一类」。判据应当是**谁受影响**，而不是文件在哪个目录——`hooks/templates/` 容易被误读成「插件代码」，实际是「给别人仓库的建议」。
+- Task: `TaskFlowDocs/achieved/2026-11-05-change-target-rule/`
+- Next action: None — completed and archived.
 
 ## 复杂框架项目中，引导模型关注整体效果与每一层的功能设
 
