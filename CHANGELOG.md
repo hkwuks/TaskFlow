@@ -2,6 +2,61 @@
 
 ## [Unreleased]
 
+## [1.1.15] — 2026-11-05
+
+### Added
+
+- **The large/small question is asked by layer boundary, not by file count.** Phase 3's classification read "multiple modules/files, architecture/API/data-flow changes, …" first, which made a file count the natural test and let the expensive case through: one edited file that quietly redefines what the next layer may assume. The criterion is now stated as *the first question is whether the change crosses a layer boundary* — a one-file edit that alters what one layer hands another is large; a five-file edit entirely inside one layer's private implementation need not be. Small now requires **all three** of: no cross-layer contract change, no external interface change, and a result verifiable from inside one layer. File count and elapsed time stay as supporting signals, named as never sufficient on their own.
+
+  `references/artifacts.md` says what the two Spec sections that carry this must answer: `## Architecture Boundaries and Responsibilities` states for every touched layer what it *is* responsible for, **what it is explicitly not responsible for**, and which direction dependencies run; `## Interfaces, Data Flow, and Contracts` gives the producer-guarantee / consumer-allowance contract in both directions at every touched boundary. The sections are told not to restate the directory layout, which `## Project Structure / Affected Files` already lists.
+
+- **A failure is fixed in the layer that owns it, and Phase 5 now prohibits the alternative outright.** Adjusting an intermediate value, a serialized form, a fixture, an error message, or an assertion's input so a downstream check goes green is not a fix — it is a false claim that the layer below is correct, made in the one place nothing checks, and the Skill now names it as goal deception and prohibits it however small the edit and however passing the suite afterwards. The accompanying reasoning is the distinction the rule turns on: a symptom's location and a failure's location are different facts, the red check sits where the wrong value was *noticed* while the defect sits where it was *produced*, and the architecture sections are what make the producing layer findable. Phase 6 gains a matching review item — **what the change touched to make the checks pass** — naming every modified intermediate value, fixture, or existing expectation in the diff with the layer that owns it.
+
+  The boundary is stated with it, because a rule this broad is otherwise read as forbidding legitimate work: a test that was wrong about the contract, a fixture that encoded an assumption the Spec has now changed, and an expectation the approved requirement genuinely redefines are all legitimate and all recorded under the new item. What is prohibited is the quiet version — editing the thing a check reads, saying nothing, and letting the green be the only statement made.
+
+### Changed
+
+- **The teardown message deletes the merged branch in the same step, and `repository-check` reports what is left.** `git worktree remove` never deletes a branch — `git worktree` only owns the checkout — and the old message said so and then left the branch alone, which is what let them accumulate: nine on one machine by 2026-10-18, three more by 2026-11-04, and once the directory was gone nothing reported them any more. The message now prints both commands in order, and `-d` (never `-D`) is the safety argument it carries: it refuses an unmerged branch, so the pair succeeds on a merged one and stops with `not fully merged` on an unmerged one, keeping the branch and saying why. Order matters for the same reason in reverse — the branch is still checked out until the removal runs.
+
+  `hooks/repository-check` gains a **Merged branches without a worktree** report beside the existing stale-worktree one: an ancestry test only, so a squash- or rebase-merged branch is a false negative and that is the safe direction; the base branch and every branch some worktree still has checked out are excluded; and it reports without deleting and without touching the exit code. Both reports are informational, and `CONTRIBUTING.md`, `SKILL.md`, and the new `hooks/README.md` wording say so.
+
+- **The documentation states the three capability distinctions per host instead of conflating them.** The READMEs, `hooks/README.md`, and `references/runtime.md` described the pre-write gate as if recording, refusing, and external lookup were one capability, which is how Codex spent a month recorded as ungated. Each is now stated where it actually runs: `capability-evidence` records on Claude Code, CodeBuddy, and Trae; `capability-gate` refuses on those three plus Codex CLI, where it matches `PreToolUse` on `apply_patch` and reads target paths out of the patch text (one of **two input shapes**, not a host branch); `external-evidence` runs on every host whose tool events are wired, which is all but dsh. Codex records no capability invocation, so a stage there is released by `hooks/task unaided`. The `hooks/README.md` and `runtime.md` directory trees now name the events each wiring file actually carries.
+
+- **`CONTRIBUTING.md` asks which of the repository's three rule sets a change belongs to.** This repository is the plugin and also holds the templates it hands to other repositories and its own development conventions, and the three differ in **who is affected** rather than in which directory holds the file — `hooks/templates/` sits beside `hooks/` and is not plugin code. The new section gives the three-row table, states that the criterion is who-is-affected (with the directory trap named), states that the three are not interchangeable in either direction, and asks for the row to be recorded in the Plan because it decides the Plan's scope.
+
+### Fixed
+
+- **The Codex install instructions no longer say the gate cannot be wired there.** Both READMEs described Codex's wiring as `SessionStart` only and pointed at a limitation; the gate has been wired on `apply_patch` since before this release, and the limitation that remains is the recorder, not the gate. The paragraph now names the four wired events and states that Codex records no capability invocations.
+
+### Compatibility
+
+- **No install command changes, no rename, no manifest shape change, and no hook gains an interpreter dependency.** The new code is POSIX shell and POSIX awk, and every `hooks-*.json` wiring file is untouched by this release.
+- **`hooks/archive`'s teardown message gains one line.** It prints from a linked worktree only, so a repository that never made one sees byte-identical output.
+- **`hooks/repository-check` gains one report.** It is informational, never sets the exit code, and never deletes anything; its output for a repository with no loose branches reads `Merged branches without a worktree: none`.
+- **Three rules in `skills/taskflow/SKILL.md` now bind more tasks.** A change that crosses a layer boundary needs `spec.md` where a file count previously said it did not; Phase 5 prohibits a class of edit it previously did not name; Phase 6 item 9 asks for a review of what was touched to make checks pass. Existing approved tasks are not re-evaluated.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass` (re-run on the pushed `main`).
+- `bash hooks/repository-check .` — `STATUS: pass`, with all four housekeeping reports reading `none`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally for the release commit, and recorded as skipped.** The release commit's difference from `6f1a3dc` — the last commit on `main` before this release began, CI run [`42049915612`](https://github.com/hkwuks/TaskFlow/actions/runs/42049915612), 7/7 `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads. The commit after it moves only the two marketplace catalogs.
+- Every change this release ships ran the full matrix on its own pull request: #121 (`62f9814`, run [`42044791869`](https://github.com/hkwuks/TaskFlow/actions/runs/42044791869)), #122 (`867debb`, run [`42049076206`](https://github.com/hkwuks/TaskFlow/actions/runs/42049076206)), and the earlier two on this range — #119 (`2c69fc0`, run [`41848560436`](https://github.com/hkwuks/TaskFlow/actions/runs/41848560436)) and #120 (`c50f5ca`, run [`41848604481`](https://github.com/hkwuks/TaskFlow/actions/runs/41848604481)). `smoke` on ubuntu, macos and windows each time, plus `changes` and `todo-merge-audit`.
+- Mutation checks are recorded in the tasks' Plans: the merged-branch report (a fixture branch that was already merged, which asserted nothing until it was rebuilt from a commit of its own), the teardown message (inverting the `branch survives` assertion; a `-D` offering check), and the rule-target section (deleting the criterion sentence, deleting a table row, and deleting the whole section each reddened its own named assertion).
+
+### Known limitations
+
+- **The layer-boundary classification is a judgement, not a check.** No hook can tell whether a change crossed a boundary, so the rule depends on the Agent reading it. That is the deliberate choice: the alternative was a file-count heuristic, which is the signal the rule exists to demote.
+- **Phase 5's prohibition is not machine-enforced either.** Item 9 asks the reviewer to name the layer that owns each modified intermediate value, which makes the quiet version visible in review, but nothing refuses the edit.
+- **The new `repository-check` report uses ancestry only.** A squash-merged or rebase-merged branch shows as unmerged and is therefore not reported. The alternative — reporting by subject or patch-id — risks naming a branch that still holds the only copy of a commit, which is the direction that loses work.
+- **dsh still has no tool-call event wired**, so its stage evidence comes only from `hooks/task unaided`. The reason is unchanged and is a case-sensitivity mismatch in the tool names, not a missing event.
+- **The Codex gate reads target paths from patch text and is documented, not measured on a real Codex.** It has smoke coverage; a real Codex install exercising it end to end is still outstanding.
+
+### Release
+
+- **Tag `v1.1.15` names `TAG_COMMIT_SHA`; the pin commit is `PIN_COMMIT_SHA`; the GitHub Release is `RELEASE_URL`.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
 ## [1.1.14] — 2026-11-04
 
 ### Added
