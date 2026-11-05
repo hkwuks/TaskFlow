@@ -3066,6 +3066,35 @@ done
 grep -q -F -- "not in the task's documents" "$repo/CONTRIBUTING.md" || { echo "FAIL the landing claim is not distinguished from the task documents"; exit 1; }
 echo ok
 
+echo "== the repository is asked which of its three rule sets a change belongs to =="
+# This repository is the plugin and it also holds three rule sets whose reach
+# differ: the plugin's behaviour, the templates handed to another repository, and
+# this repository's own conventions. On 2026-11-05 a discussion about where a
+# layered-integrity rule belonged treated the first two as one thing and offered
+# the user a choice between the wrong two options. The rule's criterion is who is
+# affected, because the directory does not answer it: `hooks/templates/` sits
+# beside `hooks/` and is not plugin code.
+grep -q -F -- '## Decide which rules you are changing' "$repo/CONTRIBUTING.md" \
+  || { echo "FAIL CONTRIBUTING does not ask which rule set a change belongs to"; exit 1; }
+for clause in \
+  'the three differ in **who is affected** — not in which directory they sit in' \
+  'Ask **who is affected**, and the answer picks the row.' \
+  'Ask **which directory**, and it does not: `hooks/templates/` sits beside `hooks/`' \
+  'The three are not interchangeable in either direction.' ; do
+  grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" \
+    || { echo "FAIL rule-target rule does not pin: $clause"; exit 1; }
+done
+# All three rows must be present: a table that lost one is a rule that no longer
+# answers the question it was written for.
+for row in \
+  '| The plugin'"'"'s own behaviour |' \
+  '| The default rules TaskFlow offers to other repositories |' \
+  '| This repository'"'"'s own development conventions |' ; do
+  grep -q -F -- "$row" "$repo/CONTRIBUTING.md" \
+    || { echo "FAIL rule-target table is missing a row: $row"; exit 1; }
+done
+echo ok
+
 echo "== a hook change reaches every declared host, or the rule says why not =="
 # The rule this pins exists because the repository got the distinction wrong:
 # `runtime.md` recorded Codex as ungated under the heading of a host limitation,
