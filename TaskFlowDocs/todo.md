@@ -29,15 +29,15 @@ has an issue number or URL.
 ## 开发本仓库前先判定改动目标属于哪一类：插件自身能力（sk
 
 - ID: TF-20261105-77051f
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-11-05
 - Added: 2026-11-05
 - Updated: 2026-11-05
 - Goal: 开发本仓库前先判定改动目标属于哪一类：插件自身能力（skills/、hooks/）、插件发给用户仓库的默认规则模板（hooks/templates/）、还是本仓库自己的规则文件，并据此选择正确的落点
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-11-05-change-target-rule/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-11-05 用户原话**：「你做完这个任务，你给我的仓库增加一个规则：让后续开发的时候搞清楚是要改插件的功能，还是要改插件默认给的仓库规则模板，还是只是改我自己这个仓库的规则。」
 
   **为什么会有这条**：同一个仓库里存在三个**效力范围完全不同**的落点，而 Agent 容易把它们混成「都是改规则」：
