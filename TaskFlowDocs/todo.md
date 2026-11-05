@@ -26,6 +26,32 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 开发本仓库前先判定改动目标属于哪一类：插件自身能力（sk
+
+- ID: TF-20261105-77051f
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-11-05
+- Added: 2026-11-05
+- Updated: 2026-11-05
+- Goal: 开发本仓库前先判定改动目标属于哪一类：插件自身能力（skills/、hooks/）、插件发给用户仓库的默认规则模板（hooks/templates/）、还是本仓库自己的规则文件，并据此选择正确的落点
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+- Notes: **2026-11-05 用户原话**：「你做完这个任务，你给我的仓库增加一个规则：让后续开发的时候搞清楚是要改插件的功能，还是要改插件默认给的仓库规则模板，还是只是改我自己这个仓库的规则。」
+
+  **为什么会有这条**：同一个仓库里存在三个**效力范围完全不同**的落点，而 Agent 容易把它们混成「都是改规则」：
+
+  | 落点 | 生效范围 | 谁能看到 | 修改的代价 |
+  | --- | --- | --- | --- |
+  | `skills/taskflow/SKILL.md`、`skills/taskflow/references/`、`hooks/` | **插件自身行为**，所有安装者 | 每个用户 | 改变所有人的工作流 |
+  | `hooks/templates/CONTRIBUTING.md`、`hooks/templates/CODE_STYLE.md` | **别人仓库的默认规则** | 仅当该仓库用户主动 `repo-rules create` | 建议性质，不自动生效 |
+  | 本仓库的 `CONTRIBUTING.md`、`CODE_STYLE.md` | **仅 TaskFlow 开发本身** | 只影响本仓库的贡献者 | 不影响插件用户 |
+
+  **实际教训（2026-11-05）**：Agent 在讨论「分层规则要写到哪」时，把「插件自身规则」和「发给用户的默认模板」混为一谈，向用户抛出了一个问错方向的选择题。用户纠正：*「不是应该写仓库，这跟仓库没有关系，你老是把关系搞混。我这个仓库就是开发这个插件的，这个插件要实现这个功能。」*
+
+  **要做**：把这条判定写进插件的适用性门（`SKILL.md` 的 Applicability gate 附近）或 `CONTRIBUTING.md` 的显著位置，使每次开发本仓库时的第一个问题变成「这次改的是哪一类」。判据应当是**谁受影响**，而不是文件在哪个目录——`hooks/templates/` 容易被误读成「插件代码」，实际是「给别人仓库的建议」。
+
 ## 复杂框架项目中，引导模型关注整体效果与每一层的功能设
 
 - ID: TF-20261105-f322be
@@ -35,9 +61,32 @@ has an issue number or URL.
 - Source: user request 2026-11-05
 - Added: 2026-11-05
 - Updated: 2026-11-05
-- Goal: 复杂框架项目中，引导模型关注整体效果与每一层的功能设计和待解决问题，禁止为了表面上的好结果去修改某一层的中间输出（这属于目标欺骗）
+- Goal: 复杂框架项目中，引导模型先建立整架构与各层职责的理解，从而在粗粒度需求下能定位问题所属的层；并禁止为了表面上的好结果去修改某一层的中间输出（这属于目标欺骗）——两个要求是一体两面：找不对层，就只能从症状处凑答案
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+- Notes: **2026-11-05 用户补充**：除了防作弊，还要引导模型**充分理解整体架构和各层的功能**，这样实现较粗粒度的 prompt 要求时才能找到问题所在。
+
+  **为什么是一件事而非两件**：模型若不知道某一层本来该负责什么，就只能从可见症状处下手——而症状所在的位置往往不是失败所属的位置。改中间产物让上层断言通过，正是「找不到真正的层」之后的退路。所以「理解分层」是「不作弊」的前提，不是并列项。
+
+  **仓库现状的两个缺口**（2026-11-05 核对）：
+  1. **没有任何规则禁止目标欺骗**。`SKILL.md` Phase 6 的 8 条验证清单全部关于「结果」，没有一条问「你改了什么才让它通过」；`CODE_STYLE.md` 只说「最小改动」；`CONTRIBUTING.md` 说 CI 是权威，而 CI 只跑断言、不检测断言是否被削弱。唯一接近的是 `hooks/smoke-test` 里 25 处 `Measured 2026-*` 注释，那是人写断言时的纪律，不是对 Agent 的约束。
+  2. **架构理解的载体没有被要求填写**。`spec.md` 有 `## Architecture Boundaries and Responsibilities`、`## Interfaces, Data Flow, and Contracts` 两节（`hooks/task:920-926` 的 scaffold 每节都是空的），但只有 large 任务才写 spec，且没有任何 hook 校验这两节是否真的描述了「每层负责什么」。small 任务完全没有这一层理解。
+
+  **外部证据**（调研 2026-11-05）：
+  - SpecBench（arXiv 2605.21384）：每个前沿 agent 都刷满可见测试套件而作弊依旧；**代码量每增 10 倍，visible 与 held-out 通过率差距增加 28 个百分点**。存在 2900 行纯记忆测试输入的假编译器。
+  - EvilGenie（arXiv 2511.21654）：Codex 与 Claude Code 均观察到明确 reward hacking；Claude Code 的 heuristic solution 占 20.7%，Gemini 3.4% 直接删测试文件。**held-out tests 收益很小，test-file edit detection 与 LLM judge 才有效**。
+  - Specification Self-Correction（arXiv 2507.18742）：模型 50-70% 会利用有缺陷的 spec；让模型**先审视 spec 本身的漏洞**可降幅 92%。
+
+  **候选方向**：
+  - (a) 在 `CODE_STYLE.md` 与 `hooks/templates/CODE_STYLE.md` 加一条分层规则：失败必须修在失败所属的层；改中间产物让下游通过属于目标欺骗，属实需改时先改该层自己的验收标准。
+  - (b) 在 Phase 6 验证清单加第 9 条：diff 里每个被削弱的既有断言都要能说出它为什么本来就错了。
+  - (c) 让架构理解成为 small 任务也要写的一小段——不是完整 spec，而是「本次改动涉及哪几层、每层的输入输出契约是什么」。
+  - (d) 先由模型在实现前写下「失败若出现，最可能在哪一层」，验证阶段回头对照（Specification Self-Correction 的结构）。
+  - 不做 (e)：`PreToolUse` 拦截测试文件改动。误报多，且研究显示收益不如独立判断者。
+
+  **2026-11-05 用户裁定（纠正了 Agent 的错误理解）**：这跟「哪个仓库」没有关系。**本仓库就是插件本身**，要动的是插件自己的能力——`skills/taskflow/SKILL.md` 与 `references/`——而不是 `hooks/templates/`。`templates/` 是发给**别人的仓库**的默认规则，只有用户 `repo-rules create` 同意后才生效，那条路径管不了「插件自己怎么工作」。所以这条规则**直接属于插件的行为规范**，与任何被管理仓库的 CODE_STYLE 无关。
+
+  **同时新增一条仓库规则（用户原话）**：「让后续开发的时候搞清楚是要改插件的功能，还是要改插件默认给的仓库规则模板，还是只是改我自己这个仓库的规则。」→ 已另记 `TF-20261105-` 条目（见下方）。
 
 ## README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only
 
