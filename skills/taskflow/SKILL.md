@@ -231,10 +231,12 @@ Agent suggestions may mark evidence as candidate. Only the Primary Agent or user
 
 **Re-ask the external-facts question here, because this is where it can change.** Phase 1 answered it against the request; this phase answers it against the contract. Defining an interface, an error semantic, or a compatibility boundary is exactly when a "we are only changing our own code" reading stops being true — a status code another service must accept, a field a plugin manifest must declare, a version an operator must install. If Phase 1 answered `no` and this phase turns out to depend on something outside, say so rather than proceeding: the answer changes, `prd.md` changes, and any lookup made now is recorded like any other. Searching to settle it is allowed here too — defining the contract is exactly when a lookup is most likely to be needed, and reaching for one now is not a late admission that Phase 1 was wrong.
 
-Classify the task before planning:
+Classify the task before planning. **The first question is not how many files change — it is whether the change crosses a layer boundary.** A one-file edit that changes what one layer hands to another is a large task; a five-file edit entirely inside one layer's private implementation need not be.
 
-- Large: multiple modules/files, architecture/API/data-flow/compatibility/error-contract changes, multiple sessions, or roughly more than 30 minutes. `spec.md` is required.
-- Small: one file, clear boundaries, one short session, and no cross-layer contract. `spec.md` may be omitted.
+- Large: the change crosses a layer boundary — it alters an interface, a data flow, an error contract, a compatibility decision, or what one component may assume about another. Also large: several sessions, or roughly more than 30 minutes. `spec.md` is required.
+- Small: **all three** must hold — no cross-layer contract changes, no external interface changes, and the result is verifiable from inside one layer. Only then may `spec.md` be omitted.
+
+File count and elapsed time are supporting signals, never sufficient on their own. The case they miss is the expensive one: a single edited file that quietly redefines what the next layer can rely on, which is exactly the change that needs its contracts written down first.
 
 When omitted, put this exact decision in `plan.md`:
 
@@ -242,7 +244,7 @@ When omitted, put this exact decision in `plan.md`:
 No spec required — <brief reason>
 ```
 
-For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
+For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. **The architecture sections are the task's model of what each layer is for**, and they are what lets a coarse requirement be traced to the layer that owns it — see `references/artifacts.md` for what those sections must answer. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
 
 ### 4. Plan — execution contract
 
@@ -288,6 +290,12 @@ When a merge or rebase you run hits a conflict, stop and put both sides in front
 
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
+**A failure is fixed in the layer that owns it — never by making its output look right to whatever layer reads it next.** Adjusting an intermediate value, a serialized form, a fixture, an error message, or an assertion's input so a downstream check goes green is not a fix; it is a false claim that the layer below is correct, made in the one place nothing checks. This is goal deception, and it is prohibited however small the edit and however passing the suite afterwards.
+
+The reason is that a symptom's location and a failure's location are different facts. The check that goes red sits where the wrong value was *noticed*; the defect sits where it was *produced*. When the producing layer is not understood, the noticing layer is the only place that looks available, and editing what sits between them is the shortcut that appears to work. That is why the architecture sections of `spec.md` are required before a cross-layer change: they are what makes the producing layer findable.
+
+When a layer's behaviour genuinely has to change, change that layer and its own acceptance criteria and tests in the same Step. If the change makes an existing downstream expectation wrong, the expectation is part of what the task delivers and is updated deliberately and visibly — not quietly adjusted to keep the old check green.
+
 If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
 
 **An instruction that arrives mid-Step and is not the Step itself — a defect reported, a different approach demanded, "fix this first" — goes through the User-change trigger before any of it is implemented.** Report the finding and classify it while the Step is still open; do not finish the Step first and classify afterwards, because the edit is what makes the work invisible. A defect in code this task wrote is usually a work revision; a defect that shows the approved approach cannot meet the acceptance criteria is a material change, and the difference is the question the trigger asks.
@@ -307,9 +315,12 @@ Enter `checking` only after implementation is complete. Verify in this order:
 5. Plan steps, deviations, rollback points, change-log entries, and follow-ups;
 6. relevant evidence in `reference/`;
 7. project lint, type checks, unit/integration/end-to-end tests as applicable;
-8. debug code, temporary bypasses, uncovered branches, and unrelated changes.
+8. debug code, temporary bypasses, uncovered branches, and unrelated changes;
+9. **what the change touched to make the checks pass**: every modified intermediate value, fixture, or existing expectation named in the diff, with the layer that owns it and why the new value is right rather than convenient. An entry here that cannot say which layer owns the change is the shape a layer-crossing workaround takes.
 
-Record each command and result in `plan.md`. Distinguish pre-existing failures, newly introduced failures, and environment failures. A test pass does not replace product acceptance.
+Record each command and result in `plan.md`. Distinguish pre-existing failures, newly introduced failures, and environment failures. A test pass does not replace product acceptance — and a green suite reached by editing what sits between a defect and its check does not count as either.
+
+**Reading the ceiling on this rule.** The two hard prohibitions never reach these, which are legitimate and must not be dressed up as violations: a test that was wrong about the contract, a fixture that encoded an assumption the Spec has now changed, and an expectation that the approved requirement genuinely redefines. Each is a deliberate, visible change to the layer that owns it, recorded under item 9. What is prohibited is the quiet version of any of them — editing the thing a check reads, saying nothing, and letting the green be the only statement made.
 
 ### 7. Complete and archive
 
