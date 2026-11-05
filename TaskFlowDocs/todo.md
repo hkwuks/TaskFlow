@@ -26,6 +26,19 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 复杂框架项目中，引导模型关注整体效果与每一层的功能设
+
+- ID: TF-20261105-f322be
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: user request 2026-11-05
+- Added: 2026-11-05
+- Updated: 2026-11-05
+- Goal: 复杂框架项目中，引导模型关注整体效果与每一层的功能设计和待解决问题，禁止为了表面上的好结果去修改某一层的中间输出（这属于目标欺骗）
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only
 
 - ID: TF-20261104-d3ac3c
