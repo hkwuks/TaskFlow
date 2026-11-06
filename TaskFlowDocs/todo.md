@@ -29,15 +29,15 @@ has an issue number or URL.
 ## 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准
 
 - ID: TF-20261106-3efcd7
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: direct user request
 - Added: 2026-11-06
 - Updated: 2026-11-06
 - Goal: 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准确补录阶段记录：一个任务树里存在多个 TaskFlowDocs/<slug>/ 时，task unaided/approve 取的是字母序第一个含 plan.md 的目录，而不是调用者所在的这个任务
-- Task: Not promoted.
-- Next action: Clarify the fix and promote when ready
+- Task: `TaskFlowDocs/2026-11-06-active-task-detection/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-11-06 用户原话**：「审批辅助命令暴露了一个旧任务布局限制：它按目录顺序识别活跃任务，无法准确给当前任务补录阶段记录。我不会改全局 TaskFlow 工具或伪造记录；会在当前计划中注明原因，并手工转录你已经给出的批准，然后继续实现」
 
   **根因（已读代码确认）**：hooks/task 的 unaided 分支（第 1166-1174 行）与 external-evidence 分支（第 1293-1301 行）用同一段循环找活跃任务：
