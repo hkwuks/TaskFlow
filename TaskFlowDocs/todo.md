@@ -26,6 +26,30 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准
+
+- ID: TF-20261106-3efcd7
+- Status: inbox
+- Priority: normal
+- Owner: Claude
+- Source: direct user request
+- Added: 2026-11-06
+- Updated: 2026-11-06
+- Goal: 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准确补录阶段记录：一个任务树里存在多个 TaskFlowDocs/<slug>/ 时，task unaided/approve 取的是字母序第一个含 plan.md 的目录，而不是调用者所在的这个任务
+- Task: Not promoted.
+- Next action: Clarify the fix and promote when ready
+- Notes: **2026-11-06 用户原话**：「审批辅助命令暴露了一个旧任务布局限制：它按目录顺序识别活跃任务，无法准确给当前任务补录阶段记录。我不会改全局 TaskFlow 工具或伪造记录；会在当前计划中注明原因，并手工转录你已经给出的批准，然后继续实现」
+
+  **根因（已读代码确认）**：hooks/task 的 unaided 分支（第 1166-1174 行）与 external-evidence 分支（第 1293-1301 行）用同一段循环找活跃任务：
+    for dir in "$root"/TaskFlowDocs/*/; do ... if [ -f "$dir/plan.md" ]; then active="$name"; break; fi; done
+  它取的是 glob 展开后**字母序第一个**含 plan.md 的目录，与调用者的 cwd、分支、当前任务毫无关系。同一棵树里只要有两个未归档任务目录，就可能给错的那个补录记录——而记录一旦写进 released，approve 会拿它去对账，等于把一个任务的证据记到另一个任务上。
+
+  **为什么现在才暴露**：隔离规则要求一任务一 worktree，正常情况下每个 worktree 只有一个任务目录，因此这个缺陷在常规流程里不可见。它在两种情形下现形：任务文档被复制/合并进同一棵树（例如从别的分支取文档），或在一个 worktree 里同时存在父任务与子任务的目录。
+
+  **用户已作出的决定**：不改全局工具、不伪造记录，在 plan.md 里注明原因并手工转录已给出的批准。这是正确的取舍——为了补一条记录去改证据写入逻辑，正是 SKILL.md Phase 5 禁止的「让检查看起来通过」。
+
+  **修复方向（待澄清时定）**：候选一，让 active 取 cwd 所在的任务目录（cwd 在 TaskFlowDocs/<slug>/ 内时直接用，否则回落到现有顺序并在有歧义时报错）；候选二，加 --task 参数显式指定；候选三，两个都做——显式参数优先，cwd 推断次之，多任务且无法判定时拒绝并列出候选。倾向候选三，因为「静默选错」是这个缺陷的全部危害，而拒绝是唯一不猜答案的选项。
+
 ## 开发本仓库前先判定改动目标属于哪一类：插件自身能力（sk
 
 - ID: TF-20261105-77051f
