@@ -1,6 +1,6 @@
 # 修复活跃任务识别：按证据而非目录顺序
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
