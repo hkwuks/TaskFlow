@@ -137,6 +137,91 @@ worktree_kind() {  # worktree_kind <root>
   return 0
 }
 
+# Every active task in the tree, one name per line, in directory order.
+#
+# Active means what every reader of `released` already means by a task: a
+# directory under `TaskFlowDocs/` other than `achieved/` and `repository-docs/`,
+# holding a `plan.md`. Nothing here picks one; picking is `resolve_active_task`'s
+# job, and the two callers that need different answers can share this.
+active_task_names() {  # active_task_names <root>
+  local root="$1" dir name
+  for dir in "$root/TaskFlowDocs"/*/; do
+    [ -d "$dir" ] || continue
+    name="${dir%/}"
+    name="${name##*/}"
+    case "$name" in achieved|repository-docs) continue ;; esac
+    [ -f "$dir/plan.md" ] || continue
+    printf '%s\n' "$name"
+  done
+}
+
+# The one task this command is acting on — by evidence, never by directory order.
+#
+# One task per worktree is the rule, so the ordinary case is unambiguous and
+# every source below agrees. What the loop this replaces got wrong is the case
+# that is not ordinary: several task directories in one tree, which happens when
+# a parent and a child run together or documents are carried in from another
+# branch. It answered with whichever name `TaskFlowDocs/*/` expanded to first —
+# unrelated to the caller's cwd, branch, or intent — and that name keys a
+# `released` row and a task path, so a wrong answer records one task's stage
+# evidence against another and `approve` then reconciles against it.
+#
+# Three sources, narrowed in this order:
+#   1. `TASKFLOW_TASK_ID` — the variable `summarize-state` and `session-record`
+#      already read for explicit selection, under the same name and meaning.
+#   2. The task directory the caller is standing in. It is the one source that
+#      cannot disagree with intent, because it is where the caller is.
+#   3. The only active task, when there is exactly one.
+# Anything else is refused with the candidates listed. Guessing is the whole
+# defect, so the repair is the one branch that does not guess.
+#
+# Returns 0 and prints the name, or returns 1 with the reason on stderr.
+resolve_active_task() {  # resolve_active_task <root>
+  local root="$1" want="${TASKFLOW_TASK_ID:-}" names here candidate target picked=""
+  names="$(active_task_names "$root")"
+  if [ -z "$names" ]; then
+    echo "no active task under $root/TaskFlowDocs" >&2
+    return 1
+  fi
+  if [ -n "$want" ]; then
+    if printf '%s\n' "$names" | grep -qxF -- "$want"; then
+      printf '%s\n' "$want"
+      return 0
+    fi
+    printf 'TASKFLOW_TASK_ID=%s is not an active task here; this tree has:\n' "$want" >&2
+    printf '%s\n' "$names" | sed 's/^/  /' >&2
+    return 1
+  fi
+  here="$(pwd -P)"
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    # Prefix test rather than a `case` pattern: a task name is a path component
+    # the caller controls, and a pattern would read any glob character in it as
+    # syntax. `${here#"$target"/}` strips the prefix only when it is one.
+    target="$root/TaskFlowDocs/$candidate"
+    [ "$here" = "$target" ] && picked="$candidate"
+    [ "${here#"$target"/}" != "$here" ] && picked="$candidate"
+  done <<EOF
+$names
+EOF
+  if [ -n "$picked" ]; then
+    printf '%s\n' "$picked"
+    return 0
+  fi
+  if [ "$(printf '%s\n' "$names" | grep -c .)" -eq 1 ]; then
+    printf '%s\n' "$names"
+    return 0
+  fi
+  printf '%s\n' \
+    "cannot tell which task this is for: $root/TaskFlowDocs holds several, and the" \
+    "name this command records decides which task the record belongs to:" >&2
+  printf '%s\n' "$names" | sed 's/^/  /' >&2
+  printf '%s\n' \
+    "Rerun from inside the task's own directory, or name it explicitly:" \
+    "  TASKFLOW_TASK_ID=<task> bash hooks/task <command> ..." >&2
+  return 1
+}
+
 # The awk program is shared by every command; TASKFLOW_CMD selects the branch.
 TASK_AWK="$(cat <<'AWK'
 function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
@@ -1159,19 +1244,17 @@ case "$command" in
       printf 'concept class must name a phase-table class: %s\n' "$(printf '%s' "$concept_class_re" | sed 's/|/, /g')" >&2
       exit 2
     }
-    # The gate reads the record back from the *task directory's* git dir, so
-    # refuse here rather than writing a record that nothing will ever read. A
-    # caller in the base checkout, or in a tree with no active task, would
-    # otherwise be told the stage was recorded while the gate kept refusing.
-    active=""
-    for dir in "$root/TaskFlowDocs"/*/; do
-      [ -d "$dir" ] || continue
-      name="${dir%/}"
-      name="${name##*/}"
-      case "$name" in achieved|repository-docs) continue ;; esac
-      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
-    done
-    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; run unaided from the task worktree"
+    # Resolve before writing a byte. `resolve_active_task` refuses with exit 2
+    # when it cannot tell which task this is for, and that code has to survive:
+    # it is the difference between "your input is missing something" and "this
+    # failed", and only the first tells the caller to supply a task name. `fail`
+    # is exit 1 and would flatten the two, so the refusal is passed through
+    # rather than re-reported.
+    #
+    # The gate reads the record back from the *task directory's* git dir, so the
+    # same refusal covers a caller outside any active task, whose record nothing
+    # would ever read.
+    active="$(resolve_active_task "$root")" || exit 2
     git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
       || fail "cannot locate the git directory for $root"
     # The declaration has to release the stage itself, because `approve` reads
@@ -1287,18 +1370,15 @@ case "$command" in
         echo "the URL and --why must not contain a pipe or a newline: they would forge a store row" >&2
         exit 2 ;;
     esac
-    # Refuse rather than recording a line that `approve` can never read. The same
-    # reason `unaided` refuses outside an active task: the store it would write is
-    # keyed to the task directory's git dir, not to wherever the shell happens to be.
-    active=""
-    for dir in "$root/TaskFlowDocs"/*/; do
-      [ -d "$dir" ] || continue
-      name="${dir%/}"
-      name="${name##*/}"
-      case "$name" in achieved|repository-docs) continue ;; esac
-      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
-    done
-    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; record the source from the task worktree"
+    # Refuse rather than recording a line in a store that `approve` will never
+    # read for this task. Note what this does *not* need: the task's name. The
+    # external store is keyed to the git dir alone, so any active task under this
+    # tree is enough — resolving one here would refuse a multi-task tree for a
+    # question this command never asks. That is also why the old shared loop was
+    # wrong twice over: it picked a name by directory order, and this branch
+    # discarded the name it picked.
+    [ -n "$(active_task_names "$root")" ] \
+      || fail "no active task under $root/TaskFlowDocs; record the source from the task worktree"
     git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
       || fail "cannot locate the git directory for $root"
     store="$git_dir/taskflow"

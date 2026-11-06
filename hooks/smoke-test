@@ -1993,6 +1993,90 @@ grep -q "is not at '> Status: planning'" "$unp_out" || { echo "FAIL refusal 5 di
 rm -rf "$unp/.git"
 echo ok
 
+echo "== a stage declaration names its task by evidence, never by directory order =="
+# `unaided` used to answer "which task is this for?" with whichever name
+# `TaskFlowDocs/*/` expanded to first. One task per worktree makes that
+# indistinguishable from correct, which is why it survived; several task
+# directories in one tree — a parent and a child, or documents carried in from
+# another branch — turn it into a record filed against the wrong task, and
+# `approve` reconciles against whatever it finds there.
+#
+# The fixture is deliberately adversarial: the directory that sorts FIRST is the
+# one a directory-order answer would pick, and every positive case below acts on
+# the one that sorts LAST. An implementation that reverted to the old loop would
+# pass a naive test here, so the assertion is that the other task's store is
+# untouched.
+at="$tmp/active-task"
+mkdir -p "$at/TaskFlowDocs/2026-01-01-first" "$at/TaskFlowDocs/2026-01-02-second"
+git -C "$at" init -q
+for at_task in 2026-01-01-first 2026-01-02-second; do
+  printf '# Plan\n\n> Task version: v1\n> Status: planning\n' > "$at/TaskFlowDocs/$at_task/plan.md"
+done
+at_store="$(git -C "$at" rev-parse --absolute-git-dir)/taskflow"
+# The refusals below expect a nonzero exit, so each call is written as
+# `at_out="$( … )" || at_rc=$?`: the `||` is what keeps the suite's `set -e`
+# from aborting on the exit the assertion is about. No array is used for the
+# environment, because an empty `"${arr[@]}"` is an unbound-variable error under
+# `set -u` on the bash 3.2 that macOS ships.
+at_rc=0
+# Nothing says which of the two, and there are two: refuse, name both, and write
+# nothing. The exit code is 2 because the caller can fix it by supplying a task.
+at_out="$( cd "$at" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" || at_rc=$?
+[ "$at_rc" -eq 2 ] || { echo "FAIL ambiguous declaration exited $at_rc, not 2"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'cannot tell which task this is for' \
+  || { echo "FAIL ambiguous declaration did not say why"; printf '%s\n' "$at_out"; exit 1; }
+for at_name in 2026-01-01-first 2026-01-02-second; do
+  printf '%s\n' "$at_out" | grep -qE "^  $at_name$" \
+    || { echo "FAIL ambiguous declaration did not list $at_name"; printf '%s\n' "$at_out"; exit 1; }
+done
+[ ! -f "$at_store/released" ] \
+  || { echo "FAIL a refused declaration still wrote a release"; cat "$at_store/released"; exit 1; }
+# Standing in a task's own directory is evidence, and it beats directory order:
+# the task sorts second, so the only way it can be named is by where the caller is.
+at_out="$( cd "$at/TaskFlowDocs/2026-01-02-second" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" \
+  || { echo "FAIL cwd did not resolve the task"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'unaided OK: PRD in 2026-01-02-second' \
+  || { echo "FAIL cwd resolved a different task"; printf '%s\n' "$at_out"; exit 1; }
+grep -q '^2026-01-02-second|v1|PRD|1|unaided|requirements elicitation$' "$at_store/released" \
+  || { echo "FAIL the release was not filed against the task the caller stood in"; cat "$at_store/released"; exit 1; }
+# A subdirectory of the task counts too — the task directory is an ancestor, not
+# an exact match, and a caller reading `reference/` is still in its task.
+mkdir -p "$at/TaskFlowDocs/2026-01-01-first/reference"
+at_out="$( cd "$at/TaskFlowDocs/2026-01-01-first/reference" && bash "$HERE/task" unaided Plan --considered 'work breakdown' --root "$at" 2>&1 )" \
+  || { echo "FAIL a subdirectory of the task did not resolve"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'unaided OK: Plan in 2026-01-01-first' \
+  || { echo "FAIL a subdirectory resolved the wrong task"; printf '%s\n' "$at_out"; exit 1; }
+# Explicit selection wins over cwd, because it is the caller saying so. Standing
+# in the first task while naming the second must record against the second.
+at_out="$( cd "$at/TaskFlowDocs/2026-01-01-first" && TASKFLOW_TASK_ID=2026-01-02-second \
+  bash "$HERE/task" unaided Test --considered 'testing strategy' --root "$at" 2>&1 )" \
+  || { echo "FAIL an explicit TASKFLOW_TASK_ID was ignored"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'in 2026-01-02-second' \
+  || { echo "FAIL cwd overrode an explicit TASKFLOW_TASK_ID"; printf '%s\n' "$at_out"; exit 1; }
+# A name that is not an active task is refused rather than written, and the
+# candidates are printed so the next attempt can be right.
+at_rc=0
+at_out="$( cd "$at" && TASKFLOW_TASK_ID=2026-09-09-nope \
+  bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" || at_rc=$?
+[ "$at_rc" -eq 2 ] || { echo "FAIL an unknown TASKFLOW_TASK_ID exited $at_rc, not 2"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'is not an active task here' \
+  || { echo "FAIL an unknown TASKFLOW_TASK_ID was not explained"; printf '%s\n' "$at_out"; exit 1; }
+# One active task needs no evidence at all: the answer is unambiguous, so the
+# rule that refuses on several must not also refuse here.
+rm -rf "$at/TaskFlowDocs/2026-01-01-first"
+at_out="$( cd "$at" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" \
+  || { echo "FAIL a single active task was not resolved"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'in 2026-01-02-second' \
+  || { echo "FAIL a single active task resolved to something else"; printf '%s\n' "$at_out"; exit 1; }
+# `external` asks a different question — "is this tree running a task at all?" —
+# and its store is keyed to the git dir, not to a task. So several tasks must not
+# refuse it: that would be a refusal for a question the command never asks.
+mkdir -p "$at/TaskFlowDocs/2026-01-03-third"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n' > "$at/TaskFlowDocs/2026-01-03-third/plan.md"
+bash "$HERE/task" external https://example.invalid/active-task --why 'it settles the store key' --root "$at" >/dev/null \
+  || { echo "FAIL external refused a tree that holds several active tasks"; exit 1; }
+echo ok
+
 echo "== task approve records the five-field block =="
 # Production is one task per worktree, and the release records live under that
 # worktree's own git dir — so two tasks in one worktree would share them, which
