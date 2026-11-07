@@ -267,6 +267,26 @@ Include checkpoints after meaningful groups of steps. Record risks, deviations, 
 
 **Before requesting approval, read `## External Facts` one last time against the Plan.** The Steps were not written yet when Phase 1 answered, and they are where a task most often discovers it needs to know something the repository does not contain — a tool's actual behaviour, a format another project defines, a limit that is not documented here. A `yes` must have its lookups already done and recorded, because `task approve` refuses one that does not; a `no` must still name where the work is settled inside the repository. If this pass changes the answer, change `prd.md` and note it in the change log rather than approving a document whose facts section no longer describes the work. And when a Step turns out to rest on something only the outside world can settle, stop and go and look: searching mid-task is allowed, and it is recorded wherever it happens.
 
+**Then review the Plan itself, decide whether it solves the problem, and write the judgement into `## Plan Review`.** This is the last point where a Plan error costs a paragraph instead of a re-plan: approval is what locks the document, and every later state — `in_progress`, `complete`, the archive — sits behind it. Phase 6 reviews the code and the acceptance, and by then the approval has already made the Plan authoritative.
+
+**The review is three passes over the Plan, in this order, because each one needs the previous one read.** Answer nothing from memory of having written the Plan — writing it is what makes the gaps invisible.
+
+1. **Coverage, criterion by criterion.** Take `prd.md`'s acceptance criteria one at a time and name the Step that delivers each one. Write that mapping into the Coverage line rather than "all covered": a map can be checked by the reader and a claim cannot. A criterion with no Step, or one whose Step only partly delivers it, is a finding.
+2. **Each Step's Verification against its own Acceptance.** For a Step, ask what would have to be true for its `Verification` to pass while its `Acceptance` is false. If such a case exists, that Verification does not verify that Acceptance — it is a check that will report success for a different reason, and the Step will be marked done on it. "Tests pass" against "the merged branch is deleted" is the shape; the finding is the gap between what the command proves and what the Step promised.
+3. **The intended edits, read for what they touch.** Go through the Steps for any whose work is to change something another check reads — a fixture, an expected value, a serialized form, an intermediate output. Each is either the legitimate case Phase 5 permits or the workaround it prohibits, and the review says which; a Step that cannot say which layer owns the change is the second.
+
+**A finding is fixed before the verdict, not reported instead of it.** Revise the Plan and start again at 1 — the review is of the Plan as it now stands, and a Plan revised halfway through has not been reviewed in the form being approved. Answer `- Verdict: needs revision` when the change is not yours to make: the finding overturns an approved requirement or needs a decision from the user. That verdict stops the approval, so it means "I will not ask for approval until this is settled", never "I will fix it next".
+
+**The review is a judgement, and it has a consequence.** Answer the three passes, then decide: does this Plan actually solve the problem `prd.md` states? Say so in one line, `- Verdict: sound` or `- Verdict: needs revision`. A verdict of `needs revision` **stops the approval** — `task approve` refuses it — so the review is not a field filed beside a document that gets approved anyway. Without that, "reviewed" and "reviewed and found wanting" would both reach `approved`, and the section would be a formality with better vocabulary.
+
+`task approve` refuses a section that is absent, empty, or answers fewer than all four lines:
+
+- **Coverage** — which Step covers each acceptance criterion in `prd.md`, and any that none does.
+- **Verifiability** — whether each Step's `Verification` can actually verify its `Acceptance`.
+- **Layer ownership** — whether any Step makes a later check go green by editing what it reads.
+
+What the passes cover is fixed; who makes them is not. If a capability covers plan review, invoke it the way the other phases invoke theirs and record it in `## Skills / Tools Used`. If none does, the model makes them itself — its own reading of the Plan is the fallback, not a gap, and `hooks/task unaided` is how that is recorded. What is not acceptable is approving a Plan that nobody read.
+
 Record approval as:
 
 ```markdown
