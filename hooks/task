@@ -960,6 +960,13 @@ case "$command" in
 
 ## Preconditions
 
+## Plan Review
+
+- Verdict:
+- Coverage:
+- Verifiability:
+- Layer ownership:
+
 ## Approval
 
 - Status: requested
@@ -1685,6 +1692,97 @@ EXT_SOURCES
         fail "approve blocked: 'Depends on external facts: $ext_answer' is not an answer. Write exactly 'no' or 'yes'."
         ;;
     esac
+
+    # `## Plan Review` is the one place a Plan says it was read before it was
+    # approved, and it is checked here because this is the last moment the answer
+    # can change anything. Phase 4 ends at this document and `approve` is the only
+    # writer of the Approval block, so every later state — in_progress, complete,
+    # the archive — sits behind this command. A plan reviewed nowhere else is a
+    # plan whose errors are locked in by the approval that was supposed to catch
+    # them: an acceptance criterion no Step covers, a Step whose Verification
+    # cannot verify its Acceptance, or a Step that intends to make a downstream
+    # check green by editing what it reads.
+    #
+    # What this can decide is that the three questions were answered. Whether they
+    # were answered well is not a property of the text, and a check that keyword-
+    # matched its way toward one would report more confidence than it has — the
+    # same reason `hooks/repo-rules check` calls its findings possible conflicts.
+    # So the gate is the questions asked, and the answers are the reviewer's.
+    #
+    # The section is read in one `awk`, never `printf | grep -q`: this script runs
+    # under `pipefail`, where a large enough Plan makes the producer take SIGPIPE
+    # on the early exit and turns a successful match into a failed pipeline.
+    # `completion-gate` carries the measurement.
+    pr_body="$(awk '
+      /^## Plan Review$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$plan")"
+    pr_what='- Verdict: sound   (or: needs revision)
+- Coverage: which Step covers each acceptance criterion in prd.md, and any that none does
+- Verifiability: whether each Step'"'"'s Verification can actually verify its Acceptance
+- Layer ownership: whether any Step makes a downstream check go green by editing what it reads — an intermediate value, a fixture, an expected result'
+    if [ -z "$pr_body" ]; then
+      if [ -n "$(sed -n '/^## Plan Review$/p' "$plan")" ]; then
+        fail "approve blocked: '## Plan Review' is present but empty, so the Plan was not reviewed before approval. Fill in the verdict and the three answers that support it:
+$pr_what"
+      fi
+      fail "approve blocked: plan.md has no '## Plan Review' section, so nothing shows the Plan was read before it was approved. Add this section above '## Approval', with a verdict and the three answers it rests on:
+$pr_what"
+    fi
+    pr_missing=""
+    for pr_field in 'Verdict' 'Coverage' 'Verifiability' 'Layer ownership'; do
+      # A line counts only when the field is followed by something. `- Coverage:`
+      # with nothing after it is the shape a plan passes through on its way to
+      # being reviewed, not a review, so it is reported as missing like an absent
+      # line rather than as an answered one.
+      pr_line="$(printf '%s\n' "$pr_body" | sed -n "s/^- ${pr_field}:[[:space:]]*\(.*\)$/\1/p" | head -1)"
+      if [ -z "$(printf '%s' "$pr_line" | tr -d '[:space:]')" ]; then
+        pr_missing="$pr_missing${pr_missing:+, }$pr_field"
+      fi
+    done
+    if [ -n "$pr_missing" ]; then
+      fail "approve blocked: '## Plan Review' does not answer: $pr_missing. Each of these needs its own line with something after the colon:
+$pr_what"
+    fi
+    # The verdict is the review, and the three answers are its evidence — so the
+    # verdict is a decision the gate acts on, not a field it records. A reviewer
+    # who concluded the Plan will not solve the problem says so, and this refuses
+    # the approval rather than filing the objection beside a document it then
+    # approves. Without that, "reviewed" and "reviewed and found wanting" would
+    # both reach `approved`, and the review would be a formality with better
+    # vocabulary.
+    #
+    # The vocabulary is two words, deliberately: this command cannot weigh an
+    # argument, so a scale it cannot read would be a number it ignores. Two words
+    # are the ones its behaviour differs on — one lets approval through, one does
+    # not — and anything else is refused as unreadable rather than guessed.
+    # Read in awk, not sed. The value is a phrase rather than a token, so the
+    # reader has to be able to say where it ends — and the sed form for that
+    # (`\([^[:space:]]*[[:space:]]\+[^[:space:]]*\)`) depends on `\+`, which BSD
+    # sed on macOS reads as a literal plus. Measured 2026-11-07: the CI matrix
+    # passed on ubuntu and windows and failed on macos with `not ''`, because
+    # the two-word branch there matched nothing and produced an empty verdict.
+    # Splitting fields is what awk already does portably.
+    pr_verdict="$(printf '%s\n' "$pr_body" | awk '
+      /^- Verdict:/ {
+        sub(/^- Verdict:[ \t]*/, "")
+        n = split($0, w, /[ \t]+/)
+        if (n >= 2 && w[1] == "needs" && w[2] == "revision") { print "needs revision"; exit }
+        print w[1]
+        exit
+      }
+    ')"
+    case "$pr_verdict" in
+      sound) ;;
+      'needs revision')
+        fail "approve blocked: '## Plan Review' says the Plan needs revision, so it is not approved. The review found something that stops this Plan from solving the problem — revise the Plan, or record what changed in '## Plan Review' and answer 'sound' once it is:
+
+  - Verdict: sound" ;;
+      *)
+        fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on." ;;
+    esac
+
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0

@@ -118,6 +118,11 @@ Do not restate the directory layout in these sections. `## Project Structure / A
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
 - [ ] For PR creation/update: applicable template path, every required-field mapping, and template verification recorded.
 - [ ] Missing governance drafts and explicit approvals recorded before they become binding.
+## Plan Review
+- Verdict: sound | needs revision
+- Coverage: <which Step covers each acceptance criterion in `prd.md`, and any that none does>
+- Verifiability: <whether each Step's Verification can actually verify its Acceptance>
+- Layer ownership: <whether any Step makes a later check go green by editing what it reads>
 ## Approval
 ## Steps
 ### Step N — <name>
@@ -140,6 +145,18 @@ Do not restate the directory layout in these sections. `## Project Structure / A
 ```
 
 `plan.md`'s `## Change Log` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval; never treat a wording or approach clarification as a Task-version event.
+
+`## Plan Review` is the Plan read before it is approved, and `task approve` refuses a section that is absent, empty, or answers fewer than all four lines. **The `Verdict` line is what makes it a review rather than a checklist**: `sound` lets the approval through, `needs revision` refuses it, and anything else is refused as unreadable.
+
+The four lines record the *result*; how the result is reached is stated once, in `SKILL.md`'s Phase 4, as three ordered passes: coverage criterion by criterion, then each Step's Verification against its own Acceptance, then the intended edits read for what they touch. This file does not repeat that procedure, for the reason a second copy of any rule is a second thing to drift — and the fields here have to stay recognisable as that procedure's output, which is why each line names what a pass produces rather than a summary of it.
+
+**A finding changes the Plan before it changes the verdict.** Revise, then review again from the start, because the Plan being approved is the one that now stands. `needs revision` is reserved for what the reviewer may not decide alone — a finding that overturns an approved requirement, or needs the user's choice — and because that verdict stops the approval, it means "I will not ask for approval until this is settled", never "I will fix it next". The distinction is what keeps the section from becoming a place to file objections beside a document that is approved regardless.
+
+The vocabulary is two words because the command cannot weigh an argument: a scale it cannot read is a number it would ignore, and two words are the ones its behaviour differs on. What it still cannot judge is whether the verdict is *right* — a reviewer who answers `sound` over a Plan that does not solve the problem gets the approval it asked for. That gap is the reviewer's, and naming it here is the honest ending: what the gate buys is that the question is unavoidable and the answer has a consequence, not that the answer is correct.
+
+It lives in the Plan rather than in a file of its own because this repository admits one fact source per task, and because a review stored away from the document it judges is a review the approver has to go and find.
+
+`## Plan Review` sits above `## Approval` because that is where the reader looks before saying yes, and because `task approve` reads the Plan once and refuses before writing any Approval field. Move it below and the section is still found, but the document then asks for approval before it reports what was checked.
 
 List a capability only after an actual invocation attempt. Discovery or selection is not use. A failed or unavailable optional invocation may be recorded when relevant, but it has no incorporated conclusion and does not block the base flow unless it is required for correctness. The phase-to-concept table in `SKILL.md` says what class to look for; this rule says what may be recorded afterwards.
 

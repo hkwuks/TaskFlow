@@ -2129,6 +2129,34 @@ set_external_facts() {  # set_external_facts <prd> <body>
 }
 set_external_facts "$ap_task/prd.md" '- Depends on external facts: no
 - Why not: the fixture settles everything in `hooks/task`.'
+# `## Plan Review` is filled here for the same reason the External Facts answer
+# is: every case below is about stage reconciliation, and `promote` deliberately
+# leaves both sections unanswered. An unanswered one is refused before any stage
+# is read, so a fixture that left it blank would test the wrong refusal — the
+# Plan Review section has its own section for those four.
+set_plan_review() {  # set_plan_review <plan> <coverage> <verifiability> <layers>
+  local plan="$1"
+  TASKFLOW_PR_COVERAGE="$2" TASKFLOW_PR_VERIFIABILITY="$3" TASKFLOW_PR_LAYERS="$4" awk '
+    BEGIN {
+      coverage = ENVIRON["TASKFLOW_PR_COVERAGE"]
+      verifiability = ENVIRON["TASKFLOW_PR_VERIFIABILITY"]
+      layers = ENVIRON["TASKFLOW_PR_LAYERS"]
+    }
+    /^## Plan Review$/ {
+      print; print ""
+      print "- Verdict: sound"
+      print "- Coverage: " coverage
+      print "- Verifiability: " verifiability
+      print "- Layer ownership: " layers
+      p = 1; next
+    }
+    p && /^## / { p = 0 }
+    p { next }
+    { print }
+  ' "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"
+}
+set_plan_review "$ap_task/plan.md" \
+  'every criterion maps to Step 1' 'the fixture runs the command and reads its output' 'no Step edits a value a later check reads'
 # Missing Approval section: refuse, leave bytes alone.
 ap_bad="$ap/TaskFlowDocs/2026-09-09-approve-bad"
 mkdir -p "$ap_bad"
@@ -2311,6 +2339,8 @@ ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
 set_external_facts "$ap_large/prd.md" '- Depends on external facts: no
 - Why not: the fixture settles everything in `hooks/task`.'
+set_plan_review "$ap_large/plan.md" \
+  'every criterion maps to Step 1' 'the fixture runs the command and reads its output' 'no Step edits a value a later check reads'
 # The large task is its own worktree, so its records are its own: one task per
 # store is the production shape, and it is what keeps this fixture from being
 # satisfied by the small task's releases.
@@ -2453,7 +2483,7 @@ grep -q "has no '## External Facts' answer" "$ap/ef.err" \
 # this keeps failing until the two stores are separated again.
 ap_ex="$ap/TaskFlowDocs/2026-09-09-approve-external"
 mkdir -p "$ap_ex"
-printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_ex/plan.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Plan Review\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_ex/plan.md"
 printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://docs.claude.com/en/docs/claude-code/hooks\n- What it settled: the hook event names\n' > "$ap_ex/prd.md"
 # Its own store, not the shared one the cases above have been mutating: an empty
 # `evidence` beside a `released` holding three sequences is an out-of-step store,
@@ -3893,7 +3923,11 @@ xt_plan() {  # xt_plan <task-dir> <stage-lines...>
     printf '%s\n' '# Plan' '> Task version: v1' '> Status: planning' ''
     printf '%s\n' '## Skills / Tools Used' ''
     while [ "$#" -gt 0 ]; do printf '%s\n' "$1"; shift; done
-    printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+    # Answered, because this fixture asserts which task a *stage* record belongs
+    # to; an unanswered Plan Review would be refused first and the case would
+    # never reach the question it is about.
+    printf '\n%s\n' '## Plan Review' '' '- Verdict: sound' '- Coverage: c' '- Verifiability: v' '- Layer ownership: l' ''
+    printf '%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
       '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
     printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
   } > "$xt_dir/plan.md"
@@ -4153,6 +4187,13 @@ cat > "$rc_plan" <<'RC_PLAN'
 - [Plan] `a:two` — purpose: x; outcome: `succeeded`
 - [Test] `a:three` — purpose: x; outcome: `succeeded`
 
+## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
 ## Approval
 
 - Status: requested
@@ -4317,6 +4358,216 @@ grep -q 'is required, not optional' "$skill/references/artifacts.md" \
   || { echo "FAIL artifacts.md does not state the section is required"; exit 1; }
 echo ok
 
+echo "== a Plan is reviewed before it is approved, and the review says what it checked =="
+# Phase 4 ended at `plan.md` and the next thing that happened to it was approval:
+# nothing between the two read the Plan itself. Phase 6 reviews code and
+# acceptance, by which point the approval has already locked in whatever the
+# Plan got wrong — an acceptance criterion no Step covers, a Step whose
+# Verification cannot verify its Acceptance, or a Step that makes a later check
+# go green by editing what it reads.
+#
+# The check sits in `approve` rather than in `PreToolUse` because the review has
+# no object until the document exists: a gate on the first body write would run
+# before there is anything to review, and would refuse the write that creates it.
+# `approve` is also the only writer of the Approval block, and every later state
+# sits behind it, so skipping the review leaves no route forward.
+pr_root="$tmp/plan-review"
+mkdir -p "$pr_root/TaskFlowDocs/2026-01-01-pr"
+git -C "$pr_root" init -q
+pr_plan="$pr_root/TaskFlowDocs/2026-01-01-pr/plan.md"
+pr_store="$(git -C "$pr_root" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$pr_store"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$pr_root/TaskFlowDocs/2026-01-01-pr/prd.md"
+# Released for all three stages, so every refusal below is the Plan Review
+# check and not a missing stage. The stage gate has its own sections.
+printf 'unaided|requirements elicitation\nunaided|work breakdown\nunaided|testing strategy\n' > "$pr_store/evidence"
+printf '%s|v1|PRD|1|unaided|requirements elicitation\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|unaided|testing strategy\n' \
+  2026-01-01-pr 2026-01-01-pr 2026-01-01-pr > "$pr_store/released"
+pr_plan_body() {  # pr_plan_body <plan-review-body>
+  {
+    printf '%s\n' '# Plan' '> Task version: v1' '> Status: planning' ''
+    printf '%s\n' '## Skills / Tools Used' ''
+    printf '%s\n' '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation'
+    printf '%s\n' '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+    printf '%s\n' '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
+    printf '\n%s' "$1"
+    printf '%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+      '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
+    printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
+  } > "$pr_plan"
+}
+pr_approve() {  # pr_approve -> "<exit>|<stderr>"
+  local out rc
+  out="$(bash "$HERE/task" approve 2026-01-01-pr --root "$pr_root" 2>&1 >/dev/null)" && rc=0 || rc=$?
+  printf '%s|%s' "$rc" "$out"
+}
+pr_case() {  # pr_case <name> <expected message fragment> <body>
+  local name="$1" want="$2" body="$3" res
+  pr_plan_body "$body"
+  res="$(pr_approve)"
+  case "$res" in
+    0\|*) echo "FAIL Plan Review accepted: $name"; exit 1 ;;
+  esac
+  case "$res" in
+    *"$want"*) ;;
+    *) echo "FAIL Plan Review refusal for $name:"; printf '%s\n' "${res#*|}"; exit 1 ;;
+  esac
+}
+# The section missing entirely.
+pr_case "absent section" "has no '## Plan Review' section" ''
+# Present but empty: the shape a Plan has between being scaffolded and reviewed.
+pr_case "empty section" "is present but empty" '## Plan Review
+
+'
+# Each question answered separately, so a review that skipped one is named by
+# the one it skipped rather than refused as a whole.
+pr_case "no Verdict" "does not answer: Verdict" '## Plan Review
+
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+pr_case "no Coverage" "does not answer: Coverage" '## Plan Review
+
+- Verdict: sound
+- Verifiability: v
+- Layer ownership: l
+
+'
+pr_case "no Verifiability" "does not answer: Verifiability" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Layer ownership: l
+
+'
+pr_case "no Layer ownership" "does not answer: Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+
+'
+# The field present with nothing after it is the most likely way to skip one:
+# `promote` writes the scaffold this way, so a Plan that was never reviewed and
+# one that was reviewed badly look the same until this line is checked.
+pr_case "empty Layer ownership" "does not answer: Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership:
+
+'
+# Two missing, named together and in the section's own order.
+pr_case "two missing" "does not answer: Coverage, Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Verifiability: v
+
+'
+# The verdict is the review, not a field: `needs revision` is a decision the gate
+# acts on. A section that answers all three questions and still concludes the
+# Plan is wrong must not reach `approved` -- otherwise "reviewed" and "reviewed
+# and found wanting" are the same outcome and the section is decoration.
+pr_case "needs revision stops approval" "says the Plan needs revision, so it is not approved" '## Plan Review
+
+- Verdict: needs revision
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+# Anything outside the two words is refused rather than guessed at: a scale this
+# command cannot weigh is a number it would ignore, and two words are the ones its
+# behaviour differs on.
+pr_case "unreadable verdict" "must be 'sound' or 'needs revision', not 'maybe'" '## Plan Review
+
+- Verdict: maybe
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+# Answered, it passes — and the approval is written, which is what proves the
+# refusal above was about the review rather than about the fixture.
+pr_plan_body '## Plan Review
+
+- Verdict: sound
+- Coverage: every acceptance criterion maps to Step 1
+- Verifiability: Step 1 runs the command and reads its output
+- Layer ownership: no Step edits a value a later check reads
+
+'
+pr_approve | grep -q '^0|' \
+  || { echo "FAIL an answered Plan Review still refused approval"; pr_approve; exit 1; }
+grep -q '^- Status: approved$' "$pr_plan" \
+  || { echo "FAIL approval was not written after a complete review"; exit 1; }
+# The scaffold `promote` writes carries the section, so the fields exist before
+# anyone remembers to add them and the refusal names lines that are already
+# there. A scaffold without it would make every task's first approve fail on a
+# section the workflow never mentioned.
+promote_plan="$(sed -n '/^## Skills \/ Tools Used$/,/^## Approval$/p' "$HERE/task")"
+printf '%s' "$promote_plan" | grep -q '^## Plan Review$' \
+  || { echo "FAIL the promote scaffold has no Plan Review section"; exit 1; }
+for pr_field in Coverage Verifiability 'Layer ownership'; do
+  printf '%s' "$promote_plan" | grep -q "^- $pr_field:$" \
+    || { echo "FAIL the promote scaffold does not offer the $pr_field line"; exit 1; }
+done
+# The section has to sit above `## Approval`, because that is where the reader
+# looks for what they are being asked to approve and how it was checked.
+printf '%s' "$promote_plan" | awk '
+  /^## Plan Review$/ { pr = NR }
+  /^## Approval$/ { ap = NR }
+  END { exit !(pr && ap && pr < ap) }
+' || { echo "FAIL the promote scaffold puts Plan Review after Approval"; exit 1; }
+# The same four fields, in the two documents that teach the shape. Pinned
+# because a field the gate checks and a field the documents name are two copies
+# of one decision: a rename in one place would make every correct Plan fail on a
+# line the workflow told the author to write.
+for pr_doc in "$skill/SKILL.md" "$skill/references/artifacts.md"; do
+  for pr_field in Verdict Coverage Verifiability 'Layer ownership'; do
+    # Matched as a word rather than as a line shape: SKILL.md bolds the name and
+    # artifacts.md puts it after a colon, and both are the same question. What
+    # must not drift is the name itself, because that is what `approve` reads.
+    grep -q -- "$pr_field" "$pr_doc" \
+      || { echo "FAIL $pr_doc does not name the $pr_field field"; exit 1; }
+  done
+done
+grep -q 'refuses a section that is absent, empty, or answers fewer than all four lines' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not state that approve refuses an incomplete review"; exit 1; }
+# The verdict's consequence is the whole difference between a review and a
+# checklist, so the documents must state it: a section that concludes the Plan is
+# wrong has to stop the approval, not be filed beside it.
+grep -q 'needs revision` \*\*stops the approval\*\*' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not say a needs-revision verdict stops approval"; exit 1; }
+grep -q 'needs revision` refuses it' "$skill/references/artifacts.md" \
+  || { echo "FAIL artifacts.md does not say a needs-revision verdict refuses approval"; exit 1; }
+# The four fields say what to write; they do not say how to arrive at it, and a
+# section that names its fields but not its method is the checklist this review
+# exists to replace. Pin the three passes and the order, and pin the rule that
+# makes a finding change the Plan rather than the verdict: a review that reports
+# what it found and then approves anyway is the formality again, one level up.
+grep -q 'The review is three passes over the Plan, in this order' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not state the review as ordered passes"; exit 1; }
+for pr_pass in '1\. \*\*Coverage, criterion by criterion\.\*\*' \
+               '2\. \*\*Each Step.s Verification against its own Acceptance\.\*\*' \
+               '3\. \*\*The intended edits, read for what they touch\.\*\*' ; do
+  grep -q -- "$pr_pass" "$skill/SKILL.md" \
+    || { echo "FAIL SKILL.md does not describe review pass: $pr_pass"; exit 1; }
+done
+# Fixing the finding before the verdict is the behaviour that separates a review
+# from a report. `needs revision` is reserved for a change the reviewer may not
+# make, which is why it stops the approval rather than scheduling a repair.
+grep -q 'A finding is fixed before the verdict, not reported instead of it' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not require a finding to be fixed before the verdict"; exit 1; }
+grep -q 'the review is of the Plan as it now stands' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not say a revised Plan is reviewed again from the start"; exit 1; }
+grep -q 'never "I will fix it next"' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md leaves needs-revision reading as deferred work"; exit 1; }
+echo ok
+
 echo "== an unaided declaration releases its stage with no gate on the host =="
 # Measured 2026-10-11: the release record had exactly one writer, the pre-write
 # gate, while `approve` requires one. Three of the five supported hosts wire no
@@ -4331,7 +4582,7 @@ echo "== an unaided declaration releases its stage with no gate on the host =="
 ug="$tmp/unaided-gate"
 mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
 git -C "$ug" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Plan Review\n\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
@@ -4401,6 +4652,13 @@ vb_plan() {  # vb_plan <version>
 
 > Task version: $1
 > Status: planning
+
+## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
 
 ## Approval
 
@@ -4547,7 +4805,7 @@ echo "== an unaided declaration never overwrites the gate's own release =="
 uc="$tmp/unaided-conflict"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
 git -C "$uc" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Plan Review\n\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
@@ -7263,6 +7521,8 @@ tp_plan_body() {  # tp_plan_body <test-stage-line>
     printf '%s\n' '- [PRD] `a:prd` — purpose: frame; outcome: succeeded; incorporated: requirements.'
     printf '%s\n' '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
     [ -z "$1" ] || printf '%s\n' "$1"
+    # Answered, so an approve case here is about the Test stage and nothing else.
+    printf '\n%s\n' '## Plan Review' '' '- Verdict: sound' '- Coverage: c' '- Verifiability: v' '- Layer ownership: l'
     printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
       '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
     printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
