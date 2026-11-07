@@ -1,6 +1,6 @@
 # Plan — 发布流程：手工三宿主 catalog 校验
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -91,3 +91,13 @@ CI 三宿主矩阵在推送后读取。
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
+- 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
+- 2026-11-01 上述 (1) 与 (2) 都已不成立，本条只剩一半：(1) 是错的——`RELEASE.md:135-136` 那段手工步骤**从来没有被删过**，`git log -S'CodeBuddy tooling' -- RELEASE.md` 只有 `4e497c3` 一次命中，且是新增。当时把「验证清单里那四条」误读成「整份 RELEASE.md 只剩这四条」，两者不在同一节。所以「改条件式」仍有对象，前提没被搬走。(2) 的 `$schema` 断言已作为 `TF-20261029-218fdf` 交付归档，两个 404 URL 也在 2026-11-01 换成了 schemastore.org 的可用 schema。本条因此收窄为前半，Next action 已相应改写。

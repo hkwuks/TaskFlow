@@ -1,6 +1,6 @@
 # 发布流程：手工三宿主 catalog 校验
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
