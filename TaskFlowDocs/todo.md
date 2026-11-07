@@ -61,35 +61,10 @@ has an issue number or URL.
 ## Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github
 
 - ID: TF-20261104-e151e6
-- Status: in_progress
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-04
-- Added: 2026-11-04
-- Updated: 2026-11-07
+- Status: done
 - Goal: Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github:hkwuks/TaskFlow#<sha> the documented main path, add the npm files whitelist so a pack is not 3.8MB, and record the commit pin the install needs
-- Task: `TaskFlowDocs/2026-11-07-dsh-git-install/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: **2026-11-04 查证结论（官方文档 + 本仓库实测）**。
-
-  **先纠正一个前提**：dsh **没有**「官方发布通道」。官方文档 `deepseek-harness.github.io/.../develop/basic/publish` 原话是 *"Publishing to a registry is not required — users can install straight from a git host"*。`dsh plugin --profile <name> <args>` **转发给 pnpm**，所以它认的是 pnpm 能解析的任何来源：npm registry、`github:owner/repo#<sha>`、本地目录、`pnpm pack` 出来的 tarball。没有审核、没有入驻、没有「上架」这个动作。
-
-  社区目录 `dsh.pub` 是第三方（非 DeepSeek 官方），流程是开提交页 → 生成 `submissions/*.json` → 提 PR → 自动检查通过即合并，并明说 *"Listing is not a human review, security audit, or official DeepSeek endorsement"*。
-
-  **用户 2026-11-04 裁定：走 Git 路线。**
-
-  **为什么 Git 路线对 TaskFlow 特别便宜**：`dsh/index.js` 是纯 ESM，没有任何构建步骤，所以官方文档里那个「git 安装的 build-script catch」（需要 `prepare` 脚本 + 用户手动 allowlist `allowBuilds`）**完全不适用**。用户可以一条命令装，不需要授权执行任何代码：
-
-  ```
-  dsh plugin --profile web add github:hkwuks/TaskFlow#<40位sha>
-  ```
-
-  **要做的事**：
-  1. **`package.json` 加 `files` 白名单**（唯一的硬缺口）。`npm pack --dry-run` 实测：当前会打包 **417 个文件、3.8 MB**，含 `.github/workflows/`、`CHANGELOG.md`(169KB)、`CONTRIBUTING.md`、`evals/`、`tools/`、`TaskFlowDocs/`。dsh 只需要 `dsh/`、`hooks/`、`skills/`。虽然 Git 安装不走 npm 的 files 字段（pnpm 从 git 拉的是整个仓库），但 tarball 路径和将来上 npm 都需要它，且它是 `npm pack` 体积的唯一控制点。
-  2. **README 的 dsh 段改成以 Git 路径为主**。现状把 `dsh plugin --profile web add dsh-taskflow` 写在第一位，而该包 `npm view dsh-taskflow` 返回 **404**——名字空着，没发布过。文档描述了一个装不上的命令。
-  3. **记录 commit pin**。官方文档要求 git 安装钉 40 位 sha（`github:you/plugin#<sha>`），"so a later push cannot silently change what runs"。TaskFlow 每次发版都有 tag，`git rev-parse vX.Y.Z^{commit}` 就是该钉的值——这与 `RELEASE.md` 第 4 步已经在做的 marketplace pin 是同一个值，可以复用而不是新增一套。
-
-  **不做的**：不发 npm、不进 dsh.pub 目录。理由是 Git 路径零成本、可撤销，且 TaskFlow 没有构建产物需要分发。等确有用户要求再上 npm。
+- Task: `TaskFlowDocs/achieved/2026-11-07-dsh-git-install/`
+- Next action: None — completed and archived.
 
 ## Task archive should delete the local branch once it is merged: today archive rem
 

@@ -1,6 +1,6 @@
 # dsh 走 Git 安装路径
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
