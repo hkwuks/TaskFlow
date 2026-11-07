@@ -148,8 +148,27 @@ After the release scope is merged to the intended base (or the optional Release 
    `TaskFlow X.Y.Z` — the same string as the tag subject, so the two never have to
    be reconciled by a reader — and the body opens with
    `TaskFlow X.Y.Z — YYYY-MM-DD` before the summary and the release record below.
-   Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling.
 7. Record the result in the release notes: the tag, the release URL, the commit, and the two marketplace pins.
+
+**Catalog correctness is decided by `release-check`, not by a person with three
+CLIs.** What a catalog entry can be wrong about without a network is whether its
+`ref` names the tag and whether that tag resolves to the `sha` recorded beside
+it, and `release-check` answers both — which is why step 6 runs it again after
+the push. There is no third thing for a manual pass to find, and there are two
+catalogs rather than three: `.claude-plugin/marketplace.json` and
+`.codebuddy-plugin/marketplace.json`. Codex installs through the first of those,
+and hosts no catalog of its own.
+
+What a manual pass *could* find is whether a real host installs the release end
+to end, and that is a different check with a different owner: it needs the
+network, it cannot run before the tag exists, and it cannot run inside the
+atomic push that publishes it. It therefore cannot gate anything here — by the
+time it could fail, the tag is already immutable and public — so it does not
+belong on this list at all. A step that runs after the irreversible act and
+whose failure has no defined response is not a check; it is a note that the
+check happened to be skipped. If end-to-end installation ever needs to be
+verified rather than assumed, that belongs in CI against the published tag, not
+in a release checklist that has already finished.
 
 Steps 3–4 make a release two commits, by construction: the tag cannot be created
 before the release commit exists on the base, and the pinned `sha` cannot be
