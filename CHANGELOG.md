@@ -2,6 +2,69 @@
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-11-08
+
+### Added
+
+- **A Plan is reviewed before it is approved, and the verdict has a consequence.** Phase 4 ended at `plan.md` and the next thing that happened to it was approval — nothing in between read the Plan itself. Phase 6 reviews code and acceptance, by which point the approval has already made the Plan authoritative, so three kinds of Plan defect were locked in before anyone looked: an acceptance criterion no Step covers, a Step whose `Verification` cannot verify its own `Acceptance`, and a Step that makes a later check go green by editing what it reads.
+
+  `## Plan Review` now sits above `## Approval` with four lines — `Verdict`, `Coverage`, `Verifiability`, `Layer ownership` — and `task approve` refuses a section that is absent, empty, or answers fewer than all four. **The verdict is what makes it a review rather than a checklist**: `needs revision` stops the approval, so "reviewed" and "reviewed and found wanting" no longer both reach `approved`. The vocabulary is two words because the command cannot weigh an argument, and a scale it cannot read is a number it would ignore.
+
+  How the verdict is reached is specified too, because naming the fields is not the same as saying how to arrive at them: three ordered passes over the Plan — coverage criterion by criterion (written as a mapping, which a reader can check, rather than "all covered", which they cannot), then each Step's `Verification` against its own `Acceptance`, then the intended edits read for what they touch. A finding is fixed before the verdict, not reported instead of it, and the review then restarts at the first pass. `promote` scaffolds the four lines, because a section the workflow never mentioned is one every author fails on once.
+
+- **The workflow can now name a capability that investigates a cause, which is what a fix request needs and did not have.** `SKILL.md` lists `bug fix` among the request types TaskFlow applies to, and then routed it exactly like a feature request. The phase table offered seven phases and a concept class for each, and none of them was *find out why this is broken* — so every class on offer described writing documents, and the most available action was always an edit to one. Measured before the change: `reproduc*` appeared once in `SKILL.md`, in the definition of `blocked`, and nothing under `hooks/` read `git diff`.
+
+  `concept_class_re` gains `root cause` and `defect investigation`, `task intake` and `task promote` take `--kind defect|capability|internal`, the PRD gains a `## Task Kind` section, and `task approve` refuses a task declared `defect` whose `[PRD]` line names nothing that investigates a cause. `capability-gate`'s PRD message lists the new classes as well, since a class the block message omits is, to the agent reading it at that moment, a class that phase cannot find.
+
+  **The fix adds no debugging method, and that boundary is the point.** `SKILL.md` states that TaskFlow is the lifecycle and artifact layer, not the expert-capability layer: reproducing first, tracing a value back, one hypothesis at a time, a red-green pair — all of it belongs to whatever capability gets invoked. What the workflow was missing was the ability to name one, and the check asks only that, never how. A defect task with nothing available records the absence deliberately through `unaided PRD --considered 'root cause investigation'`.
+
+- **dsh installs from a pinned Git commit, and the package ships only what it runs.** The documented command named an npm package that returns 404. `dsh plugin --profile <name> <args>` forwards to pnpm, so it accepts a Git source, and the install line is now `dsh plugin --profile web add github:hkwuks/TaskFlow#<40-character-sha>` with the sha taken from the release tag. The pin is not decoration: pnpm follows the default branch when a Git dependency carries no commit, so an unpinned line would install whatever `main` happened to be at install time.
+
+  `package.json` gains a `files` whitelist (`dsh/`, `hooks/`, `skills/`, `README.md`, `LICENSE`), which takes the published bundle from 5.3 MB to about 1 MB, and `hooks/release-check` now asserts it keeps those three directories and drops `TaskFlowDocs/`, `evals/`, and `tools/`.
+
+### Changed
+
+- **`task unaided` and `task external` resolve the task from evidence instead of directory order.** Both carried a copy of the same loop, which answered "which task is this for?" with whichever `TaskFlowDocs/*/` expanded to first alphabetically — unrelated to the caller's directory, branch, or intent. The name it picked is what `unaided` writes into the release row that `approve` reconciles against, so a wrong name credited one task's stage evidence to another and could let a task be approved on a record that was never its own.
+
+  One resolver now answers in three steps: `TASKFLOW_TASK_ID` when set, then the caller's own directory, then the single active task. Anything else refuses with exit `2` and lists the tree's tasks rather than guessing. `external` turned out never to use the resolved name at all — its store is keyed to the git directory — so it only needed the emptiness check.
+
+- **The release checklist no longer asks for a manual catalog check that could not gate anything.** It ran after the atomic tag push, by which point the tag is already immutable and public, so its failure had no defined response — a step that runs after the irreversible act is not a check but a note that a check was skipped. `release-check` decides catalog correctness: whether each `ref` names the release tag and whether that tag resolves to the `sha` recorded beside it, which is the whole of what a manual pass could find offline. The same paragraph corrected a false premise — there are two catalogs, not three, since `.codex-plugin/` hosts none.
+
+- **Docs describe the command signatures the code actually has.** `hooks/README.md` and `references/runtime.md` documented `promote` without its now-required `--kind`, and `runtime.md`'s intake row omitted its optional one.
+
+### Fixed
+
+- **The Plan Review verdict is read in awk, because BSD sed has no `\+`.** The two-word branch used `sed 's/…[[:space:]]\+…/\1/p'`, and `\+` is a GNU extension: macOS's BSD sed reads it as a literal plus, so the branch matched nothing and the verdict came back empty. The CI matrix caught it — ubuntu and windows passed, macos failed on the single case that exercises a two-word verdict — after the whole suite had passed locally, which is the case the matrix exists for. awk splits on runs of whitespace by definition, so the phrase boundary needs no escape at all.
+
+### Compatibility
+
+- **`task promote` now requires `--kind`, so an existing `promote` invocation fails until it supplies one.** This is a real break for any script, hook, or document that calls `promote` with the old signature: `bash hooks/task promote <todo-id> <task-id> <small|large>` now exits 1 with `promote needs --kind, one of: defect capability internal`. The fix is to append `--kind capability` for an ordinary task, or `--kind defect` when the request is to fix something already wrong. `task intake` is unaffected — `--kind` is optional there and defaults to `capability` — and so is every other command.
+- **`task approve` refuses more documents than before.** It now requires a filled `## Plan Review` section, and for a task whose PRD declares `- Kind: defect`, an `[PRD]` line naming an investigation class. Tasks already approved keep their approval; a Plan version that is reapproved has to satisfy both.
+- **A PRD with no `## Task Kind` is not refused.** It was written before the field existed, and refusing it would rewrite history to fit an implementation. The same holds for any value other than `defect`: only an explicit declaration opts a task into the stricter check.
+- **`concept_class_re` gained two entries and lost none.** They were appended rather than reworded because `released` rows record the class a task declared and outlive the regex — rewording an existing entry would fail every archived task's `--considered` against a validation it once passed.
+- **No install command changes, no rename, no manifest shape change, and no hook gains an interpreter dependency.** The new code is POSIX shell and POSIX awk; every `hooks-*.json` wiring file is untouched.
+
+### Verification
+
+- `bash hooks/release-check .` — `STATUS: pass` (re-run on the pushed `main`).
+- `bash hooks/repository-check .` — `STATUS: pass`.
+- `quick_validate.py skills/taskflow` — `Skill is valid!`
+- `git diff --check` — clean.
+- `bash hooks/smoke-test` — **not run locally for the release commit, and recorded as skipped.** The release commit's difference from `bf52bc8` — the last commit on `main` before this release began, CI run [`42388955431`](https://github.com/hkwuks/TaskFlow/actions/runs/42388955431), every job `success` — is the four manifests, the two README version samples, and this section. None of those is a surface the suite reads. The commit after it moves only the two marketplace catalogs.
+- Every change this release ships ran the full matrix on its own pull request: #123 (`35b781c`, run [`42247688225`](https://github.com/hkwuks/TaskFlow/actions/runs/42247688225)), #124 (`4edad06`, run [`42371298233`](https://github.com/hkwuks/TaskFlow/actions/runs/42371298233)), #125 (`72ef7f5`, run [`42372724960`](https://github.com/hkwuks/TaskFlow/actions/runs/42372724960)), #126 (`7afa6b1`, run [`42379554070`](https://github.com/hkwuks/TaskFlow/actions/runs/42379554070)), and #127 (`e954722`, run [`42388717316`](https://github.com/hkwuks/TaskFlow/actions/runs/42388717316)). `smoke` on ubuntu, macos and windows each time, plus `evals`, `changes` and `todo-merge-audit`.
+- Mutation checks are recorded in the tasks' Plans: the Plan Review gate (nine refusals, six mutations), the task-kind branch (five mutations, each reddening a named assertion), the active-task resolver, and the dsh `files` whitelist.
+
+### Known limitations
+
+- **The Plan Review gate cannot judge whether a verdict is *right*.** A reviewer who answers `sound` over a Plan that does not solve the problem gets the approval it asked for. What the gate buys is that the question is unavoidable and the answer has a consequence — not that the answer is correct.
+- **The task-kind check asks whether an investigation was named, never whether it was any good.** A capability whose name matches the vocabulary passes. Closing that would mean writing an investigation method into TaskFlow, which its own layer boundary forbids.
+- **A layer-boundary classification and Phase 5's prohibition remain judgements, not checks.** No hook can tell whether a change crossed a boundary or whether an intermediate value was edited to make a check green. Phase 6 item 9 makes the quiet version visible in review; nothing refuses the edit.
+- **dsh still has no tool-call event wired**, so its stage evidence comes only from `hooks/task unaided`.
+
+### Release
+
+- **Tag `v1.2.0` names `TAG_COMMIT_SHA`; the pin commit is `PIN_COMMIT_SHA`; the GitHub Release is `RELEASE_URL`.** Both catalogs were pushed with the tag in one atomic push. `bash hooks/release-check .` re-run on the pushed `main` reports `STATUS: pass`.
+
 ## [1.1.15] — 2026-11-05
 
 ### Added
