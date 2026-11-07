@@ -279,18 +279,37 @@ CodeBuddy reloads hooks, skills, and agents on `/reload-plugins` without a resta
 
 ### Install with dsh
 
-TaskFlow's repository root is a dsh plugin package, so the profile it is installed
-into picks it up as a bundle layer:
+TaskFlow's repository root is a dsh plugin package. dsh has no marketplace and the
+package is not on a registry, so the install names the Git repository and pins the
+commit — the same commit the release tag names:
 
 ```bash
-dsh plugin --profile web add dsh-taskflow
+dsh plugin --profile web add github:hkwuks/TaskFlow#<40-character-sha>
 ```
 
-Installed from a checkout instead of the registry, point at the directory:
+Take the sha from the release you intend to run. Every release tag names one
+commit, and it is the commit the marketplace catalogs pin for the other hosts, so
+the value is already published rather than something to work out:
+
+```bash
+git ls-remote https://github.com/hkwuks/TaskFlow.git 'refs/tags/v1.1.15^{}'
+# or, in a checkout:  git rev-parse v1.1.15^{commit}
+```
+
+Pinning the full 40 characters is the point, not a formality: `dsh plugin add`
+resolves through pnpm, and a bare `github:hkwuks/TaskFlow` would follow `main`, so a
+later push would silently change what runs.
+
+Installed from a local checkout instead, point at the directory — useful while
+developing TaskFlow itself, and it tracks the working tree rather than a commit:
 
 ```bash
 dsh plugin --profile web add <repo-root>
 ```
+
+No build step runs either way. `dsh/index.js` is plain ESM, so the build-script
+allowlist dsh's documentation describes for Git installs does not apply here and
+nothing asks you to authorize code execution at install time.
 
 The package declares `dsh.bundle.patch`, so `dsh` appends it to the profile's
 `dsh.profile.bundles` itself — there is no profile YAML to write. Booting that
@@ -307,8 +326,9 @@ its output shape from the environment.
 dsh's SessionStart sources are `startup`, `resume`, `clear`, and `compact`; there
 is no `fork`, so the dsh matcher omits it.
 
-dsh has no plugin marketplace, and `dsh plugin add` resolves through pnpm, so a
-release is picked up with `dsh plugin --profile web update`.
+To move to a newer release, re-add with that release's sha — `dsh plugin --profile web
+update` refreshes dependencies, but the pin is what decides which commit the profile
+runs, so a new release means a new pin.
 
 ### Install with Trae
 

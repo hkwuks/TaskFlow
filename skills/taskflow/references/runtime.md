@@ -24,8 +24,11 @@ Install every host by command from the repository marketplace — no file copyin
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
 `codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`;
 `codebuddy plugin marketplace add hkwuks/TaskFlow && codebuddy plugin install taskflow@taskflow`
-(a local directory path works in place of the GitHub owner/repo). dsh has no marketplace:
-its command is `dsh plugin --profile <name> add <package-or-directory>`. Trae has neither a
+(a local directory path works in place of the GitHub owner/repo). dsh has no marketplace
+and the package is on no registry: its command names the Git repository and pins the full
+commit — `dsh plugin --profile <name> add github:hkwuks/TaskFlow#<40-character-sha>` — with
+the sha taken from the release tag, which is the same commit the marketplace catalogs pin.
+A local directory path works there too. Trae has neither a
 marketplace nor a plugin command: its install is the copy above, described in
 `hooks/README.md`, and Trae also reads Claude Code hook configs when the user turns on
 **导入 CLAUDE 中的 Hooks 配置**.

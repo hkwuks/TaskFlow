@@ -3102,6 +3102,38 @@ grep -q 'Verification / Review' "$tmp/missing-heading.txt" || { echo "FAIL the r
 grep -q 'named-heading-must-not-land' "$lang_plan" && { echo "FAIL a translated named heading still matched"; exit 1; }
 echo ok
 
+echo "== dsh installs from a pinned Git commit, and the package ships only what it runs =="
+# dsh has no marketplace and the package is on no registry, so the only command
+# that works is a Git source with a full commit. It used to be documented as
+# `dsh plugin --profile web add dsh-taskflow`, a name npm answers 404 for — a
+# command nobody could run, printed first.
+#
+# The pin is load-bearing for the same reason the marketplace `sha` is: pnpm
+# resolves the source, and an unpinned `github:owner/repo` follows the default
+# branch, so a later push would change what runs.
+#
+# Only `hooks/README.md` is asserted, not the two root READMEs. This suite runs
+# for a change whose paths the classifier sends to `smoke`, and the root READMEs
+# go to `release` instead — an assertion here about a file that does not trigger
+# this job is a check that never runs on the change it describes. The root
+# install sections are covered by the release job's word on the same rule, and
+# by review.
+site="$repo/hooks/README.md"
+grep -q -F -- 'github:hkwuks/TaskFlow#' "$site" \
+  || { echo "FAIL $site does not give the pinned Git install for dsh"; exit 1; }
+grep -q -F -- 'dsh plugin --profile web add dsh-taskflow' "$site" \
+  && { echo "FAIL $site still offers the registry name npm answers 404 for"; exit 1; }
+# The same two facts in `runtime.md`, which is a skill file and therefore does
+# run under this job.
+grep -q -F -- 'github:hkwuks/TaskFlow#' "$skill/references/runtime.md" \
+  || { echo "FAIL runtime.md does not give the pinned Git install for dsh"; exit 1; }
+grep -q -F -- 'add <package-or-directory>' "$skill/references/runtime.md" \
+  && { echo "FAIL runtime.md still describes dsh install as a bare package name"; exit 1; }
+# `files` is asserted in `hooks/release-check`, which is where `package.json`
+# belongs: the classifier sends it to the release job, so an assertion about it
+# here would only ever run for a change that does not touch it.
+echo ok
+
 echo "== a release runs RELEASE.md instead of the task workflow =="
 # A release that also takes the task path re-plans an existing procedure and
 # copies RELEASE.md's checklist into a second document that then drifts from it.
@@ -5804,7 +5836,11 @@ printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/.claude-plu
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rel/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rel/.codebuddy-plugin/plugin.json"
 # The dsh bundle manifest carries no cachebuster: dsh installs it through pnpm.
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/package.json"
+# The `files` whitelist is part of the manifest's contract now, so the fixture
+# carries it: `release-check` refuses a manifest that would ship TaskFlowDocs/,
+# and a fixture without the key is a manifest it refuses rather than the
+# consistent release this case exists to prove accepted.
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$rel/package.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$rel/CHANGELOG.md"
 # Two samples per README, matching the shipped files: the `claude plugin list`
 # sample and the `codebuddy plugin list` sample. Both carry a literal a release
@@ -6016,7 +6052,7 @@ mkdir -p "$sch/.claude-plugin" "$sch/.codex-plugin" "$sch/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$sch/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$sch/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$sch/package.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$sch/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$sch/README.md"
 cp "$sch/README.md" "$sch/README.zh-CN.md"
@@ -6103,7 +6139,7 @@ mkdir -p "$rv/.claude-plugin" "$rv/.codex-plugin" "$rv/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9",\n  "engines": {\n    "node": "9.9.9"\n  }\n}\n' > "$rv/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rv/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rv/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$rv/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$rv/package.json"
 printf '# Changelog\n\n## [9.9.8] — 2026-09-14\n\nOld.\n' > "$rv/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n\n```bash\n#     Version: 9.9.9\n```\n' > "$rv/README.md"
 cp "$rv/README.md" "$rv/README.zh-CN.md"
@@ -6233,7 +6269,7 @@ mkdir -p "$pv/.claude-plugin" "$pv/.codex-plugin" "$pv/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codex.20261101"\n}\n' > "$pv/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codebuddy.20261101"\n}\n' > "$pv/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.10",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$pv/package.json"
 printf '# Changelog\n\n## [9.9.10] — 2026-11-01\n\nNew.\n' > "$pv/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.10    Status: enabled\n```\n\n```bash\n#     Version: 9.9.10\n```\n' > "$pv/README.md"
 cp "$pv/README.md" "$pv/README.zh-CN.md"

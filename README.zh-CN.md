@@ -244,18 +244,33 @@ CodeBuddy 通过 `/reload-plugins` 重新加载 hooks、技能和代理，无需
 
 ### 用 dsh 安装
 
-TaskFlow 的仓库根目录本身就是一个 dsh 插件包，安装它的 profile 会把它作为一层
-bundle 加载：
+TaskFlow 的仓库根目录本身就是一个 dsh 插件包。dsh 没有插件市场，这个包也不在任何
+registry 上，所以安装命令直接指向 Git 仓库并钉住 commit——就是发布 tag 所指向的那个：
 
 ```bash
-dsh plugin --profile web add dsh-taskflow
+dsh plugin --profile web add github:hkwuks/TaskFlow#<40 位 sha>
 ```
 
-从本地检出目录安装则直接指向该目录：
+sha 从你要运行的版本取。每个发布 tag 指向一个 commit，而它也正是其它宿主的 marketplace
+catalog 所钉的那个，所以这是一个已经公开的值，不需要自己推算：
+
+```bash
+git ls-remote https://github.com/hkwuks/TaskFlow.git 'refs/tags/v1.1.15^{}'
+# 或在本地检出中：  git rev-parse v1.1.15^{commit}
+```
+
+钉满 40 位不是形式：`dsh plugin add` 经由 pnpm 解析，写成 `github:hkwuks/TaskFlow`
+会跟随 `main`，于是之后任何一次推送都会悄悄改变实际运行的代码。
+
+从本地检出目录安装则直接指向该目录，适合在开发 TaskFlow 自身时使用——它跟随工作树
+而不是某个 commit：
 
 ```bash
 dsh plugin --profile web add <仓库根目录>
 ```
+
+两条路径都不执行构建。`dsh/index.js` 是纯 ESM，因此 dsh 文档中针对 Git 安装的
+build-script allowlist 在这里不适用，安装过程也不会要求你授权执行任何代码。
 
 该包声明了 `dsh.bundle.patch`，所以 `dsh` 会自行把它追加到 profile 的
 `dsh.profile.bundles`——不需要手写任何 profile YAML。启动该 profile 即可挂载
@@ -270,8 +285,8 @@ dsh 通过 `hooks/hooks-dsh.json` 和 dsh 自带的 Claude Code hook 桥接，�
 dsh 的 SessionStart 来源是 `startup`、`resume`、`clear`、`compact`，没有 `fork`，
 因此 dsh 的 matcher 不含它。
 
-dsh 没有插件市场，且 `dsh plugin add` 经由 pnpm 解析，所以升级用
-`dsh plugin --profile web update`。
+升级到新版本时，用新版本的 sha 重新 add——`dsh plugin --profile web update` 会刷新依赖，
+但真正决定 profile 运行哪个 commit 的是那个 pin，所以换版本意味着换 pin。
 
 ### 用 Trae 安装
 

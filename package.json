@@ -8,6 +8,13 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "dsh/index.js",
+  "files": [
+    "dsh/",
+    "hooks/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./dsh/cordis.patch.yml"
