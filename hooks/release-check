@@ -318,6 +318,35 @@ if [ -n "$window_sha" ]; then
   fi
 fi
 
+# --- the dsh package's `files` whitelist ------------------------------------
+# `package.json` is the dsh bundle manifest, and `files` is the only thing that
+# decides what a pack contains. A Git install pulls the whole repository and
+# never consults it, so this is not about the install path this repository
+# documents — it is about the tarball path and about any future registry
+# publish, where its absence packs the whole 5.3 MB repository including
+# `TaskFlowDocs/` (3.3 MB) and a 176 KB `CHANGELOG.md`.
+#
+# The entries checked for are the ones `dsh/index.js` resolves at runtime: it
+# reads `../skills/` and `../hooks/hooks-dsh.json` relative to its own location,
+# so a package that kept `dsh/` and dropped either neighbour installs cleanly
+# and then fails when the profile boots.
+#
+# Checked here rather than in `hooks/smoke-test` because the classifier sends
+# `package.json` to the release job: an assertion in the suite would only run for
+# a change that does not touch this file.
+for files_kept in dsh hooks skills; do
+  grep -q -F -- "\"$files_kept/\"" "$dsh_manifest" || {
+    echo "- $dsh_manifest: files whitelist does not keep $files_kept/"
+    needs=1
+  }
+done
+for files_dropped in TaskFlowDocs evals tools; do
+  grep -q -F -- "\"$files_dropped" "$dsh_manifest" && {
+    echo "- $dsh_manifest: files whitelist ships $files_dropped/"
+    needs=1
+  }
+done
+
 if [ "$needs" -eq 1 ]; then
   echo "STATUS: needs-user-input"
   exit 2

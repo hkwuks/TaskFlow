@@ -93,8 +93,8 @@ codex plugin add taskflow@taskflow
 codebuddy plugin marketplace add hkwuks/TaskFlow  # or a local path
 codebuddy plugin install taskflow@taskflow
 
-# dsh (no marketplace; the repository root is the plugin package)
-dsh plugin --profile web add dsh-taskflow         # or a local path
+# dsh (no marketplace and no registry entry: pin the release commit)
+dsh plugin --profile web add github:hkwuks/TaskFlow#<40-character-sha>
 ```
 
 The plugin manifests (`.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`,

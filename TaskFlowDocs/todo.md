@@ -61,15 +61,15 @@ has an issue number or URL.
 ## Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github
 
 - ID: TF-20261104-e151e6
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Claude
 - Source: user request 2026-11-04
 - Added: 2026-11-04
-- Updated: 2026-11-04
+- Updated: 2026-11-07
 - Goal: Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github:hkwuks/TaskFlow#<sha> the documented main path, add the npm files whitelist so a pack is not 3.8MB, and record the commit pin the install needs
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-11-07-dsh-git-install/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: **2026-11-04 查证结论（官方文档 + 本仓库实测）**。
 
   **先纠正一个前提**：dsh **没有**「官方发布通道」。官方文档 `deepseek-harness.github.io/.../develop/basic/publish` 原话是 *"Publishing to a registry is not required — users can install straight from a git host"*。`dsh plugin --profile <name> <args>` **转发给 pnpm**，所以它认的是 pnpm 能解析的任何来源：npm registry、`github:owner/repo#<sha>`、本地目录、`pnpm pack` 出来的 tarball。没有审核、没有入驻、没有「上架」这个动作。
