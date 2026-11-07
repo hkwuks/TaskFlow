@@ -203,16 +203,10 @@ has an issue number or URL.
 ## Review the Plan once before approval while TaskFlow is in use: after plan.md is
 
 - ID: TF-20261022-47c217
-- Status: in_progress
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-22
-- Added: 2026-10-22
-- Updated: 2026-11-07
+- Status: done
 - Goal: Review the Plan once before approval while TaskFlow is in use: after plan.md is written and before the user approves it, review the Plan itself rather than the code. If a capability covers plan review, invoke it the way the other phases invoke theirs (the [Plan] capability line in Skills / Tools Used, recorded through the same evidence path); if none is available, decide between reviewing unaided and reminding during implementation instead. Scope: TaskFlow while it is being used on a project, not development of TaskFlow itself.
-- Task: `TaskFlowDocs/2026-11-07-plan-review/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: Recorded from a side channel as a prepared intake; re-read goal for full wording. Distinct from TF-20261021-4950fc (default rules from CODE_STYLE/CONTRIBUTING) and TF-20261022-fda8d8 (archive looseness).
+- Task: `TaskFlowDocs/achieved/2026-11-07-plan-review/`
+- Next action: None — completed and archived.
 
 ## End-of-task collapse: hooks/archive checks only that prd/plan say completed, whi
 

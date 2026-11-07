@@ -1,6 +1,6 @@
 # Plan — 批准前审查 Plan 本身
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -178,3 +178,11 @@
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- Recorded from a side channel as a prepared intake; re-read goal for full wording. Distinct from TF-20261021-4950fc (default rules from CODE_STYLE/CONTRIBUTING) and TF-20261022-fda8d8 (archive looseness).

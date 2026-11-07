@@ -1,6 +1,6 @@
 # 批准前审查 Plan 本身
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
