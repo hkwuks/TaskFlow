@@ -338,6 +338,7 @@ BEGIN {
   value = ENVIRON["TASKFLOW_VALUE"]
   goal = ENVIRON["TASKFLOW_GOAL"]
   owner = ENVIRON["TASKFLOW_OWNER"]
+  kind = ENVIRON["TASKFLOW_KIND"]
   source = ENVIRON["TASKFLOW_SOURCE"]
   step = ENVIRON["TASKFLOW_STEP"]
   step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
@@ -535,6 +536,7 @@ END {
     nb++; blk[nb] = "- Priority: normal"
     nb++; blk[nb] = "- Owner: " owner
     nb++; blk[nb] = "- Source: " source
+    nb++; blk[nb] = "- Kind: " kind
     nb++; blk[nb] = "- Added: " today
     nb++; blk[nb] = "- Updated: " today
     nb++; blk[nb] = "- Goal: " goal
@@ -764,7 +766,20 @@ command="$1"; shift
 # and `approve` reconciles a recorded stage against evidence instead of
 # re-reading the prose. Product-neutral by construction — the list names
 # concepts, never a tool.
-concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision|divergent exploration'
+#
+# The two investigation classes were appended, not merged into an existing one,
+# for a reason that is checkable rather than stylistic: `released` rows record
+# the class a task declared, and those rows outlive the regex. Rewording an
+# existing entry would make every archived task's `--considered` value fail a
+# validation it once passed, which is history bent to fit an implementation.
+# Appending leaves all eight older entries byte-identical.
+#
+# Why they were missing is the whole point of the change they support: the
+# table answered "which capability could help this phase" for seven phases and
+# never named *finding out why something is broken*. A `bug fix` entered the
+# same path as a new feature and the only classes on offer described writing
+# documents, so the most available action was always an edit to one.
+concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision|divergent exploration|root cause|defect investigation'
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
 split_root() {
@@ -795,6 +810,39 @@ task_paths() {  # task_paths <root> <task>
   [ -d "$base" ] || fail "active task not found: $2"
 }
 
+# Peel `--kind <value>` off `rest`, leaving the positional arguments in `rest`
+# and the value in `kind` (empty when the flag was absent). Run after
+# `split_root`, which has already removed `--root`.
+#
+# `--kind` is validated here rather than where it is written, so that the
+# refusal happens before any command has touched the filesystem. It is the one
+# piece of vocabulary this file shares with the workflow's own documents, and a
+# typo in it would silently disable the check it exists to feed: a task marked
+# `defects` is not a defect task, and nothing downstream would say so.
+kind_values='defect capability internal'
+split_kind() {
+  kind=""
+  local rest2=() have=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --kind)
+        [ "$#" -ge 2 ] || fail "--kind needs a value: $kind_values"
+        have=1
+        kind="$2"
+        shift 2
+        ;;
+      *) rest2+=("$1"); shift ;;
+    esac
+  done
+  if [ "$have" -eq 1 ]; then
+    case " $kind_values " in
+      *" $kind "*) ;;
+      *) fail "--kind must be one of: $kind_values (got '$kind')" ;;
+    esac
+  fi
+  rest=("${rest2[@]+"${rest2[@]}"}")
+}
+
 # The approval gate every command that acts on approved work shares. `state
 # in_progress` proved it was needed; `progress` and `complete` were reachable
 # without it, so unimplemented-and-unapproved work could be marked done and
@@ -812,7 +860,13 @@ require_approval() {  # require_approval <task-id>
 case "$command" in
   intake)
     split_root "$@"
-    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--root <path>]'
+    split_kind "${rest[@]+"${rest[@]}"}"
+    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--kind <defect|capability|internal>] [--root <path>]'
+    # Only `promote` makes this binding, so `intake` may leave it out. The
+    # default is the majority case rather than a judgement about this request:
+    # an inbox item may never be planned, and demanding a classification at the
+    # cheapest step is how a field gets filled with whatever satisfies it.
+    : "${kind:=capability}"
     goal="${rest[0]}"
     if [ "${#rest[@]}" -eq 2 ]; then source="${rest[1]}"; else source="direct user request"; fi
     [ -n "$goal" ] || fail "goal must not be empty"
@@ -845,15 +899,15 @@ case "$command" in
     digest="$(printf '%s' "$goal" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
     todo_id="TF-$(printf '%s' "$today" | tr -d '-')-$digest"
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
-      TASKFLOW_ID="$todo_id" TASKFLOW_OWNER="$owner"
+      TASKFLOW_ID="$todo_id" TASKFLOW_OWNER="$owner" TASKFLOW_KIND="$kind"
     echo "intake OK: $todo_id"
     # Nothing here is refused: triage is meant to be cheap, and an inbox item may
     # never be planned. But `todo.md` is shared, and leaving it modified in the
     # base checkout is what makes the next `git checkout` refuse to move — the
     # very failure this signal exists for. So it is said, not prevented.
-    kind=0
-    worktree_kind "$root" || kind=$?
-    if [ "$kind" -eq 2 ]; then
+    wt_kind=0
+    worktree_kind "$root" || wt_kind=$?
+    if [ "$wt_kind" -eq 2 ]; then
       echo "note: TaskFlowDocs/todo.md is now modified in the base working tree."
       echo "      Commit or stash it before switching branches, or work from a task worktree."
     fi
@@ -861,9 +915,18 @@ case "$command" in
 
   promote)
     split_root "$@"
-    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]'
+    split_kind "${rest[@]+"${rest[@]}"}"
+    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> --kind <defect|capability|internal> [--root <path>]'
     todo_id="${rest[0]}"; task="${rest[1]}"; size="${rest[2]}"
-    case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]' ;; esac
+    case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> --kind <defect|capability|internal> [--root <path>]' ;; esac
+    # Required here, optional in `intake`, and the asymmetry is the design:
+    # promotion is where the task's first documents are written and where every
+    # later check reads its kind from. A default at this point would be a
+    # decision nobody made, silently disabling the defect check for the tasks
+    # that needed it. At intake the same default costs nothing, because an inbox
+    # item may never be planned.
+    [ -n "$kind" ] || fail "promote needs --kind, one of: $kind_values. It decides which checks this task's PRD must satisfy, and nothing later can supply it."
+    task_kind="$kind"
     need_task_id "$task"
     # Phase 1 writes the task's first documents, so this is where a task that was
     # never isolated would land them in the base tree, on whatever branch happens
@@ -872,9 +935,9 @@ case "$command" in
     # repository's branch prefixes are prose in CONTRIBUTING.md, and guessing a
     # prefix from a task name would be a heuristic — so it stays a placeholder
     # and the reader picks it.
-    kind=0
-    worktree_kind "$root" || kind=$?
-    if [ "$kind" -eq 2 ]; then
+    wt_kind=0
+    worktree_kind "$root" || wt_kind=$?
+    if [ "$wt_kind" -eq 2 ]; then
       base_branch="$(git -C "$root" branch --show-current 2>/dev/null || true)"
       [ -n "$base_branch" ] || base_branch="<base>"
       printf '%s\n' \
@@ -917,6 +980,13 @@ case "$command" in
       printf '%s\n' '> Task version: v1' '> Status: planning' ''
       printf '%s\n' '## Goal' ''
       printf '%s\n' "$goal" ''
+      # The kind is scaffolded rather than left to be remembered, for the same
+      # reason `## Plan Review` and `## External Facts` are: `approve` reads a
+      # field, and a field the workflow never mentioned is one every author
+      # fails on once. Its position matters too — above every section whose
+      # answer depends on it, because a defect's `## Background` has to say what
+      # was observed before anything else can be judged against it.
+      printf '%s\n' '## Task Kind' '' "- Kind: $task_kind" ''
       printf '%s' '## Background / Confirmed Facts
 
 ## Requirements
@@ -1782,6 +1852,54 @@ $pr_what"
       *)
         fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on." ;;
     esac
+
+    # A defect task has to have named the thing that finds causes.
+    #
+    # The gap this closes is a routing one, not a wording one. The phase table
+    # offered seven phases and a concept class for each, and none of them was
+    # "find out why this is broken" — so a request to fix a bug entered the same
+    # path as a request to build a feature, and the only classes on offer
+    # described writing documents. The most available action was therefore an
+    # edit to one, and the work that actually settles a defect had nothing in
+    # the workflow to point at it. Measured 2026-11-07: `reproduc*` appears once
+    # in SKILL.md, in the definition of `blocked`, and nothing in `hooks/` reads
+    # `git diff`.
+    #
+    # What this check does NOT do is say how to investigate. That belongs to the
+    # capability, and `SKILL.md` states the boundary: TaskFlow is the lifecycle
+    # layer, not the expert-capability layer. Reproducing first, tracing, a
+    # single hypothesis, a red-green pair — all of it is the capability's
+    # business, and duplicating it here would be this file doing another
+    # layer's job badly. So the check asks one question: was a capability of the
+    # investigating kind named, or was its absence declared on purpose.
+    #
+    # The absent-kind case is deliberately not an error. A PRD written before
+    # this section existed has no `## Task Kind`, and refusing it would rewrite
+    # history to fit an implementation. Same for any value other than `defect`:
+    # only an explicit declaration opts a task into this check.
+    tk_body="$(awk '
+      /^## Task Kind$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$prd" 2>/dev/null)" || tk_body=""
+    tk_kind="$(printf '%s\n' "$tk_body" | sed -n 's/^- Kind:[[:space:]]*\(..*\)[[:space:]]*$/\1/p' | head -1)"
+    if [ "$tk_kind" = "defect" ]; then
+      tk_pr_line="$(printf '%s\n' "$cap_skills" | grep -m1 '^- \[PRD\]' || true)"
+      [ -n "$tk_pr_line" ] || fail "approve blocked: this is a defect task ('## Task Kind' says so) but '## Skills / Tools Used' has no [PRD] line naming what investigated it. Add one, in either shape:
+  - [PRD] \`<a capability of the investigating kind>\` — purpose: …; outcome: …; incorporated: …
+  - [PRD] Unaided — …; considered: root cause investigation"
+      tk_probe="$tk_pr_line"
+      case "$tk_pr_line" in
+        *Unaided*)
+          tk_probe="$(printf '%s\n' "$tk_pr_line" | sed -n 's/.*considered:[[:space:]]*//p' | head -1)"
+          ;;
+      esac
+      printf '%s' "$tk_probe" | grep -qiE 'root cause|defect investigation|investigat|diagnos|debug' || fail "approve blocked: this is a defect task, and its [PRD] line names nothing that investigates the cause:
+
+  $tk_pr_line
+
+A defect task's requirements come from finding out why the behaviour is wrong, so the phase that writes them has to have consulted something that does that — or record that nothing available does, with 'bash hooks/task unaided PRD --considered \"root cause investigation\"' and an [PRD] Unaided line carrying that class. What the capability then does is its own business; this check only asks whether one was named."
+    fi
 
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"

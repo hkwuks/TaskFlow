@@ -290,12 +290,16 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   this hook leaves the repository unconfigured: run `bash hooks/install-git-hygiene`
   once, or write the two lines into `.gitignore` yourself and accept that they
   travel with the repository.
-- Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote`,
+- Lifecycle: `run-hook.cmd task intake <goal> [source]`, then `task promote
+  <todo-id> <task-id> <small|large> --kind <defect|capability|internal>`,
   `task state`, `task progress`, and `task complete`; `task unaided <stage>
   --considered "<concept class>"` declares a stage that ran without a capability;
   `task recover` repairs a capability store whose `released` file outruns its
   `evidence` by discarding only the releases whose record is gone.
   Append `--root <path>` when operating outside the current repository.
+  `--kind` is optional at intake and required at promote: it decides whether
+  `approve` also asks that the `[PRD]` line name something that investigates a
+  cause, which only a task declared `defect` is asked for.
 - Smoke: `bash smoke-test` (builds temporary TaskFlowDocs fixtures and, on
   Windows, runs the full lifecycle through PowerShell 5.1 + `run-hook.cmd` in
   a path containing spaces and Chinese characters).

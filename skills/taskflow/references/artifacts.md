@@ -59,6 +59,7 @@ TaskFlowDocs/
 > Status: planning
 
 ## Goal
+## Task Kind
 ## Background / Confirmed Facts
 ## Requirements
 ## Acceptance Criteria
@@ -68,6 +69,12 @@ TaskFlowDocs/
 ## Risks / Deferred Items
 ## Open Questions
 ```
+
+**`## Task Kind` is written by `hooks/task promote`, not by the author.** It carries `- Kind: defect`, `capability`, or `internal`, and it is what decides whether `hooks/task approve` also asks that the `[PRD]` line name something that investigates a cause. Its position above every section it governs is deliberate: a defect's `## Background` says what was observed, and that is only meaningful once the document has said the request was a defect in the first place.
+
+It is a declaration, not an inference. A PRD with no `## Task Kind` is not refused — it was written before the field existed, and refusing it would rewrite history to fit an implementation — and neither is one that says `capability`, because only an explicit `defect` opts a task into the stricter check.
+
+**What the check can and cannot tell.** It can tell that a defect task named a capability of the investigating kind, or that it recorded the absence deliberately through `task unaided PRD --considered 'root cause investigation'`. It cannot tell whether that capability was any good, or whether its findings were right — a name matching the vocabulary passes. That ceiling is stated rather than papered over: closing it would mean writing an investigation method into TaskFlow, and the workflow's own boundary says that method belongs to the capability it came from.
 
 ## Spec outline for large tasks
 

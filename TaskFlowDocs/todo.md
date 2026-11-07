@@ -9,6 +9,7 @@ An entry is written by `hooks/task intake` in this shape. The sample is indented
     - Priority: normal
     - Owner: <person or Agent>
     - Source: <user / review / issue / remote>
+    - Kind: <defect / capability / internal>
     - Added: YYYY-MM-DD
     - Updated: YYYY-MM-DD
     - Goal: <one sentence>
@@ -25,6 +26,14 @@ has an issue number or URL.
 ## Items
 
 <!-- Add new items at the top using the template below. -->
+
+## 插件引导下模型去做标记类周边工作而非实现真正功能
+
+- ID: TF-20261107-5c5ee2
+- Status: done
+- Goal: 在插件引导下执行 todo 时，模型倾向于去做增加文件写入标记等周边工作，而不去实现真正需要修复或实现的功能；需要查清根本原因，判断是发散探索流程没发现问题的本质，还是其他机制导致的
+- Task: `TaskFlowDocs/achieved/2026-11-07-repro-requirement/`
+- Next action: None — completed and archived.
 
 ## 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准
 

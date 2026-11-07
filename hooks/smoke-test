@@ -1485,7 +1485,7 @@ rf="$tmp/rollback-root"
 mkdir -p "$rf"
 bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
 rid=$(awk '/^- ID: TF-/{print $3; exit}' "$rf/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$rid" 2026-09-22-rollback-smoke small --root "$rf" >/dev/null
+bash "$roll/task" promote "$rid" 2026-09-22-rollback-smoke small --kind capability --root "$rf" >/dev/null
 rtask="$rf/TaskFlowDocs/2026-09-22-rollback-smoke"
 # approve + check every box + finish step so complete's gates pass
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
@@ -1525,7 +1525,7 @@ cf="$tmp/complete-gate"
 mkdir -p "$cf"
 bash "$roll/task" intake "Complete gate smoke goal." "fixture" --root "$cf" >/dev/null
 cfid=$(awk '/^- ID: TF-/{print $3; exit}' "$cf/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$cfid" 2026-09-22-complete-gate small --root "$cf" >/dev/null
+bash "$roll/task" promote "$cfid" 2026-09-22-complete-gate small --kind capability --root "$cf" >/dev/null
 cftask="$cf/TaskFlowDocs/2026-09-22-complete-gate"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
   "$cftask/plan.md" > "$cftask/plan.md.tmp"
@@ -1558,7 +1558,7 @@ cfl="$tmp/complete-gate-large"
 mkdir -p "$cfl"
 bash "$roll/task" intake "Complete gate large Plan goal." "fixture" --root "$cfl" >/dev/null
 cflid=$(awk '/^- ID: TF-/{print $3; exit}' "$cfl/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$cflid" 2026-09-22-complete-gate-large small --root "$cfl" >/dev/null
+bash "$roll/task" promote "$cflid" 2026-09-22-complete-gate-large small --kind capability --root "$cfl" >/dev/null
 cfltask="$cfl/TaskFlowDocs/2026-09-22-complete-gate-large"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
   "$cfltask/plan.md" > "$cfltask/plan.md.tmp"
@@ -1789,7 +1789,7 @@ todo_id=$(awk '/^- ID: TF-/{print $3; exit}' "$todo")
 before=$(digest "$todo")
 if bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL duplicate goal accepted"; exit 1; fi
 [ "$before" = "$(digest "$todo")" ] || { echo "FAIL duplicate goal mutated Todo"; exit 1; }
-bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --root "$lifecycle" >/dev/null
+bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --kind capability --root "$lifecycle" >/dev/null
 active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
 [ -f "$active/prd.md" ] && [ -f "$active/plan.md" ] && [ ! -e "$active/spec.md" ] || { echo "FAIL small promotion artifacts"; exit 1; }
 grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
@@ -1875,7 +1875,7 @@ gate="$tmp/gate"
 mkdir -p "$gate"
 bash "$HERE/task" intake "Gate smoke goal." "local fixture" --root "$gate" >/dev/null
 gate_id=$(awk '/^- ID: TF-/{print $3; exit}' "$gate/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$gate_id" 2026-09-09-gate-smoke small --root "$gate" >/dev/null
+bash "$HERE/task" promote "$gate_id" 2026-09-09-gate-smoke small --kind capability --root "$gate" >/dev/null
 gate_task="$gate/TaskFlowDocs/2026-09-09-gate-smoke"
 gate_before=$(digest "$gate_task/plan.md")
 if bash "$HERE/task" progress 2026-09-09-gate-smoke 1 done --root "$gate" >/dev/null 2>&1; then
@@ -1935,7 +1935,7 @@ reset_unp_entry() {
 unp_out="$tmp/unpromote-out"
 
 # 1. The success path: right name, freshly promoted, nothing touched since.
-bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --kind capability --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL unpromote fixture promote"; cat "$unp_out"; exit 1; }
 bash "$HERE/task" unpromote TF-20260101-un "promoted under the wrong name" --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL unpromote refused a fresh promotion:"; cat "$unp_out"; exit 1; }
@@ -1963,7 +1963,7 @@ grep -q 'only a promoted Todo entry' "$unp_out" || { echo "FAIL refusal 2 did no
 # Promote first, initialise Git second: `promote` refuses to run in a base
 # working tree, which is the whole point of the section further up.
 reset_unp_entry
-bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --kind capability --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL refusal-3 fixture promote"; cat "$unp_out"; exit 1; }
 ( cd "$unp" && git init -q . && git config user.email smoke@example.invalid && git config user.name smoke \
   && git add -A && git -c commit.gpgsign=false commit -qm fixture ) >/dev/null 2>&1 || true
@@ -2111,7 +2111,7 @@ ap_release() {  # ap_release <store> <task> <version> <stage> <line-no> <kind> <
 }
 bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/dev/null
 ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --root "$ap" >/dev/null
+bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --kind capability --root "$ap" >/dev/null
 ap_task="$ap/TaskFlowDocs/2026-09-09-approve-smoke"
 # Every case below is about stage reconciliation, so the PRD's `## External
 # Facts` answer is filled in once, here, rather than repeated in each fixture.
@@ -2334,7 +2334,7 @@ bash "$HERE/task" state 2026-09-09-approve-smoke in_progress --root "$ap" >/dev/
 bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap_large_root" >/dev/null
 # Bare `# Todo` fixtures have no `## Items`, so intake appends: the new entry is last.
 ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap_large_root/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap_large_root" >/dev/null
+bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --kind capability --root "$ap_large_root" >/dev/null
 ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
 set_external_facts "$ap_large/prd.md" '- Depends on external facts: no
@@ -2464,7 +2464,7 @@ done
 ap_new="$ap/TaskFlowDocs/2026-09-09-approve-skeleton"
 bash "$HERE/task" intake "Approve skeleton goal." "local fixture" --root "$ap" >/dev/null
 bash "$HERE/task" promote "$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")" \
-  2026-09-09-approve-skeleton small --root "$ap" >/dev/null
+  2026-09-09-approve-skeleton small --kind capability --root "$ap" >/dev/null
 grep -qx -- '- Depends on external facts:' "$ap_new/prd.md" \
   || { echo "FAIL promote did not write an unanswered External Facts skeleton"; sed -n '/^## External Facts/,/^## /p' "$ap_new/prd.md"; exit 1; }
 set_skills_body "$ap_new/plan.md" \
@@ -2604,7 +2604,7 @@ bad_out="$tmp/badid-out"
 for bad in "--size" "../evil" "../../escaped" "a/b" "-rf" "" "2026-01-01-Ab" "2026-01-01-a/b" "2026-01-01-a b"; do
   for cmd in "promote TF-20260101-bad" "state" "progress" "approve" "complete"; do
     case "$cmd" in
-      "promote TF-20260101-bad") args=(promote TF-20260101-bad "$bad" small) ;;
+      "promote TF-20260101-bad") args=(promote TF-20260101-bad "$bad" small --kind capability) ;;
       state)      args=(state "$bad" ready) ;;
       progress)   args=(progress "$bad" 1 done) ;;
       approve)    args=(approve "$bad") ;;
@@ -2668,7 +2668,7 @@ iso_todo_digest=$(digest "$iso/TaskFlowDocs/todo.md")
 iso_out="$tmp/isolation-out"
 
 set +e
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-base small --root "$iso" > "$iso_out" 2>&1
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-base small --kind capability --root "$iso" > "$iso_out" 2>&1
 iso_status=$?
 set -e
 [ "$iso_status" -eq 3 ] || { echo "FAIL promote in the base working tree exit code: $iso_status"; cat "$iso_out"; exit 1; }
@@ -2689,7 +2689,7 @@ grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree prom
   cd "$iso" || exit 1
   git worktree add -q .worktrees/task-tree -b chore/task-tree
 ) || { echo "FAIL isolation fixture worktree"; exit 1; }
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --kind capability --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
 [ -f "$iso/.worktrees/task-tree/TaskFlowDocs/2026-01-01-promoted-in-worktree/plan.md" ] \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
@@ -2700,7 +2700,7 @@ grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion
 iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-isolation-bare.XXXXXX")"
 mkdir -p "$iso_bare/TaskFlowDocs"
 cp "$iso/TaskFlowDocs/todo.md" "$iso_bare/TaskFlowDocs/todo.md"
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --root "$iso_bare" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --kind capability --root "$iso_bare" > "$iso_out" 2>&1 \
   || { echo "FAIL promote outside a repository was refused:"; cat "$iso_out"; exit 1; }
 [ -f "$iso_bare/TaskFlowDocs/2026-01-01-promoted-outside-git/plan.md" ] \
   || { echo "FAIL promote outside a repository did not write the task"; exit 1; }
@@ -3103,7 +3103,7 @@ lang="$tmp/language-heading"
 mkdir -p "$lang"
 bash "$HERE/task" intake "Translated heading fixture." "local fixture" --root "$lang" >/dev/null
 lang_id=$(awk '/^- ID: TF-/{print $3; exit}' "$lang/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$lang_id" 2026-09-10-translated-heading small --root "$lang" >/dev/null
+bash "$HERE/task" promote "$lang_id" 2026-09-10-translated-heading small --kind capability --root "$lang" >/dev/null
 lang_plan="$lang/TaskFlowDocs/2026-09-10-translated-heading/plan.md"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' "$lang_plan" > "$lang_plan.tmp"
 mv "$lang_plan.tmp" "$lang_plan"
@@ -7988,6 +7988,225 @@ gaps="$(version_gaps "$vg")"
 # reported as broken, because two achieved tasks predate the line entirely.
 gaps="$(version_gaps "$repo")"
 [ -z "$gaps" ] || { echo "FAIL achieved task versions have gaps: $(printf '%s ' $gaps)"; exit 1; }
+echo ok
+
+echo "== every fixture that calls a command supplies the arguments it now requires =="
+# `promote` gained a required `--kind`, and the Windows fixture is only executed
+# on a Windows runner. Measured 2026-11-07: this branch passed smoke on ubuntu
+# and macos and failed on windows in 15 seconds, because `smoke-test-windows.ps1`
+# still called `promote` without it — a gap local runs cannot see, since the
+# PowerShell half is skipped wherever powershell.exe is absent.
+#
+# Static, so it runs everywhere: read the arguments each `.ps1` fixture passes to
+# `promote` and require the flags the bash command insists on. Not a substitute
+# for running the Windows job — it cannot tell whether the call succeeds — but it
+# does catch a fixture left behind by a signature change, which is the failure
+# that actually happened.
+win_script="$HERE/smoke-test-windows.ps1"
+[ -f "$win_script" ] || { echo "FAIL smoke-test-windows.ps1 is missing"; exit 1; }
+win_promote="$(awk "
+  /Invoke-TaskFlow/ && /'promote'/ { print; inblock = 1 }
+  inblock && /\) *\+ *\\\$common/ { inblock = 0 }
+" "$win_script")"
+[ -n "$win_promote" ] || { echo "FAIL no promote call found in the Windows fixture"; exit 1; }
+printf '%s' "$win_promote" | grep -q -- "'--kind'" \
+  || { echo "FAIL the Windows fixture calls promote without --kind, which promote now requires: $win_promote"; exit 1; }
+# And the same shape for any script this repository runs in CI: a fixture that
+# invokes a command the bash side requires an argument for must pass it.
+for win_required in kind; do
+  printf '%s' "$win_promote" | grep -q -- "--$win_required" \
+    || { echo "FAIL the Windows fixture omits required --$win_required"; exit 1; }
+done
+echo ok
+
+echo "== a defect task has to name what investigates the cause =="
+# The routing gap this covers: the phase table offered a concept class for every
+# phase and none of them was "find out why this is broken", so a fix request
+# entered the same path as a feature request and the only classes on offer were
+# about writing documents. Everything here is about the naming, never the method
+# — a check on how to investigate belongs to the capability, not to this repo.
+kd="$tmp/kind"
+mkdir -p "$kd/.worktrees/t"
+( cd "$kd" && git init -q . ) >/dev/null 2>&1 || true
+( cd "$kd" && git worktree add .worktrees/t -b feature/kind >/dev/null 2>&1 ) || {
+  echo "FAIL kind fixture worktree"; exit 1; }
+kdw="$kd/.worktrees/t"
+
+# --- the flag itself -------------------------------------------------------
+kd_out="$(bash "$HERE/task" promote TF-20260101-kd 2026-01-01-kd small --root "$kdw" 2>&1)" || true
+printf '%s' "$kd_out" | grep -q 'promote needs --kind' \
+  || { echo "FAIL promote accepted a promotion with no --kind"; printf '%s\n' "$kd_out"; exit 1; }
+for kd_v in defect capability internal; do
+  printf '%s' "$kd_out" | grep -q "$kd_v" \
+    || { echo "FAIL the missing---kind message omits $kd_v"; printf '%s\n' "$kd_out"; exit 1; }
+done
+kd_out="$(bash "$HERE/task" intake "Kind rejection probe." "fixture" --kind defects --root "$kdw" 2>&1)" || true
+printf '%s' "$kd_out" | grep -q "defects" \
+  || { echo "FAIL an illegal --kind was not named back"; printf '%s\n' "$kd_out"; exit 1; }
+[ ! -d "$kdw/TaskFlowDocs/2026-01-01-kd" ] \
+  || { echo "FAIL a refused promote still created the task directory"; exit 1; }
+
+# --- intake defaults, promote requires -------------------------------------
+# Both the intake and the promotion happen in the worktree: `promote` reads
+# `todo.md` from the root it is given, and an entry recorded in the base tree is
+# not the one it is about to promote.
+bash "$HERE/task" intake "Kind default probe." "fixture" --root "$kdw" >/dev/null
+kd_def="$(awk '/^## Kind default probe/{p=1} p&&/^- Kind:/{print; exit}' "$kdw/TaskFlowDocs/todo.md")"
+[ "$kd_def" = "- Kind: capability" ] \
+  || { echo "FAIL intake did not default the kind to capability: [$kd_def]"; exit 1; }
+bash "$HERE/task" intake "Kind explicit probe." "fixture" --kind defect --root "$kdw" >/dev/null
+kd_exp="$(awk '/^## Kind explicit probe/{p=1} p&&/^- Kind:/{print; exit}' "$kdw/TaskFlowDocs/todo.md")"
+[ "$kd_exp" = "- Kind: defect" ] \
+  || { echo "FAIL intake did not record an explicit kind: [$kd_exp]"; exit 1; }
+
+# --- the scaffold offers the section ---------------------------------------
+kd_id="$(awk '/^## Kind explicit probe/{p=1} p&&/^- ID:/{print $3; exit}' "$kdw/TaskFlowDocs/todo.md")"
+bash "$HERE/task" promote "$kd_id" 2026-01-01-kd-defect small --kind defect --root "$kdw" >/dev/null
+kd_task="$kdw/TaskFlowDocs/2026-01-01-kd-defect"
+grep -qx -- '## Task Kind' "$kd_task/prd.md" \
+  || { echo "FAIL promote wrote no '## Task Kind' section"; exit 1; }
+grep -qx -- '- Kind: defect' "$kd_task/prd.md" \
+  || { echo "FAIL promote did not carry the declared kind into the PRD"; exit 1; }
+# Position: above the section it governs. An author reads Background first and
+# needs to know it is writing about a defect by then.
+awk '/^## Task Kind$/{k=NR} /^## Background/{b=NR} END{exit !(k && b && k<b)}' "$kd_task/prd.md" \
+  || { echo "FAIL '## Task Kind' does not sit above '## Background / Confirmed Facts'"; exit 1; }
+
+# --- the approve branch ----------------------------------------------------
+kd_set_plan() {  # kd_set_plan <task-dir> <prd-line>
+  cat > "$1/plan.md" <<KDPLAN
+# Plan — kind probe
+> Task version: v1
+> Status: planning
+
+## Skills / Tools Used
+
+$2
+- [Plan] Unaided — none applied; considered: work breakdown
+- [Test] Unaided — none applied; considered: testing strategy
+
+## Plan Review
+
+- Verdict: sound
+- Coverage: A1 -> Step 1
+- Verifiability: Step 1 runs the command it names
+- Layer ownership: hooks/task owns the check
+
+## Approval
+
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
+
+## Steps
+
+### Step 1 — probe
+
+- Goal: probe
+- Implementation checklist:
+  - [x] done
+- Acceptance: probe
+- Verification: probe
+- Rollback: git checkout -- hooks/task
+- Status: done
+KDPLAN
+}
+kd_set_prd() {  # kd_set_prd <task-dir> <kind>
+  cat > "$1/prd.md" <<KDPRD
+# kind probe
+> Task version: v1
+> Status: planning
+
+## Goal
+
+probe
+
+## Task Kind
+
+- Kind: $2
+
+## Background / Confirmed Facts
+
+probe
+
+## Requirements
+
+probe
+
+## Acceptance Criteria
+
+- **A1** probe
+
+## External Facts
+
+- Depends on external facts: no
+- Why not: settled in \`hooks/task\`
+
+## In Scope
+
+probe
+
+## Out of Scope
+
+probe
+
+## Risks / Deferred Items
+
+probe
+
+## Open Questions
+
+probe
+KDPRD
+}
+kd_release() {  # kd_release <task-dir> <PRD class>
+  # The evidence queue releases a stage oldest-first, so a second case has to
+  # start from an empty store or it spends the previous case's record and the
+  # class it reports is the previous case's. Clearing it per case is what makes
+  # each assertion about its own input.
+  rm -rf "$(git -C "$kdw" rev-parse --absolute-git-dir)/taskflow" "$kd/taskflow-probe"
+  bash "$HERE/task" unaided PRD --considered "$2" --root "$kdw" >/dev/null 2>&1 || true
+  bash "$HERE/task" unaided Plan --considered 'work breakdown' --root "$kdw" >/dev/null 2>&1 || true
+  bash "$HERE/task" unaided Test --considered 'testing strategy' --root "$kdw" >/dev/null 2>&1 || true
+}
+kd_case() {  # kd_case <label> <kind> <prd-line> <class> <0|1>
+  local lbl="$1" k="$2" line="$3" cls="$4" want="$5" out rc
+  kd_set_prd "$kd_task" "$k"
+  kd_set_plan "$kd_task" "$line"
+  kd_release "$kd_task" "$cls"
+  out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc=0 || rc=$?
+  if [ "$want" = "1" ]; then
+    [ "$rc" -eq 0 ] || { echo "FAIL $lbl should have been approved: $out"; return 1; }
+  else
+    [ "$rc" -ne 0 ] || { echo "FAIL $lbl was approved"; return 1; }
+    printf '%s' "$out" | grep -q 'defect task' \
+      || { echo "FAIL $lbl was refused for some other reason: $out"; return 1; }
+  fi
+  return 0
+}
+kd_case "a defect task whose PRD phase named no investigation" defect \
+  '- [PRD] Unaided — none applied; considered: requirements elicitation' \
+  'requirements elicitation' 0 || exit 1
+kd_case "a defect task that named an investigation class" defect \
+  '- [PRD] Unaided — none applied; considered: root cause investigation' \
+  'root cause investigation' 1 || exit 1
+kd_case "a capability task left alone" capability \
+  '- [PRD] Unaided — none applied; considered: requirements elicitation' \
+  'requirements elicitation' 1 || exit 1
+kd_set_prd "$kd_task" defect
+# An invoke line has to be backed by an invoke record, so the last case writes
+# the evidence and release rows directly rather than declaring unaided. That is
+# the shape a real capability call leaves, and the point here is that the branch
+# accepting an invoked investigation must not depend on an unaided declaration.
+kd_gd="$(git -C "$kdw" rev-parse --absolute-git-dir)"
+rm -rf "$kd_gd/taskflow"; mkdir -p "$kd_gd/taskflow"
+printf 'invoke|some:debugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:debugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
+kd_set_plan "$kd_task" '- [PRD] `some:debugger` — purpose: probe; outcome: probe; incorporated: probe'
+out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL a defect task naming an invoked investigation capability was refused: $out"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"
