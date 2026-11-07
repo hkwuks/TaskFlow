@@ -7990,6 +7990,35 @@ gaps="$(version_gaps "$repo")"
 [ -z "$gaps" ] || { echo "FAIL achieved task versions have gaps: $(printf '%s ' $gaps)"; exit 1; }
 echo ok
 
+echo "== every fixture that calls a command supplies the arguments it now requires =="
+# `promote` gained a required `--kind`, and the Windows fixture is only executed
+# on a Windows runner. Measured 2026-11-07: this branch passed smoke on ubuntu
+# and macos and failed on windows in 15 seconds, because `smoke-test-windows.ps1`
+# still called `promote` without it — a gap local runs cannot see, since the
+# PowerShell half is skipped wherever powershell.exe is absent.
+#
+# Static, so it runs everywhere: read the arguments each `.ps1` fixture passes to
+# `promote` and require the flags the bash command insists on. Not a substitute
+# for running the Windows job — it cannot tell whether the call succeeds — but it
+# does catch a fixture left behind by a signature change, which is the failure
+# that actually happened.
+win_script="$HERE/smoke-test-windows.ps1"
+[ -f "$win_script" ] || { echo "FAIL smoke-test-windows.ps1 is missing"; exit 1; }
+win_promote="$(awk "
+  /Invoke-TaskFlow/ && /'promote'/ { print; inblock = 1 }
+  inblock && /\) *\+ *\\\$common/ { inblock = 0 }
+" "$win_script")"
+[ -n "$win_promote" ] || { echo "FAIL no promote call found in the Windows fixture"; exit 1; }
+printf '%s' "$win_promote" | grep -q -- "'--kind'" \
+  || { echo "FAIL the Windows fixture calls promote without --kind, which promote now requires: $win_promote"; exit 1; }
+# And the same shape for any script this repository runs in CI: a fixture that
+# invokes a command the bash side requires an argument for must pass it.
+for win_required in kind; do
+  printf '%s' "$win_promote" | grep -q -- "--$win_required" \
+    || { echo "FAIL the Windows fixture omits required --$win_required"; exit 1; }
+done
+echo ok
+
 echo "== a defect task has to name what investigates the cause =="
 # The routing gap this covers: the phase table offered a concept class for every
 # phase and none of them was "find out why this is broken", so a fix request

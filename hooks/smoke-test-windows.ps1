@@ -99,7 +99,11 @@ try {
     if ([IO.File]::ReadAllText($todo) -notmatch [regex]::Escape($goal)) { throw 'Unicode goal was not preserved' }
 
     Invoke-TaskFlow (@('intake', $goal, 'PowerShell 5.1 fixture') + $common) -MustFail
-    Invoke-TaskFlow (@('promote', $todoId, '2026-09-11-windows-smoke', 'small') + $common)
+    # `--kind` is required by promote and this fixture predates it, so it has to
+    # name one. `capability` because that is what an unclassified promotion
+    # would have meant, not because this fixture cares: the assertion below is
+    # about a Windows path with a non-ASCII segment surviving the round trip.
+    Invoke-TaskFlow (@('promote', $todoId, '2026-09-11-windows-smoke', 'small', '--kind', 'capability') + $common)
     $task = Join-Path $Root 'TaskFlowDocs\2026-09-11-windows-smoke'
     $plan = Join-Path $task 'plan.md'
 
