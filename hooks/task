@@ -1757,24 +1757,30 @@ $pr_what"
     # argument, so a scale it cannot read would be a number it ignores. Two words
     # are the ones its behaviour differs on — one lets approval through, one does
     # not — and anything else is refused as unreadable rather than guessed.
-    pr_verdict="$(printf '%s\n' "$pr_body" | sed -n 's/^- Verdict:[[:space:]]*\([^[:space:]]*\).*$/\1/p' | head -1)"
+    # Read in awk, not sed. The value is a phrase rather than a token, so the
+    # reader has to be able to say where it ends — and the sed form for that
+    # (`\([^[:space:]]*[[:space:]]\+[^[:space:]]*\)`) depends on `\+`, which BSD
+    # sed on macOS reads as a literal plus. Measured 2026-11-07: the CI matrix
+    # passed on ubuntu and windows and failed on macos with `not ''`, because
+    # the two-word branch there matched nothing and produced an empty verdict.
+    # Splitting fields is what awk already does portably.
+    pr_verdict="$(printf '%s\n' "$pr_body" | awk '
+      /^- Verdict:/ {
+        sub(/^- Verdict:[ \t]*/, "")
+        n = split($0, w, /[ \t]+/)
+        if (n >= 2 && w[1] == "needs" && w[2] == "revision") { print "needs revision"; exit }
+        print w[1]
+        exit
+      }
+    ')"
     case "$pr_verdict" in
       sound) ;;
-      needs)
-        # `needs revision` is the one two-word form, and reading only its first
-        # word would accept it as the verdict "needs" — a value with no meaning
-        # here that happens to be neither allow nor refuse.
-        pr_verdict="$(printf '%s\n' "$pr_body" | sed -n 's/^- Verdict:[[:space:]]*\([^[:space:]]*[[:space:]]\+[^[:space:]]*\).*$/\1/p' | head -1)"
-        case "$pr_verdict" in
-          'needs revision') fail "approve blocked: '## Plan Review' says the Plan needs revision, so it is not approved. The review found something that stops this Plan from solving the problem — revise the Plan, or record what changed in '## Plan Review' and answer 'sound' once it is:
+      'needs revision')
+        fail "approve blocked: '## Plan Review' says the Plan needs revision, so it is not approved. The review found something that stops this Plan from solving the problem — revise the Plan, or record what changed in '## Plan Review' and answer 'sound' once it is:
 
   - Verdict: sound" ;;
-          *) fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on." ;;
-        esac
-        ;;
       *)
-        fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on."
-        ;;
+        fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on." ;;
     esac
 
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
