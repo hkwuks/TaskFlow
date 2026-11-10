@@ -82,6 +82,14 @@ The gate is wired wherever the host delivers **one of the two input shapes `capa
 
 The recorder's predicate is the tool class (`Skill`, `Agent`/`Task`, `mcp__*`), so it travels to any host that reports those names. Trae has no `Agent`/`Task` tool, so that one evidence path exists only where the host does.
 
+## Base checkout edit guard
+
+`base-write-gate` checks the target Git worktree before observable file edits: the base checkout of a repository containing `TaskFlowDocs/todo.md` is denied, while a linked worktree and direct Todo intake are allowed. The guard runs first inside `capability-gate`, preventing a denied edit from spending stage evidence. Codex, Claude Code, CodeBuddy and Trae use their existing capability-gate wiring. dsh invokes the guard directly for lowercase `write`/`edit` and `apply_patch` (`tool_input.input`). The dsh tool schemas are documented at https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/fs/tool-fs/README.md; this wiring has not been tested in a real dsh session. Existing host caveats about trusted hooks and event shapes still apply.
+
+The check is a guardrail, not a filesystem boundary: shell commands, interactive input, specialized tools that do not emit these events, symlink and hardlink targets and untrusted or disabled hooks can bypass it. On Windows, a test of an MXC profile with the base read-only and the nested worktree writable still allowed a write through a worktree hardlink to change the base file. This is one local fixture result, not a cross-platform claim. A release editing the base checkout through these file tools may be refused; release exceptions are tracked in TF-20261109-ccbb96. It never rolls back another process's writes.
+
+Codex and Claude Code run `base-status-reminder` asynchronously after shell calls. It reports a dirty base checkout outside Todo without attributing changes to the command or Agent. It stores no snapshot and may repeat warnings for pre-existing changes; ignored files and changes gone before the check are missed. A failed status check is reported as unknown. Claude Code's official hooks reference says async output is delivered to the Agent on a later turn, not displayed directly to the user (https://code.claude.com/docs/en/hooks#run-hooks-in-the-background); this wiring has not been tested in a real Claude Code session. Other hosts are not wired for this reminder until their asynchronous event and output behavior is verified. Codex requires a trusted, enabled hook.
+
 ## Pre-write capability gate
 
 Defined together with the event map above, and wired for the hosts whose tool contract matches: `capability-evidence` (`PostToolUse` on `Skill`, `Agent|Task`, `mcp__.*`) appends one `kind|capability` line per real invocation to `<absolute-git-dir>/taskflow/evidence`, and `capability-gate` (`PreToolUse` on `Write|Edit`) refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an active task directory until that stage can be released against a line, then appends the release to `<absolute-git-dir>/taskflow/released`. `json-field` is the shared one-level JSON reader both use. Both stores sit inside the git directory: per worktree (one task, one worktree), invisible to `git status`, unarchived by `version`, and unaffected by compaction or a changed session id. Nothing is read out of the document, so no wording can pass the gate.
@@ -165,7 +173,7 @@ an installed dsh rather than assumed:
   at load time. The file name is therefore a TaskFlow choice, not a host
   convention, and nothing outside `dsh/index.js` reads it.
 - **Tool names are lowercase, and the bridge does not translate them.** This is
-  why dsh wires no tool-call event. The bridge builds its payload as
+  why dsh does not wire the capability gate or capability recorder. The bridge builds its payload as
   `tool_name: exec.name` with no mapping table, and dsh's own file tools register
   as `write`/`edit` (`dsh-tool-fs`), its skill tool as `skill`. Every matcher in
   this repository and both hooks' `case "$tool_name"` arms are the PascalCase
@@ -176,8 +184,8 @@ an installed dsh rather than assumed:
   compares case-sensitively, so `Write|Edit` against `write` is false while
   `write|edit` against it is true. Wiring dsh therefore means lowercase arms
   inside `capability-gate` and `capability-evidence`, not a wiring-file edit;
-  until that exists, `hooks-dsh.json` carries SessionStart only and `hooks/task
-  unaided` is how a stage is released there.
+  until that exists, `hooks/task unaided` is how a stage is released there. The
+  separate base checkout guard does use the lowercase file-tool events.
 
 ### CodeBuddy specifics
 

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Advisory only: report existing base-checkout changes without attribution.
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+fields="$(bash "$HERE/json-field" hook_event_name cwd)" || exit 0
+event="${fields%%$'\n'*}"
+cwd="${fields#*$'\n'}"
+case "$event" in PostToolUse|PostToolUseFailure) ;; *) exit 0 ;; esac
+cwd="$(printf '%s' "$cwd" | tr '\134' '/')"
+root="$(git -C "${cwd:-$PWD}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+[ -n "$root" ] && [ -f "$root/TaskFlowDocs/todo.md" ] || exit 0
+export GIT_OPTIONAL_LOCKS=0
+# shortcut: ignored files and transient changes are invisible; use host monitoring if needed.
+if ! status="$(git -C "$root" status --porcelain --untracked-files=normal -- . ':(exclude)TaskFlowDocs/todo.md' 2>/dev/null)"; then
+  printf '%s\n' '{"systemMessage":"TaskFlow: could not check the base checkout for uncommitted changes."}'
+elif [ -n "$status" ]; then
+  printf '%s\n' '{"systemMessage":"TaskFlow: the base checkout has uncommitted changes outside Todo. Please check them; they may predate this command or come from another process."}'
+fi
+exit 0

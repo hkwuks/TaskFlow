@@ -1,5 +1,5 @@
 {
-  "description": "TaskFlow lifecycle hooks: SessionStart state summary and per-prompt in-flight task reminder (DeepSeek Harness form).",
+  "description": "TaskFlow lifecycle hooks: SessionStart state summary, per-prompt reminder, and base checkout edit guard (DeepSeek Harness form).",
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +18,17 @@
           {
             "type": "command",
             "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' prompt-reminder"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "write|edit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' base-write-gate"
           }
         ]
       }

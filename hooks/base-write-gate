@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Refuse observable file edits in a TaskFlow base checkout.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+HERE="$(cd "$(dirname "$0")" && pwd)"
+fields="$(bash "$HERE/json-field" hook_event_name tool_name cwd tool_input.file_path tool_input.command tool_input.input)" || exit 0
+{
+  IFS= read -r event || true
+  IFS= read -r tool || true
+  IFS= read -r cwd || true
+  IFS= read -r file || true
+  patch="$(cat)"
+} <<< "$fields"
+cwd="$(printf '%s' "$cwd" | tr '\134' '/')"
+[ "$event" = PreToolUse ] || exit 0
+case "$tool" in
+  apply_patch)
+    move=0
+    case "$patch" in *'*** Move to: '*) move=1 ;; esac
+    paths="$(printf '%s\n' "$patch" | awk '
+      /^\*\*\* Update File: / {p=substr($0,18); sub(/\r$/, "", p); print p}
+      /^\*\*\* Add File: / {p=substr($0,15); sub(/\r$/, "", p); print p}
+      /^\*\*\* Delete File: / {p=substr($0,18); sub(/\r$/, "", p); print "DELETE|" p}
+      /^\*\*\* Move to: / {p=substr($0,14); sub(/\r$/, "", p); print p}')" ;;
+  Write|Edit|MultiEdit|write|edit) paths="$file" ;;
+  *) exit 0 ;;
+esac
+if [ -z "$paths" ]; then
+  if [ "$tool" = apply_patch ] && [ -n "$(printf '%s' "$patch" | tr -d '[:space:]')" ]; then
+    root="$(git -C "${cwd:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+    if [ -f "$root/TaskFlowDocs/todo.md" ]; then
+      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TaskFlow: patch targets could not be read; the edit was refused."}}'
+    fi
+  fi
+  exit 0
+fi
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  deleting=0
+  case "$path" in DELETE\|*) deleting=1; path="${path#DELETE|}" ;; esac
+  path="$(printf '%s' "$path" | tr '\134' '/')"
+  case "$path" in /*|[A-Za-z]:/*) ;; *) path="${cwd:-$PWD}/$path" ;; esac
+  # shortcut: file symlink targets are not resolved; upgrade with portable canonical path handling.
+  parent="${path%/*}"
+  while [ ! -d "$parent" ]; do
+    next="${parent%/*}"
+    [ -n "$next" ] && [ "$next" != "$parent" ] || break
+    parent="$next"
+  done
+  gitinfo="$(git -C "$parent" rev-parse --show-toplevel --absolute-git-dir 2>/dev/null)" || continue
+  root="${gitinfo%%$'\n'*}"
+  gitdir="${gitinfo#*$'\n'}"
+  [ -f "$root/TaskFlowDocs/todo.md" ] || continue
+  [ -f "$gitdir/commondir" ] && continue
+  if [ "$deleting" = 0 ] && [ "${move:-0}" = 0 ] && [ "${path##*/}" = todo.md ] && [ "$(cd "$parent" && pwd -P)" = "$(cd "$root/TaskFlowDocs" && pwd -P)" ]; then continue; fi
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TaskFlow: this edit targets the base checkout. Create and use a task worktree before editing. Release edits may also be blocked; see TaskFlow release exception follow-up."}}'
+  exit 0
+done <<EOF
+$paths
+EOF

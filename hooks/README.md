@@ -297,3 +297,7 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   a path containing spaces and Chinese characters).
 
 Hosts without hooks run the base flow unchanged; hooks are optional.
+
+The `base-write-gate` checks observable file-edit targets before `capability-gate` consumes evidence; dsh wires it directly for its lowercase file tools. It is not a filesystem sandbox: shell and other unobserved paths can still write, and release edits may be refused. See `skills/taskflow/references/runtime.md` for host coverage.
+
+Codex and Claude Code also check the base checkout asynchronously after shell calls. They report existing uncommitted changes outside Todo without claiming which command or person caused them. Claude Code delivers asynchronous output to the agent on a later turn rather than showing it directly to the user. This is a Git status reminder, not a before/after comparison; ignored files and changes that disappear before the check may be missed.

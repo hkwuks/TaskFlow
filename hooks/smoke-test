@@ -6371,20 +6371,12 @@ printf '%s' "$dsh_out" | grep -q '"hookEventName": *"SessionStart"' || {
   echo "FAIL the dsh wiring output carries no matching hookEventName:"
   printf '%s\n' "$dsh_out"; exit 1
 }
-# dsh is deliberately NOT wired for the gate, and -- unlike the Codex exclusion
-# below -- the reason is its tool *names* rather than the shape of its input.
-# Measured 2026-10-11 against an installed dsh 0.2.0-rc.2: its Claude Code bridge
-# forwards `tool_name: exec.name` with no translation, and its file tools register
-# as `write`/`edit` (lowercase). Both matchers and the gate's own `case` are
-# case-sensitive, so a `Write|Edit` matcher fires on nothing, the gate never runs,
-# and every stage document is written ungated on a host the repository claims is
-# gated. Wiring dsh therefore needs lowercase arms inside both hooks, not a
-# wiring-file edit, so the wiring stays SessionStart-only until that lands.
-if grep -q -F -- '"PreToolUse"' "$HERE/hooks-dsh.json"; then
-  echo "FAIL hooks-dsh.json wires PreToolUse: dsh's lowercase tool names never match the gate's case, so the gate would never run"; exit 1
-fi
-grep -q -F -- 'Write|Edit) ;;' "$HERE/capability-gate" \
-  || { echo "FAIL capability-gate no longer matches the PascalCase tool names the dsh exclusion above is written against"; exit 1; }
+# dsh uses lowercase file-tool names; the isolation guard handles them directly.
+grep -q -F -- 'write|edit|apply_patch' "$HERE/hooks-dsh.json" \
+  || { echo "FAIL dsh isolation guard is not wired"; exit 1; }
+grep -q -F -- 'base-write-gate' "$HERE/hooks-dsh.json" \
+  || { echo "FAIL dsh isolation guard command is missing"; exit 1; }
+
 echo ok
 
 echo "== the docs do not claim a gate the wiring does not have =="
@@ -7526,6 +7518,45 @@ gaps="$(version_gaps "$vg")"
 # reported as broken, because two achieved tasks predate the line entirely.
 gaps="$(version_gaps "$repo")"
 [ -z "$gaps" ] || { echo "FAIL achieved task versions have gaps: $(printf '%s ' $gaps)"; exit 1; }
+echo ok
+
+echo "== base checkout write guard =="
+bg="$tmp/base-write-guard"
+mkdir -p "$bg/repo/TaskFlowDocs" "$bg/plain"
+git -C "$bg/repo" init -q
+git -C "$bg/repo" config user.email fixture@example.invalid
+git -C "$bg/repo" config user.name fixture
+printf 'todo\n' > "$bg/repo/TaskFlowDocs/todo.md"
+printf 'source\n' > "$bg/repo/source.txt"
+git -C "$bg/repo" add TaskFlowDocs/todo.md source.txt
+git -C "$bg/repo" -c commit.gpgsign=false commit -qm fixture
+git -C "$bg/repo" worktree add -q -b fixture "$bg/task"
+bg_event() {
+  printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","cwd":"%s","tool_input":{"file_path":"%s"}}' "$(cg_json "$bg/task")" "$(cg_json "$1")" | bash "$HERE/base-write-gate"
+}
+bg_event "$bg/repo/source.txt" | grep -q '"permissionDecision":"deny"' || { echo "FAIL base edit allowed"; exit 1; }
+[ -z "$(bg_event "$bg/task/source.txt")" ] || { echo "FAIL task worktree edit denied"; exit 1; }
+[ -z "$(bg_event "$bg/repo/TaskFlowDocs/todo.md")" ] || { echo "FAIL Todo intake denied"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Delete File: TaskFlowDocs/todo.md\\n*** End Patch"}}' "$(cg_json "$bg/repo")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL base Todo deletion allowed"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: TaskFlowDocs/todo.md\\n*** Move to: ../plain/todo.md\\n*** End Patch"}}' "$(cg_json "$bg/repo")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL base Todo move allowed"; exit 1; }
+[ -z "$(bg_event "$bg/plain/source.txt")" ] || { echo "FAIL non-TaskFlow edit denied"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"write","cwd":"%s","tool_input":{"file_path":"%s"}}' "$(cg_json "$bg/task")" "$(cg_json "$bg/repo/source.txt")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL dsh write allowed"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"input":"*** Begin Patch\\n*** Update File: ../repo/source.txt\\n*** End Patch"}}' "$(cg_json "$bg/task")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL dsh patch allowed"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: source.txt\\n*** Move to: ../repo/source.txt\\n*** End Patch"}}' "$(cg_json "$bg/task")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL cross-worktree move allowed"; exit 1; }
+printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Unrecognized: source.txt"}}' "$(cg_json "$bg/repo")" | bash "$HERE/base-write-gate" | grep -q '"permissionDecision":"deny"' || { echo "FAIL unreadable patch allowed"; exit 1; }
+echo ok
+
+echo "== async base status reminder =="
+bg_post() {
+  printf '{"hook_event_name":"PostToolUse","tool_name":"Bash","cwd":"%s"}' "$(cg_json "$bg/task")" | bash "$HERE/base-status-reminder"
+}
+[ -z "$(bg_post)" ] || { echo "FAIL clean base warned"; exit 1; }
+printf 'intake\n' >> "$bg/repo/TaskFlowDocs/todo.md"
+[ -z "$(bg_post)" ] || { echo "FAIL Todo-only intake warned"; exit 1; }
+printf 'prior change\n' >> "$bg/repo/source.txt"
+bg_post | grep -q 'may predate this command or come from another process' || { echo "FAIL dirty base not reported without attribution"; exit 1; }
+bg_post | grep -q 'may predate this command or come from another process' || { echo "FAIL existing change not reported"; exit 1; }
+printf '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","cwd":"%s"}' "$(cg_json "$bg/task")" | bash "$HERE/base-status-reminder" | grep -q 'uncommitted changes' || { echo "FAIL failed shell change not reported"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

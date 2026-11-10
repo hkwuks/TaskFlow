@@ -247,6 +247,50 @@ try {
     }
     'WINDOWS PRE-WRITE GATE PASSED'
 
+    # The base edit guard must handle native paths containing spaces and Unicode.
+    $guardTodo = Join-Path $gateRepo 'TaskFlowDocs\todo.md'
+    [IO.File]::WriteAllText($guardTodo, "# Todo`n", $utf8)
+    $gitPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    & git -C $gateRepo add TaskFlowDocs/todo.md 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'base guard fixture git add failed' }
+    & git -C $gateRepo -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit -qm fixture 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'base guard fixture commit failed' }
+    $guardLinked = Join-Path $Root 'guard linked'
+    & git -C $gateRepo worktree add -q -b guard-fixture $guardLinked 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'base guard fixture worktree failed' }
+    $ErrorActionPreference = $gitPreference
+    $baseFile = Join-Path $gateRepo 'source.txt'
+    $linkedFile = Join-Path $guardLinked 'source.txt'
+    foreach ($tool in @('Edit', 'Write', 'MultiEdit', 'edit', 'write')) {
+        $blocked = Invoke-Hook 'base-write-gate' (New-PathEvent $baseFile $tool)
+        if ($blocked.Exit -ne 0 -or $blocked.Output -notmatch '"permissionDecision":"deny"') { throw "base guard did not deny $tool" }
+        $allowed = Invoke-Hook 'base-write-gate' (New-PathEvent $linkedFile $tool)
+        if ($allowed.Exit -ne 0 -or $allowed.Output -match '"permissionDecision":"deny"') { throw "base guard denied linked worktree $tool" }
+    }
+    $todoAllowed = Invoke-Hook 'base-write-gate' (New-PathEvent $guardTodo 'Edit')
+    if ($todoAllowed.Output -match '"permissionDecision":"deny"') { throw 'base guard denied Todo edit' }
+    'WINDOWS BASE WRITE GUARD PASSED'
+
+    [IO.File]::WriteAllText($baseFile, "changed`n", $utf8)
+    $statusEvent = @{ hook_event_name = 'PostToolUse'; tool_name = 'Bash'; cwd = $guardLinked } | ConvertTo-Json -Compress
+    $statusResult = Invoke-Hook 'base-status-reminder' $statusEvent
+    if ($statusResult.Exit -ne 0 -or $statusResult.Output -notmatch 'may predate this command or come from another process') { throw "base status reminder did not report changes without attribution: $($statusResult.Output)" }
+    $null = $statusResult.Output | ConvertFrom-Json
+    $failureEvent = @{ hook_event_name = 'PostToolUseFailure'; tool_name = 'PowerShell'; cwd = $guardLinked } | ConvertTo-Json -Compress
+    $failureResult = Invoke-Hook 'base-status-reminder' $failureEvent
+    if ($failureResult.Exit -ne 0 -or $failureResult.Output -notmatch 'may predate this command') { throw "failed shell event did not report base status: $($failureResult.Output)" }
+    $codexConfig = [IO.File]::ReadAllText((Join-Path $here 'hooks-codex.json')) | ConvertFrom-Json
+    $claudeConfig = [IO.File]::ReadAllText((Join-Path $here 'hooks.json')) | ConvertFrom-Json
+    $codexReminder = @($codexConfig.hooks.PostToolUse | Where-Object { $_.matcher -eq 'Bash' } | ForEach-Object { $_.hooks } | Where-Object { $_.command -match 'base-status-reminder' -and $_.commandWindows -match 'base-status-reminder' -and $_.async -eq $true })
+    if ($codexReminder.Count -ne 1) { throw 'Codex base status reminder must be wired asynchronously for Bash on both platforms' }
+    foreach ($eventName in @('PostToolUse', 'PostToolUseFailure')) {
+        $claudeReminder = @($claudeConfig.hooks.$eventName | Where-Object { $_.matcher -eq 'Bash|PowerShell' } | ForEach-Object { $_.hooks } | Where-Object { $_.command -match 'base-status-reminder' -and $_.async -eq $true })
+        if ($claudeReminder.Count -ne 1) { throw "Claude base status reminder must be wired asynchronously for $eventName" }
+    }
+    'WINDOWS BASE STATUS REMINDER PASSED'
+
+
     # Re-run this whole file with a stdin that is redirected and never written to
     # or closed - the shape a terminal gives a command a person typed, and the one
     # CI's own runner does not have. Anything the suite calls without a stdin of

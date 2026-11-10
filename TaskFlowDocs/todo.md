@@ -26,6 +26,32 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 为 TaskFlow 基础工作区写前防护设计可验证的发布例外，避免
+
+- ID: TF-20261109-ccbb96
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-09-release-guard-exception
+- Added: 2026-11-09
+- Updated: 2026-11-09
+- Goal: 为 TaskFlow 基础工作区写前防护设计可验证的发布例外，避免阻止合法发布文档编辑，同时防止通过自报发布绕过防护
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直
+
+- ID: TF-20261109-e2df6d
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-09-digdig-main-worktree
+- Added: 2026-11-09
+- Updated: 2026-11-09
+- Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
+- Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
+- Next action: 在草稿 PR 中验证 CI 和宿主覆盖，审查未解决的限制。
+
 ## README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only
 
 - ID: TF-20261104-d3ac3c
