@@ -66,7 +66,7 @@
 - Goal: 使用 CI 验证各平台；在可行范围比较真实模型行为并注明限制。
 - Verification: CI、Skill 验证、差异检查、必要的受控模型测试。
 - Rollback: 验证不通过则保留草稿 PR，不报告达标。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -82,6 +82,8 @@
 - `python evals/runner.py`：6 项通过（离线规则，不执行模型）；`quick_validate.py skills/taskflow` 通过；`git diff --check` 通过。
 - 配置静态核对：Claude Code、Codex、CodeBuddy、dsh、Trae 的 `UserPromptSubmit` 均指向共享 `prompt-reminder`；Windows 专项 smoke 增加原生路径和 promote 输出检查。真实宿主和真实模型采纳仍未验证。
 - 代码提交 `b294b09` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42762380631)：Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 changes 均通过，release 按路径跳过。之后补充单次输出断言，最终 CI 以新提交为准。
+- 增补单次输出断言后的 `8bf3e90` [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42762754573)：三系统 smoke、evals、Todo merge audit 和 changes 均通过；release 按路径跳过。提示文本为 144 个字符，复用既有触点，不新增按工具调用运行的监视器或状态记录。
+- 对照审核：旧有 planning 静默断言因 approved v1 明确新增 planning 提示而更新；ready、多活动任务、非本仓库、非目标事件及只读例外仍保留原有测试。测试检查事件和输出，不推断真实模型是否采纳。
 
 ## Change Log
 
@@ -89,6 +91,9 @@
 - 2026-11-10：用户确认非阻断关键时机提示、按宿主可用能力选择、CI 加条件允许的真实行为验证；形成 v1 方案并等待审批。
 
 ## Follow-ups
+
+- TF-20261110-0c7346：在真实宿主验收事件和提醒时一并观察工具引导、实际能力选择及计划质量；未做受控比较前不宣称模型采纳率或因果改善。
+- PR #130 必须先合并；此分支基于其已验收提交，单独 PR 在前置合并前会包含该依赖的差异。
 
 ## Version History
 

@@ -40,6 +40,7 @@ has an issue number or URL.
 - Goal: 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区异步提醒，逐项记录事件与提示是否实际到达
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+- Notes: 同一真实宿主验证时一并观察工具引导提示、实际能力选择和计划质量；区分提示送达与模型采纳，未经对照不声称因果改善。关联 TF-20261110-a56e72。
 
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
