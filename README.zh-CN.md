@@ -45,6 +45,32 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 这些文件刻意保持朴素：人能阅读，Agent 能加载，Git 能 diff，项目无需额外服务即可保存历史。
 
+## 各部分如何协作
+
+```mermaid
+flowchart TD
+    Request[开发需求] --> Intake[Todo 收录与任务选择]
+    Intake --> Worktree[任务分支与 worktree]
+    Worktree --> Define[PRD 与可选的 Spec]
+    Define --> Plan[Plan 计划]
+    Plan --> Review[计划审核：覆盖、验证、层次归属]
+    Review -->|可行| Approval[用户批准]
+    Review -->|需要修订| Plan
+    Approval --> Build[实施]
+    Build --> Verify[验证与成果评审]
+    Verify --> Accept[用户验收与归档]
+    Skill[TaskFlow Skill：阶段引导] -.-> Define
+    Skill -.-> Plan
+    Skill -.-> Build
+    Skill -.-> Verify
+    Capabilities[宿主的 Skill、工具、MCP Server 和 Agent] -. Agent 选择并调用 .-> Skill
+    Hooks[可选宿主 hooks] -. 提醒、证据与守卫 .-> Skill
+    Hooks -. 支持时实施阶段写前门 .-> Define
+    Hooks -. 支持时实施阶段写前门 .-> Plan
+```
+
+TaskFlow 引导 Agent 在每个阶段考虑有帮助的能力，但不替它选择具体工具。计划审核发生在用户批准之前，与实施完成后的成果评审分开。Hook 仅在宿主支持时辅助执行，各宿主覆盖范围不同；事件映射和限制见 [runtime.md](skills/taskflow/references/runtime.md)。
+
 ## 仓库文档
 
 `TaskFlowDocs/repository-docs/index.md` 是仓库规则、仓库指引和有范围个人规则的权威路由与检查记录；具体规则内容仍以惯用位置上的源文档为准。

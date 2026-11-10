@@ -78,6 +78,32 @@ TaskFlowDocs/YYYY-MM-DD-short-slug/
 
 TaskFlow deliberately uses plain files. A human can read them, an Agent can load them, Git can diff them, and your project does not need another service to keep its task history.
 
+## How the pieces fit
+
+```mermaid
+flowchart TD
+    Request[Development request] --> Intake[Todo intake and task selection]
+    Intake --> Worktree[Task branch and worktree]
+    Worktree --> Define[PRD and optional Spec]
+    Define --> Plan[Plan]
+    Plan --> Review[Plan Review: coverage, verification, layer ownership]
+    Review -->|sound| Approval[User approval]
+    Review -->|needs revision| Plan
+    Approval --> Build[Implement]
+    Build --> Verify[Verify and review the result]
+    Verify --> Accept[User acceptance and archive]
+    Skill[TaskFlow Skill: phase guidance] -.-> Define
+    Skill -.-> Plan
+    Skill -.-> Build
+    Skill -.-> Verify
+    Capabilities[Host Skills, tools, MCP servers and Agents] -. agent selects and invokes .-> Skill
+    Hooks[Optional host hooks] -. reminders, evidence and guards .-> Skill
+    Hooks -. stage gate where supported .-> Define
+    Hooks -. stage gate where supported .-> Plan
+```
+
+TaskFlow guides the Agent to consider useful capabilities at each phase; it does not select a particular tool. Plan Review happens before approval and is separate from the review of the implemented result. Hooks assist where the host supports them, and their coverage differs by host; see [runtime.md](skills/taskflow/references/runtime.md) for the event map and limitations.
+
 ## Repository documents
 
 `TaskFlowDocs/repository-docs/index.md` is the authoritative routing and check record for repository rules, repository guidance, and scoped personal rules. Repository-owned documents stay authoritative at their conventional source locations.
