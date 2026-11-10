@@ -364,7 +364,7 @@ BEGIN {
 }
 
 # Word-overlap heuristic backing the intake candidate report. ASCII words use
-# the `lc`/`uc` string pair because POSIX awk's tolower() is
+# the `lc`/`uc` string pair because POSIX awk tolower() is
 # locale-dependent. Common CJK characters contribute adjacent two-character
 # tokens, so Chinese goals can produce candidates without splitting on spaces.
 #
