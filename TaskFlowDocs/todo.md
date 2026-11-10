@@ -106,16 +106,10 @@ has an issue number or URL.
 ## 在 README 中展示 TaskFlow 架构与计划审核
 
 - ID: TF-20261110-62fd8e
-- Status: promoted
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-10-readme-architecture
-- Kind: internal
-- Added: 2026-11-10
-- Updated: 2026-11-10
+- Status: done
 - Goal: 在中英文 README 添加 TaskFlow 架构图，展示流程、工具引导和计划审核及其边界
-- Task: `TaskFlowDocs/2026-11-10-architecture-readme/`
-- Next action: 通过草稿 PR 审查 README 图和验证记录。
+- Task: `TaskFlowDocs/achieved/2026-11-10-architecture-readme/`
+- Next action: None — completed and archived.
 
 ## 为 TaskFlow 基础工作区写前防护设计可验证的发布例外，避免
 
@@ -134,16 +128,10 @@ has an issue number or URL.
 ## 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直
 
 - ID: TF-20261109-e2df6d
-- Status: in_progress
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-09-digdig-main-worktree
-- Kind: defect
-- Added: 2026-11-09
-- Updated: 2026-11-09
+- Status: done
 - Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
-- Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
-- Next action: 在草稿 PR 中验证 CI 和宿主覆盖，审查未解决的限制。
+- Task: `TaskFlowDocs/achieved/2026-11-09-main-write-guard/`
+- Next action: None — completed and archived.
 
 ## 插件引导下模型去做标记类周边工作而非实现真正功能
 
