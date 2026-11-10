@@ -4803,8 +4803,12 @@ echo "== an unaided declaration never overwrites the gate's own release =="
 # already has its line: re-declaring it must leave that line alone, and approve
 # must still refuse the mismatch between the record and the Plan's prose.
 uc="$tmp/unaided-conflict"
+uc_base="$tmp/unaided-conflict-base"
+mkdir -p "$uc_base"
+git -C "$uc_base" init -q
+git -C "$uc_base" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit --allow-empty -qm fixture
+git -C "$uc_base" worktree add -q -b fixture "$uc"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
-git -C "$uc" init -q
 printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Plan Review\n\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
