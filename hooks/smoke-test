@@ -7056,8 +7056,12 @@ trae_run() {  # trae_run <script-name> <event-json> <cwd> -> the hook's stdout
 }
 
 trae_repo="$tmp/trae-wiring"
+trae_base="$tmp/trae-wiring-base"
+mkdir -p "$trae_base"
+git -C "$trae_base" init -q
+git -C "$trae_base" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false commit --allow-empty -qm fixture
+git -C "$trae_base" worktree add -q -b fixture "$trae_repo"
 mkdir -p "$trae_repo/TaskFlowDocs/2026-01-01-demo"
-git -C "$trae_repo" init -q
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$trae_repo/TaskFlowDocs/2026-01-01-demo/plan.md"
 printf '## Items\n' > "$trae_repo/TaskFlowDocs/todo.md"
 
