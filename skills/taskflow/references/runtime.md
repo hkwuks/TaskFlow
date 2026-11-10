@@ -403,6 +403,7 @@ repo-root/
         ├── repo-rules                   # show / install / check default repository rules
         ├── templates                    # the default CONTRIBUTING.md and CODE_STYLE.md
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
+        ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests
 ```

@@ -40,6 +40,7 @@ taskflow/hooks/
 ├── templates           # the default rule documents repo-rules installs
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
+├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 └── smoke-test          # assert-style smoke tests
 ```
