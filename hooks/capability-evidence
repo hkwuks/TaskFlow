@@ -32,13 +32,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # A non-zero exit from the parser means unusable input, not a reportable error.
 event_json="$(cat)"
 fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
-  hook_event_name tool_name cwd tool_input.skill tool_input.subagent_type 2>/dev/null)" || exit 0
+  hook_event_name tool_name cwd tool_input.skill tool_input.subagent_type tool_input.name 2>/dev/null)" || exit 0
 
 event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
 tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
 event_cwd="$(printf '%s\n' "$fields" | sed -n '3p')"
 cap_skill="$(printf '%s\n' "$fields" | sed -n '4p')"
 cap_agent="$(printf '%s\n' "$fields" | sed -n '5p')"
+cap_name="$(printf '%s\n' "$fields" | sed -n '6p')"
 
 [ "$event_name" = "PostToolUse" ] || exit 0
 
@@ -46,6 +47,7 @@ cap_agent="$(printf '%s\n' "$fields" | sed -n '5p')"
 # offers, if it is a Skill, an agent, or an MCP tool, it counts.
 case "$tool_name" in
   Skill) capability="$cap_skill" ;;
+  skill) capability="$cap_name" ;;
   Agent|Task) capability="$cap_agent" ;;
   mcp__*) capability="$tool_name" ;;
   *) exit 0 ;;

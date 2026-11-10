@@ -19,9 +19,9 @@ taskflow/hooks/
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
-├── capability-evidence # records real capability invocations (Claude Code, CodeBuddy, Trae)
-├── external-evidence   # records outside URLs from any tool's result, in a store of their own (every host whose tool events are wired: all but dsh)
-├── capability-gate     # refuses a stage document's first body write (Claude Code, Codex CLI, CodeBuddy, Trae)
+├── capability-evidence # records observable capability invocations
+├── external-evidence   # records outside URLs from tool events
+├── capability-gate     # refuses a stage document's first body write
 ├── base-write-gate     # refuses observable edits in a TaskFlow base checkout
 ├── base-status-reminder # asynchronously reports uncommitted base checkout changes
 ├── json-field          # shared one-level JSON reader for the two hooks above
@@ -232,9 +232,9 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   Plan — the state line still comes from `summarize-state` — and a Plan that marks
   nothing produces the same three lines it always did.
   `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
-- `capability-evidence` and `capability-gate` are the pre-write gate pair, but the
-  two halves are not wired on the same hosts. The recorder runs on Claude Code,
-  CodeBuddy, and Trae; the gate runs on those three plus Codex CLI, where it
+- `capability-evidence` and `capability-gate` are the pre-write gate pair. The
+  recorder and gate are wired where the host exposes the required event shapes;
+  Codex records MCP events and dsh recognizes lowercase tools. Codex
   matches `PreToolUse` on `apply_patch` and reads the target paths out of the
   patch text. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;
@@ -252,13 +252,12 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   directory — they must be, because `~/.claude/settings.json` hooks are
   machine-global and fire in unrelated repositories and concurrent sessions.
   Neither writes a core document; the gate can only deny, never approve.
-- The gate needs one of **two input shapes** from a host, not merely a
+- The gate needs a supported input shape from a host, not merely a
   deny-capable event: the written file's path under `tool_input.file_path` with a
-  tool name the scripts already match, or Codex's patch text under
-  `tool_input.command` with `tool_name: "apply_patch"`. Codex is wired on the
-  second shape. dsh delivers `tool_input.file_path` but names its tools
-  `write`/`edit` while every `case` arm is case-sensitive, so it is not wired: a
-  hook that matches nothing allows every write while the docs claim a gate.
+  tool name the scripts already match, or patch text under
+  `tool_input.command` or `tool_input.input` with `tool_name: "apply_patch"`.
+  Codex uses `command`. dsh uses `write`/`edit` with `file_path` and `apply_patch` with
+  `input`; its current wiring is covered by synthetic events, not a real session.
   What does not depend on a gate is `hooks/task unaided`: it
   writes its own `released` line, so a stage can be declared on any host. That is
   also the whole carrier for `Test`, the one stage with no document: its
@@ -267,6 +266,9 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   the caller. Several things *do* depend on that record, because `hooks/task
   approve` reconciles against it and `approve` is the only sanctioned writer of
   the Approval block.
+- `task declared <stage> --capability <name>` records an actual use that the
+  host could not observe in a separate per-worktree ledger. The Plan marks it
+  `Declared` and approval reports it separately from observed calls.
 - Rules and host event maps live in `../skills/taskflow/references/runtime.md`.
 - `install-git-hygiene` writes only repository-local, untracked Git state:
   `merge.taskflow-todo.driver` in the repository's own config, a
@@ -308,6 +310,6 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
 
 Hosts without hooks run the base flow unchanged; hooks are optional.
 
-The `base-write-gate` checks observable file-edit targets before `capability-gate` consumes evidence; dsh wires it directly for its lowercase file tools. It is not a filesystem sandbox: shell and other unobserved paths can still write, and release edits may be refused. See `skills/taskflow/references/runtime.md` for host coverage.
+The `base-write-gate` checks observable file-edit targets before `capability-gate` consumes evidence. It is not a filesystem sandbox: shell and other unobserved paths can still write, and release edits may be refused. See `skills/taskflow/references/runtime.md` for host coverage.
 
 Codex and Claude Code also check the base checkout asynchronously after shell calls. They report existing uncommitted changes outside Todo without claiming which command or person caused them. Claude Code delivers asynchronous output to the agent on a later turn rather than showing it directly to the user. This is a Git status reminder, not a before/after comparison; ignored files and changes that disappear before the check may be missed.

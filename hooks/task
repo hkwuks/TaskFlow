@@ -758,7 +758,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|unaided|external|recover|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|declared|unaided|external|recover|complete ..."
 command="$1"; shift
 
 # The phase-table concept classes. This is the only place a concept class is
@@ -1301,6 +1301,29 @@ case "$command" in
   # Transcribes an approval the user has already given. Does not invent
   # consent, is not gated by require_approval (writing approval is not
   # "already approved"), and leaves > Status: / Todo / Git alone.
+  declared)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 3 ] && [ "${rest[1]}" = "--capability" ] || { echo 'usage: task declared <PRD|Spec|Plan|Test> --capability <name> [--root <path>]' >&2; exit 2; }
+    stage="${rest[0]}"; capability="${rest[2]}"
+    case "$stage" in PRD|Spec|Plan|Test) ;; *) echo 'invalid stage' >&2; exit 2 ;; esac
+    case "$capability" in ''|*$'\n'*|*$'\r'*|*'|'*|*'`'*) echo 'invalid capability name' >&2; exit 2 ;; esac
+    [ -n "$(printf '%s' "$capability" | tr -d '[:space:]')" ] || { echo 'invalid capability name' >&2; exit 2; }
+    active="$(resolve_active_task "$root")" || exit 2
+    git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || fail "cannot locate git directory"
+    version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$root/TaskFlowDocs/$active/plan.md" | sed -n '1p')"
+    [ -n "$version" ] || fail "cannot read task version"
+    released="$git_dir/taskflow/released"; declarations="$git_dir/taskflow/declarations"
+    if [ -f "$released" ] && awk -F'|' -v t="$active" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$released"; then
+      fail "stage already released; no declaration was written"
+    fi
+    if [ -f "$declarations" ] && awk -F'|' -v t="$active" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$declarations"; then
+      fail "stage already declared; no declaration was written"
+    fi
+    mkdir -p "$git_dir/taskflow" || fail "cannot create capability store"
+    printf '%s|%s|%s|%s\n' "$active" "$version" "$stage" "$capability" >> "$declarations" || fail "cannot write declaration"
+    printf 'declared OK: %s in %s -> %s (not host-observed)\n' "$stage" "$active" "$capability"
+    ;;
+
   unaided)
     split_root "$@"
     # Exit 2 rather than `fail`, on purpose: CODE_STYLE reserves 2 for
@@ -1353,6 +1376,9 @@ case "$command" in
       || fail "cannot read the Plan task version for $active; the stage was not declared"
     released="$git_dir/taskflow/released"
     evidence="$git_dir/taskflow/evidence"
+    if [ -f "$git_dir/taskflow/declarations" ] && awk -F'|' -v t="$active" -v v="$unaided_version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$git_dir/taskflow/declarations"; then
+      fail "stage already declared as a capability; unaided was not recorded"
+    fi
     # Idempotent per task version and stage, the same key the gate uses when it
     # skips a document whose stage it already released. The task name is part of
     # that key for the same reason it is in the gate: without it a declaration
@@ -1905,6 +1931,7 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0
     cap_unaided=0
+    cap_declared=0
     require_stage() {
       local stage="$1" stage_lines line record kind capability cap_pool cap_hit c
       stage_lines="$(printf '%s\n' "$cap_skills" | grep -E "^- \\[${stage}\\] " || true)"
@@ -1922,12 +1949,33 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
         record="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" \
           '$1 == t && $2 == v && $3 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
       fi
+      declarations="$cap_git_dir/taskflow/declarations"
+      if [ -f "$declarations" ]; then
+        declared_rows="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" '$1 == t && $2 == v && $3 == s { print $4 }' "$declarations")"
+        declared_count="$(printf '%s\n' "$declared_rows" | awk 'NF { n++ } END { print n+0 }')"
+        [ "$declared_count" -le 1 ] || fail "approve blocked: stage [$stage] has conflicting declarations"
+        if [ "$declared_count" -eq 1 ]; then
+          [ -z "$record" ] || fail "approve blocked: stage [$stage] has both a declaration and a release"
+          record="$task|$approved_version|$stage|0|declared|$declared_rows"
+        fi
+      fi
       # A version bump does not re-enter the phase, so the record this task last
       # wrote for the stage still stands.
       inherited=""
       if [ -z "$record" ]; then
         inherited="$(rel_inherit "$cap_released" "$task" "$approved_version" "$stage")"
         record="$inherited"
+      fi
+      if [ -f "$declarations" ] && { [ -z "$record" ] || [ -n "$inherited" ]; }; then
+        inherited_declaration="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" '$1 == t && $3 == s && substr($2,2)+0 < substr(v,2)+0 { n=substr($2,2)+0; if (n > best) { best=n; cap=$4; count=1 } else if (n == best) count++ } END { if (count > 1) print "CONFLICT"; else if (best) print t "|v" best "|" s "|0|declared|" cap }' "$declarations")"
+        [ "$inherited_declaration" != CONFLICT ] || fail "approve blocked: stage [$stage] has conflicting inherited declarations"
+        if [ -n "$inherited_declaration" ]; then
+          decl_ver="$(printf '%s' "$inherited_declaration" | cut -d'|' -f2 | cut -c2-)"
+          release_ver=0
+          [ -z "$inherited" ] || release_ver="$(printf '%s' "$inherited" | cut -d'|' -f2 | cut -c2-)"
+          [ "$decl_ver" -ne "$release_ver" ] || fail "approve blocked: stage [$stage] has conflicting inherited records"
+          if [ "$decl_ver" -gt "$release_ver" ]; then inherited="$inherited_declaration"; record="$inherited_declaration"; fi
+        fi
       fi
       if [ -z "$record" ]; then
         fail "approve blocked: stage [$stage] was never released by the pre-write gate, and no earlier version of this task released it either.$(rel_old_note "$cap_released") Re-run that phase with a capability invoked, or declare it: bash hooks/task unaided $stage --considered '<concept class>'"
@@ -1952,6 +2000,9 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
       while IFS= read -r line; do
         [ -n "$line" ] || continue
         case "$line" in
+          *Declared*)
+            if [ "$kind" = "declared" ] && printf '%s\n' "$line" | grep -qF -- "Declared \`$capability\`"; then cap_hit=1; fi
+            ;;
           *Unaided*)
             cap_una_lines=$((cap_una_lines + 1))
             printf '%s\n' "$line" | grep -q 'considered:' || cap_una_noconsider=1
@@ -1978,6 +2029,9 @@ CAP_POOL
 $stage_lines
 STAGE_LINES
       if [ "$cap_hit" != "1" ]; then
+        if [ "$kind" = "declared" ]; then
+          fail "approve blocked: stage [$stage] must report Declared and name the declared capability ($capability)"
+        fi
         # Four failures, four messages. Collapsing them into one would tell the
         # reader that something is wrong without telling them which of the four
         # things it is, and the fix differs for each.
@@ -1994,6 +2048,8 @@ STAGE_LINES
       fi
       if [ "$kind" = "unaided" ]; then
         cap_unaided=$((cap_unaided + 1))
+      elif [ "$kind" = "declared" ]; then
+        cap_declared=$((cap_declared + 1))
       else
         cap_invoked=$((cap_invoked + 1))
       fi
@@ -2018,7 +2074,9 @@ STAGE_LINES
     if [ "$cap_size" = large ]; then
       require_stage Spec
     fi
-    printf 'stages released by the gate: %s invoked, %s unaided\n' "$cap_invoked" "$cap_unaided"
+    printf 'stages released by the gate: %s invoked, %s unaided' "$cap_invoked" "$cap_unaided"
+    [ "$cap_declared" -eq 0 ] || printf ', %s declared (not host-observed)' "$cap_declared"
+    printf '\n'
     approved_at="$(date '+%Y-%m-%d %H:%M %z')"
     approved_scope=""
     [ -f "$prd" ] && approved_scope="PRD"

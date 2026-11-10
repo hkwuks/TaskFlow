@@ -38,6 +38,16 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/capability-evidence\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

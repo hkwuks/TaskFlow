@@ -66,7 +66,7 @@ event_json="$(cat)"
 base_verdict="$(printf '%s' "$event_json" | bash "$HERE/base-write-gate")"
 if [ -n "$base_verdict" ]; then printf '%s\n' "$base_verdict"; exit 0; fi
 fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
-  hook_event_name tool_name cwd tool_input.file_path tool_input.command 2>/dev/null)" || exit 0
+  hook_event_name tool_name cwd tool_input.file_path tool_input.command tool_input.input 2>/dev/null)" || exit 0
 
 event_name="$(printf '%s\n' "$fields" | sed -n '1p')"
 tool_name="$(printf '%s\n' "$fields" | sed -n '2p')"
@@ -135,7 +135,7 @@ $patch_paths
 EOF
 else
   case "$tool_name" in
-    Write|Edit) ;;
+    Write|Edit|write|edit) ;;
     *) exit 0 ;;
   esac
   [ -n "$file_path" ] || exit 0
@@ -279,6 +279,21 @@ if [ "$store_loaded" -eq 0 ]; then
       deny "TaskFlow pre-write gate: $released holds a line that is neither the current six-field release row nor the five-field one it replaced, so the next sequence cannot be worked out and no stage can be released. This is a store problem, not a rule you broke. Inspect it:  cat $released  — and if the damage is only at the end of the file, bash hooks/task recover"
       ;;
   esac
+fi
+
+# A declared capability belongs to this exact task, version and stage, and
+# does not spend the independent observed-event queue.
+declarations="$store/declarations"
+declared_count=0
+if [ -f "$declarations" ]; then
+  declared_count="$(awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { n++ } END { print n+0 }' "$declarations")"
+fi
+[ "$declared_count" -le 1 ] || deny "TaskFlow: stage [$stage] has conflicting capability declarations."
+if [ "$declared_count" -eq 1 ]; then
+  if [ -f "$released" ] && awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$released"; then
+    deny "TaskFlow: stage [$stage] has both a declaration and an observed release."
+  fi
+  return 0
 fi
 
 # Already released for this task version: later edits to the same document are
