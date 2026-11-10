@@ -2,6 +2,33 @@
 
 ## [Unreleased]
 
+## [1.2.2] — 2026-11-10
+
+### Changed
+
+- Task promotion reports the actual worktree path and branch for the agent to share with the user; task closeout guidance includes checking and safely cleaning merged worktrees and local branches. [#134](https://github.com/hkwuks/TaskFlow/pull/134)
+- Todo similarity suggestions recognize Chinese text as well as English; candidates are suggestions and are not merged automatically. [#133](https://github.com/hkwuks/TaskFlow/pull/133)
+- PRs with a verified matching baseline can reuse successful checks for subsequent task-document-only changes; when the evidence is insufficient, checks run normally. [#135](https://github.com/hkwuks/TaskFlow/pull/135)
+
+### Fixed
+
+- Apply the direct-edit discipline guard to capability declarations as well as evidence and released records. [#132](https://github.com/hkwuks/TaskFlow/pull/132)
+
+### Compatibility and known limitations
+
+- A real Codex desktop probe did not block a nested `apply_patch` edit; whether the desktop host loaded, matched, or dispatched the hook remains unverified. The guard is not a filesystem sandbox, and arbitrary shell writes remain outside its direct-edit coverage. Follow-up: `TF-20261110-0c7346`.
+- Actual desktop display of the worktree guidance and a live post-merge CI reuse scenario remain to be verified. No installation or global configuration change is required.
+
+### Verification
+
+- Pre-release main commit `085b7f97ea6f0ae7e093c7d8adffe9470da52a5d` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42805695738), including Ubuntu, macOS and Windows smoke, evals, release, CI reuse and Todo merge audit.
+- The release commit changes only this section, version literals and README version samples; the smoke suite is not repeated locally because the three-platform CI covers the implementation.
+- `hooks/repository-check .`, `hooks/release-check .`, skill quick validation and `git diff --check` passed during preparation. The release check verified the previous catalog pins; it is repeated after the new pins are set.
+
+### Release
+
+- Tag: `v1.2.2`; GitHub Release: https://github.com/hkwuks/TaskFlow/releases/tag/v1.2.2. The catalog pins are published atomically with the tag.
+
 ## [1.2.1] — 2026-11-10
 
 ### Added
