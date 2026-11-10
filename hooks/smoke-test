@@ -8256,6 +8256,11 @@ printf '2026-01-01-kd-defect|v1|PRD|another:debugger\n' >> "$kd_gd/taskflow/decl
 if bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1; then
   echo 'FAIL conflicting declarations were accepted' >&2; exit 1
 fi
+: > "$kd_gd/taskflow/declarations"
+printf 'invoke|some:DeclaredDebugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:DeclaredDebugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
+kd_set_plan "$kd_task" '- [PRD] `some:DeclaredDebugger` — purpose: probe; outcome: probe; incorporated: probe'
+bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1 || { echo 'FAIL an observed capability containing Declared was misclassified' >&2; exit 1; }
 
 bash "$HERE/test-host-parity" "$tmp/host-parity"
 echo "ALL SMOKE PASSED"

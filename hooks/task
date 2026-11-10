@@ -2000,7 +2000,7 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
       while IFS= read -r line; do
         [ -n "$line" ] || continue
         case "$line" in
-          *Declared*)
+          "- [$stage] Declared \`"*)
             if [ "$kind" = "declared" ] && printf '%s\n' "$line" | grep -qF -- "Declared \`$capability\`"; then cap_hit=1; fi
             ;;
           *Unaided*)
