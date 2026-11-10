@@ -6,10 +6,12 @@ import os
 import re
 import subprocess
 import sys
+import time
 import zipfile
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DOC = re.compile(r"^TaskFlowDocs/(?:achieved/)?\d{4}-\d{2}-\d{2}-[^/]+/(?:[^/]+/)*[^/]+\.md$")
+DEADLINE = time.monotonic() + 25
 JOBS = {
     "smoke": ("smoke (ubuntu-latest)", "smoke (macos-latest)", "smoke (windows-latest)"),
     "release": ("release",),
@@ -18,7 +20,10 @@ JOBS = {
 
 
 def run(*args):
-    return subprocess.run(args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5).stdout
+    remaining = DEADLINE - time.monotonic()
+    if remaining <= 0:
+        raise subprocess.TimeoutExpired(args, 25)
+    return subprocess.run(args, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=min(15, remaining)).stdout
 
 
 def api(path):
@@ -67,7 +72,7 @@ def successful_jobs(jobs, expected_head):
 def metadata_from_artifact(repo, artifact):
     if artifact.get("expired") or not 0 < artifact.get("size_in_bytes", 0) <= 16384:
         raise ValueError("unusable artifact")
-    archive = run("gh", "api", f"repos/{repo}/actions/artifacts/{artifact['id']}/zip")
+    archive = run("gh", "api", "--allow-escape-sequences", f"repos/{repo}/actions/artifacts/{artifact['id']}/zip")
     if len(archive) > 16384:
         raise ValueError("oversized artifact")
     with zipfile.ZipFile(io.BytesIO(archive)) as data:

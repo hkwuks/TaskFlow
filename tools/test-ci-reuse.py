@@ -128,6 +128,11 @@ class ReuseTests(unittest.TestCase):
         writes = "".join(call.args[0] for call in output().write.call_args_list)
         self.assertEqual(writes, "reuse_smoke=false\nreuse_release=false\nreuse_evals=false\n")
 
+    def test_lookup_budget_stops_slow_checks(self):
+        with patch.object(reuse.time, "monotonic", return_value=reuse.DEADLINE + 1):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                reuse.run("git", "status")
+
 
 if __name__ == "__main__":
     unittest.main()
