@@ -128,16 +128,10 @@ has an issue number or URL.
 ## 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直
 
 - ID: TF-20261109-e2df6d
-- Status: in_progress
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-09-digdig-main-worktree
-- Kind: defect
-- Added: 2026-11-09
-- Updated: 2026-11-09
+- Status: done
 - Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
-- Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
-- Next action: 在草稿 PR 中验证 CI 和宿主覆盖，审查未解决的限制。
+- Task: `TaskFlowDocs/achieved/2026-11-09-main-write-guard/`
+- Next action: None — completed and archived.
 
 ## 插件引导下模型去做标记类周边工作而非实现真正功能
 
