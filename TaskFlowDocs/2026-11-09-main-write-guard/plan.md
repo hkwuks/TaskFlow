@@ -93,6 +93,7 @@
 发布例外按用户 2026-11-09 指示推迟至 TF-20261109-ccbb96；本版本不声称发布编辑不受影响。
 
 ## Verification / Review
+- PR #128 代码提交 `3a3651f` 的 Hooks CI [42742454666](https://github.com/hkwuks/TaskFlow/actions/runs/42742454666) 通过：Ubuntu、macOS、Windows smoke，Todo merge audit 和 evals 均成功；release 因路径分类跳过。CI 为合成宿主事件测试，不证明真实异步提示投递。
 - PR #128 CI run 42741613966 的 Linux/macOS smoke 在能力门旧夹具失败：该夹具在基础工作区模拟任务写入，新增守卫按设计拒绝，导致原有证据释放断言未通过。已将该夹具改为真实 linked worktree 后重跑 CI；本次不改变守卫放行策略。
 - 2026-11-10 草稿 PR 前合入最新 main：手动合并 Todo、smoke 测试和 runtime 文档冲突；逐 ID 检查两个父版本的 Todo 均保留，冲突解决后 bash 守卫和提醒定向测试、Skill quick_validate 与 diff 检查通过。完整三系统 CI 仍待远端运行。
 - PR 模板映射：Summary 描述编辑守卫与异步提醒；TaskFlow traceability 指向本任务、范围、`hkwuks/TaskFlow` 和 `main`；Verification 列出定向夹具、Skill 校验与 CI 状态；Review boundaries 说明 shell、宿主和发布例外的限制。任务尚未验收，以草稿 PR 交付审查，不能提前标记完成或归档。
