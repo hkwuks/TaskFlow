@@ -38,6 +38,17 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/base-status-reminder\"",
+            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" base-status-reminder",
+            "async": true
+          }
+        ]
+      },
+      {
         "hooks": [
           {
             "type": "command",

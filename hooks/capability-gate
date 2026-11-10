@@ -63,6 +63,8 @@ deny() {
 }
 
 event_json="$(cat)"
+base_verdict="$(printf '%s' "$event_json" | bash "$HERE/base-write-gate")"
+if [ -n "$base_verdict" ]; then printf '%s\n' "$base_verdict"; exit 0; fi
 fields="$(printf '%s\n' "$event_json" | bash "$HERE/json-field" \
   hook_event_name tool_name cwd tool_input.file_path tool_input.command 2>/dev/null)" || exit 0
 

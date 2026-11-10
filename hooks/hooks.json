@@ -47,7 +47,31 @@
         ]
       }
     ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" base-status-reminder",
+            "shell": "bash",
+            "async": true
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" base-status-reminder",
+            "shell": "bash",
+            "async": true
+          }
+        ]
+      },
       {
         "matcher": "Skill|Agent|Task",
         "hooks": [
