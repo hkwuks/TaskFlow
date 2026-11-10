@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # A push supersedes the run it replaced, so its queued jobs are worth cancelling
 # on a branch — three pushes to one pull request used to queue three macOS jobs,
@@ -35,6 +36,9 @@ jobs:
       smoke: ${{ steps.classify.outputs.smoke }}
       release: ${{ steps.classify.outputs.release }}
       evals: ${{ steps.classify.outputs.evals }}
+      reuse_smoke: ${{ steps.reuse.outputs.reuse_smoke }}
+      reuse_release: ${{ steps.reuse.outputs.reuse_release }}
+      reuse_evals: ${{ steps.reuse.outputs.reuse_evals }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,13 +77,53 @@ jobs:
           for key in smoke release evals; do
             grep "^$key=" classified >> "$GITHUB_OUTPUT"
           done
+      - name: Record PR baseline
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          TF_CI_REPO: ${{ github.repository }}
+          TF_CI_PR: ${{ github.event.pull_request.number }}
+          TF_CI_BASE: ${{ github.event.pull_request.base.sha }}
+          TF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
+          TF_CI_RUN: ${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/taskflow-ci-metadata"
+          python3 tools/ci-reuse.py write "$RUNNER_TEMP/taskflow-ci-metadata/metadata.json"
+      - name: Save PR baseline
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-ci-${{ github.run_id }}
+          path: ${{ runner.temp }}/taskflow-ci-metadata/metadata.json
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Find reusable PR checks
+        id: reuse
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          TF_CI_REPO: ${{ github.repository }}
+          TF_CI_PR: ${{ github.event.pull_request.number }}
+          TF_CI_BASE: ${{ github.event.pull_request.base.sha }}
+          TF_CI_HEAD: ${{ github.event.pull_request.head.sha }}
+          TF_CI_RUN: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/ci-reuse.py
+
+  ci-reuse-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test conservative CI reuse
+        run: python3 tools/test-ci-reuse.py -v
 
   # The hooks carry no language runtime, so this job installs none: setup-python
   # is deliberately absent. If a hook ever grows an interpreter dependency, the
   # smoke suite's curated PATH fails here rather than in a user's session.
   smoke:
     needs: changes
-    if: needs.changes.outputs.smoke == 'true'
+    if: needs.changes.outputs.smoke == 'true' && needs.changes.outputs.reuse_smoke != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -100,7 +144,7 @@ jobs:
   # the previous version is otherwise invisible until a user sees it.
   release:
     needs: changes
-    if: needs.changes.outputs.release == 'true'
+    if: needs.changes.outputs.release == 'true' && needs.changes.outputs.reuse_release != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -145,7 +189,7 @@ jobs:
   # its own Python and is not part of the no-runtime guarantee above.
   evals:
     needs: changes
-    if: needs.changes.outputs.evals == 'true'
+    if: needs.changes.outputs.evals == 'true' && needs.changes.outputs.reuse_evals != 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

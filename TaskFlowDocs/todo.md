@@ -61,7 +61,7 @@ has an issue number or URL.
 ## 避免已通过 CI 后的文档跟进重复运行重型测试
 
 - ID: TF-20261110-b73d49
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-10-docs-only-ci-followup
@@ -69,8 +69,8 @@ has an issue number or URL.
 - Added: 2026-11-10
 - Updated: 2026-11-10
 - Goal: 让代码已通过 CI 后仅补充验证结果等任务文档的后续提交安全跳过不必要的重型测试，同时保留必要状态检查
-- Task: Not promoted.
-- Next action: 调研已通过提交与后续差异、基础分支变化及 GitHub 必需检查的处理，制定可验证方案。
+- Task: `TaskFlowDocs/2026-11-10-ci-docs-followup/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 关联已完成的路径分类任务 TF-20261020-a46573；现有 PR 分类比较整个 PR 与基线，不能识别代码通过后仅追加文档的情况。
 
 ## 调查 Codex 中工具引用机制的引导效果
