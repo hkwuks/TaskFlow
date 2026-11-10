@@ -1,6 +1,6 @@
 # 调查 Codex 中工具引用机制的引导效果
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 
