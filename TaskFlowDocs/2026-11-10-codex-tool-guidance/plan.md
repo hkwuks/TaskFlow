@@ -60,13 +60,13 @@
 - Acceptance: 入口、planning 和成功 promote 分别有简短按需指导；其他状态保持既有行为，无新增每次工具调用的进程或状态存储。
 - Verification: 测试状态和不同事件、空/无关仓库、planning 到 in_progress 的切换、成功/失败 promotion 和单轮重复；覆盖五宿主的既有事件配置；先证实旧 planning 静默断言需要更新。
 - Rollback: 回退本任务变更，不触及用户数据。
-- Status: in_progress
+- Status: done
 
 ### Step 3 — 验证、评估及交付
 - Goal: 使用 CI 验证各平台；在可行范围比较真实模型行为并注明限制。
 - Verification: CI、Skill 验证、差异检查、必要的受控模型测试。
 - Rollback: 验证不通过则保留草稿 PR，不报告达标。
-- Status: pending
+- Status: in_progress
 
 ## Checkpoints
 
@@ -81,6 +81,7 @@
 - 2026-11-10 用户批准 v1；实施前以隔离夹具确认 planning 提示缺失，实施后验证 planning 提示和既有 in_progress 分类提示、无任务入口及只读例外、ready 静默、成功/失败 promote 输出；以上是 Windows Git Bash 的定向测试，不代表真实 Codex 采纳。
 - `python evals/runner.py`：6 项通过（离线规则，不执行模型）；`quick_validate.py skills/taskflow` 通过；`git diff --check` 通过。
 - 配置静态核对：Claude Code、Codex、CodeBuddy、dsh、Trae 的 `UserPromptSubmit` 均指向共享 `prompt-reminder`；Windows 专项 smoke 增加原生路径和 promote 输出检查。真实宿主和真实模型采纳仍未验证。
+- 代码提交 `b294b09` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42762380631)：Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 changes 均通过，release 按路径跳过。之后补充单次输出断言，最终 CI 以新提交为准。
 
 ## Change Log
 

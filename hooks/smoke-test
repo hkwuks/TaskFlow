@@ -2694,6 +2694,8 @@ bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small -
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
 grep -q -F 'available capabilities' "$iso_out" \
   || { echo "FAIL successful promotion did not guide capability selection"; cat "$iso_out"; exit 1; }
+[ "$(grep -c -F 'available capabilities' "$iso_out")" -eq 1 ] \
+  || { echo "FAIL promotion repeated capability guidance"; cat "$iso_out"; exit 1; }
 [ -f "$iso/.worktrees/task-tree/TaskFlowDocs/2026-01-01-promoted-in-worktree/plan.md" ] \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
 grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion printed the base-tree refusal"; cat "$iso_out"; exit 1; }
@@ -7301,6 +7303,8 @@ printf '# Plan - demo\n> Task version: v1\n> Status: planning\n' \
 ent_planning="$(ent_event "$ent_repo" | bash "$HERE/prompt-reminder" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
 printf '%s\n' "$ent_planning" | grep -q -F 'available capabilities' \
   || { echo "FAIL planning reminder omits capability guidance"; exit 1; }
+[ "$(printf '%s\n' "$ent_planning" | grep -c -F 'available capabilities')" -eq 1 ] \
+  || { echo "FAIL planning reminder repeated capability guidance"; exit 1; }
 printf '# Plan - demo\n> Task version: v1\n> Status: ready\n' > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
 rem_silent "a ready task" "$(ent_event "$ent_repo")"
 rm -rf "$ent_repo/TaskFlowDocs/2026-11-04-demo"
