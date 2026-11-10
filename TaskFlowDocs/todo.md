@@ -9,6 +9,7 @@ An entry is written by `hooks/task intake` in this shape. The sample is indented
     - Priority: normal
     - Owner: <person or Agent>
     - Source: <user / review / issue / remote>
+    - Kind: <defect / capability / internal>
     - Added: YYYY-MM-DD
     - Updated: YYYY-MM-DD
     - Goal: <one sentence>
@@ -33,6 +34,7 @@ has an issue number or URL.
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-09-release-guard-exception
+- Kind: capability
 - Added: 2026-11-09
 - Updated: 2026-11-09
 - Goal: 为 TaskFlow 基础工作区写前防护设计可验证的发布例外，避免阻止合法发布文档编辑，同时防止通过自报发布绕过防护
@@ -46,93 +48,68 @@ has an issue number or URL.
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-09-digdig-main-worktree
+- Kind: defect
 - Added: 2026-11-09
 - Updated: 2026-11-09
 - Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
 - Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
 - Next action: 在草稿 PR 中验证 CI 和宿主覆盖，审查未解决的限制。
 
+## 插件引导下模型去做标记类周边工作而非实现真正功能
+
+- ID: TF-20261107-5c5ee2
+- Status: done
+- Goal: 在插件引导下执行 todo 时，模型倾向于去做增加文件写入标记等周边工作，而不去实现真正需要修复或实现的功能；需要查清根本原因，判断是发散探索流程没发现问题的本质，还是其他机制导致的
+- Task: `TaskFlowDocs/achieved/2026-11-07-repro-requirement/`
+- Next action: None — completed and archived.
+
+## 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准
+
+- ID: TF-20261106-3efcd7
+- Status: done
+- Goal: 审批辅助命令按目录顺序识别活跃任务，无法为当前任务准确补录阶段记录：一个任务树里存在多个 TaskFlowDocs/<slug>/ 时，task unaided/approve 取的是字母序第一个含 plan.md 的目录，而不是调用者所在的这个任务
+- Task: `TaskFlowDocs/achieved/2026-11-06-active-task-detection/`
+- Next action: None — completed and archived.
+
+## 开发本仓库前先判定改动目标属于哪一类：插件自身能力（sk
+
+- ID: TF-20261105-77051f
+- Status: done
+- Goal: 开发本仓库前先判定改动目标属于哪一类：插件自身能力（skills/、hooks/）、插件发给用户仓库的默认规则模板（hooks/templates/）、还是本仓库自己的规则文件，并据此选择正确的落点
+- Task: `TaskFlowDocs/achieved/2026-11-05-change-target-rule/`
+- Next action: None — completed and archived.
+
+## 复杂框架项目中，引导模型关注整体效果与每一层的功能设
+
+- ID: TF-20261105-f322be
+- Status: done
+- Goal: 复杂框架项目中，引导模型先建立整架构与各层职责的理解，从而在粗粒度需求下能定位问题所属的层；并禁止为了表面上的好结果去修改某一层的中间输出（这属于目标欺骗）——两个要求是一体两面：找不对层，就只能从症状处凑答案
+- Task: `TaskFlowDocs/achieved/2026-11-05-layered-integrity/`
+- Next action: None — completed and archived.
+
 ## README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only
 
 - ID: TF-20261104-d3ac3c
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user question 2026-11-04
-- Added: 2026-11-04
-- Updated: 2026-11-04
+- Status: done
 - Goal: README.md and README.zh-CN.md both still say Codex's wiring is SessionStart only and the pre-write gate cannot be wired there, which stopped being true at af8719a (2026-10-30, shipped in v1.1.10)
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-04 核对结论**。用户问「D1 的门控修复 Codex 也修了吗」，答：**修了**，因为 `hooks/capability-gate` 是宿主无关的共享脚本，`stage_classes()` 的修复对所有接了它的宿主同时生效。
-
-  **真正的问题在文档**：`README.md:229` 与 `README.zh-CN.md:196` 都还写着「Codex 只接 SessionStart，写前门要等到能解析 `apply_patch` 的补丁文本才谈得上接线」。这句话在 `af8719a feat: wire the pre-write gate on Codex and stop four silent allows`（2026-10-30，随 **v1.1.10** 发布）之后就已经不成立。
-
-  **证据**：
-  - `hooks/hooks-codex.json` 有 `PreToolUse` / `matcher: "apply_patch"` → `hooks/capability-gate`。
-  - `hooks/capability-gate:84-128` 正是读 `tool_input.command` 里的 patch 文本、提取 `*** Update File:` / `*** Add File:` / `*** Delete File:` / `*** Move to:` 的那段——也就是 README 说「还做不到」的那件事。
-  - `skills/taskflow/references/runtime.md:50` 的 Codex 列**已经更新**，写明 `PreToolUse`（`apply_patch`）→ deny，路径从 patch 文本读出。所以只有两份 README 落后。
-
-  **危害属于误导而非崩溃**：读者会以为 Codex 上闸门不可用，从而用 `task unaided` 去绕过一个**其实存在**的检查。而 `task unaided` 写的是「声明该阶段无能力可用」，用它来绕开一个能用的门，会让证据记录失真。
-
-  **要做**：两份 README 的同一段都改成「Codex 的 `PreToolUse`/`apply_patch` 已接写前门」，并保留其中仍然正确的是：「先在 `/hooks` 复核并信任，否则 enabled 但 hook 不生效」。中文那份要同步。
-
-  **顺带核对**：同类陈述是否还有其他宿主版本（CodeBuddy 曾有过一样的过时说法，`7dcde8c` 修过一次）。修的时候应该一次性扫一遍五宿主 × 两份 README × runtime.md 是否互相一致。
+- Task: `TaskFlowDocs/achieved/2026-11-04-readme-codex-gate/`
+- Next action: None — completed and archived.
 
 ## Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github
 
 - ID: TF-20261104-e151e6
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-04
-- Added: 2026-11-04
-- Updated: 2026-11-04
+- Status: done
 - Goal: Ship TaskFlow's dsh plugin over the Git install path: make dsh plugin add github:hkwuks/TaskFlow#<sha> the documented main path, add the npm files whitelist so a pack is not 3.8MB, and record the commit pin the install needs
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-04 查证结论（官方文档 + 本仓库实测）**。
-
-  **先纠正一个前提**：dsh **没有**「官方发布通道」。官方文档 `deepseek-harness.github.io/.../develop/basic/publish` 原话是 *"Publishing to a registry is not required — users can install straight from a git host"*。`dsh plugin --profile <name> <args>` **转发给 pnpm**，所以它认的是 pnpm 能解析的任何来源：npm registry、`github:owner/repo#<sha>`、本地目录、`pnpm pack` 出来的 tarball。没有审核、没有入驻、没有「上架」这个动作。
-
-  社区目录 `dsh.pub` 是第三方（非 DeepSeek 官方），流程是开提交页 → 生成 `submissions/*.json` → 提 PR → 自动检查通过即合并，并明说 *"Listing is not a human review, security audit, or official DeepSeek endorsement"*。
-
-  **用户 2026-11-04 裁定：走 Git 路线。**
-
-  **为什么 Git 路线对 TaskFlow 特别便宜**：`dsh/index.js` 是纯 ESM，没有任何构建步骤，所以官方文档里那个「git 安装的 build-script catch」（需要 `prepare` 脚本 + 用户手动 allowlist `allowBuilds`）**完全不适用**。用户可以一条命令装，不需要授权执行任何代码：
-
-  ```
-  dsh plugin --profile web add github:hkwuks/TaskFlow#<40位sha>
-  ```
-
-  **要做的事**：
-  1. **`package.json` 加 `files` 白名单**（唯一的硬缺口）。`npm pack --dry-run` 实测：当前会打包 **417 个文件、3.8 MB**，含 `.github/workflows/`、`CHANGELOG.md`(169KB)、`CONTRIBUTING.md`、`evals/`、`tools/`、`TaskFlowDocs/`。dsh 只需要 `dsh/`、`hooks/`、`skills/`。虽然 Git 安装不走 npm 的 files 字段（pnpm 从 git 拉的是整个仓库），但 tarball 路径和将来上 npm 都需要它，且它是 `npm pack` 体积的唯一控制点。
-  2. **README 的 dsh 段改成以 Git 路径为主**。现状把 `dsh plugin --profile web add dsh-taskflow` 写在第一位，而该包 `npm view dsh-taskflow` 返回 **404**——名字空着，没发布过。文档描述了一个装不上的命令。
-  3. **记录 commit pin**。官方文档要求 git 安装钉 40 位 sha（`github:you/plugin#<sha>`），"so a later push cannot silently change what runs"。TaskFlow 每次发版都有 tag，`git rev-parse vX.Y.Z^{commit}` 就是该钉的值——这与 `RELEASE.md` 第 4 步已经在做的 marketplace pin 是同一个值，可以复用而不是新增一套。
-
-  **不做的**：不发 npm、不进 dsh.pub 目录。理由是 Git 路径零成本、可撤销，且 TaskFlow 没有构建产物需要分发。等确有用户要求再上 npm。
+- Task: `TaskFlowDocs/achieved/2026-11-07-dsh-git-install/`
+- Next action: None — completed and archived.
 
 ## Task archive should delete the local branch once it is merged: today archive rem
 
 - ID: TF-20261104-d535ae
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-11-04
-- Added: 2026-11-04
-- Updated: 2026-11-04
+- Status: done
 - Goal: Task archive should delete the local branch once it is merged: today archive removes the worktree and explicitly leaves the branch, so merged branches accumulate and nothing reports them
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-- Notes: **2026-11-04 用户的疑问**：合并完发现本地还留着 `fix/2026-11-04-skip-guard`、`-ci-skip-archive`、`-merge-todo-speed` 三条分支。它们**不是** worktree 的产物——`git worktree add -b` 创建的是仓库级 ref，worktree 只是它的检出目录，`git worktree remove` 从不删分支。所以拆掉 worktree 之后分支就留在那里了。
-
-  **现状为什么没人清**：`hooks/archive` 在 teardown 提示里明说 `(the branch survives; deleting it is a separate decision)`，这是刻意的——分支可能还持有唯一一份提交，`-d` 恰好也会拒绝未合并的。但「刻意」和「没人做」之间的差额就是这三条分支。
-
-  **要定的判据**：只有**已合并进 base** 的分支才可以删，而且删除只能发生在合并之后——`archive` 本身跑在 push 之前（`CONTRIBUTING.md` 的次序是 `task complete` → commit → push → PR → merge），那一刻分支必然还没合并。所以删除不能放进 `archive` 的归档事务里，只能出现在**合并之后的 teardown 步骤**。
-
-  **候选**：(a) 在 `archive` 的 teardown 提示里加一行 `git branch -d <branch>`，与 `git worktree remove` 并列，让读者一次做完两件事；(b) 加一个独立小命令，枚举所有已合并的本地分支并逐个 `git branch -d`，由 teardown 提示指向它；(c) `repository-check` 报告已合并的残留分支（只是报告，不改状态）。
-
-  注意 `-d` 与 `-D` 的区别是这道题的安全边界：`-d` 在未合并时拒绝，正是想要的。
+- Task: `TaskFlowDocs/achieved/2026-11-04-teardown-branch/`
+- Next action: None — completed and archived.
 
 ## The Todo merge driver takes 180s on a 125-entry todo.md and silently loses a mer
 
@@ -263,16 +240,10 @@ has an issue number or URL.
 ## Review the Plan once before approval while TaskFlow is in use: after plan.md is
 
 - ID: TF-20261022-47c217
-- Status: inbox
-- Priority: normal
-- Owner: Claude
-- Source: user request 2026-10-22
-- Added: 2026-10-22
-- Updated: 2026-10-22
+- Status: done
 - Goal: Review the Plan once before approval while TaskFlow is in use: after plan.md is written and before the user approves it, review the Plan itself rather than the code. If a capability covers plan review, invoke it the way the other phases invoke theirs (the [Plan] capability line in Skills / Tools Used, recorded through the same evidence path); if none is available, decide between reviewing unaided and reminding during implementation instead. Scope: TaskFlow while it is being used on a project, not development of TaskFlow itself.
-- Task: Not promoted.
-- Next action: Decide the trigger point and the fallback: SKILL.md Phase 4 ends at plan.md and the Approval block, so the review must sit before task approve — there is no second chance after it. Phase 6 "Verify and review" reviews code and acceptance, not the Plan itself. Check the phase/capability table: the Plan row lists only work breakdown, there is no "review the plan" class; agent-skills:code-reviewer and agent-skills:review exist but target code. Settle which of the three it is — invoke a capability, review unaided, or remind during implementation.
-- Notes: Recorded from a side channel as a prepared intake; re-read goal for full wording. Distinct from TF-20261021-4950fc (default rules from CODE_STYLE/CONTRIBUTING) and TF-20261022-fda8d8 (archive looseness).
+- Task: `TaskFlowDocs/achieved/2026-11-07-plan-review/`
+- Next action: None — completed and archived.
 
 ## End-of-task collapse: hooks/archive checks only that prd/plan say completed, whi
 
@@ -539,18 +510,10 @@ has an issue number or URL.
 ## Release process: make the manual three-host catalog validation conditional and a
 
 - ID: TF-20260928-3910fb
-- Status: inbox
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-09-28
-- Updated: 2026-11-01
+- Status: done
 - Goal: Release process: make the manual three-host catalog validation conditional and add an automated $schema assertion, since that step is never exercised by CI and its only failure mode is already covered by release-check
-- Task: Not promoted.
-- Next action: Only the first half is left. Decide whether the manual step at `RELEASE.md:135-136` — "Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling" — should become conditional or go, and what replaces it if anything. Two facts bear on it: `hooks/release-check` already confirms each marketplace `ref` resolves to the commit its `sha` names, and the step is the only thing that exercises a real install end to end, which no CI job does. Do not re-open the `$schema` half; it shipped as `TF-20261029-218fdf`.
-- Notes: 2026-09-30 互链：`TF-20260930-c4e4c8` 提出「发布不重跑 CI 已覆盖的测试」，与本条「把手工三宿主 catalog 校验改条件式」同属一条主线——都是砍掉发布流程里 CI 覆盖不到的判断之外的重复劳动。两条宜一并 promote、一并改 `RELEASE.md`。
-- 2026-10-10 前提复核（本条部分过期）：(1) 前半「三宿主手工 catalog 校验改条件式」的**前提已被 TF-20260919-40eca2 搬走**——RELEASE.md 不再有「Validate the catalog entry with Claude Code, Codex, and CodeBuddy tooling」这一段手工步骤（现 RELEASE.md 的发布检查只列 repository-check / release-check / quick_validate / diff --check 四条），所以「改条件式」已无对象。(2) 后半「自动 $schema 断言」**仍未做**：`hooks/release-check`、`hooks/smoke-test`、RELEASE.md、两份 marketplace catalog 里 `schema` 零命中，`$schema` 字段目前无任何机器校验。(3) 相邻已交付条目 TF-20260930-c4e4c8 也来自同一主线（砍掉发布流程里 CI 覆盖不到的重复劳动），其落点同样在 RELEASE.md。故本条收窄为「给两份 catalog 的 $schema 加自动断言」后再 promote。
-- 2026-11-01 上述 (1) 与 (2) 都已不成立，本条只剩一半：(1) 是错的——`RELEASE.md:135-136` 那段手工步骤**从来没有被删过**，`git log -S'CodeBuddy tooling' -- RELEASE.md` 只有 `4e497c3` 一次命中，且是新增。当时把「验证清单里那四条」误读成「整份 RELEASE.md 只剩这四条」，两者不在同一节。所以「改条件式」仍有对象，前提没被搬走。(2) 的 `$schema` 断言已作为 `TF-20261029-218fdf` 交付归档，两个 404 URL 也在 2026-11-01 换成了 schemastore.org 的可用 schema。本条因此收窄为前半，Next action 已相应改写。
+- Task: `TaskFlowDocs/achieved/2026-11-07-release-manual-step/`
+- Next action: None — completed and archived.
 
 ## Block the first body write of prd/spec/plan until a capability-class tool was ac
 

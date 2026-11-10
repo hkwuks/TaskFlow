@@ -326,14 +326,27 @@ printf '%s\n' \
 # now, and the branch is named so the reader can check it. Printed only from a
 # linked worktree: `commondir` in the absolute git dir is Git's own answer, the
 # same test `hooks/task`'s `worktree_kind` uses, so a repository that never made
-# one sees byte-identical output. The branch outlives the directory on purpose —
-# `git worktree remove` deletes the tree and never the branch — so deleting the
-# branch stays a separate, deliberate act.
+# one sees byte-identical output.
+#
+# Two commands, one moment. Removing the directory never removes the branch —
+# `git worktree` only owns the checkout — so leaving the branch out is what left
+# them accumulating: nine on one machine by 2026-10-18, three more by 2026-11-04,
+# and once the directory is gone nothing reports them any more.
+#
+# `-d`, never `-D`, and that is the whole safety argument. `-d` refuses a branch
+# that is not fully merged, so running these two in this order on a merged branch
+# succeeds and on an unmerged one stops with `not fully merged` — the branch is
+# kept and the operator is told why. `-D` would delete exactly the branch that
+# still holds the only copy of a commit, which is what the old wording was
+# protecting when it kept them all. Announcing that refusal is the point: a
+# command that is safe by construction needs no second decision from the reader.
 git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null || true)"
 if [ -n "$git_dir" ] && [ -f "$git_dir/commondir" ]; then
   branch="$(git -C "$root" branch --show-current 2>/dev/null || true)"
+  [ -n "$branch" ] || branch="<branch>"
   printf '%s\n' \
-    "Tear down the worktree once '${branch:-this branch}' is merged into the base and this tree is clean:" \
+    "Tear down once '$branch' is merged into the base and this tree is clean:" \
     "  git worktree remove '$root'" \
-    "  (the branch survives; deleting it is a separate decision)"
+    "  git branch -d '$branch'" \
+    "  (the order matters: -d refuses an unmerged branch, so a merged one is deleted and an unmerged one is kept and reported)"
 fi

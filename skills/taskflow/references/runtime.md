@@ -24,8 +24,11 @@ Install every host by command from the repository marketplace — no file copyin
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
 `codex plugin marketplace add hkwuks/TaskFlow && codex plugin add taskflow@taskflow`;
 `codebuddy plugin marketplace add hkwuks/TaskFlow && codebuddy plugin install taskflow@taskflow`
-(a local directory path works in place of the GitHub owner/repo). dsh has no marketplace:
-its command is `dsh plugin --profile <name> add <package-or-directory>`. Trae has neither a
+(a local directory path works in place of the GitHub owner/repo). dsh has no marketplace
+and the package is on no registry: its command names the Git repository and pins the full
+commit — `dsh plugin --profile <name> add github:hkwuks/TaskFlow#<40-character-sha>` — with
+the sha taken from the release tag, which is the same commit the marketplace catalogs pin.
+A local directory path works there too. Trae has neither a
 marketplace nor a plugin command: its install is the copy above, described in
 `hooks/README.md`, and Trae also reads Claude Code hook configs when the user turns on
 **导入 CLAUDE 中的 Hooks 配置**.
@@ -104,7 +107,7 @@ Only `consumed` reads across tasks, and it reads both line shapes: it is the hig
 
 `unaided` is also the only writer that checks that invariant before writing. Its sequence comes from `released` alone, so a store whose `evidence` was deleted or truncated reads as already past the end of the queue; writing then widens the gap instead of closing it, and every stage is denied from that point on with no way back. A declaration now refuses that store and says both numbers, rather than adding the release that makes the desync permanent. The records themselves cannot be rebuilt, so the recovery is `bash hooks/task recover`: it discards only the releases whose sequence points past the end of `evidence` — the ones that can be identified without guessing — keeps every release whose record still exists, and appends what it discarded to `released.discarded` rather than erasing the only remaining statement of which stages had been released. Deleting `<absolute-git-dir>/taskflow` also works and throws away every release, not only the unbacked ones. `approve` refuses the same store for the same reason: it reconciles stages against `released` alone, so an unsupported row would let a stage pass on a record that is gone, and whether a task could be approved would depend on damage.
 
-The gate is wired wherever the host exposes a tool-call hook whose tool names match the ones both scripts branch on. On Claude Code, CodeBuddy, and Trae that is `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does.
+The gate is wired wherever the host exposes a tool-call hook in one of the two input shapes `capability-gate` reads. On Claude Code, CodeBuddy, and Trae that shape is the written file's path under `tool_input.file_path`, with `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does. On Codex the shape is the patch text under `tool_input.command` with `tool_name` of `apply_patch`: the gate matches it, and the recorder is not wired there, so a stage on Codex is released by `hooks/task unaided` rather than by a recorded invocation.
 
 Four properties are worth stating because each one is load-bearing:
 
@@ -148,8 +151,10 @@ the destination's spelling is the part the documentation leaves least clear.
 capability class (`Skill`, `Agent`/`Task`, `mcp__*`), and `apply_patch` is an edit
 tool. Wired, the hook would run, exit 0, and record nothing, while this document
 claimed the host had evidence capture. Measured 2026-10-29: feeding it that event
-changed no evidence line. Codex's capability records come from `Skill` and MCP
-calls, not from its edits.
+changed no evidence line. Capability records, where a host records them at all,
+come from `Skill` and MCP calls and never from an edit; Codex records none while
+its `PostToolUse` capability capture stays unwired, so its stage evidence can
+only come from a `hooks/task unaided` declaration.
 
 ### dsh specifics
 
@@ -291,7 +296,7 @@ Windows uses the same Bash implementation through `run-hook.cmd`; PowerShell and
 
 ## Single-command transitions
 
-Run explicitly by the Agent as one operation. Only SessionStart summary injection, the per-prompt reminder, the sessions index, and the Claude Code pre-write gate are automatically wired; no write command binds to `UserPromptSubmit`, `PostToolUse`, or `Stop`. `UserPromptSubmit` is bound, but only to `prompt-reminder`, which reads state and emits context — it is not a write command and it changes nothing.
+Run explicitly by the Agent as one operation. Only SessionStart summary injection, the per-prompt reminder, the sessions index, and the pre-write gate (Claude Code, Codex CLI, CodeBuddy, and Trae) are automatically wired; no write command binds to `UserPromptSubmit`, `PostToolUse`, or `Stop`. `UserPromptSubmit` is bound, but only to `prompt-reminder`, which reads state and emits context — it is not a write command and it changes nothing.
 
 `prompt-reminder` exists because the workflow speaks exactly once otherwise, at SessionStart, and a long implementation runs entirely inside the window before the next compaction. `SessionStart` already fires on `compact`, so post-compaction is covered; what was uncovered is the turn in between. The hook derives its line from `summarize-state` rather than reading `plan.md` again — one derivation, already covered by the suite — and emits only while the single active task is `in_progress` or `checking`. A worktree with no task, two active tasks, a `planning`/`ready` task, a `cwd` outside a repository, and unparseable input all produce silence, and the phase gate is the only rate limit: there is no marker file and no per-session counter, because the second and third instructions of a long session are exactly where drift accumulates.
 
@@ -301,13 +306,25 @@ A host with no hook wiring gets none of this, and that is not a gap to be filled
 
 `intake` and `promote` both care whether the working tree they write into is the base one: a task's first documents are written in Phase 1, so writing them in the base tree puts them on whatever branch happens to be checked out. `promote` refuses there; `intake` only notes it, because triage should stay cheap. Both read the same signal — a linked worktree's git directory contains `commondir`, which is Git's own answer and needs no branch-name parsing — and neither applies where `--root` is not a repository at all.
 
+### Which task a command acts on
+
+The commands that record something — `unaided`, `external` — have to name a task, and one task per working tree is the rule that normally makes the question trivial. It stops being trivial when one tree holds several task directories, which happens when a parent and a child run together or documents are carried in from another branch, and the answer matters because `released` is keyed by task name: record against the wrong one and `approve` reconciles a stage against evidence another task earned.
+
+So the name is resolved from evidence, in this order, and never from directory order:
+
+1. **`TASKFLOW_TASK_ID`**, the same variable and meaning `summarize-state` and `session-record` already read. A caller naming a task is not something to second-guess.
+2. **The task directory the caller is standing in**, including any subdirectory of it. This is the only source that cannot disagree with intent, because it is where the caller is.
+3. **The only active task**, when exactly one exists.
+
+Anything else is refused with exit `2` — needs-user-input, per `CODE_STYLE.md` — and the refusal lists the candidates and prints both remedies. Refusing rather than picking is the whole point: the failure being repaired is a silent wrong answer, so the one branch that must not exist is the one that guesses. `external` is deliberately not on this list: its store is keyed to the git directory rather than to a task, so it only asks whether any active task exists, and several of them are not ambiguous for a question it never puts.
+
 | Command | Action | Verify after |
 | --- | --- | --- |
-| `hooks/task intake <goal> [source] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. In the base working tree it additionally notes that `todo.md` is now uncommitted there (exit code unchanged). |
-| `hooks/task promote <todo-id> <task-id> <small\|large> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. Refuses with `STATUS: blocked` (exit `3`) outside a task worktree — the first task documents are written in Phase 1, so they would otherwise land in the base tree on whatever branch is checked out. The message prints the `git worktree add` command with everything but `<type>` filled in. |
+| `hooks/task intake <goal> [source] [--kind <defect\|capability\|internal>] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. `--kind` defaults to `capability` here and is written to the entry as `- Kind:`; `promote` requires it explicitly, because that is where it starts deciding anything. In the base working tree it additionally notes that `todo.md` is now uncommitted there (exit code unchanged). |
+| `hooks/task promote <todo-id> <task-id> <small\|large> --kind <defect\|capability\|internal> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. `--kind` is required here and optional at intake: it is written into the PRD's `## Task Kind`, and `approve` reads it to decide whether this task's `[PRD]` line must name something that investigates a cause. Refuses with `STATUS: blocked` (exit `3`) outside a task worktree — the first task documents are written in Phase 1, so they would otherwise land in the base tree on whatever branch is checked out. The message prints the `git worktree add` command with everything but `<type>` filled in. |
 | `hooks/task state <task-id> <state> [--root <path>]` | Update PRD/Plan state and Todo triage state. | `in_progress` requires approval for the current Task version. |
 | `hooks/task progress <task-id> <step> <status> [verification] [--root <path>]` | Update one Plan Step and optionally append a verification line. | `done` rejects unchecked checklist items. |
-| `hooks/task unaided <PRD\|Spec\|Plan\|Test> --considered "<concept class>" [--root <path>]` | Record a deliberate unaided decision for a stage, which is what lets the pre-write gate release it and `approve` reconcile it. For `Test` it is also the stage's only carrier, so it spends the next unreleased evidence line when one is standing and reports which kind it wrote. | Exit `2` on a stage that is none of the four, a missing `--considered`, or a class outside the phase vocabulary, which it prints. It validates a class against the vocabulary and nothing else — it cannot judge whether the decision was right. |
+| `hooks/task unaided <PRD\|Spec\|Plan\|Test> --considered "<concept class>" [--root <path>]` | Record a deliberate unaided decision for a stage, which is what lets the pre-write gate release it and `approve` reconcile it. For `Test` it is also the stage's only carrier, so it spends the next unreleased evidence line when one is standing and reports which kind it wrote. | Exit `2` on a stage that is none of the four, a missing `--considered`, or a class outside the phase vocabulary, which it prints. It validates a class against the vocabulary and nothing else — it cannot judge whether the decision was right. Also exit `2` when it cannot tell which task the record belongs to; see **Which task a command acts on**. |
 | `hooks/task complete <task-id> --user-accepted [--root <path>]` | Run `completion-gate`, set core statuses, and invoke archive. | Requires explicit acceptance and leaves no active task on success. Refuses before the first write, so nothing has to be rolled back. |
 | `hooks/archive <task-id>` | Run `completion-gate` — the Plan is approved for its current Task version, has no unchecked item and no unclosed Step — then move `TaskFlowDocs/<task-id>` → `TaskFlowDocs/achieved/<task-id>`, update the linked Todo item's `Task:` path and status to `done`, and verify the active path is absent, the achieved path exists, and the achieved root PRD and Plan both say `completed`. | Prints a check report; on any failure leaves the task active, the Todo unchanged, and exits nonzero. Both entry points into `achieved/` run the same file, so neither is a weaker way in. |
 | `hooks/completion-gate <task-dir>` | Decide whether the Plan may be treated as finished: approved for its current Task version, no unchecked item, no unclosed Step. A Step is closed only when it says `- Status: done` in column 0 — a whitelist, so an unrecognized or missing value counts as unfinished rather than as finished. A block is located by its `### Step <number>` heading anywhere in the Plan, not only under `## Steps`, because that is how `task progress` finds the block it edits. `--approval-only` asks the narrower question `task state in_progress` and `task progress` need. | Exit `1` with one line naming the failing condition. Reads the Plan as a file in one `awk`; a `printf | grep -q` shape is silently disabled by `pipefail` on any Plan larger than the pipe buffer. A Plan with no `### Step` block at all is not refused — that is a question about whether a Plan must have Steps, which this command does not answer. |
@@ -363,11 +380,11 @@ repo-root/
     │   └── references/                  # runtime.md, artifacts.md, versioning-and-recovery.md
     └── hooks/
         ├── README.md                    # install + run instructions for every host
-        ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit; auto-loaded)
-        ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit)
-        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit)
+        ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse/PostToolBatch evidence; auto-loaded)
+        ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit + PreToolUse apply_patch gate + PostToolUse external-evidence)
+        ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
         ├── hooks-dsh.json               # dsh wiring (SessionStart + UserPromptSubmit)
-        ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + the gate pair)
+        ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
         ├── prompt-reminder              # UserPromptSubmit: in-flight task + reinforce pointers + classification question

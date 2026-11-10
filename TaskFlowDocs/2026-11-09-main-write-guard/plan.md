@@ -93,6 +93,7 @@
 发布例外按用户 2026-11-09 指示推迟至 TF-20261109-ccbb96；本版本不声称发布编辑不受影响。
 
 ## Verification / Review
+- 2026-11-10 草稿 PR 前合入最新 main：手动合并 Todo、smoke 测试和 runtime 文档冲突；逐 ID 检查两个父版本的 Todo 均保留，冲突解决后 bash 守卫和提醒定向测试、Skill quick_validate 与 diff 检查通过。完整三系统 CI 仍待远端运行。
 - PR 模板映射：Summary 描述编辑守卫与异步提醒；TaskFlow traceability 指向本任务、范围、`hkwuks/TaskFlow` 和 `main`；Verification 列出定向夹具、Skill 校验与 CI 状态；Review boundaries 说明 shell、宿主和发布例外的限制。任务尚未验收，以草稿 PR 交付审查，不能提前标记完成或归档。
 - 2026-11-10 提交前：`PYTHONUTF8=1` 下 bundled Python 运行 Skill quick_validate 通过，`git diff --check` 通过；默认编码首次触发 GBK 解码失败，设置 UTF-8 后通过。远端 main 已前进，需核查 PR 合并情况。
 - 2026-11-10 按用户要求补充 CI：复用现有三系统 `hooks.yml` smoke job；Windows 测试增加 Codex/Claude 异步配置、两个 Claude 事件和 Windows 启动器断言，Linux/macOS 继续运行同一 bash smoke 中的基础守卫和状态提示用例。`tools/workflow-affected` 确认相关路径会触发 smoke。项目内保留夹具中执行 bash 新增测试段和 Windows 测试原文提取段均通过；完整原版测试会删除临时文件，未在本地运行；GitHub Actions 尚未运行，不能据此声称三系统远端通过，也不能代替真实宿主异步投递验证。

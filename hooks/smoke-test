@@ -1040,8 +1040,18 @@ grep -q 'chore/tear-task' "$tear_out" \
   || { echo "FAIL teardown instruction did not name the branch that gates it"; cat "$tear_out"; exit 1; }
 grep -qi 'merged into the base' "$tear_out" \
   || { echo "FAIL teardown instruction did not state its condition"; cat "$tear_out"; exit 1; }
+# The branch is deleted in the same step, and only with `-d`. `-d` is the safety
+# property, not a detail: it refuses an unmerged branch, so the pair of commands
+# is safe without the reader judging anything. `-D` would delete exactly the
+# branch the old wording was protecting. Both halves are asserted — naming `-d`
+# and never naming `-D` — because a mutation to `-D` passes a `-d` assertion
+# written as a substring match on `branch`.
+grep -q "git branch -d 'chore/tear-task'" "$tear_out" \
+  || { echo "FAIL teardown did not delete the merged branch in the same step"; cat "$tear_out"; exit 1; }
+grep -q 'git branch -D' "$tear_out" \
+  && { echo "FAIL teardown offered the force-delete the -d guard exists to prevent"; cat "$tear_out"; exit 1; }
 grep -qi 'branch survives' "$tear_out" \
-  || { echo "FAIL teardown did not say the branch outlives the directory"; cat "$tear_out"; exit 1; }
+  && { echo "FAIL teardown still says the branch outlives the directory"; cat "$tear_out"; exit 1; }
 # The same repository's main working tree is not a task tree, so archiving from
 # there prints none of it. This fixture is a real Git repository on purpose: the
 # plain archive fixture above is a bare directory, where the git-dir lookup
@@ -1475,7 +1485,7 @@ rf="$tmp/rollback-root"
 mkdir -p "$rf"
 bash "$roll/task" intake "Rollback smoke goal." "fixture" --root "$rf" >/dev/null
 rid=$(awk '/^- ID: TF-/{print $3; exit}' "$rf/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$rid" 2026-09-22-rollback-smoke small --root "$rf" >/dev/null
+bash "$roll/task" promote "$rid" 2026-09-22-rollback-smoke small --kind capability --root "$rf" >/dev/null
 rtask="$rf/TaskFlowDocs/2026-09-22-rollback-smoke"
 # approve + check every box + finish step so complete's gates pass
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
@@ -1515,7 +1525,7 @@ cf="$tmp/complete-gate"
 mkdir -p "$cf"
 bash "$roll/task" intake "Complete gate smoke goal." "fixture" --root "$cf" >/dev/null
 cfid=$(awk '/^- ID: TF-/{print $3; exit}' "$cf/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$cfid" 2026-09-22-complete-gate small --root "$cf" >/dev/null
+bash "$roll/task" promote "$cfid" 2026-09-22-complete-gate small --kind capability --root "$cf" >/dev/null
 cftask="$cf/TaskFlowDocs/2026-09-22-complete-gate"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
   "$cftask/plan.md" > "$cftask/plan.md.tmp"
@@ -1548,7 +1558,7 @@ cfl="$tmp/complete-gate-large"
 mkdir -p "$cfl"
 bash "$roll/task" intake "Complete gate large Plan goal." "fixture" --root "$cfl" >/dev/null
 cflid=$(awk '/^- ID: TF-/{print $3; exit}' "$cfl/TaskFlowDocs/todo.md")
-bash "$roll/task" promote "$cflid" 2026-09-22-complete-gate-large small --root "$cfl" >/dev/null
+bash "$roll/task" promote "$cflid" 2026-09-22-complete-gate-large small --kind capability --root "$cfl" >/dev/null
 cfltask="$cfl/TaskFlowDocs/2026-09-22-complete-gate-large"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' \
   "$cfltask/plan.md" > "$cfltask/plan.md.tmp"
@@ -1779,7 +1789,7 @@ todo_id=$(awk '/^- ID: TF-/{print $3; exit}' "$todo")
 before=$(digest "$todo")
 if bash "$HERE/task" intake "Lifecycle smoke goal." "local fixture" --root "$lifecycle" >/dev/null 2>&1; then echo "FAIL duplicate goal accepted"; exit 1; fi
 [ "$before" = "$(digest "$todo")" ] || { echo "FAIL duplicate goal mutated Todo"; exit 1; }
-bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --root "$lifecycle" >/dev/null
+bash "$HERE/task" promote "$todo_id" 2026-09-10-lifecycle-smoke small --kind capability --root "$lifecycle" >/dev/null
 active="$lifecycle/TaskFlowDocs/2026-09-10-lifecycle-smoke"
 [ -f "$active/prd.md" ] && [ -f "$active/plan.md" ] && [ ! -e "$active/spec.md" ] || { echo "FAIL small promotion artifacts"; exit 1; }
 grep -q 'TaskFlowDocs/2026-09-10-lifecycle-smoke/' "$todo" || { echo "FAIL promotion Todo link"; exit 1; }
@@ -1865,7 +1875,7 @@ gate="$tmp/gate"
 mkdir -p "$gate"
 bash "$HERE/task" intake "Gate smoke goal." "local fixture" --root "$gate" >/dev/null
 gate_id=$(awk '/^- ID: TF-/{print $3; exit}' "$gate/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$gate_id" 2026-09-09-gate-smoke small --root "$gate" >/dev/null
+bash "$HERE/task" promote "$gate_id" 2026-09-09-gate-smoke small --kind capability --root "$gate" >/dev/null
 gate_task="$gate/TaskFlowDocs/2026-09-09-gate-smoke"
 gate_before=$(digest "$gate_task/plan.md")
 if bash "$HERE/task" progress 2026-09-09-gate-smoke 1 done --root "$gate" >/dev/null 2>&1; then
@@ -1925,7 +1935,7 @@ reset_unp_entry() {
 unp_out="$tmp/unpromote-out"
 
 # 1. The success path: right name, freshly promoted, nothing touched since.
-bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --kind capability --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL unpromote fixture promote"; cat "$unp_out"; exit 1; }
 bash "$HERE/task" unpromote TF-20260101-un "promoted under the wrong name" --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL unpromote refused a fresh promotion:"; cat "$unp_out"; exit 1; }
@@ -1953,7 +1963,7 @@ grep -q 'only a promoted Todo entry' "$unp_out" || { echo "FAIL refusal 2 did no
 # Promote first, initialise Git second: `promote` refuses to run in a base
 # working tree, which is the whole point of the section further up.
 reset_unp_entry
-bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --root "$unp" > "$unp_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-un 2026-01-01-unp small --kind capability --root "$unp" > "$unp_out" 2>&1 \
   || { echo "FAIL refusal-3 fixture promote"; cat "$unp_out"; exit 1; }
 ( cd "$unp" && git init -q . && git config user.email smoke@example.invalid && git config user.name smoke \
   && git add -A && git -c commit.gpgsign=false commit -qm fixture ) >/dev/null 2>&1 || true
@@ -1981,6 +1991,90 @@ bash "$HERE/task" unpromote TF-20260101-un "should refuse" --root "$unp" > "$unp
 grep -q "is not at '> Status: planning'" "$unp_out" || { echo "FAIL refusal 5 did not name the document"; cat "$unp_out"; exit 1; }
 [ -d "$unp/TaskFlowDocs/2026-01-01-unp" ] || { echo "FAIL refusal 5 deleted the directory anyway"; exit 1; }
 rm -rf "$unp/.git"
+echo ok
+
+echo "== a stage declaration names its task by evidence, never by directory order =="
+# `unaided` used to answer "which task is this for?" with whichever name
+# `TaskFlowDocs/*/` expanded to first. One task per worktree makes that
+# indistinguishable from correct, which is why it survived; several task
+# directories in one tree — a parent and a child, or documents carried in from
+# another branch — turn it into a record filed against the wrong task, and
+# `approve` reconciles against whatever it finds there.
+#
+# The fixture is deliberately adversarial: the directory that sorts FIRST is the
+# one a directory-order answer would pick, and every positive case below acts on
+# the one that sorts LAST. An implementation that reverted to the old loop would
+# pass a naive test here, so the assertion is that the other task's store is
+# untouched.
+at="$tmp/active-task"
+mkdir -p "$at/TaskFlowDocs/2026-01-01-first" "$at/TaskFlowDocs/2026-01-02-second"
+git -C "$at" init -q
+for at_task in 2026-01-01-first 2026-01-02-second; do
+  printf '# Plan\n\n> Task version: v1\n> Status: planning\n' > "$at/TaskFlowDocs/$at_task/plan.md"
+done
+at_store="$(git -C "$at" rev-parse --absolute-git-dir)/taskflow"
+# The refusals below expect a nonzero exit, so each call is written as
+# `at_out="$( … )" || at_rc=$?`: the `||` is what keeps the suite's `set -e`
+# from aborting on the exit the assertion is about. No array is used for the
+# environment, because an empty `"${arr[@]}"` is an unbound-variable error under
+# `set -u` on the bash 3.2 that macOS ships.
+at_rc=0
+# Nothing says which of the two, and there are two: refuse, name both, and write
+# nothing. The exit code is 2 because the caller can fix it by supplying a task.
+at_out="$( cd "$at" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" || at_rc=$?
+[ "$at_rc" -eq 2 ] || { echo "FAIL ambiguous declaration exited $at_rc, not 2"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'cannot tell which task this is for' \
+  || { echo "FAIL ambiguous declaration did not say why"; printf '%s\n' "$at_out"; exit 1; }
+for at_name in 2026-01-01-first 2026-01-02-second; do
+  printf '%s\n' "$at_out" | grep -qE "^  $at_name$" \
+    || { echo "FAIL ambiguous declaration did not list $at_name"; printf '%s\n' "$at_out"; exit 1; }
+done
+[ ! -f "$at_store/released" ] \
+  || { echo "FAIL a refused declaration still wrote a release"; cat "$at_store/released"; exit 1; }
+# Standing in a task's own directory is evidence, and it beats directory order:
+# the task sorts second, so the only way it can be named is by where the caller is.
+at_out="$( cd "$at/TaskFlowDocs/2026-01-02-second" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" \
+  || { echo "FAIL cwd did not resolve the task"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'unaided OK: PRD in 2026-01-02-second' \
+  || { echo "FAIL cwd resolved a different task"; printf '%s\n' "$at_out"; exit 1; }
+grep -q '^2026-01-02-second|v1|PRD|1|unaided|requirements elicitation$' "$at_store/released" \
+  || { echo "FAIL the release was not filed against the task the caller stood in"; cat "$at_store/released"; exit 1; }
+# A subdirectory of the task counts too — the task directory is an ancestor, not
+# an exact match, and a caller reading `reference/` is still in its task.
+mkdir -p "$at/TaskFlowDocs/2026-01-01-first/reference"
+at_out="$( cd "$at/TaskFlowDocs/2026-01-01-first/reference" && bash "$HERE/task" unaided Plan --considered 'work breakdown' --root "$at" 2>&1 )" \
+  || { echo "FAIL a subdirectory of the task did not resolve"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'unaided OK: Plan in 2026-01-01-first' \
+  || { echo "FAIL a subdirectory resolved the wrong task"; printf '%s\n' "$at_out"; exit 1; }
+# Explicit selection wins over cwd, because it is the caller saying so. Standing
+# in the first task while naming the second must record against the second.
+at_out="$( cd "$at/TaskFlowDocs/2026-01-01-first" && TASKFLOW_TASK_ID=2026-01-02-second \
+  bash "$HERE/task" unaided Test --considered 'testing strategy' --root "$at" 2>&1 )" \
+  || { echo "FAIL an explicit TASKFLOW_TASK_ID was ignored"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'in 2026-01-02-second' \
+  || { echo "FAIL cwd overrode an explicit TASKFLOW_TASK_ID"; printf '%s\n' "$at_out"; exit 1; }
+# A name that is not an active task is refused rather than written, and the
+# candidates are printed so the next attempt can be right.
+at_rc=0
+at_out="$( cd "$at" && TASKFLOW_TASK_ID=2026-09-09-nope \
+  bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" || at_rc=$?
+[ "$at_rc" -eq 2 ] || { echo "FAIL an unknown TASKFLOW_TASK_ID exited $at_rc, not 2"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'is not an active task here' \
+  || { echo "FAIL an unknown TASKFLOW_TASK_ID was not explained"; printf '%s\n' "$at_out"; exit 1; }
+# One active task needs no evidence at all: the answer is unambiguous, so the
+# rule that refuses on several must not also refuse here.
+rm -rf "$at/TaskFlowDocs/2026-01-01-first"
+at_out="$( cd "$at" && bash "$HERE/task" unaided PRD --considered 'requirements elicitation' --root "$at" 2>&1 )" \
+  || { echo "FAIL a single active task was not resolved"; printf '%s\n' "$at_out"; exit 1; }
+printf '%s\n' "$at_out" | grep -q 'in 2026-01-02-second' \
+  || { echo "FAIL a single active task resolved to something else"; printf '%s\n' "$at_out"; exit 1; }
+# `external` asks a different question — "is this tree running a task at all?" —
+# and its store is keyed to the git dir, not to a task. So several tasks must not
+# refuse it: that would be a refusal for a question the command never asks.
+mkdir -p "$at/TaskFlowDocs/2026-01-03-third"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n' > "$at/TaskFlowDocs/2026-01-03-third/plan.md"
+bash "$HERE/task" external https://example.invalid/active-task --why 'it settles the store key' --root "$at" >/dev/null \
+  || { echo "FAIL external refused a tree that holds several active tasks"; exit 1; }
 echo ok
 
 echo "== task approve records the five-field block =="
@@ -2017,7 +2111,7 @@ ap_release() {  # ap_release <store> <task> <version> <stage> <line-no> <kind> <
 }
 bash "$HERE/task" intake "Approve smoke goal." "local fixture" --root "$ap" >/dev/null
 ap_id=$(awk '/^- ID: TF-/{print $3; exit}' "$ap/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --root "$ap" >/dev/null
+bash "$HERE/task" promote "$ap_id" 2026-09-09-approve-smoke small --kind capability --root "$ap" >/dev/null
 ap_task="$ap/TaskFlowDocs/2026-09-09-approve-smoke"
 # Every case below is about stage reconciliation, so the PRD's `## External
 # Facts` answer is filled in once, here, rather than repeated in each fixture.
@@ -2035,6 +2129,34 @@ set_external_facts() {  # set_external_facts <prd> <body>
 }
 set_external_facts "$ap_task/prd.md" '- Depends on external facts: no
 - Why not: the fixture settles everything in `hooks/task`.'
+# `## Plan Review` is filled here for the same reason the External Facts answer
+# is: every case below is about stage reconciliation, and `promote` deliberately
+# leaves both sections unanswered. An unanswered one is refused before any stage
+# is read, so a fixture that left it blank would test the wrong refusal — the
+# Plan Review section has its own section for those four.
+set_plan_review() {  # set_plan_review <plan> <coverage> <verifiability> <layers>
+  local plan="$1"
+  TASKFLOW_PR_COVERAGE="$2" TASKFLOW_PR_VERIFIABILITY="$3" TASKFLOW_PR_LAYERS="$4" awk '
+    BEGIN {
+      coverage = ENVIRON["TASKFLOW_PR_COVERAGE"]
+      verifiability = ENVIRON["TASKFLOW_PR_VERIFIABILITY"]
+      layers = ENVIRON["TASKFLOW_PR_LAYERS"]
+    }
+    /^## Plan Review$/ {
+      print; print ""
+      print "- Verdict: sound"
+      print "- Coverage: " coverage
+      print "- Verifiability: " verifiability
+      print "- Layer ownership: " layers
+      p = 1; next
+    }
+    p && /^## / { p = 0 }
+    p { next }
+    { print }
+  ' "$plan" > "$plan.tmp" && mv "$plan.tmp" "$plan"
+}
+set_plan_review "$ap_task/plan.md" \
+  'every criterion maps to Step 1' 'the fixture runs the command and reads its output' 'no Step edits a value a later check reads'
 # Missing Approval section: refuse, leave bytes alone.
 ap_bad="$ap/TaskFlowDocs/2026-09-09-approve-bad"
 mkdir -p "$ap_bad"
@@ -2212,11 +2334,13 @@ bash "$HERE/task" state 2026-09-09-approve-smoke in_progress --root "$ap" >/dev/
 bash "$HERE/task" intake "Approve smoke large goal." "local fixture" --root "$ap_large_root" >/dev/null
 # Bare `# Todo` fixtures have no `## Items`, so intake appends: the new entry is last.
 ap_id2=$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap_large_root/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --root "$ap_large_root" >/dev/null
+bash "$HERE/task" promote "$ap_id2" 2026-09-09-approve-large small --kind capability --root "$ap_large_root" >/dev/null
 ap_large="$ap_large_root/TaskFlowDocs/2026-09-09-approve-large"
 printf '# Spec\n> Task version: v1\n> Status: planning\n' > "$ap_large/spec.md"
 set_external_facts "$ap_large/prd.md" '- Depends on external facts: no
 - Why not: the fixture settles everything in `hooks/task`.'
+set_plan_review "$ap_large/plan.md" \
+  'every criterion maps to Step 1' 'the fixture runs the command and reads its output' 'no Step edits a value a later check reads'
 # The large task is its own worktree, so its records are its own: one task per
 # store is the production shape, and it is what keeps this fixture from being
 # satisfied by the small task's releases.
@@ -2340,7 +2464,7 @@ done
 ap_new="$ap/TaskFlowDocs/2026-09-09-approve-skeleton"
 bash "$HERE/task" intake "Approve skeleton goal." "local fixture" --root "$ap" >/dev/null
 bash "$HERE/task" promote "$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")" \
-  2026-09-09-approve-skeleton small --root "$ap" >/dev/null
+  2026-09-09-approve-skeleton small --kind capability --root "$ap" >/dev/null
 grep -qx -- '- Depends on external facts:' "$ap_new/prd.md" \
   || { echo "FAIL promote did not write an unanswered External Facts skeleton"; sed -n '/^## External Facts/,/^## /p' "$ap_new/prd.md"; exit 1; }
 set_skills_body "$ap_new/plan.md" \
@@ -2359,7 +2483,7 @@ grep -q "has no '## External Facts' answer" "$ap/ef.err" \
 # this keeps failing until the two stores are separated again.
 ap_ex="$ap/TaskFlowDocs/2026-09-09-approve-external"
 mkdir -p "$ap_ex"
-printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_ex/plan.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Plan Review\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n## Approval\n- Status: requested\n## Skills / Tools Used\n- [PRD] x\n- [Plan] x\n- [Test] x\n' > "$ap_ex/plan.md"
 printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: yes\n- Source: https://docs.claude.com/en/docs/claude-code/hooks\n- What it settled: the hook event names\n' > "$ap_ex/prd.md"
 # Its own store, not the shared one the cases above have been mutating: an empty
 # `evidence` beside a `released` holding three sequences is an out-of-step store,
@@ -2480,7 +2604,7 @@ bad_out="$tmp/badid-out"
 for bad in "--size" "../evil" "../../escaped" "a/b" "-rf" "" "2026-01-01-Ab" "2026-01-01-a/b" "2026-01-01-a b"; do
   for cmd in "promote TF-20260101-bad" "state" "progress" "approve" "complete"; do
     case "$cmd" in
-      "promote TF-20260101-bad") args=(promote TF-20260101-bad "$bad" small) ;;
+      "promote TF-20260101-bad") args=(promote TF-20260101-bad "$bad" small --kind capability) ;;
       state)      args=(state "$bad" ready) ;;
       progress)   args=(progress "$bad" 1 done) ;;
       approve)    args=(approve "$bad") ;;
@@ -2544,7 +2668,7 @@ iso_todo_digest=$(digest "$iso/TaskFlowDocs/todo.md")
 iso_out="$tmp/isolation-out"
 
 set +e
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-base small --root "$iso" > "$iso_out" 2>&1
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-base small --kind capability --root "$iso" > "$iso_out" 2>&1
 iso_status=$?
 set -e
 [ "$iso_status" -eq 3 ] || { echo "FAIL promote in the base working tree exit code: $iso_status"; cat "$iso_out"; exit 1; }
@@ -2565,7 +2689,7 @@ grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree prom
   cd "$iso" || exit 1
   git worktree add -q .worktrees/task-tree -b chore/task-tree
 ) || { echo "FAIL isolation fixture worktree"; exit 1; }
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --kind capability --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
 [ -f "$iso/.worktrees/task-tree/TaskFlowDocs/2026-01-01-promoted-in-worktree/plan.md" ] \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
@@ -2576,7 +2700,7 @@ grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion
 iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-isolation-bare.XXXXXX")"
 mkdir -p "$iso_bare/TaskFlowDocs"
 cp "$iso/TaskFlowDocs/todo.md" "$iso_bare/TaskFlowDocs/todo.md"
-bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --root "$iso_bare" > "$iso_out" 2>&1 \
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --kind capability --root "$iso_bare" > "$iso_out" 2>&1 \
   || { echo "FAIL promote outside a repository was refused:"; cat "$iso_out"; exit 1; }
 [ -f "$iso_bare/TaskFlowDocs/2026-01-01-promoted-outside-git/plan.md" ] \
   || { echo "FAIL promote outside a repository did not write the task"; exit 1; }
@@ -2979,7 +3103,7 @@ lang="$tmp/language-heading"
 mkdir -p "$lang"
 bash "$HERE/task" intake "Translated heading fixture." "local fixture" --root "$lang" >/dev/null
 lang_id=$(awk '/^- ID: TF-/{print $3; exit}' "$lang/TaskFlowDocs/todo.md")
-bash "$HERE/task" promote "$lang_id" 2026-09-10-translated-heading small --root "$lang" >/dev/null
+bash "$HERE/task" promote "$lang_id" 2026-09-10-translated-heading small --kind capability --root "$lang" >/dev/null
 lang_plan="$lang/TaskFlowDocs/2026-09-10-translated-heading/plan.md"
 sed 's/- Status: requested/- Status: approved/; s/- Approved by: pending/- Approved by: user/; s/- Approved version: pending/- Approved version: v1/' "$lang_plan" > "$lang_plan.tmp"
 mv "$lang_plan.tmp" "$lang_plan"
@@ -3006,6 +3130,38 @@ fi
 grep -q 'Verification / Review' "$tmp/missing-heading.txt" || { echo "FAIL the refusal does not name the missing section"; cat "$tmp/missing-heading.txt"; exit 1; }
 [ "$before_missing" = "$(digest "$lang_plan")" ] || { echo "FAIL a refused verification still changed the Plan"; exit 1; }
 grep -q 'named-heading-must-not-land' "$lang_plan" && { echo "FAIL a translated named heading still matched"; exit 1; }
+echo ok
+
+echo "== dsh installs from a pinned Git commit, and the package ships only what it runs =="
+# dsh has no marketplace and the package is on no registry, so the only command
+# that works is a Git source with a full commit. It used to be documented as
+# `dsh plugin --profile web add dsh-taskflow`, a name npm answers 404 for — a
+# command nobody could run, printed first.
+#
+# The pin is load-bearing for the same reason the marketplace `sha` is: pnpm
+# resolves the source, and an unpinned `github:owner/repo` follows the default
+# branch, so a later push would change what runs.
+#
+# Only `hooks/README.md` is asserted, not the two root READMEs. This suite runs
+# for a change whose paths the classifier sends to `smoke`, and the root READMEs
+# go to `release` instead — an assertion here about a file that does not trigger
+# this job is a check that never runs on the change it describes. The root
+# install sections are covered by the release job's word on the same rule, and
+# by review.
+site="$repo/hooks/README.md"
+grep -q -F -- 'github:hkwuks/TaskFlow#' "$site" \
+  || { echo "FAIL $site does not give the pinned Git install for dsh"; exit 1; }
+grep -q -F -- 'dsh plugin --profile web add dsh-taskflow' "$site" \
+  && { echo "FAIL $site still offers the registry name npm answers 404 for"; exit 1; }
+# The same two facts in `runtime.md`, which is a skill file and therefore does
+# run under this job.
+grep -q -F -- 'github:hkwuks/TaskFlow#' "$skill/references/runtime.md" \
+  || { echo "FAIL runtime.md does not give the pinned Git install for dsh"; exit 1; }
+grep -q -F -- 'add <package-or-directory>' "$skill/references/runtime.md" \
+  && { echo "FAIL runtime.md still describes dsh install as a bare package name"; exit 1; }
+# `files` is asserted in `hooks/release-check`, which is where `package.json`
+# belongs: the classifier sends it to the release job, so an assertion about it
+# here would only ever run for a change that does not touch it.
 echo ok
 
 echo "== a release runs RELEASE.md instead of the task workflow =="
@@ -3054,6 +3210,35 @@ for clause in 'The landing claim is recorded in that pull request' 'written back
   grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" || { echo "FAIL landing-claim rule does not pin: $clause"; exit 1; }
 done
 grep -q -F -- "not in the task's documents" "$repo/CONTRIBUTING.md" || { echo "FAIL the landing claim is not distinguished from the task documents"; exit 1; }
+echo ok
+
+echo "== the repository is asked which of its three rule sets a change belongs to =="
+# This repository is the plugin and it also holds three rule sets whose reach
+# differ: the plugin's behaviour, the templates handed to another repository, and
+# this repository's own conventions. On 2026-11-05 a discussion about where a
+# layered-integrity rule belonged treated the first two as one thing and offered
+# the user a choice between the wrong two options. The rule's criterion is who is
+# affected, because the directory does not answer it: `hooks/templates/` sits
+# beside `hooks/` and is not plugin code.
+grep -q -F -- '## Decide which rules you are changing' "$repo/CONTRIBUTING.md" \
+  || { echo "FAIL CONTRIBUTING does not ask which rule set a change belongs to"; exit 1; }
+for clause in \
+  'the three differ in **who is affected** — not in which directory they sit in' \
+  'Ask **who is affected**, and the answer picks the row.' \
+  'Ask **which directory**, and it does not: `hooks/templates/` sits beside `hooks/`' \
+  'The three are not interchangeable in either direction.' ; do
+  grep -q -F -- "$clause" "$repo/CONTRIBUTING.md" \
+    || { echo "FAIL rule-target rule does not pin: $clause"; exit 1; }
+done
+# All three rows must be present: a table that lost one is a rule that no longer
+# answers the question it was written for.
+for row in \
+  '| The plugin'"'"'s own behaviour |' \
+  '| The default rules TaskFlow offers to other repositories |' \
+  '| This repository'"'"'s own development conventions |' ; do
+  grep -q -F -- "$row" "$repo/CONTRIBUTING.md" \
+    || { echo "FAIL rule-target table is missing a row: $row"; exit 1; }
+done
 echo ok
 
 echo "== a hook change reaches every declared host, or the rule says why not =="
@@ -3738,7 +3923,11 @@ xt_plan() {  # xt_plan <task-dir> <stage-lines...>
     printf '%s\n' '# Plan' '> Task version: v1' '> Status: planning' ''
     printf '%s\n' '## Skills / Tools Used' ''
     while [ "$#" -gt 0 ]; do printf '%s\n' "$1"; shift; done
-    printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+    # Answered, because this fixture asserts which task a *stage* record belongs
+    # to; an unanswered Plan Review would be refused first and the case would
+    # never reach the question it is about.
+    printf '\n%s\n' '## Plan Review' '' '- Verdict: sound' '- Coverage: c' '- Verifiability: v' '- Layer ownership: l' ''
+    printf '%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
       '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
     printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
   } > "$xt_dir/plan.md"
@@ -3998,6 +4187,13 @@ cat > "$rc_plan" <<'RC_PLAN'
 - [Plan] `a:two` — purpose: x; outcome: `succeeded`
 - [Test] `a:three` — purpose: x; outcome: `succeeded`
 
+## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
 ## Approval
 
 - Status: requested
@@ -4162,6 +4358,216 @@ grep -q 'is required, not optional' "$skill/references/artifacts.md" \
   || { echo "FAIL artifacts.md does not state the section is required"; exit 1; }
 echo ok
 
+echo "== a Plan is reviewed before it is approved, and the review says what it checked =="
+# Phase 4 ended at `plan.md` and the next thing that happened to it was approval:
+# nothing between the two read the Plan itself. Phase 6 reviews code and
+# acceptance, by which point the approval has already locked in whatever the
+# Plan got wrong — an acceptance criterion no Step covers, a Step whose
+# Verification cannot verify its Acceptance, or a Step that makes a later check
+# go green by editing what it reads.
+#
+# The check sits in `approve` rather than in `PreToolUse` because the review has
+# no object until the document exists: a gate on the first body write would run
+# before there is anything to review, and would refuse the write that creates it.
+# `approve` is also the only writer of the Approval block, and every later state
+# sits behind it, so skipping the review leaves no route forward.
+pr_root="$tmp/plan-review"
+mkdir -p "$pr_root/TaskFlowDocs/2026-01-01-pr"
+git -C "$pr_root" init -q
+pr_plan="$pr_root/TaskFlowDocs/2026-01-01-pr/plan.md"
+pr_store="$(git -C "$pr_root" rev-parse --absolute-git-dir)/taskflow"
+mkdir -p "$pr_store"
+printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$pr_root/TaskFlowDocs/2026-01-01-pr/prd.md"
+# Released for all three stages, so every refusal below is the Plan Review
+# check and not a missing stage. The stage gate has its own sections.
+printf 'unaided|requirements elicitation\nunaided|work breakdown\nunaided|testing strategy\n' > "$pr_store/evidence"
+printf '%s|v1|PRD|1|unaided|requirements elicitation\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|unaided|testing strategy\n' \
+  2026-01-01-pr 2026-01-01-pr 2026-01-01-pr > "$pr_store/released"
+pr_plan_body() {  # pr_plan_body <plan-review-body>
+  {
+    printf '%s\n' '# Plan' '> Task version: v1' '> Status: planning' ''
+    printf '%s\n' '## Skills / Tools Used' ''
+    printf '%s\n' '- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation'
+    printf '%s\n' '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
+    printf '%s\n' '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
+    printf '\n%s' "$1"
+    printf '%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
+      '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
+    printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
+  } > "$pr_plan"
+}
+pr_approve() {  # pr_approve -> "<exit>|<stderr>"
+  local out rc
+  out="$(bash "$HERE/task" approve 2026-01-01-pr --root "$pr_root" 2>&1 >/dev/null)" && rc=0 || rc=$?
+  printf '%s|%s' "$rc" "$out"
+}
+pr_case() {  # pr_case <name> <expected message fragment> <body>
+  local name="$1" want="$2" body="$3" res
+  pr_plan_body "$body"
+  res="$(pr_approve)"
+  case "$res" in
+    0\|*) echo "FAIL Plan Review accepted: $name"; exit 1 ;;
+  esac
+  case "$res" in
+    *"$want"*) ;;
+    *) echo "FAIL Plan Review refusal for $name:"; printf '%s\n' "${res#*|}"; exit 1 ;;
+  esac
+}
+# The section missing entirely.
+pr_case "absent section" "has no '## Plan Review' section" ''
+# Present but empty: the shape a Plan has between being scaffolded and reviewed.
+pr_case "empty section" "is present but empty" '## Plan Review
+
+'
+# Each question answered separately, so a review that skipped one is named by
+# the one it skipped rather than refused as a whole.
+pr_case "no Verdict" "does not answer: Verdict" '## Plan Review
+
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+pr_case "no Coverage" "does not answer: Coverage" '## Plan Review
+
+- Verdict: sound
+- Verifiability: v
+- Layer ownership: l
+
+'
+pr_case "no Verifiability" "does not answer: Verifiability" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Layer ownership: l
+
+'
+pr_case "no Layer ownership" "does not answer: Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+
+'
+# The field present with nothing after it is the most likely way to skip one:
+# `promote` writes the scaffold this way, so a Plan that was never reviewed and
+# one that was reviewed badly look the same until this line is checked.
+pr_case "empty Layer ownership" "does not answer: Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership:
+
+'
+# Two missing, named together and in the section's own order.
+pr_case "two missing" "does not answer: Coverage, Layer ownership" '## Plan Review
+
+- Verdict: sound
+- Verifiability: v
+
+'
+# The verdict is the review, not a field: `needs revision` is a decision the gate
+# acts on. A section that answers all three questions and still concludes the
+# Plan is wrong must not reach `approved` -- otherwise "reviewed" and "reviewed
+# and found wanting" are the same outcome and the section is decoration.
+pr_case "needs revision stops approval" "says the Plan needs revision, so it is not approved" '## Plan Review
+
+- Verdict: needs revision
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+# Anything outside the two words is refused rather than guessed at: a scale this
+# command cannot weigh is a number it would ignore, and two words are the ones its
+# behaviour differs on.
+pr_case "unreadable verdict" "must be 'sound' or 'needs revision', not 'maybe'" '## Plan Review
+
+- Verdict: maybe
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
+
+'
+# Answered, it passes — and the approval is written, which is what proves the
+# refusal above was about the review rather than about the fixture.
+pr_plan_body '## Plan Review
+
+- Verdict: sound
+- Coverage: every acceptance criterion maps to Step 1
+- Verifiability: Step 1 runs the command and reads its output
+- Layer ownership: no Step edits a value a later check reads
+
+'
+pr_approve | grep -q '^0|' \
+  || { echo "FAIL an answered Plan Review still refused approval"; pr_approve; exit 1; }
+grep -q '^- Status: approved$' "$pr_plan" \
+  || { echo "FAIL approval was not written after a complete review"; exit 1; }
+# The scaffold `promote` writes carries the section, so the fields exist before
+# anyone remembers to add them and the refusal names lines that are already
+# there. A scaffold without it would make every task's first approve fail on a
+# section the workflow never mentioned.
+promote_plan="$(sed -n '/^## Skills \/ Tools Used$/,/^## Approval$/p' "$HERE/task")"
+printf '%s' "$promote_plan" | grep -q '^## Plan Review$' \
+  || { echo "FAIL the promote scaffold has no Plan Review section"; exit 1; }
+for pr_field in Coverage Verifiability 'Layer ownership'; do
+  printf '%s' "$promote_plan" | grep -q "^- $pr_field:$" \
+    || { echo "FAIL the promote scaffold does not offer the $pr_field line"; exit 1; }
+done
+# The section has to sit above `## Approval`, because that is where the reader
+# looks for what they are being asked to approve and how it was checked.
+printf '%s' "$promote_plan" | awk '
+  /^## Plan Review$/ { pr = NR }
+  /^## Approval$/ { ap = NR }
+  END { exit !(pr && ap && pr < ap) }
+' || { echo "FAIL the promote scaffold puts Plan Review after Approval"; exit 1; }
+# The same four fields, in the two documents that teach the shape. Pinned
+# because a field the gate checks and a field the documents name are two copies
+# of one decision: a rename in one place would make every correct Plan fail on a
+# line the workflow told the author to write.
+for pr_doc in "$skill/SKILL.md" "$skill/references/artifacts.md"; do
+  for pr_field in Verdict Coverage Verifiability 'Layer ownership'; do
+    # Matched as a word rather than as a line shape: SKILL.md bolds the name and
+    # artifacts.md puts it after a colon, and both are the same question. What
+    # must not drift is the name itself, because that is what `approve` reads.
+    grep -q -- "$pr_field" "$pr_doc" \
+      || { echo "FAIL $pr_doc does not name the $pr_field field"; exit 1; }
+  done
+done
+grep -q 'refuses a section that is absent, empty, or answers fewer than all four lines' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not state that approve refuses an incomplete review"; exit 1; }
+# The verdict's consequence is the whole difference between a review and a
+# checklist, so the documents must state it: a section that concludes the Plan is
+# wrong has to stop the approval, not be filed beside it.
+grep -q 'needs revision` \*\*stops the approval\*\*' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not say a needs-revision verdict stops approval"; exit 1; }
+grep -q 'needs revision` refuses it' "$skill/references/artifacts.md" \
+  || { echo "FAIL artifacts.md does not say a needs-revision verdict refuses approval"; exit 1; }
+# The four fields say what to write; they do not say how to arrive at it, and a
+# section that names its fields but not its method is the checklist this review
+# exists to replace. Pin the three passes and the order, and pin the rule that
+# makes a finding change the Plan rather than the verdict: a review that reports
+# what it found and then approves anyway is the formality again, one level up.
+grep -q 'The review is three passes over the Plan, in this order' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not state the review as ordered passes"; exit 1; }
+for pr_pass in '1\. \*\*Coverage, criterion by criterion\.\*\*' \
+               '2\. \*\*Each Step.s Verification against its own Acceptance\.\*\*' \
+               '3\. \*\*The intended edits, read for what they touch\.\*\*' ; do
+  grep -q -- "$pr_pass" "$skill/SKILL.md" \
+    || { echo "FAIL SKILL.md does not describe review pass: $pr_pass"; exit 1; }
+done
+# Fixing the finding before the verdict is the behaviour that separates a review
+# from a report. `needs revision` is reserved for a change the reviewer may not
+# make, which is why it stops the approval rather than scheduling a repair.
+grep -q 'A finding is fixed before the verdict, not reported instead of it' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not require a finding to be fixed before the verdict"; exit 1; }
+grep -q 'the review is of the Plan as it now stands' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md does not say a revised Plan is reviewed again from the start"; exit 1; }
+grep -q 'never "I will fix it next"' "$skill/SKILL.md" \
+  || { echo "FAIL SKILL.md leaves needs-revision reading as deferred work"; exit 1; }
+echo ok
+
 echo "== an unaided declaration releases its stage with no gate on the host =="
 # Measured 2026-10-11: the release record had exactly one writer, the pre-write
 # gate, while `approve` requires one. Three of the five supported hosts wire no
@@ -4176,7 +4582,7 @@ echo "== an unaided declaration releases its stage with no gate on the host =="
 ug="$tmp/unaided-gate"
 mkdir -p "$ug/TaskFlowDocs/2026-09-27-declared"
 git -C "$ug" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Plan Review\n\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$ug/TaskFlowDocs/2026-09-27-declared/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$ug/TaskFlowDocs/2026-09-27-declared/prd.md"
 printf '# Todo\n\n## Items\n\n## Declared\n\n- ID: TF-20260927-aaaaaa\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: declared fixture\n- Task: `TaskFlowDocs/2026-09-27-declared/`\n- Next action: Approve.\n' > "$ug/TaskFlowDocs/todo.md"
 ug_store="$(git -C "$ug" rev-parse --absolute-git-dir)/taskflow"
@@ -4246,6 +4652,13 @@ vb_plan() {  # vb_plan <version>
 
 > Task version: $1
 > Status: planning
+
+## Plan Review
+
+- Verdict: sound
+- Coverage: c
+- Verifiability: v
+- Layer ownership: l
 
 ## Approval
 
@@ -4392,7 +4805,7 @@ echo "== an unaided declaration never overwrites the gate's own release =="
 uc="$tmp/unaided-conflict"
 mkdir -p "$uc/TaskFlowDocs/2026-09-27-conflict"
 git -C "$uc" init -q
-printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
+printf '# Plan\n\n> Task version: v1\n> Status: planning\n\n## Plan Review\n\n- Verdict: sound\n- Coverage: c\n- Verifiability: v\n- Layer ownership: l\n\n## Approval\n\n- Status: requested\n- Approved by: pending\n- Approved at: pending\n- Approved version: pending\n- Approved scope: pending\n\n## Skills / Tools Used\n\n- [PRD] Unaided — no capability applied to this phase; considered: requirements elicitation and framing\n- [Plan] Unaided — no capability applied to this phase; considered: work breakdown and task decomposition\n- [Test] Unaided — no capability applied to this phase; considered: testing strategy\n\n## Steps\n\n### Step 1 — work\n\n- Status: pending\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/plan.md"
 printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$uc/TaskFlowDocs/2026-09-27-conflict/prd.md"
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
@@ -4654,6 +5067,47 @@ out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
 set -e
 printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/detached" \
   && { echo "FAIL a detached worktree was reported"; printf '%s\n' "$out"; exit 1; }
+# A merged branch with no worktree left to hold it. This is the state the
+# previous section's own remedy produces: `git worktree remove` never deletes the
+# branch, so following its instruction moved the leftover out of every report.
+# Measured 2026-11-04: three such branches in this repository, named by nothing.
+#
+# Three exclusions carry the safety of the section, so all three are asserted
+# rather than assumed: the base branch (never a leftover — and on this fixture
+# it is `main`, which no worktree in the list owns once the check runs from a
+# task tree), a branch a worktree still has checked out (its own section owns
+# it), and an unmerged branch (`-d` would refuse it anyway; reporting it would
+# invite `-D`).
+(
+  cd "$wt_root" || exit 1
+  git branch -q chore/loose-merged
+  # Built from a commit of its own, not from HEAD: a branch created at the base
+  # tip is already merged, and a fixture that mistakes it for an unmerged one
+  # asserts nothing about the ancestry test.
+  git worktree add -q .worktrees/loose-build -b chore/loose-unmerged
+  cd .worktrees/loose-build || exit 1
+  printf 'loose\n' > loose.txt && git add -A && git commit -qm loose
+  cd "$wt_root" || exit 1
+  git worktree remove .worktrees/loose-build
+) || { echo "FAIL loose branch fixture"; exit 1; }
+set +e
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
+set -e
+[ "$rc" -eq 0 ] || { echo "FAIL a leftover branch changed the verdict: $rc"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/loose-merged" \
+  || { echo "FAIL a merged branch with no worktree was not reported"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/loose-unmerged" \
+  && { echo "FAIL an unmerged branch was reported for deletion"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- main$" \
+  && { echo "FAIL the base branch itself was reported as a leftover"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q -- "- chore/merged" \
+  && { echo "FAIL a branch a worktree still holds was reported by both sections"; printf '%s\n' "$out"; exit 1; }
+# The remedy is `-d`, and it says so. The force flag belongs nowhere near a
+# report whose entire safety argument is that Git refuses the unsafe case.
+printf '%s\n' "$out" | grep -q 'git branch -d <branch>' \
+  || { echo "FAIL the leftover report did not name the safe delete"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -q 'git branch -D' \
+  && { echo "FAIL the leftover report offered a force delete"; printf '%s\n' "$out"; exit 1; }
 echo ok
 
 echo "== remote-topology reads the facts a push decision needs, and never guesses =="
@@ -5640,7 +6094,11 @@ printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/.claude-plu
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rel/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rel/.codebuddy-plugin/plugin.json"
 # The dsh bundle manifest carries no cachebuster: dsh installs it through pnpm.
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$rel/package.json"
+# The `files` whitelist is part of the manifest's contract now, so the fixture
+# carries it: `release-check` refuses a manifest that would ship TaskFlowDocs/,
+# and a fixture without the key is a manifest it refuses rather than the
+# consistent release this case exists to prove accepted.
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$rel/package.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$rel/CHANGELOG.md"
 # Two samples per README, matching the shipped files: the `claude plugin list`
 # sample and the `codebuddy plugin list` sample. Both carry a literal a release
@@ -5852,7 +6310,7 @@ mkdir -p "$sch/.claude-plugin" "$sch/.codex-plugin" "$sch/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$sch/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$sch/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$sch/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$sch/package.json"
 printf '# Changelog\n\n## [9.9.9] — 2026-09-15\n' > "$sch/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n' > "$sch/README.md"
 cp "$sch/README.md" "$sch/README.zh-CN.md"
@@ -5939,7 +6397,7 @@ mkdir -p "$rv/.claude-plugin" "$rv/.codex-plugin" "$rv/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9",\n  "engines": {\n    "node": "9.9.9"\n  }\n}\n' > "$rv/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codex.20260915"\n}\n' > "$rv/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.9+codebuddy.20260917"\n}\n' > "$rv/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9"\n}\n' > "$rv/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.9",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$rv/package.json"
 printf '# Changelog\n\n## [9.9.8] — 2026-09-14\n\nOld.\n' > "$rv/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.9    Status: enabled\n```\n\n```bash\n#     Version: 9.9.9\n```\n' > "$rv/README.md"
 cp "$rv/README.md" "$rv/README.zh-CN.md"
@@ -6069,7 +6527,7 @@ mkdir -p "$pv/.claude-plugin" "$pv/.codex-plugin" "$pv/.codebuddy-plugin"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/.claude-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codex.20261101"\n}\n' > "$pv/.codex-plugin/plugin.json"
 printf '{\n  "name": "taskflow",\n  "version": "9.9.10+codebuddy.20261101"\n}\n' > "$pv/.codebuddy-plugin/plugin.json"
-printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.10"\n}\n' > "$pv/package.json"
+printf '{\n  "name": "dsh-taskflow",\n  "version": "9.9.10",\n  "files": [\n    "dsh/",\n    "hooks/",\n    "skills/",\n    "README.md",\n    "LICENSE"\n  ]\n}\n' > "$pv/package.json"
 printf '# Changelog\n\n## [9.9.10] — 2026-11-01\n\nNew.\n' > "$pv/CHANGELOG.md"
 printf '# Readme\n\n```bash\n#   taskflow@taskflow    Version: 9.9.10    Status: enabled\n```\n\n```bash\n#     Version: 9.9.10\n```\n' > "$pv/README.md"
 cp "$pv/README.md" "$pv/README.zh-CN.md"
@@ -6403,8 +6861,10 @@ grep -q -F -- 'capability-gate' "$HERE/../hooks/README.md" \
   || { echo "FAIL hooks/README.md does not name capability-gate"; exit 1; }
 grep -q -F -- 'capability-evidence' "$HERE/../hooks/README.md" \
   || { echo "FAIL hooks/README.md does not name capability-evidence"; exit 1; }
-# And the two hosts that are deliberately unwired must stay named as such, so a
-# later wiring edit cannot land without this section being revisited.
+# And the host that is deliberately unwired must stay named as such, so a later
+# wiring edit cannot land without this section being revisited. Codex used to be
+# the second name here; it gained the gate in 1.1.10, and this assertion now
+# pins only the dsh reason.
 grep -q -F -- 'Codex' "$HERE/../skills/taskflow/references/runtime.md" \
   || { echo "FAIL runtime.md no longer names Codex; the exclusion note is missing"; exit 1; }
 grep -q -F -- 'lowercase' "$HERE/../skills/taskflow/references/runtime.md" \
@@ -7053,6 +7513,8 @@ tp_plan_body() {  # tp_plan_body <test-stage-line>
     printf '%s\n' '- [PRD] `a:prd` — purpose: frame; outcome: succeeded; incorporated: requirements.'
     printf '%s\n' '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown'
     [ -z "$1" ] || printf '%s\n' "$1"
+    # Answered, so an approve case here is about the Test stage and nothing else.
+    printf '\n%s\n' '## Plan Review' '' '- Verdict: sound' '- Coverage: c' '- Verifiability: v' '- Layer ownership: l'
     printf '\n%s\n' '## Approval' '' '- Status: requested' '- Approved by: pending' \
       '- Approved at: pending' '- Approved version: pending' '- Approved scope: pending' ''
     printf '%s\n' '## Steps' '' '### Step 1 — work' '' '- Status: pending'
@@ -7557,6 +8019,225 @@ printf 'prior change\n' >> "$bg/repo/source.txt"
 bg_post | grep -q 'may predate this command or come from another process' || { echo "FAIL dirty base not reported without attribution"; exit 1; }
 bg_post | grep -q 'may predate this command or come from another process' || { echo "FAIL existing change not reported"; exit 1; }
 printf '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","cwd":"%s"}' "$(cg_json "$bg/task")" | bash "$HERE/base-status-reminder" | grep -q 'uncommitted changes' || { echo "FAIL failed shell change not reported"; exit 1; }
+echo ok
+
+echo "== every fixture that calls a command supplies the arguments it now requires =="
+# `promote` gained a required `--kind`, and the Windows fixture is only executed
+# on a Windows runner. Measured 2026-11-07: this branch passed smoke on ubuntu
+# and macos and failed on windows in 15 seconds, because `smoke-test-windows.ps1`
+# still called `promote` without it — a gap local runs cannot see, since the
+# PowerShell half is skipped wherever powershell.exe is absent.
+#
+# Static, so it runs everywhere: read the arguments each `.ps1` fixture passes to
+# `promote` and require the flags the bash command insists on. Not a substitute
+# for running the Windows job — it cannot tell whether the call succeeds — but it
+# does catch a fixture left behind by a signature change, which is the failure
+# that actually happened.
+win_script="$HERE/smoke-test-windows.ps1"
+[ -f "$win_script" ] || { echo "FAIL smoke-test-windows.ps1 is missing"; exit 1; }
+win_promote="$(awk "
+  /Invoke-TaskFlow/ && /'promote'/ { print; inblock = 1 }
+  inblock && /\) *\+ *\\\$common/ { inblock = 0 }
+" "$win_script")"
+[ -n "$win_promote" ] || { echo "FAIL no promote call found in the Windows fixture"; exit 1; }
+printf '%s' "$win_promote" | grep -q -- "'--kind'" \
+  || { echo "FAIL the Windows fixture calls promote without --kind, which promote now requires: $win_promote"; exit 1; }
+# And the same shape for any script this repository runs in CI: a fixture that
+# invokes a command the bash side requires an argument for must pass it.
+for win_required in kind; do
+  printf '%s' "$win_promote" | grep -q -- "--$win_required" \
+    || { echo "FAIL the Windows fixture omits required --$win_required"; exit 1; }
+done
+echo ok
+
+echo "== a defect task has to name what investigates the cause =="
+# The routing gap this covers: the phase table offered a concept class for every
+# phase and none of them was "find out why this is broken", so a fix request
+# entered the same path as a feature request and the only classes on offer were
+# about writing documents. Everything here is about the naming, never the method
+# — a check on how to investigate belongs to the capability, not to this repo.
+kd="$tmp/kind"
+mkdir -p "$kd/.worktrees/t"
+( cd "$kd" && git init -q . ) >/dev/null 2>&1 || true
+( cd "$kd" && git worktree add .worktrees/t -b feature/kind >/dev/null 2>&1 ) || {
+  echo "FAIL kind fixture worktree"; exit 1; }
+kdw="$kd/.worktrees/t"
+
+# --- the flag itself -------------------------------------------------------
+kd_out="$(bash "$HERE/task" promote TF-20260101-kd 2026-01-01-kd small --root "$kdw" 2>&1)" || true
+printf '%s' "$kd_out" | grep -q 'promote needs --kind' \
+  || { echo "FAIL promote accepted a promotion with no --kind"; printf '%s\n' "$kd_out"; exit 1; }
+for kd_v in defect capability internal; do
+  printf '%s' "$kd_out" | grep -q "$kd_v" \
+    || { echo "FAIL the missing---kind message omits $kd_v"; printf '%s\n' "$kd_out"; exit 1; }
+done
+kd_out="$(bash "$HERE/task" intake "Kind rejection probe." "fixture" --kind defects --root "$kdw" 2>&1)" || true
+printf '%s' "$kd_out" | grep -q "defects" \
+  || { echo "FAIL an illegal --kind was not named back"; printf '%s\n' "$kd_out"; exit 1; }
+[ ! -d "$kdw/TaskFlowDocs/2026-01-01-kd" ] \
+  || { echo "FAIL a refused promote still created the task directory"; exit 1; }
+
+# --- intake defaults, promote requires -------------------------------------
+# Both the intake and the promotion happen in the worktree: `promote` reads
+# `todo.md` from the root it is given, and an entry recorded in the base tree is
+# not the one it is about to promote.
+bash "$HERE/task" intake "Kind default probe." "fixture" --root "$kdw" >/dev/null
+kd_def="$(awk '/^## Kind default probe/{p=1} p&&/^- Kind:/{print; exit}' "$kdw/TaskFlowDocs/todo.md")"
+[ "$kd_def" = "- Kind: capability" ] \
+  || { echo "FAIL intake did not default the kind to capability: [$kd_def]"; exit 1; }
+bash "$HERE/task" intake "Kind explicit probe." "fixture" --kind defect --root "$kdw" >/dev/null
+kd_exp="$(awk '/^## Kind explicit probe/{p=1} p&&/^- Kind:/{print; exit}' "$kdw/TaskFlowDocs/todo.md")"
+[ "$kd_exp" = "- Kind: defect" ] \
+  || { echo "FAIL intake did not record an explicit kind: [$kd_exp]"; exit 1; }
+
+# --- the scaffold offers the section ---------------------------------------
+kd_id="$(awk '/^## Kind explicit probe/{p=1} p&&/^- ID:/{print $3; exit}' "$kdw/TaskFlowDocs/todo.md")"
+bash "$HERE/task" promote "$kd_id" 2026-01-01-kd-defect small --kind defect --root "$kdw" >/dev/null
+kd_task="$kdw/TaskFlowDocs/2026-01-01-kd-defect"
+grep -qx -- '## Task Kind' "$kd_task/prd.md" \
+  || { echo "FAIL promote wrote no '## Task Kind' section"; exit 1; }
+grep -qx -- '- Kind: defect' "$kd_task/prd.md" \
+  || { echo "FAIL promote did not carry the declared kind into the PRD"; exit 1; }
+# Position: above the section it governs. An author reads Background first and
+# needs to know it is writing about a defect by then.
+awk '/^## Task Kind$/{k=NR} /^## Background/{b=NR} END{exit !(k && b && k<b)}' "$kd_task/prd.md" \
+  || { echo "FAIL '## Task Kind' does not sit above '## Background / Confirmed Facts'"; exit 1; }
+
+# --- the approve branch ----------------------------------------------------
+kd_set_plan() {  # kd_set_plan <task-dir> <prd-line>
+  cat > "$1/plan.md" <<KDPLAN
+# Plan — kind probe
+> Task version: v1
+> Status: planning
+
+## Skills / Tools Used
+
+$2
+- [Plan] Unaided — none applied; considered: work breakdown
+- [Test] Unaided — none applied; considered: testing strategy
+
+## Plan Review
+
+- Verdict: sound
+- Coverage: A1 -> Step 1
+- Verifiability: Step 1 runs the command it names
+- Layer ownership: hooks/task owns the check
+
+## Approval
+
+- Status: requested
+- Approved by: pending
+- Approved at: pending
+- Approved version: pending
+- Approved scope: pending
+
+## Steps
+
+### Step 1 — probe
+
+- Goal: probe
+- Implementation checklist:
+  - [x] done
+- Acceptance: probe
+- Verification: probe
+- Rollback: git checkout -- hooks/task
+- Status: done
+KDPLAN
+}
+kd_set_prd() {  # kd_set_prd <task-dir> <kind>
+  cat > "$1/prd.md" <<KDPRD
+# kind probe
+> Task version: v1
+> Status: planning
+
+## Goal
+
+probe
+
+## Task Kind
+
+- Kind: $2
+
+## Background / Confirmed Facts
+
+probe
+
+## Requirements
+
+probe
+
+## Acceptance Criteria
+
+- **A1** probe
+
+## External Facts
+
+- Depends on external facts: no
+- Why not: settled in \`hooks/task\`
+
+## In Scope
+
+probe
+
+## Out of Scope
+
+probe
+
+## Risks / Deferred Items
+
+probe
+
+## Open Questions
+
+probe
+KDPRD
+}
+kd_release() {  # kd_release <task-dir> <PRD class>
+  # The evidence queue releases a stage oldest-first, so a second case has to
+  # start from an empty store or it spends the previous case's record and the
+  # class it reports is the previous case's. Clearing it per case is what makes
+  # each assertion about its own input.
+  rm -rf "$(git -C "$kdw" rev-parse --absolute-git-dir)/taskflow" "$kd/taskflow-probe"
+  bash "$HERE/task" unaided PRD --considered "$2" --root "$kdw" >/dev/null 2>&1 || true
+  bash "$HERE/task" unaided Plan --considered 'work breakdown' --root "$kdw" >/dev/null 2>&1 || true
+  bash "$HERE/task" unaided Test --considered 'testing strategy' --root "$kdw" >/dev/null 2>&1 || true
+}
+kd_case() {  # kd_case <label> <kind> <prd-line> <class> <0|1>
+  local lbl="$1" k="$2" line="$3" cls="$4" want="$5" out rc
+  kd_set_prd "$kd_task" "$k"
+  kd_set_plan "$kd_task" "$line"
+  kd_release "$kd_task" "$cls"
+  out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc=0 || rc=$?
+  if [ "$want" = "1" ]; then
+    [ "$rc" -eq 0 ] || { echo "FAIL $lbl should have been approved: $out"; return 1; }
+  else
+    [ "$rc" -ne 0 ] || { echo "FAIL $lbl was approved"; return 1; }
+    printf '%s' "$out" | grep -q 'defect task' \
+      || { echo "FAIL $lbl was refused for some other reason: $out"; return 1; }
+  fi
+  return 0
+}
+kd_case "a defect task whose PRD phase named no investigation" defect \
+  '- [PRD] Unaided — none applied; considered: requirements elicitation' \
+  'requirements elicitation' 0 || exit 1
+kd_case "a defect task that named an investigation class" defect \
+  '- [PRD] Unaided — none applied; considered: root cause investigation' \
+  'root cause investigation' 1 || exit 1
+kd_case "a capability task left alone" capability \
+  '- [PRD] Unaided — none applied; considered: requirements elicitation' \
+  'requirements elicitation' 1 || exit 1
+kd_set_prd "$kd_task" defect
+# An invoke line has to be backed by an invoke record, so the last case writes
+# the evidence and release rows directly rather than declaring unaided. That is
+# the shape a real capability call leaves, and the point here is that the branch
+# accepting an invoked investigation must not depend on an unaided declaration.
+kd_gd="$(git -C "$kdw" rev-parse --absolute-git-dir)"
+rm -rf "$kd_gd/taskflow"; mkdir -p "$kd_gd/taskflow"
+printf 'invoke|some:debugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:debugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
+kd_set_plan "$kd_task" '- [PRD] `some:debugger` — purpose: probe; outcome: probe; incorporated: probe'
+out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc=0 || rc=$?
+[ "$rc" -eq 0 ] || { echo "FAIL a defect task naming an invoked investigation capability was refused: $out"; exit 1; }
 echo ok
 
 echo "ALL SMOKE PASSED"

@@ -7,6 +7,22 @@
 - Read `README.md`, `TaskFlowDocs/repository-docs/index.md`, and applicable TaskFlow task documents.
 - Run `bash hooks/repository-check .` for governance, fork, or pull-request work.
 
+## Decide which rules you are changing
+
+This repository is the plugin, and it also holds three different sets of rules. A change to "the rules" can land in any of them, and the three differ in **who is affected** — not in which directory they sit in:
+
+| Where | Whose rules they are | Who reads them | Cost of landing it in the wrong place |
+| --- | --- | --- | --- |
+| `skills/taskflow/`, `hooks/` (everything except `hooks/templates/`) | The plugin's own behaviour | Every person who installs TaskFlow, in every repository | Silently changes everyone's workflow, with no one asked |
+| `hooks/templates/CONTRIBUTING.md`, `hooks/templates/CODE_STYLE.md` | The default rules TaskFlow offers to other repositories | Only a repository whose owner runs `hooks/repo-rules create` | Merely a suggestion; installing it is still their decision |
+| `CONTRIBUTING.md`, `CODE_STYLE.md` at this repository's root | This repository's own development conventions | Only the people contributing to TaskFlow | Nothing for plugin users changes |
+
+Ask **who is affected**, and the answer picks the row. Ask **which directory**, and it does not: `hooks/templates/` sits beside `hooks/`, so the directory says "plugin code" for files that are not plugin code at all. They are a copy of a rule this plugin hands to a repository that has none — the plugin behaves no differently whether they say one thing or another, and `hooks/smoke-test` asserts they stay free of TaskFlow's own implementation details for exactly that reason.
+
+The three are not interchangeable in either direction. A rule that only makes sense for developing TaskFlow — this file's own landing and worktree rules, say — is not a rule to ship, and putting it in `hooks/templates/` would hand this repository's private procedure to someone else as advice. A rule that should govern everyone's work in every repository belongs in `skills/taskflow/` or `hooks/`, where it is written once and reaches every install; writing it here instead reaches only the people who have this clone. And a change to a template is reviewed like a plugin change even though no code runs differently, because the file ships in every install and changes the text a repository would install as its own rules.
+
+State the row in the TaskFlow Plan before implementing. It is one line, and it is the line that decides which files the Plan's scope covers.
+
 ## TaskFlow workflow
 
 Non-trivial changes require a Todo item, `prd.md`, `spec.md` when large, and `plan.md`. Do not implement until the Plan records user approval. Record verification and follow-ups in the Plan. Archive completed tasks under `TaskFlowDocs/achieved/` only after acceptance.
@@ -30,7 +46,7 @@ cd .worktrees/<slug>
 - A task name is one path component in the form `YYYY-MM-DD-short-slug`, and every command that takes one checks it before joining it into a path (`hooks/task-id`). `hooks/task unpromote <todo-id> <reason>` undoes a promotion made under a name you meant to change; it refuses when the directory has been worked on, because at that point undoing it is a Git decision.
 - Confirm where you are before editing. `git branch --show-current` shows the branch; `bash hooks/repository-check .` reports the local branch and warns with `Base: ambiguous` when no upstream is set.
 - If a local `bash hooks/smoke-test` is warranted, run it in the worktree whose files changed, not in another checkout — the suite reads the tree it is run from.
-- **The working tree goes when the branch lands.** Removal waits for two checkable facts — the branch is merged into the base, and `git status --porcelain` in the tree is empty — because `hooks/task complete` runs before the push and the merge, so the teardown is the step after them rather than part of `complete`. Remove it from the base checkout with `git worktree remove <path>`; the branch survives, since removing a directory and deleting a branch are separate decisions. Nothing reports a leftover one by default — `.worktrees/` is ignored — so `bash hooks/repository-check .` names every worktree whose branch is already in the base and whose tree is clean. That report is informational and does not change the check's exit code.
+- **The working tree goes when the branch lands.** Removal waits for two checkable facts — the branch is merged into the base, and `git status --porcelain` in the tree is empty — because `hooks/task complete` runs before the push and the merge, so the teardown is the step after them rather than part of `complete`. Remove it from the base checkout with `git worktree remove <path>`, then delete the branch with `git branch -d <branch>`. `-d` is the safety argument: it refuses an unmerged branch, so the pair is safe without judging anything, and `-D` would delete exactly the branch that still holds the only copy of a commit. Order matters too — the branch is checked out until the removal runs, and Git refuses to delete a checked-out branch. Nothing reports either leftover by default — `.worktrees/` is ignored — so `bash hooks/repository-check .` names every worktree whose branch is already in the base with a clean tree, and every such branch with no worktree left. Both reports are informational and change neither the check's exit code nor anything on disk.
 
 `skills/taskflow/SKILL.md` states the same rule where the phases are defined.
 

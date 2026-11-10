@@ -35,9 +35,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # block message is the only place the rule reaches an agent at the moment it
 # matters, so a class this function omits is a class that phase cannot find.
 # `hooks/smoke-test` now compares this against the table in both directions.
+#
+# That check is why `root cause; defect investigation` is here and not only in
+# the skill. A class the PRD phase is allowed to declare but that this message
+# never names is, for the agent reading it, a class that does not exist — and
+# the PRD phase is exactly where a request to fix something broken arrives.
 stage_classes() {
   case "$1" in
-    PRD) printf '%s' 'requirements elicitation and framing; divergent exploration' ;;
+    PRD) printf '%s' 'requirements elicitation and framing; divergent exploration; root cause; defect investigation' ;;
     Spec) printf '%s' 'architecture and design specification' ;;
     Plan) printf '%s' 'work breakdown and task decomposition' ;;
   esac

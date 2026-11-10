@@ -168,7 +168,7 @@ A phase's artifact has an equivalent outside TaskFlow. TaskFlow names these itse
 
 | Phase | Artifact | Equivalent concept class | Consider a capability for |
 | --- | --- | --- | --- |
-| 1. Define — PRD | `prd.md` | requirements elicitation and framing; divergent exploration | expanding a vague goal into several directions before converging on one, interviewing the user, refining a vague idea into testable requirements, writing a requirements document |
+| 1. Define — PRD | `prd.md` | requirements elicitation and framing; divergent exploration; root cause; defect investigation | expanding a vague goal into several directions before converging on one, interviewing the user, refining a vague idea into testable requirements, writing a requirements document; and, when the request is to fix something already wrong, finding out why it is wrong before writing what should be true instead |
 | 2. Research — Reference | `reference/` | literature and evidence review | searching external sources, assessing evidence quality, annotating findings |
 | 3. Design — Spec decision | `spec.md`, or the recorded `No spec required` | architecture and design specification | methodology or architecture design, interface/contract definition |
 | 4. Plan — execution contract | `plan.md` | work breakdown and task decomposition | decomposing work into verifiable steps, sequencing dependencies, estimating |
@@ -219,6 +219,10 @@ Record which repository documents were inspected and which apply. If remote PR-r
 
 Expose assumptions and turn vague requests into testable criteria using the approach that best fits the task. Do not silently decide product, compatibility, or risk questions owned by the user.
 
+**When the request is to fix something already wrong, find out why before writing what should be true.** A defect request is not a feature request with a different subject line. Its requirements come from an explanation of the current behaviour, and without one the only requirements available are descriptions of the symptom — which is how a task ends up delivering a marker beside the defect instead of a change to it. So a task promoted with `--kind defect` opens this phase by invoking a capability of the investigating kind (`root cause`, `defect investigation`), or by recording that none was available: `hooks/task unaided PRD --considered 'root cause investigation'`. `hooks/task approve` refuses a defect task's PRD that does neither.
+
+**What that capability does is not specified here, and that is the point.** Reproducing first, tracing a value back to where it was produced, one hypothesis at a time, a red-green pair — this workflow takes no position on any of it. TaskFlow is the lifecycle layer, and it selects and records capabilities rather than reimplementing them; a debugging method written into this file would be this file doing another layer's job, and worse than that layer does it. The obligation here is only that the investigation was named, so that the phase has something to have come from.
+
 **When the goal or the approach is not yet settled, diverge before you converge.** Writing requirements is a converging act: it picks one reading of the request and turns it into criteria, which quietly discards the readings not yet on the table. So when the request leaves the target or the way to reach it undetermined, or more than one workable direction exists, this phase opens with the class above — `divergent exploration` — before `prd.md` is drafted. The condition is the state of the request, so it is answerable from what you have: a request whose goal and approach are both fixed converges directly, and one that is still an idea does not. What the class produces is candidate directions and the trade-offs between them, for the user to choose from; only the chosen ones become requirements, and the rest are recorded as out-of-scope or deferred so the discarded ground is visible rather than lost. As with every class in the table, this names what to look for and never what to use — availability, fit, and the decision to proceed unaided remain yours, and an unaided PRD is a legitimate outcome recorded as one.
 
 ### 2. Research — Reference (optional)
@@ -231,10 +235,12 @@ Agent suggestions may mark evidence as candidate. Only the Primary Agent or user
 
 **Re-ask the external-facts question here, because this is where it can change.** Phase 1 answered it against the request; this phase answers it against the contract. Defining an interface, an error semantic, or a compatibility boundary is exactly when a "we are only changing our own code" reading stops being true — a status code another service must accept, a field a plugin manifest must declare, a version an operator must install. If Phase 1 answered `no` and this phase turns out to depend on something outside, say so rather than proceeding: the answer changes, `prd.md` changes, and any lookup made now is recorded like any other. Searching to settle it is allowed here too — defining the contract is exactly when a lookup is most likely to be needed, and reaching for one now is not a late admission that Phase 1 was wrong.
 
-Classify the task before planning:
+Classify the task before planning. **The first question is not how many files change — it is whether the change crosses a layer boundary.** A one-file edit that changes what one layer hands to another is a large task; a five-file edit entirely inside one layer's private implementation need not be.
 
-- Large: multiple modules/files, architecture/API/data-flow/compatibility/error-contract changes, multiple sessions, or roughly more than 30 minutes. `spec.md` is required.
-- Small: one file, clear boundaries, one short session, and no cross-layer contract. `spec.md` may be omitted.
+- Large: the change crosses a layer boundary — it alters an interface, a data flow, an error contract, a compatibility decision, or what one component may assume about another. Also large: several sessions, or roughly more than 30 minutes. `spec.md` is required.
+- Small: **all three** must hold — no cross-layer contract changes, no external interface changes, and the result is verifiable from inside one layer. Only then may `spec.md` be omitted.
+
+File count and elapsed time are supporting signals, never sufficient on their own. The case they miss is the expensive one: a single edited file that quietly redefines what the next layer can rely on, which is exactly the change that needs its contracts written down first.
 
 When omitted, put this exact decision in `plan.md`:
 
@@ -242,7 +248,7 @@ When omitted, put this exact decision in `plan.md`:
 No spec required — <brief reason>
 ```
 
-For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
+For a large task, `spec.md` records architecture boundaries, responsibilities, data flow, interfaces/events/database contracts, invariants, compatibility, error semantics, design trade-offs, code patterns, and testing constraints. **The architecture sections are the task's model of what each layer is for**, and they are what lets a coarse requirement be traced to the layer that owns it — see `references/artifacts.md` for what those sections must answer. A multi-capability task may place a Capability Map in `prd.md` scope/overview or `spec.md` module boundaries; do not create multiple root-level Specs by default.
 
 ### 4. Plan — execution contract
 
@@ -264,6 +270,26 @@ A `## Change Log` in `plan.md` records work revisions — wording or approach ch
 Include checkpoints after meaningful groups of steps. Record risks, deviations, verification results, review findings, and unresolved follow-ups. `Skills / Tools Used` is required: stage-tagged invoke or Unaided lines as each document starts (see the capability section); do not leave the section blank. `task approve` rejects missing stages and unqualified stage Unaided lines.
 
 **Before requesting approval, read `## External Facts` one last time against the Plan.** The Steps were not written yet when Phase 1 answered, and they are where a task most often discovers it needs to know something the repository does not contain — a tool's actual behaviour, a format another project defines, a limit that is not documented here. A `yes` must have its lookups already done and recorded, because `task approve` refuses one that does not; a `no` must still name where the work is settled inside the repository. If this pass changes the answer, change `prd.md` and note it in the change log rather than approving a document whose facts section no longer describes the work. And when a Step turns out to rest on something only the outside world can settle, stop and go and look: searching mid-task is allowed, and it is recorded wherever it happens.
+
+**Then review the Plan itself, decide whether it solves the problem, and write the judgement into `## Plan Review`.** This is the last point where a Plan error costs a paragraph instead of a re-plan: approval is what locks the document, and every later state — `in_progress`, `complete`, the archive — sits behind it. Phase 6 reviews the code and the acceptance, and by then the approval has already made the Plan authoritative.
+
+**The review is three passes over the Plan, in this order, because each one needs the previous one read.** Answer nothing from memory of having written the Plan — writing it is what makes the gaps invisible.
+
+1. **Coverage, criterion by criterion.** Take `prd.md`'s acceptance criteria one at a time and name the Step that delivers each one. Write that mapping into the Coverage line rather than "all covered": a map can be checked by the reader and a claim cannot. A criterion with no Step, or one whose Step only partly delivers it, is a finding.
+2. **Each Step's Verification against its own Acceptance.** For a Step, ask what would have to be true for its `Verification` to pass while its `Acceptance` is false. If such a case exists, that Verification does not verify that Acceptance — it is a check that will report success for a different reason, and the Step will be marked done on it. "Tests pass" against "the merged branch is deleted" is the shape; the finding is the gap between what the command proves and what the Step promised.
+3. **The intended edits, read for what they touch.** Go through the Steps for any whose work is to change something another check reads — a fixture, an expected value, a serialized form, an intermediate output. Each is either the legitimate case Phase 5 permits or the workaround it prohibits, and the review says which; a Step that cannot say which layer owns the change is the second.
+
+**A finding is fixed before the verdict, not reported instead of it.** Revise the Plan and start again at 1 — the review is of the Plan as it now stands, and a Plan revised halfway through has not been reviewed in the form being approved. Answer `- Verdict: needs revision` when the change is not yours to make: the finding overturns an approved requirement or needs a decision from the user. That verdict stops the approval, so it means "I will not ask for approval until this is settled", never "I will fix it next".
+
+**The review is a judgement, and it has a consequence.** Answer the three passes, then decide: does this Plan actually solve the problem `prd.md` states? Say so in one line, `- Verdict: sound` or `- Verdict: needs revision`. A verdict of `needs revision` **stops the approval** — `task approve` refuses it — so the review is not a field filed beside a document that gets approved anyway. Without that, "reviewed" and "reviewed and found wanting" would both reach `approved`, and the section would be a formality with better vocabulary.
+
+`task approve` refuses a section that is absent, empty, or answers fewer than all four lines:
+
+- **Coverage** — which Step covers each acceptance criterion in `prd.md`, and any that none does.
+- **Verifiability** — whether each Step's `Verification` can actually verify its `Acceptance`.
+- **Layer ownership** — whether any Step makes a later check go green by editing what it reads.
+
+What the passes cover is fixed; who makes them is not. If a capability covers plan review, invoke it the way the other phases invoke theirs and record it in `## Skills / Tools Used`. If none does, the model makes them itself — its own reading of the Plan is the fallback, not a gap, and `hooks/task unaided` is how that is recorded. What is not acceptable is approving a Plan that nobody read.
 
 Record approval as:
 
@@ -288,6 +314,12 @@ When a merge or rebase you run hits a conflict, stop and put both sides in front
 
 After approval, read `prd.md`, `spec.md` if present, `reference/` if present, and `plan.md`. Implement one focused Step at a time. Keep changes within the PRD scope and current Spec contracts. Update `plan.md` after each meaningful Step and run its smallest useful check.
 
+**A failure is fixed in the layer that owns it — never by making its output look right to whatever layer reads it next.** Adjusting an intermediate value, a serialized form, a fixture, an error message, or an assertion's input so a downstream check goes green is not a fix; it is a false claim that the layer below is correct, made in the one place nothing checks. This is goal deception, and it is prohibited however small the edit and however passing the suite afterwards.
+
+The reason is that a symptom's location and a failure's location are different facts. The check that goes red sits where the wrong value was *noticed*; the defect sits where it was *produced*. When the producing layer is not understood, the noticing layer is the only place that looks available, and editing what sits between them is the shortcut that appears to work. That is why the architecture sections of `spec.md` are required before a cross-layer change: they are what makes the producing layer findable.
+
+When a layer's behaviour genuinely has to change, change that layer and its own acceptance criteria and tests in the same Step. If the change makes an existing downstream expectation wrong, the expectation is part of what the task delivers and is updated deliberately and visibly — not quietly adjusted to keep the old check green.
+
 If an approved goal, requirement, acceptance criterion, scope, or Spec/architecture contract changes materially, stop implementation, archive the old logical version, create the next Task version, update all existing core documents atomically, and return to `ready` for approval. A change to implementation wording or approach within the approved design is a work revision: update the affected documents and add one change-log line, without a new Task version.
 
 **An instruction that arrives mid-Step and is not the Step itself — a defect reported, a different approach demanded, "fix this first" — goes through the User-change trigger before any of it is implemented.** Report the finding and classify it while the Step is still open; do not finish the Step first and classify afterwards, because the edit is what makes the work invisible. A defect in code this task wrote is usually a work revision; a defect that shows the approved approach cannot meet the acceptance criteria is a material change, and the difference is the question the trigger asks.
@@ -307,9 +339,12 @@ Enter `checking` only after implementation is complete. Verify in this order:
 5. Plan steps, deviations, rollback points, change-log entries, and follow-ups;
 6. relevant evidence in `reference/`;
 7. project lint, type checks, unit/integration/end-to-end tests as applicable;
-8. debug code, temporary bypasses, uncovered branches, and unrelated changes.
+8. debug code, temporary bypasses, uncovered branches, and unrelated changes;
+9. **what the change touched to make the checks pass**: every modified intermediate value, fixture, or existing expectation named in the diff, with the layer that owns it and why the new value is right rather than convenient. An entry here that cannot say which layer owns the change is the shape a layer-crossing workaround takes.
 
-Record each command and result in `plan.md`. Distinguish pre-existing failures, newly introduced failures, and environment failures. A test pass does not replace product acceptance.
+Record each command and result in `plan.md`. Distinguish pre-existing failures, newly introduced failures, and environment failures. A test pass does not replace product acceptance — and a green suite reached by editing what sits between a defect and its check does not count as either.
+
+**Reading the ceiling on this rule.** The two hard prohibitions never reach these, which are legitimate and must not be dressed up as violations: a test that was wrong about the contract, a fixture that encoded an assumption the Spec has now changed, and an expectation that the approved requirement genuinely redefines. Each is a deliberate, visible change to the layer that owns it, recorded under item 9. What is prohibited is the quiet version of any of them — editing the thing a check reads, saying nothing, and letting the green be the only statement made.
 
 ### 7. Complete and archive
 
@@ -336,10 +371,13 @@ After completion, promote only verified, cross-task rules into the project's sha
 **Tear the working tree down once its work is in the base.** The task's branch has to be pushed and merged before the directory can go — `complete` runs first, so the removal is the step after the merge, not part of `complete`. The condition is two facts you can check: the branch is merged into the base branch, and the tree has nothing uncommitted (`git status --porcelain` empty). Then remove it from the base checkout:
 
 ```bash
-git worktree remove <path>     # the branch survives; deleting it is a separate decision
+git worktree remove <path>
+git branch -d <branch>        # -d, never -D: it refuses a branch that is not merged
 ```
 
-`git worktree remove` deletes the directory and never the branch, so removing the directory and deleting the branch are two acts, and the second is deliberate. Merging and archiving do not remove it for you: `.worktrees/` is ignored, so a leftover one costs nothing visible until the directory listing gets long. `bash hooks/repository-check .` reports every worktree whose branch is already in the base with a clean tree, and that report is informational — it does not change the check's exit code.
+**The two commands are one step, in that order, and `-d` is the whole safety argument.** `git worktree remove` deletes the directory and never the branch — `git worktree` only owns the checkout — so stating only the removal is what let merged branches accumulate: nine on one machine by 2026-10-18, three more by 2026-11-04, and once the directory is gone nothing reported them any more. `-d` refuses an unmerged branch with `not fully merged`, so running the pair on a merged branch succeeds and on an unmerged one stops and says why; `-D` would delete exactly the branch that still holds the only copy of a commit. The order matters for the same reason: the branch is still checked out by the worktree until the first command runs, and Git refuses to delete a branch that is checked out.
+
+Merging and archiving do not remove either for you: `.worktrees/` is ignored, so a leftover worktree costs nothing visible until the directory listing gets long. `bash hooks/repository-check .` reports two things — every worktree whose branch is already in the base with a clean tree, and every such branch with no worktree left — and both reports are informational: they do not change the check's exit code, and neither deletes anything.
 
 Host/harness hooks may run as side effects during the flow but are bounded by [runtime.md](references/runtime.md): they never write core documents, never approve, and only update Todo triage metadata or inject derived context. Do not let a hook's presence skip the approval gate or expand scope.
 

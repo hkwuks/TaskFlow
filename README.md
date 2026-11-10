@@ -121,9 +121,9 @@ Git is excellent at mechanical history. TaskFlow adds **semantic history**: a ta
 | Explicit state, approval, handoff, rollback, and recovery records | Replacing your editor, Git host, test runner, or other Skills |
 | A semantic version boundary for material decisions | Forcing an Agent model, programming language, framework, or toolchain |
 
-Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code, CodeBuddy, and Trae the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until a capability really was invoked for that stage — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. The evidence store is one queue consumed oldest first and the gate attaches the stage when it releases a document, so which call's record a stage spends follows the order the documents are written; what `approve` checks is that each stage line names a capability the Task version released as an invocation, and for an unaided stage that it carries the exact declared class. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
+Before substantive work in any phase, the Agent inspects the Skills, tools, MCP servers, and Agents currently available in the host and freely decides whether any materially help. TaskFlow names its own artifacts, so a phase is matched to a capability by the concept class its artifact corresponds to, not by that artifact's TaskFlow name. TaskFlow requires no particular capability, provider, chain, category, or count. A capability selected for use is actually invoked or loaded through the host before its workflow or output is used; discovery or selection alone is not invocation. Outputs are reviewed before incorporation, and `plan.md` records only actual invocation attempts and their outcomes. On Claude Code, Codex, CodeBuddy, and Trae the first body write of `prd.md`, `spec.md`, or `plan.md` is refused until that stage is released against a recorded capability — the record comes from the tool call, not from the document, so no wording can stand in for a call that never ran. On Codex the gate runs but Codex records no capability calls, so a stage there is released by `hooks/task unaided`. The evidence store is one queue consumed oldest first and the gate attaches the stage when it releases a document, so which call's record a stage spends follows the order the documents are written; what `approve` checks is that each stage line names a capability the Task version released as an invocation, and for an unaided stage that it carries the exact declared class. A phase with nothing worth invoking is declared instead: `hooks/task unaided <stage> --considered "<concept class>"`.
 
-TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code, CodeBuddy, and Trae it may also record a capability invocation and refuse a stage document's first body write until that stage has one. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
+TaskFlow may also coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for mechanical bookkeeping and cheap resume context. A hook may update Todo triage metadata and inject a derived session-start summary; on Claude Code, CodeBuddy, and Trae it may also record a capability invocation, and on Claude Code, Codex CLI, CodeBuddy, and Trae it may refuse a stage document's first body write until that stage has one — Codex has the gate but records no capability invocation, so a stage there is released by `hooks/task unaided`. It never creates, rewrites, or deletes `prd.md`/`spec.md`/`plan.md`/`reference/index.md`, and never approves — the gate can only deny. Single-command archive/version/reopen helpers consolidate transitions. Hosts without hooks run the same flow unchanged.
 
 ## The one rule that prevents lost designs
 
@@ -204,7 +204,7 @@ Verify it loaded:
 
 ```bash
 claude plugin list
-#   taskflow@taskflow    Version: 1.1.14    Status: ✔ enabled
+#   taskflow@taskflow    Version: 1.2.0    Status: ✔ enabled
 ```
 
 To update an existing installation:
@@ -226,7 +226,7 @@ codex plugin add taskflow@taskflow
 
 Codex uses the same fixed release entry as Claude Code. The manifest version, Git tag, and pinned commit identify the installed stable build.
 
-Review the plugin's hooks in Codex's `/hooks` before relying on them: Codex runs only hooks the user has reviewed and trusted, so an unreviewed install reports the plugin as enabled while its hooks stay inactive. TaskFlow's Codex wiring is SessionStart only — the pre-write gate cannot be wired there until it can read `apply_patch`'s patch text (see the runtime reference's **Codex specifics**), and `hooks/task unaided` releases a stage on that host.
+Review the plugin's hooks in Codex's `/hooks` before relying on them: Codex runs only hooks the user has reviewed and trusted, so an unreviewed install reports the plugin as enabled while its hooks stay inactive. TaskFlow's Codex wiring is SessionStart, the per-prompt reminder, the pre-write gate on `PreToolUse` matching `apply_patch`, and external-lookup capture on `PostToolUse`. The gate reads the target paths out of the patch text because Codex's edit tool carries no file path (documented, not yet measured on a real Codex — see the runtime reference's **Codex specifics**). Codex records no capability invocations, so `hooks/task unaided` is how a stage is released on that host.
 
 Verify it loaded:
 
@@ -262,7 +262,7 @@ Verify it loaded:
 ```bash
 codebuddy plugin list
 #   > taskflow@taskflow
-#     Version: 1.1.14
+#     Version: 1.2.0
 #     Scope: user
 #     Status: enabled
 ```
@@ -279,18 +279,37 @@ CodeBuddy reloads hooks, skills, and agents on `/reload-plugins` without a resta
 
 ### Install with dsh
 
-TaskFlow's repository root is a dsh plugin package, so the profile it is installed
-into picks it up as a bundle layer:
+TaskFlow's repository root is a dsh plugin package. dsh has no marketplace and the
+package is not on a registry, so the install names the Git repository and pins the
+commit — the same commit the release tag names:
 
 ```bash
-dsh plugin --profile web add dsh-taskflow
+dsh plugin --profile web add github:hkwuks/TaskFlow#<40-character-sha>
 ```
 
-Installed from a checkout instead of the registry, point at the directory:
+Take the sha from the release you intend to run. Every release tag names one
+commit, and it is the commit the marketplace catalogs pin for the other hosts, so
+the value is already published rather than something to work out:
+
+```bash
+git ls-remote https://github.com/hkwuks/TaskFlow.git 'refs/tags/v1.1.15^{}'
+# or, in a checkout:  git rev-parse v1.1.15^{commit}
+```
+
+Pinning the full 40 characters is the point, not a formality: `dsh plugin add`
+resolves through pnpm, and a bare `github:hkwuks/TaskFlow` would follow `main`, so a
+later push would silently change what runs.
+
+Installed from a local checkout instead, point at the directory — useful while
+developing TaskFlow itself, and it tracks the working tree rather than a commit:
 
 ```bash
 dsh plugin --profile web add <repo-root>
 ```
+
+No build step runs either way. `dsh/index.js` is plain ESM, so the build-script
+allowlist dsh's documentation describes for Git installs does not apply here and
+nothing asks you to authorize code execution at install time.
 
 The package declares `dsh.bundle.patch`, so `dsh` appends it to the profile's
 `dsh.profile.bundles` itself — there is no profile YAML to write. Booting that
@@ -307,8 +326,9 @@ its output shape from the environment.
 dsh's SessionStart sources are `startup`, `resume`, `clear`, and `compact`; there
 is no `fork`, so the dsh matcher omits it.
 
-dsh has no plugin marketplace, and `dsh plugin add` resolves through pnpm, so a
-release is picked up with `dsh plugin --profile web update`.
+To move to a newer release, re-add with that release's sha — `dsh plugin --profile web
+update` refreshes dependencies, but the pin is what decides which commit the profile
+runs, so a new release means a new pin.
 
 ### Install with Trae
 

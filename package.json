@@ -1,6 +1,6 @@
 {
   "name": "dsh-taskflow",
-  "version": "1.1.14",
+  "version": "1.2.0",
   "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex, CodeBuddy, dsh, Trae)",
   "author": "TaskFlow",
   "homepage": "https://github.com/hkwuks/TaskFlow",
@@ -8,6 +8,13 @@
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "dsh/index.js",
+  "files": [
+    "dsh/",
+    "hooks/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./dsh/cordis.patch.yml"

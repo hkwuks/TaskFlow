@@ -59,6 +59,7 @@ TaskFlowDocs/
 > Status: planning
 
 ## Goal
+## Task Kind
 ## Background / Confirmed Facts
 ## Requirements
 ## Acceptance Criteria
@@ -68,6 +69,12 @@ TaskFlowDocs/
 ## Risks / Deferred Items
 ## Open Questions
 ```
+
+**`## Task Kind` is written by `hooks/task promote`, not by the author.** It carries `- Kind: defect`, `capability`, or `internal`, and it is what decides whether `hooks/task approve` also asks that the `[PRD]` line name something that investigates a cause. Its position above every section it governs is deliberate: a defect's `## Background` says what was observed, and that is only meaningful once the document has said the request was a defect in the first place.
+
+It is a declaration, not an inference. A PRD with no `## Task Kind` is not refused — it was written before the field existed, and refusing it would rewrite history to fit an implementation — and neither is one that says `capability`, because only an explicit `defect` opts a task into the stricter check.
+
+**What the check can and cannot tell.** It can tell that a defect task named a capability of the investigating kind, or that it recorded the absence deliberately through `task unaided PRD --considered 'root cause investigation'`. It cannot tell whether that capability was any good, or whether its findings were right — a name matching the vocabulary passes. That ceiling is stated rather than papered over: closing it would mean writing an investigation method into TaskFlow, and the workflow's own boundary says that method belongs to the capability it came from.
 
 ## Spec outline for large tasks
 
@@ -85,6 +92,18 @@ TaskFlowDocs/
 ## Design Decisions and Alternatives
 ## Open Questions
 ```
+
+**Two of those sections carry the task's model of the system, and they are what make a coarse requirement tractable.** Without them an Agent can only see where a symptom appears, not where it is caused — and a requirement stated at the level of "this behaviour is wrong" has no filename attached to it.
+
+`## Architecture Boundaries and Responsibilities` must answer, for every layer the change touches:
+
+- what that layer is responsible for;
+- **what it is explicitly not responsible for** — the section that stops a fix from landing one layer away from its cause;
+- which direction the dependencies run, so a change's blast radius is visible before it is made.
+
+`## Interfaces, Data Flow, and Contracts` must give, for every boundary the change touches, the input and output contract in both directions: what the producing layer guarantees, and what the consuming layer is therefore entitled to assume. A contract written this way is also what makes an intermediate value checkable — a downstream layer that only reads a value it was promised cannot tell whether the value is right, but a reader of the contract can.
+
+Do not restate the directory layout in these sections. `## Project Structure / Affected Files` already lists paths; the architecture sections exist to say what the paths mean, not where they are.
 
 ## Plan outline
 
@@ -106,6 +125,11 @@ TaskFlowDocs/
 - [ ] For remote/fork/PR work: remotes, target repository, base branch, local branch/base, freshness limits, and required checks recorded.
 - [ ] For PR creation/update: applicable template path, every required-field mapping, and template verification recorded.
 - [ ] Missing governance drafts and explicit approvals recorded before they become binding.
+## Plan Review
+- Verdict: sound | needs revision
+- Coverage: <which Step covers each acceptance criterion in `prd.md`, and any that none does>
+- Verifiability: <whether each Step's Verification can actually verify its Acceptance>
+- Layer ownership: <whether any Step makes a later check go green by editing what it reads>
 ## Approval
 ## Steps
 ### Step N — <name>
@@ -128,6 +152,18 @@ TaskFlowDocs/
 ```
 
 `plan.md`'s `## Change Log` records work revisions — wording or approach changes, progress, results, and other updates that do not alter an approved contract. Append one line per revision and keep the current Task version. Only a Task-version material change bumps `vN`, updates every core document atomically, and returns to approval; never treat a wording or approach clarification as a Task-version event.
+
+`## Plan Review` is the Plan read before it is approved, and `task approve` refuses a section that is absent, empty, or answers fewer than all four lines. **The `Verdict` line is what makes it a review rather than a checklist**: `sound` lets the approval through, `needs revision` refuses it, and anything else is refused as unreadable.
+
+The four lines record the *result*; how the result is reached is stated once, in `SKILL.md`'s Phase 4, as three ordered passes: coverage criterion by criterion, then each Step's Verification against its own Acceptance, then the intended edits read for what they touch. This file does not repeat that procedure, for the reason a second copy of any rule is a second thing to drift — and the fields here have to stay recognisable as that procedure's output, which is why each line names what a pass produces rather than a summary of it.
+
+**A finding changes the Plan before it changes the verdict.** Revise, then review again from the start, because the Plan being approved is the one that now stands. `needs revision` is reserved for what the reviewer may not decide alone — a finding that overturns an approved requirement, or needs the user's choice — and because that verdict stops the approval, it means "I will not ask for approval until this is settled", never "I will fix it next". The distinction is what keeps the section from becoming a place to file objections beside a document that is approved regardless.
+
+The vocabulary is two words because the command cannot weigh an argument: a scale it cannot read is a number it would ignore, and two words are the ones its behaviour differs on. What it still cannot judge is whether the verdict is *right* — a reviewer who answers `sound` over a Plan that does not solve the problem gets the approval it asked for. That gap is the reviewer's, and naming it here is the honest ending: what the gate buys is that the question is unavoidable and the answer has a consequence, not that the answer is correct.
+
+It lives in the Plan rather than in a file of its own because this repository admits one fact source per task, and because a review stored away from the document it judges is a review the approver has to go and find.
+
+`## Plan Review` sits above `## Approval` because that is where the reader looks before saying yes, and because `task approve` reads the Plan once and refuses before writing any Approval field. Move it below and the section is still found, but the document then asks for approval before it reports what was checked.
 
 List a capability only after an actual invocation attempt. Discovery or selection is not use. A failed or unavailable optional invocation may be recorded when relevant, but it has no incorporated conclusion and does not block the base flow unless it is required for correctness. The phase-to-concept table in `SKILL.md` says what class to look for; this rule says what may be recorded afterwards.
 

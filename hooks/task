@@ -137,6 +137,91 @@ worktree_kind() {  # worktree_kind <root>
   return 0
 }
 
+# Every active task in the tree, one name per line, in directory order.
+#
+# Active means what every reader of `released` already means by a task: a
+# directory under `TaskFlowDocs/` other than `achieved/` and `repository-docs/`,
+# holding a `plan.md`. Nothing here picks one; picking is `resolve_active_task`'s
+# job, and the two callers that need different answers can share this.
+active_task_names() {  # active_task_names <root>
+  local root="$1" dir name
+  for dir in "$root/TaskFlowDocs"/*/; do
+    [ -d "$dir" ] || continue
+    name="${dir%/}"
+    name="${name##*/}"
+    case "$name" in achieved|repository-docs) continue ;; esac
+    [ -f "$dir/plan.md" ] || continue
+    printf '%s\n' "$name"
+  done
+}
+
+# The one task this command is acting on — by evidence, never by directory order.
+#
+# One task per worktree is the rule, so the ordinary case is unambiguous and
+# every source below agrees. What the loop this replaces got wrong is the case
+# that is not ordinary: several task directories in one tree, which happens when
+# a parent and a child run together or documents are carried in from another
+# branch. It answered with whichever name `TaskFlowDocs/*/` expanded to first —
+# unrelated to the caller's cwd, branch, or intent — and that name keys a
+# `released` row and a task path, so a wrong answer records one task's stage
+# evidence against another and `approve` then reconciles against it.
+#
+# Three sources, narrowed in this order:
+#   1. `TASKFLOW_TASK_ID` — the variable `summarize-state` and `session-record`
+#      already read for explicit selection, under the same name and meaning.
+#   2. The task directory the caller is standing in. It is the one source that
+#      cannot disagree with intent, because it is where the caller is.
+#   3. The only active task, when there is exactly one.
+# Anything else is refused with the candidates listed. Guessing is the whole
+# defect, so the repair is the one branch that does not guess.
+#
+# Returns 0 and prints the name, or returns 1 with the reason on stderr.
+resolve_active_task() {  # resolve_active_task <root>
+  local root="$1" want="${TASKFLOW_TASK_ID:-}" names here candidate target picked=""
+  names="$(active_task_names "$root")"
+  if [ -z "$names" ]; then
+    echo "no active task under $root/TaskFlowDocs" >&2
+    return 1
+  fi
+  if [ -n "$want" ]; then
+    if printf '%s\n' "$names" | grep -qxF -- "$want"; then
+      printf '%s\n' "$want"
+      return 0
+    fi
+    printf 'TASKFLOW_TASK_ID=%s is not an active task here; this tree has:\n' "$want" >&2
+    printf '%s\n' "$names" | sed 's/^/  /' >&2
+    return 1
+  fi
+  here="$(pwd -P)"
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    # Prefix test rather than a `case` pattern: a task name is a path component
+    # the caller controls, and a pattern would read any glob character in it as
+    # syntax. `${here#"$target"/}` strips the prefix only when it is one.
+    target="$root/TaskFlowDocs/$candidate"
+    [ "$here" = "$target" ] && picked="$candidate"
+    [ "${here#"$target"/}" != "$here" ] && picked="$candidate"
+  done <<EOF
+$names
+EOF
+  if [ -n "$picked" ]; then
+    printf '%s\n' "$picked"
+    return 0
+  fi
+  if [ "$(printf '%s\n' "$names" | grep -c .)" -eq 1 ]; then
+    printf '%s\n' "$names"
+    return 0
+  fi
+  printf '%s\n' \
+    "cannot tell which task this is for: $root/TaskFlowDocs holds several, and the" \
+    "name this command records decides which task the record belongs to:" >&2
+  printf '%s\n' "$names" | sed 's/^/  /' >&2
+  printf '%s\n' \
+    "Rerun from inside the task's own directory, or name it explicitly:" \
+    "  TASKFLOW_TASK_ID=<task> bash hooks/task <command> ..." >&2
+  return 1
+}
+
 # The awk program is shared by every command; TASKFLOW_CMD selects the branch.
 TASK_AWK="$(cat <<'AWK'
 function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
@@ -253,6 +338,7 @@ BEGIN {
   value = ENVIRON["TASKFLOW_VALUE"]
   goal = ENVIRON["TASKFLOW_GOAL"]
   owner = ENVIRON["TASKFLOW_OWNER"]
+  kind = ENVIRON["TASKFLOW_KIND"]
   source = ENVIRON["TASKFLOW_SOURCE"]
   step = ENVIRON["TASKFLOW_STEP"]
   step_status = ENVIRON["TASKFLOW_STEP_STATUS"]
@@ -450,6 +536,7 @@ END {
     nb++; blk[nb] = "- Priority: normal"
     nb++; blk[nb] = "- Owner: " owner
     nb++; blk[nb] = "- Source: " source
+    nb++; blk[nb] = "- Kind: " kind
     nb++; blk[nb] = "- Added: " today
     nb++; blk[nb] = "- Updated: " today
     nb++; blk[nb] = "- Goal: " goal
@@ -679,7 +766,20 @@ command="$1"; shift
 # and `approve` reconciles a recorded stage against evidence instead of
 # re-reading the prose. Product-neutral by construction — the list names
 # concepts, never a tool.
-concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision|divergent exploration'
+#
+# The two investigation classes were appended, not merged into an existing one,
+# for a reason that is checkable rather than stylistic: `released` rows record
+# the class a task declared, and those rows outlive the regex. Rewording an
+# existing entry would make every archived task's `--considered` value fail a
+# validation it once passed, which is history bent to fit an implementation.
+# Appending leaves all eight older entries byte-identical.
+#
+# Why they were missing is the whole point of the change they support: the
+# table answered "which capability could help this phase" for seven phases and
+# never named *finding out why something is broken*. A `bug fix` entered the
+# same path as a new feature and the only classes on offer described writing
+# documents, so the most available action was always an edit to one.
+concept_class_re='requirements elicitation|literature and evidence|architecture and design|work breakdown|incremental implementation|testing strategy|documentation and decision|divergent exploration|root cause|defect investigation'
 
 # Mirrors the existing contract: --root, when present, is the final two arguments.
 split_root() {
@@ -710,6 +810,39 @@ task_paths() {  # task_paths <root> <task>
   [ -d "$base" ] || fail "active task not found: $2"
 }
 
+# Peel `--kind <value>` off `rest`, leaving the positional arguments in `rest`
+# and the value in `kind` (empty when the flag was absent). Run after
+# `split_root`, which has already removed `--root`.
+#
+# `--kind` is validated here rather than where it is written, so that the
+# refusal happens before any command has touched the filesystem. It is the one
+# piece of vocabulary this file shares with the workflow's own documents, and a
+# typo in it would silently disable the check it exists to feed: a task marked
+# `defects` is not a defect task, and nothing downstream would say so.
+kind_values='defect capability internal'
+split_kind() {
+  kind=""
+  local rest2=() have=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --kind)
+        [ "$#" -ge 2 ] || fail "--kind needs a value: $kind_values"
+        have=1
+        kind="$2"
+        shift 2
+        ;;
+      *) rest2+=("$1"); shift ;;
+    esac
+  done
+  if [ "$have" -eq 1 ]; then
+    case " $kind_values " in
+      *" $kind "*) ;;
+      *) fail "--kind must be one of: $kind_values (got '$kind')" ;;
+    esac
+  fi
+  rest=("${rest2[@]+"${rest2[@]}"}")
+}
+
 # The approval gate every command that acts on approved work shares. `state
 # in_progress` proved it was needed; `progress` and `complete` were reachable
 # without it, so unimplemented-and-unapproved work could be marked done and
@@ -727,7 +860,13 @@ require_approval() {  # require_approval <task-id>
 case "$command" in
   intake)
     split_root "$@"
-    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--root <path>]'
+    split_kind "${rest[@]+"${rest[@]}"}"
+    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--kind <defect|capability|internal>] [--root <path>]'
+    # Only `promote` makes this binding, so `intake` may leave it out. The
+    # default is the majority case rather than a judgement about this request:
+    # an inbox item may never be planned, and demanding a classification at the
+    # cheapest step is how a field gets filled with whatever satisfies it.
+    : "${kind:=capability}"
     goal="${rest[0]}"
     if [ "${#rest[@]}" -eq 2 ]; then source="${rest[1]}"; else source="direct user request"; fi
     [ -n "$goal" ] || fail "goal must not be empty"
@@ -760,15 +899,15 @@ case "$command" in
     digest="$(printf '%s' "$goal" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
     todo_id="TF-$(printf '%s' "$today" | tr -d '-')-$digest"
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=intake TASKFLOW_GOAL="$goal" TASKFLOW_SOURCE="$source" \
-      TASKFLOW_ID="$todo_id" TASKFLOW_OWNER="$owner"
+      TASKFLOW_ID="$todo_id" TASKFLOW_OWNER="$owner" TASKFLOW_KIND="$kind"
     echo "intake OK: $todo_id"
     # Nothing here is refused: triage is meant to be cheap, and an inbox item may
     # never be planned. But `todo.md` is shared, and leaving it modified in the
     # base checkout is what makes the next `git checkout` refuse to move — the
     # very failure this signal exists for. So it is said, not prevented.
-    kind=0
-    worktree_kind "$root" || kind=$?
-    if [ "$kind" -eq 2 ]; then
+    wt_kind=0
+    worktree_kind "$root" || wt_kind=$?
+    if [ "$wt_kind" -eq 2 ]; then
       echo "note: TaskFlowDocs/todo.md is now modified in the base working tree."
       echo "      Commit or stash it before switching branches, or work from a task worktree."
     fi
@@ -776,9 +915,18 @@ case "$command" in
 
   promote)
     split_root "$@"
-    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]'
+    split_kind "${rest[@]+"${rest[@]}"}"
+    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task promote <todo-id> <task-id> <small|large> --kind <defect|capability|internal> [--root <path>]'
     todo_id="${rest[0]}"; task="${rest[1]}"; size="${rest[2]}"
-    case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> [--root <path>]' ;; esac
+    case "$size" in small|large) ;; *) fail 'usage: task promote <todo-id> <task-id> <small|large> --kind <defect|capability|internal> [--root <path>]' ;; esac
+    # Required here, optional in `intake`, and the asymmetry is the design:
+    # promotion is where the task's first documents are written and where every
+    # later check reads its kind from. A default at this point would be a
+    # decision nobody made, silently disabling the defect check for the tasks
+    # that needed it. At intake the same default costs nothing, because an inbox
+    # item may never be planned.
+    [ -n "$kind" ] || fail "promote needs --kind, one of: $kind_values. It decides which checks this task's PRD must satisfy, and nothing later can supply it."
+    task_kind="$kind"
     need_task_id "$task"
     # Phase 1 writes the task's first documents, so this is where a task that was
     # never isolated would land them in the base tree, on whatever branch happens
@@ -787,9 +935,9 @@ case "$command" in
     # repository's branch prefixes are prose in CONTRIBUTING.md, and guessing a
     # prefix from a task name would be a heuristic — so it stays a placeholder
     # and the reader picks it.
-    kind=0
-    worktree_kind "$root" || kind=$?
-    if [ "$kind" -eq 2 ]; then
+    wt_kind=0
+    worktree_kind "$root" || wt_kind=$?
+    if [ "$wt_kind" -eq 2 ]; then
       base_branch="$(git -C "$root" branch --show-current 2>/dev/null || true)"
       [ -n "$base_branch" ] || base_branch="<base>"
       printf '%s\n' \
@@ -832,6 +980,13 @@ case "$command" in
       printf '%s\n' '> Task version: v1' '> Status: planning' ''
       printf '%s\n' '## Goal' ''
       printf '%s\n' "$goal" ''
+      # The kind is scaffolded rather than left to be remembered, for the same
+      # reason `## Plan Review` and `## External Facts` are: `approve` reads a
+      # field, and a field the workflow never mentioned is one every author
+      # fails on once. Its position matters too — above every section whose
+      # answer depends on it, because a defect's `## Background` has to say what
+      # was observed before anything else can be judged against it.
+      printf '%s\n' '## Task Kind' '' "- Kind: $task_kind" ''
       printf '%s' '## Background / Confirmed Facts
 
 ## Requirements
@@ -874,6 +1029,13 @@ case "$command" in
 ## Skills / Tools Used
 
 ## Preconditions
+
+## Plan Review
+
+- Verdict:
+- Coverage:
+- Verifiability:
+- Layer ownership:
 
 ## Approval
 
@@ -1159,19 +1321,17 @@ case "$command" in
       printf 'concept class must name a phase-table class: %s\n' "$(printf '%s' "$concept_class_re" | sed 's/|/, /g')" >&2
       exit 2
     }
-    # The gate reads the record back from the *task directory's* git dir, so
-    # refuse here rather than writing a record that nothing will ever read. A
-    # caller in the base checkout, or in a tree with no active task, would
-    # otherwise be told the stage was recorded while the gate kept refusing.
-    active=""
-    for dir in "$root/TaskFlowDocs"/*/; do
-      [ -d "$dir" ] || continue
-      name="${dir%/}"
-      name="${name##*/}"
-      case "$name" in achieved|repository-docs) continue ;; esac
-      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
-    done
-    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; run unaided from the task worktree"
+    # Resolve before writing a byte. `resolve_active_task` refuses with exit 2
+    # when it cannot tell which task this is for, and that code has to survive:
+    # it is the difference between "your input is missing something" and "this
+    # failed", and only the first tells the caller to supply a task name. `fail`
+    # is exit 1 and would flatten the two, so the refusal is passed through
+    # rather than re-reported.
+    #
+    # The gate reads the record back from the *task directory's* git dir, so the
+    # same refusal covers a caller outside any active task, whose record nothing
+    # would ever read.
+    active="$(resolve_active_task "$root")" || exit 2
     git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
       || fail "cannot locate the git directory for $root"
     # The declaration has to release the stage itself, because `approve` reads
@@ -1287,18 +1447,15 @@ case "$command" in
         echo "the URL and --why must not contain a pipe or a newline: they would forge a store row" >&2
         exit 2 ;;
     esac
-    # Refuse rather than recording a line that `approve` can never read. The same
-    # reason `unaided` refuses outside an active task: the store it would write is
-    # keyed to the task directory's git dir, not to wherever the shell happens to be.
-    active=""
-    for dir in "$root/TaskFlowDocs"/*/; do
-      [ -d "$dir" ] || continue
-      name="${dir%/}"
-      name="${name##*/}"
-      case "$name" in achieved|repository-docs) continue ;; esac
-      if [ -f "$dir/plan.md" ]; then active="$name"; break; fi
-    done
-    [ -n "$active" ] || fail "no active task under $root/TaskFlowDocs; record the source from the task worktree"
+    # Refuse rather than recording a line in a store that `approve` will never
+    # read for this task. Note what this does *not* need: the task's name. The
+    # external store is keyed to the git dir alone, so any active task under this
+    # tree is enough — resolving one here would refuse a multi-task tree for a
+    # question this command never asks. That is also why the old shared loop was
+    # wrong twice over: it picked a name by directory order, and this branch
+    # discarded the name it picked.
+    [ -n "$(active_task_names "$root")" ] \
+      || fail "no active task under $root/TaskFlowDocs; record the source from the task worktree"
     git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" \
       || fail "cannot locate the git directory for $root"
     store="$git_dir/taskflow"
@@ -1605,6 +1762,145 @@ EXT_SOURCES
         fail "approve blocked: 'Depends on external facts: $ext_answer' is not an answer. Write exactly 'no' or 'yes'."
         ;;
     esac
+
+    # `## Plan Review` is the one place a Plan says it was read before it was
+    # approved, and it is checked here because this is the last moment the answer
+    # can change anything. Phase 4 ends at this document and `approve` is the only
+    # writer of the Approval block, so every later state — in_progress, complete,
+    # the archive — sits behind this command. A plan reviewed nowhere else is a
+    # plan whose errors are locked in by the approval that was supposed to catch
+    # them: an acceptance criterion no Step covers, a Step whose Verification
+    # cannot verify its Acceptance, or a Step that intends to make a downstream
+    # check green by editing what it reads.
+    #
+    # What this can decide is that the three questions were answered. Whether they
+    # were answered well is not a property of the text, and a check that keyword-
+    # matched its way toward one would report more confidence than it has — the
+    # same reason `hooks/repo-rules check` calls its findings possible conflicts.
+    # So the gate is the questions asked, and the answers are the reviewer's.
+    #
+    # The section is read in one `awk`, never `printf | grep -q`: this script runs
+    # under `pipefail`, where a large enough Plan makes the producer take SIGPIPE
+    # on the early exit and turns a successful match into a failed pipeline.
+    # `completion-gate` carries the measurement.
+    pr_body="$(awk '
+      /^## Plan Review$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$plan")"
+    pr_what='- Verdict: sound   (or: needs revision)
+- Coverage: which Step covers each acceptance criterion in prd.md, and any that none does
+- Verifiability: whether each Step'"'"'s Verification can actually verify its Acceptance
+- Layer ownership: whether any Step makes a downstream check go green by editing what it reads — an intermediate value, a fixture, an expected result'
+    if [ -z "$pr_body" ]; then
+      if [ -n "$(sed -n '/^## Plan Review$/p' "$plan")" ]; then
+        fail "approve blocked: '## Plan Review' is present but empty, so the Plan was not reviewed before approval. Fill in the verdict and the three answers that support it:
+$pr_what"
+      fi
+      fail "approve blocked: plan.md has no '## Plan Review' section, so nothing shows the Plan was read before it was approved. Add this section above '## Approval', with a verdict and the three answers it rests on:
+$pr_what"
+    fi
+    pr_missing=""
+    for pr_field in 'Verdict' 'Coverage' 'Verifiability' 'Layer ownership'; do
+      # A line counts only when the field is followed by something. `- Coverage:`
+      # with nothing after it is the shape a plan passes through on its way to
+      # being reviewed, not a review, so it is reported as missing like an absent
+      # line rather than as an answered one.
+      pr_line="$(printf '%s\n' "$pr_body" | sed -n "s/^- ${pr_field}:[[:space:]]*\(.*\)$/\1/p" | head -1)"
+      if [ -z "$(printf '%s' "$pr_line" | tr -d '[:space:]')" ]; then
+        pr_missing="$pr_missing${pr_missing:+, }$pr_field"
+      fi
+    done
+    if [ -n "$pr_missing" ]; then
+      fail "approve blocked: '## Plan Review' does not answer: $pr_missing. Each of these needs its own line with something after the colon:
+$pr_what"
+    fi
+    # The verdict is the review, and the three answers are its evidence — so the
+    # verdict is a decision the gate acts on, not a field it records. A reviewer
+    # who concluded the Plan will not solve the problem says so, and this refuses
+    # the approval rather than filing the objection beside a document it then
+    # approves. Without that, "reviewed" and "reviewed and found wanting" would
+    # both reach `approved`, and the review would be a formality with better
+    # vocabulary.
+    #
+    # The vocabulary is two words, deliberately: this command cannot weigh an
+    # argument, so a scale it cannot read would be a number it ignores. Two words
+    # are the ones its behaviour differs on — one lets approval through, one does
+    # not — and anything else is refused as unreadable rather than guessed.
+    # Read in awk, not sed. The value is a phrase rather than a token, so the
+    # reader has to be able to say where it ends — and the sed form for that
+    # (`\([^[:space:]]*[[:space:]]\+[^[:space:]]*\)`) depends on `\+`, which BSD
+    # sed on macOS reads as a literal plus. Measured 2026-11-07: the CI matrix
+    # passed on ubuntu and windows and failed on macos with `not ''`, because
+    # the two-word branch there matched nothing and produced an empty verdict.
+    # Splitting fields is what awk already does portably.
+    pr_verdict="$(printf '%s\n' "$pr_body" | awk '
+      /^- Verdict:/ {
+        sub(/^- Verdict:[ \t]*/, "")
+        n = split($0, w, /[ \t]+/)
+        if (n >= 2 && w[1] == "needs" && w[2] == "revision") { print "needs revision"; exit }
+        print w[1]
+        exit
+      }
+    ')"
+    case "$pr_verdict" in
+      sound) ;;
+      'needs revision')
+        fail "approve blocked: '## Plan Review' says the Plan needs revision, so it is not approved. The review found something that stops this Plan from solving the problem — revise the Plan, or record what changed in '## Plan Review' and answer 'sound' once it is:
+
+  - Verdict: sound" ;;
+      *)
+        fail "approve blocked: '- Verdict:' must be 'sound' or 'needs revision', not '$pr_verdict'. Nothing else is a decision this command can act on." ;;
+    esac
+
+    # A defect task has to have named the thing that finds causes.
+    #
+    # The gap this closes is a routing one, not a wording one. The phase table
+    # offered seven phases and a concept class for each, and none of them was
+    # "find out why this is broken" — so a request to fix a bug entered the same
+    # path as a request to build a feature, and the only classes on offer
+    # described writing documents. The most available action was therefore an
+    # edit to one, and the work that actually settles a defect had nothing in
+    # the workflow to point at it. Measured 2026-11-07: `reproduc*` appears once
+    # in SKILL.md, in the definition of `blocked`, and nothing in `hooks/` reads
+    # `git diff`.
+    #
+    # What this check does NOT do is say how to investigate. That belongs to the
+    # capability, and `SKILL.md` states the boundary: TaskFlow is the lifecycle
+    # layer, not the expert-capability layer. Reproducing first, tracing, a
+    # single hypothesis, a red-green pair — all of it is the capability's
+    # business, and duplicating it here would be this file doing another
+    # layer's job badly. So the check asks one question: was a capability of the
+    # investigating kind named, or was its absence declared on purpose.
+    #
+    # The absent-kind case is deliberately not an error. A PRD written before
+    # this section existed has no `## Task Kind`, and refusing it would rewrite
+    # history to fit an implementation. Same for any value other than `defect`:
+    # only an explicit declaration opts a task into this check.
+    tk_body="$(awk '
+      /^## Task Kind$/ { p = 1; next }
+      p && /^## / { exit }
+      p { print }
+    ' "$prd" 2>/dev/null)" || tk_body=""
+    tk_kind="$(printf '%s\n' "$tk_body" | sed -n 's/^- Kind:[[:space:]]*\(..*\)[[:space:]]*$/\1/p' | head -1)"
+    if [ "$tk_kind" = "defect" ]; then
+      tk_pr_line="$(printf '%s\n' "$cap_skills" | grep -m1 '^- \[PRD\]' || true)"
+      [ -n "$tk_pr_line" ] || fail "approve blocked: this is a defect task ('## Task Kind' says so) but '## Skills / Tools Used' has no [PRD] line naming what investigated it. Add one, in either shape:
+  - [PRD] \`<a capability of the investigating kind>\` — purpose: …; outcome: …; incorporated: …
+  - [PRD] Unaided — …; considered: root cause investigation"
+      tk_probe="$tk_pr_line"
+      case "$tk_pr_line" in
+        *Unaided*)
+          tk_probe="$(printf '%s\n' "$tk_pr_line" | sed -n 's/.*considered:[[:space:]]*//p' | head -1)"
+          ;;
+      esac
+      printf '%s' "$tk_probe" | grep -qiE 'root cause|defect investigation|investigat|diagnos|debug' || fail "approve blocked: this is a defect task, and its [PRD] line names nothing that investigates the cause:
+
+  $tk_pr_line
+
+A defect task's requirements come from finding out why the behaviour is wrong, so the phase that writes them has to have consulted something that does that — or record that nothing available does, with 'bash hooks/task unaided PRD --considered \"root cause investigation\"' and an [PRD] Unaided line carrying that class. What the capability then does is its own business; this check only asks whether one was named."
+    fi
+
     approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0
