@@ -1,6 +1,6 @@
 # 避免已通过 CI 后的文档跟进重复运行重型测试
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

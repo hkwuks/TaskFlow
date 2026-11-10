@@ -1,6 +1,6 @@
 # Plan — 避免已通过 CI 后的文档跟进重复运行重型测试
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -51,11 +51,11 @@
 - Implementation checklist:
   - [x] 为 PR 运行保存小型事件元数据，并在后续运行核验同 PR、相同 base、旧 head 祖先及任务文档白名单。
   - [x] 逐 job 查验先前确实成功，按 job 保守复用；身份、证据、网络、权限或数据异常全部运行完整 CI。
-  - [ ] 覆盖强推、基线变化、代码和 Todo 修改、缺失或伪造元数据、先前 skipped/failed、API 失败。
+  - [x] 覆盖强推、基线变化、代码和 Todo 修改、缺失或伪造元数据、先前 skipped/failed、API 失败。
 - Acceptance: 符合条件的文档跟进减少重复重型 job；保留工作流与必要状态，且明确输出复用来源；不确定时完整运行。
 - Verification: 官方文档、模拟 API/仓库夹具、真实 GitHub PR CI 验证及 `git diff --check`。
 - Rollback: 回退工作流与判定工具；现有分类恢复。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -72,12 +72,22 @@
 - 对已合并 PR #131 的实际 GitHub 运行作只读试查，未找到满足条件的证据，三项输出均为 false；该样本的旧提交到新提交还包含 Todo 变更，因此不能仅归因于缺少 artifact。
 - PR #135 的 GitHub 工作流实际创建了基线 artifact。首次从本地 API 下载超过 5 秒并触发回退；调整为单次最长 15 秒、查询总预算 25 秒，失败仍回退完整检查。随后实际下载并核验了 PR 和运行身份；这仍不证明真实后续 PR 已复用测试。
 - 首轮 CI 的 Ubuntu/macOS smoke 失败：既有断言要求三个作业的条件严格等于旧分类条件。当前已批准的复用契约确实扩展了条件，因此同步调整断言为必须同时检查分类结果和复用结果，保留 Todo 审计无条件运行，并新增复用单测 job 无条件运行的断言；并非删除该安全断言。
+- 最新 [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42793388289) 的三系统 smoke、复用单测、release、evals 和 Todo 审计通过；真实 artifact 已生成并读回。用户于 2026-11-10 按已验证范围验收并同意归档。
 
 ## Change Log
 - 2026-11-10：建立 v1 调查草案；实施前需要把证据方案补齐并经过计划审核。
 
 ## Follow-ups
+- TF-20261110-8c4e24：合并后在真实 GitHub PR 中验证复用和不满足条件时的回退；本 PR 无法证明功能合入 base 后实际复用成功。
 
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 关联已完成的路径分类任务 TF-20261020-a46573；现有 PR 分类比较整个 PR 与基线，不能识别代码通过后仅追加文档的情况。

@@ -27,6 +27,20 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 在真实 GitHub PR 中验证已合并的文档跟进 CI 复用及失败回退
+
+- ID: TF-20261110-8c4e24
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: follow-up:2026-11-10-ci-docs-followup
+- Kind: capability
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 在真实 GitHub PR 中验证已合并的文档跟进 CI 复用及失败回退
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区
 
 - ID: TF-20261110-0c7346
@@ -61,17 +75,10 @@ has an issue number or URL.
 ## 避免已通过 CI 后的文档跟进重复运行重型测试
 
 - ID: TF-20261110-b73d49
-- Status: in_progress
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-10-docs-only-ci-followup
-- Kind: capability
-- Added: 2026-11-10
-- Updated: 2026-11-10
+- Status: done
 - Goal: 让代码已通过 CI 后仅补充验证结果等任务文档的后续提交安全跳过不必要的重型测试，同时保留必要状态检查
-- Task: `TaskFlowDocs/2026-11-10-ci-docs-followup/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: 关联已完成的路径分类任务 TF-20261020-a46573；现有 PR 分类比较整个 PR 与基线，不能识别代码通过后仅追加文档的情况。
+- Task: `TaskFlowDocs/achieved/2026-11-10-ci-docs-followup/`
+- Next action: None — completed and archived.
 
 ## 调查 Codex 中工具引用机制的引导效果
 
