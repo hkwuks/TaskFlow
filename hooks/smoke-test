@@ -5709,6 +5709,23 @@ fi
 # Unrelated vocabulary reports nothing rather than guessing.
 bash "$HERE/task" intake "Upgrade the CI runner to the latest Ubuntu image" fixture --root "$ovl" 2>"$ovl/err2" >/dev/null
 [ -s "$ovl/err2" ] && { echo "FAIL an unrelated goal reported a candidate"; cat "$ovl/err2"; exit 1; }
+ovl_zh="$tmp/overlap-zh"
+mkdir -p "$ovl_zh"
+git -C "$ovl_zh" init -q
+zh_first="$(bash "$HERE/task" intake '改进任务归档后的工作区清理流程' fixture --root "$ovl_zh" 2>/dev/null | head -1 | awk '{print $NF}')"
+bash "$HERE/task" intake '完善任务归档后的工作区清理流程' fixture --root "$ovl_zh" 2>"$ovl_zh/err" >/dev/null
+grep -qF "$zh_first" "$ovl_zh/err" || { echo 'FAIL Chinese rewording reported no candidate'; cat "$ovl_zh/err"; exit 1; }
+bash "$HERE/task" intake '调整模型推理的并发配置和缓存策略' fixture --root "$ovl_zh" 2>"$ovl_zh/err-unrelated" >/dev/null
+[ ! -s "$ovl_zh/err-unrelated" ] || { echo 'FAIL unrelated Chinese goal reported a candidate'; cat "$ovl_zh/err-unrelated"; exit 1; }
+mixed_first="$(bash "$HERE/task" intake '修复 Codex 工具引用提示效果' fixture --root "$ovl_zh" 2>/dev/null | head -1 | awk '{print $NF}')"
+bash "$HERE/task" intake '改善 Codex 工具引用提示效果' fixture --root "$ovl_zh" 2>"$ovl_zh/err-mixed" >/dev/null
+grep -qF "$mixed_first" "$ovl_zh/err-mixed" || { echo 'FAIL mixed-language rewording reported no candidate'; cat "$ovl_zh/err-mixed"; exit 1; }
+ovl_repeat="$tmp/overlap-repeat"
+mkdir -p "$ovl_repeat"
+git -C "$ovl_repeat" init -q
+repeat_first="$(bash "$HERE/task" intake 'task task workspace workspace cleanup cleanup' fixture --root "$ovl_repeat" 2>/dev/null | head -1 | awk '{print $NF}')"
+bash "$HERE/task" intake 'task workspace cleanup' fixture --root "$ovl_repeat" 2>"$ovl_repeat/err" >/dev/null
+grep -qF "$repeat_first" "$ovl_repeat/err" || { echo 'FAIL repeated words changed the token set similarity'; cat "$ovl_repeat/err"; exit 1; }
 # The report is a hint, so it is capped: a user who sees ten candidates reads none.
 ovl2="$tmp/overlap-many"
 mkdir -p "$ovl2/TaskFlowDocs"
