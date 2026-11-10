@@ -8,6 +8,16 @@ git -C "$repo" init -q
 plan="$repo/TaskFlowDocs/2026-11-10-parity-test/plan.md"
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$plan"
 store="$(git -C "$repo" rev-parse --absolute-git-dir)/taskflow"
+for ledger in evidence released declarations; do
+  for suffix in '' '/nested'; do
+    patch="{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$repo\",\"tool_input\":{\"input\":\"*** Update File: $store/$ledger$suffix\\n@@\\n-old\\n+new\\n*** End Patch\"}}"
+    verdict="$(printf '%s' "$patch" | bash "$HERE/capability-gate")"
+    case "$verdict" in *'"permissionDecision":"deny"'*) ;; *) echo "FAIL direct edit allowed: $ledger$suffix" >&2; exit 1 ;; esac
+    write="{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"write\",\"cwd\":\"$repo\",\"tool_input\":{\"file_path\":\"$store/$ledger$suffix\"}}"
+    verdict="$(printf '%s' "$write" | bash "$HERE/capability-gate")"
+    case "$verdict" in *'"permissionDecision":"deny"'*) ;; *) echo "FAIL write allowed: $ledger$suffix" >&2; exit 1 ;; esac
+  done
+done
 bash "$HERE/task" declared PRD --capability 'example:skill' --root "$repo" >/dev/null
 grep -qx '2026-11-10-parity-test|v1|PRD|example:skill' "$store/declarations"
 [ ! -f "$store/evidence" ] || { echo 'FAIL declaration polluted observed queue' >&2; exit 1; }
