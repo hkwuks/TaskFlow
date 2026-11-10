@@ -84,6 +84,7 @@
 - 代码提交 `b294b09` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42762380631)：Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 changes 均通过，release 按路径跳过。之后补充单次输出断言，最终 CI 以新提交为准。
 - 增补单次输出断言后的 `8bf3e90` [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42762754573)：三系统 smoke、evals、Todo merge audit 和 changes 均通过；release 按路径跳过。提示文本为 144 个字符，复用既有触点，不新增按工具调用运行的监视器或状态记录。
 - 对照审核：旧有 planning 静默断言因 approved v1 明确新增 planning 提示而更新；ready、多活动任务、非本仓库、非目标事件及只读例外仍保留原有测试。测试检查事件和输出，不推断真实模型是否采纳。
+- 附带检查发现：合成 `PreToolUse` 对 `taskflow/evidence` 返回 deny，对新 `taskflow/declarations` 返回空结果；这是前置 PR 的直接编辑流程护栏缺口，不是防止任意 shell 写入的安全边界。已并入 TF-20261110-0c7346 后续核查，当前任务不改前置任务代码或已归档文档。
 
 ## Change Log
 
