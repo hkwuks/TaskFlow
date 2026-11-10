@@ -2692,6 +2692,10 @@ grep -q -F 'available capabilities' "$iso_out" && { echo "FAIL refused promotion
 ) || { echo "FAIL isolation fixture worktree"; exit 1; }
 bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --kind capability --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
+grep -qF "Task workspace: $(git -C "$iso/.worktrees/task-tree" rev-parse --show-toplevel)" "$iso_out" \
+  || { echo "FAIL promotion did not report the actual worktree path"; cat "$iso_out"; exit 1; }
+grep -qF 'Branch: chore/task-tree' "$iso_out" \
+  || { echo "FAIL promotion did not report the branch"; cat "$iso_out"; exit 1; }
 grep -q -F 'available capabilities' "$iso_out" \
   || { echo "FAIL successful promotion did not guide capability selection"; cat "$iso_out"; exit 1; }
 [ "$(grep -c -F 'available capabilities' "$iso_out")" -eq 1 ] \
@@ -2700,6 +2704,13 @@ grep -q -F 'available capabilities' "$iso_out" \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
 grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion printed the base-tree refusal"; cat "$iso_out"; exit 1; }
 
+git -C "$iso" worktree add -q --detach "$iso/.worktrees/detached-task" \
+  || { echo "FAIL detached task worktree fixture"; exit 1; }
+bash "$HERE/task" promote TF-20260101-aa 2026-01-01-detached-task small --kind capability --root "$iso/.worktrees/detached-task" > "$iso_out" 2>&1 \
+  || { echo "FAIL promotion in detached worktree"; cat "$iso_out"; exit 1; }
+grep -qF 'Branch: detached HEAD' "$iso_out" \
+  || { echo "FAIL detached promotion invented a branch"; cat "$iso_out"; exit 1; }
+
 # Outside Git the gate does not apply: `--root` is allowed to be any directory,
 # and refusing there would break callers who never had this problem.
 iso_bare="$(mktemp -d "${TMPDIR:-/tmp}/taskflow-isolation-bare.XXXXXX")"
@@ -2707,6 +2718,8 @@ mkdir -p "$iso_bare/TaskFlowDocs"
 cp "$iso/TaskFlowDocs/todo.md" "$iso_bare/TaskFlowDocs/todo.md"
 bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-outside-git small --kind capability --root "$iso_bare" > "$iso_out" 2>&1 \
   || { echo "FAIL promote outside a repository was refused:"; cat "$iso_out"; exit 1; }
+grep -qF 'Branch: unknown (not a Git repository)' "$iso_out" \
+  || { echo "FAIL promotion outside Git invented a branch"; cat "$iso_out"; exit 1; }
 [ -f "$iso_bare/TaskFlowDocs/2026-01-01-promoted-outside-git/plan.md" ] \
   || { echo "FAIL promote outside a repository did not write the task"; exit 1; }
 rm -rf "$iso_bare"
@@ -5036,6 +5049,14 @@ printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/ahead" \
   && { echo "FAIL an unmerged branch was reported for removal"; printf '%s\n' "$out"; exit 1; }
 printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/dirty" \
   && { echo "FAIL a worktree with untracked work was reported for removal"; printf '%s\n' "$out"; exit 1; }
+printf '%s\n' "$out" | grep -qF "dirty: $wt_root/.worktrees/dirty [chore/dirty]" \
+  || { echo "FAIL merged dirty worktree was not reported for preservation"; printf '%s\n' "$out"; exit 1; }
+( cd "$wt_root" && git worktree add -q .worktrees/unavailable -b chore/unavailable \
+  && mv .worktrees/unavailable .worktrees/unavailable-moved ) \
+  || { echo "FAIL unavailable worktree fixture"; exit 1; }
+out=$(bash "$HERE/repository-check" "$wt_root" 2>&1) || { echo 'FAIL unavailable worktree changed the verdict'; exit 1; }
+printf '%s\n' "$out" | grep -qF "unknown: $wt_root/.worktrees/unavailable [chore/unavailable]" \
+  || { echo "FAIL unavailable merged worktree was not reported for preservation"; printf '%s\n' "$out"; exit 1; }
 # Merging the ahead branch clears that silence, and so does cleaning the third.
 # The base is the upstream ref, so the fixture moves it too — a real merge lands
 # on the remote, and a check that compared against a stale ref would never see
