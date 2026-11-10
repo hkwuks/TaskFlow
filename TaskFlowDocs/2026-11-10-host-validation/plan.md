@@ -81,7 +81,13 @@
 - Codex 上游 issue https://github.com/openai/codex/issues/23411 包含 Windows 桌面版 `functions.exec` 嵌套工具的 hook 未生效报告；官方 https://learn.chatgpt.com/docs/hooks 描述嵌套调用应受 hook 约束。上游 issue 是他人报告，不证明本机根因或当前版本具体修复状态；需区分事件未分发、载入状态、输入格式和 hook 启动失败。
 - 尝试以 app-server `hooks/list` 的 `threadId` 查询当前聊天；沙箱内无法访问控制 socket，提升权限后连接查询未收到初始化响应。可识别的独立 daemon 版本为 0.167.0，但未证明它承载当前桌面聊天，故未将该查询当作已加载 hook 的证据，也没有重启或修改配置。
 - 将同一隔离 `evidence` 路径及文档化的 `tool_input.command` 事件直接送入本机已安装 1.2.1 的 `run-hook.cmd capability-gate`：退出 0 且输出 `permissionDecision: deny`；同路径经当前桌面的 `functions.exec` → `tools.apply_patch` 实际写入未被拒绝。前者验证本机启动器和合成输入，后者是实际路径观察，二者共同排除不了加载、派发或真实输入形态差异。
-- 用户允许后，新建独立 Codex 测试聊天 `01a1c4f4-7f8c-7c00-a9c7-a4d5567c9322`，在项目内隔离文件重复真实 `functions.exec` → `tools.apply_patch`：模拟 evidence 文件仍从 before 改为 after；同一路径交给安装版 `run-hook.cmd capability-gate` 的合成事件返回 deny。该观察排除仅由原聊天创建时间导致的解释，但不能确定 hook 是否实际加载、事件是否分发/匹配或输入形态；不证明任意其他工具路径。
+- 用户允许后，新建独立 Codex 测试聊天 `01a1c4f4-7f8c-7c00-a9c7-a4d5567c9322`，在项目内隔离文件重复真实 `functions.exec` → `tools.apply_patch`：模拟 evidence 文件仍从 before 改为 after；同一路径交给安装版 `run-hook.cmd capability-gate` 的合成事件返回 deny。新聊天也复现，但不能确定 hook 是否实际加载、事件是否分发/匹配或输入形态；不证明任意其他工具路径。
+- 用户随后允许向该测试聊天发送只读查询。测试聊天的 app-server proxy 无法连接沙箱控制 socket（Windows 错误 10050），进程详情查询被系统拒绝；因此未成功查询该聊天实际加载的 hook、matcher 或信任状态。静态安装配置和信任记录不能替代运行中状态。
+- 随后按 WebSocket 协议只读连接独立 0.167.0 app-server：`hooks/list` 对测试聊天 ID 返回 thread not found，证明不能用该服务代替聊天的运行时状态；以项目 cwd 查询则返回 TaskFlow 的 `preToolUse/apply_patch`、MCP 和其他 hooks 均 enabled/trusted，errors/warnings 均为 0。这验证独立服务的配置解析，不证明测试聊天使用该服务或确实运行 hook。之前 proxy 初始化无响应是把原始 WebSocket 隧道误当 JSON 行协议，不能据此判定服务故障。
+- 只读查询本机日志数据库的 thread_id/process_uuid 关联，两条聊天均由 PID 40756 承载；进程路径为桌面版 `codex-cli 0.167.0-alpha.3.2`，进程创建于 2026-11-09 10:43，早于 1.2.1 缓存写入。因此新聊天不是新宿主进程，不能排除进程缓存或加载时机；这仍不证明缓存实际存在或导致本次失效。
+- 只读检查 PID 40756 的参数，仅输出传输标志是否存在：它以 app-server 模式运行，没有 `--listen` 或 `--stdio` 参数；该桌面二进制帮助显示默认传输为 `stdio://`。这与独立 daemon 的控制 socket 是两条连接，不能通过后者读取前者的已加载聊天；未尝试接管或中断桌面进程的标准流。
+- 官方 Codex 0.167.0 源码：`CodeModeExecuteHandler` 使用 `ToolPayload::Custom` 且未覆盖 `CoreToolRuntime` 的 `pre_tool_use_payload`；默认实现仅接受 `ToolPayload::Function`。这说明外层 Code Mode 调用不会通过该默认实现产生预写事件，单加外层 matcher 不能修复；但嵌套工具有独立分发路径，此源码观察不足以证明本机嵌套 `apply_patch` 未拦截的直接原因。来源：https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/code_mode/execute_handler.rs 和 https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/registry.rs 。
+- 同一源码版本中嵌套调用通过 `handle_tool_call_with_source` 进入独立分发，`ApplyPatchHandler` 对自定义输入专门实现 `pre_tool_use_payload`。因此外层缺口不能单独解释嵌套编辑未被拒绝，仍需运行中证据；本机桌面 alpha 可执行文件也未确认与稳定版源码完全一致。来源：https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/code_mode/mod.rs 和 https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/codex-rs/core/src/tools/handlers/apply_patch.rs 。
 
 ## Change Log
 - 2026-11-10：按已有 Todo 建立 v1 计划草案。
