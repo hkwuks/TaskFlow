@@ -45,18 +45,10 @@ has an issue number or URL.
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
 - ID: TF-20261110-84d1a9
-- Status: inbox
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-10-workflow-token-review
-- Kind: capability
-- Added: 2026-11-10
-- Updated: 2026-11-10
+- Status: done
 - Goal: 排查 TaskFlow 流程、工具引导及相关记录中不合理或浪费 Token 的环节，并在验证有效后修复或精简
-- Task: Not promoted.
-- Next action: 对照真实会话与现有流程测量 Token、效率及质量影响，辨别可精简环节并制定修复方案。
-- Notes: 关注流程总成本、可观测性及质量，不预先假设删减有益；与待办 TF-20260919-90797c（子 Agent 成本实测）及 TF-20261011-e27329（文档历史重复）有范围重叠，实施前需确认分工；另参考已完成的 T-20260908-006。
-- 2026-11-10 用户补充：新增 Todo 时应与现有条目比较，对可合并的重复或高度重叠事项进行合并，避免重复流程和不必要的 Token 消耗；调查现有比较规则的实际效果，保留不同需求和决策，避免误合并。
+- Task: `TaskFlowDocs/achieved/2026-11-10-token-review/`
+- Next action: None — completed and archived.
 
 ## 避免已通过 CI 后的文档跟进重复运行重型测试
 
