@@ -383,7 +383,7 @@ repo-root/
         ├── hooks.json                   # Claude Code wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse/PostToolBatch evidence; auto-loaded)
         ├── hooks-codex.json             # Codex CLI wiring (SessionStart + UserPromptSubmit + PreToolUse apply_patch gate + PostToolUse external-evidence)
         ├── hooks-codebuddy.json         # CodeBuddy wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
-        ├── hooks-dsh.json               # dsh wiring (SessionStart + UserPromptSubmit)
+        ├── hooks-dsh.json               # dsh wiring (SessionStart + UserPromptSubmit + base edit guard)
         ├── hooks-trae.json              # Trae wiring (SessionStart + UserPromptSubmit + PreToolUse gate + PostToolUse evidence)
         ├── run-hook.cmd                 # cross-platform launcher (polyglot batch/bash)
         ├── session-start                # SessionStart entry (extensionless bash)
@@ -395,6 +395,8 @@ repo-root/
         ├── capability-evidence          # records real invocations in the worktree store
         ├── external-evidence            # records outside URLs from any tool event, in a separate store
         ├── capability-gate              # refuses a stage document's first body write
+        ├── base-write-gate              # refuses observable base checkout edits
+        ├── base-status-reminder         # asynchronously reports base checkout changes
         ├── json-field                   # shared one-level JSON reader
         ├── task-id                      # the one rule for a legal task name
         ├── approval-check               # the one rule for whether a Plan's version is approved

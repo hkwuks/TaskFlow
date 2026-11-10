@@ -22,6 +22,8 @@ taskflow/hooks/
 ├── capability-evidence # records real capability invocations (Claude Code, CodeBuddy, Trae)
 ├── external-evidence   # records outside URLs from any tool's result, in a store of their own (every host whose tool events are wired: all but dsh)
 ├── capability-gate     # refuses a stage document's first body write (Claude Code, Codex CLI, CodeBuddy, Trae)
+├── base-write-gate     # refuses observable edits in a TaskFlow base checkout
+├── base-status-reminder # asynchronously reports uncommitted base checkout changes
 ├── json-field          # shared one-level JSON reader for the two hooks above
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
 ├── approval-check      # the one rule for whether a Plan's current version is approved
