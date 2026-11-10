@@ -134,6 +134,8 @@ One task, one working tree — not only when several tasks run at once. The base
 
 **Know which working tree you are in, and move the work rather than the rule.** Isolation is a fact about where you are standing, not a promise, and the two are easiest to confuse exactly when work has already started. The base checkout and a task working tree are different directories with different branches, and a file exists in whichever one you are in — an edit made in the base checkout is not "uncommitted work on the task branch", it is work on `<base>` that the task's branch cannot see. So establish it before the first edit rather than discovering it after: `git branch --show-current` names the branch, and `pwd` against the worktree you created names the directory.
 
+Tell the user the actual absolute task worktree path and branch once after creating or selecting it. `hooks/task promote` prints both for this handoff; if Git cannot name a branch, report the detached or unknown state rather than inventing one. Tool output alone does not establish that the user saw it.
+
 If work has already started in the base checkout, move it before continuing:
 
 ```bash
@@ -371,6 +373,8 @@ Treat achieved tasks as read-only in place. A later request that belongs to one 
 After completion, promote only verified, cross-task rules into the project's shared specification/guides. Leave task-specific decisions, personal preferences, unverified ideas, and temporary workarounds in the task artifacts.
 
 **Tear the working tree down once its work is in the base.** The task's branch has to be pushed and merged before the directory can go — `complete` runs first, so the removal is the step after the merge, not part of `complete`. The condition is two facts you can check: the branch is merged into the base branch, and the tree has nothing uncommitted (`git status --porcelain` empty). Then remove it from the base checkout:
+
+After confirming the merge, explicitly revisit the task's worktree and branch instead of relying on the earlier archive message. Verify the branch is an ancestor of the current remote base (a local tracking ref may be stale), inspect tracked and untracked changes and any ignored files that removal would discard, and confirm the user has authorized deletion. Once those conditions hold, leave the task worktree, remove it and the branch in that order, and verify both are gone. If a check fails, content remains, or authorization is missing, retain it and tell the user what remains. Never force removal or infer that a branch's upstream proves it is merged into the base.
 
 ```bash
 git worktree remove <path>

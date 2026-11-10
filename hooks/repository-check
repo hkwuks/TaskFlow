@@ -146,6 +146,8 @@ here="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 base_ref=""
 [ -z "$main_wt" ] || base_ref="$(git -C "$main_wt" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || true)"
 stale=""
+dirty=""
+unreadable=""
 if [ -n "$base_ref" ]; then
   # One record per worktree, as `<field> <value>` lines terminated by a blank
   # line. Every value is collected into variables first and judged afterwards:
@@ -170,9 +172,22 @@ if [ -n "$base_ref" ]; then
         if [ "$first" -eq 1 ]; then first=0; continue; fi
         [ -n "$path" ] && [ "$detached" -eq 0 ] && [ -n "$branch" ] || continue
         [ "$path" != "$here" ] || continue
-        git -C "$path" rev-parse --absolute-git-dir >/dev/null 2>&1 || continue
-        git -C "$path" merge-base --is-ancestor "$branch" "$base_ref" 2>/dev/null || continue
-        [ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ] || continue
+        git merge-base --is-ancestor "$branch" "$base_ref" 2>/dev/null || continue
+        if ! git -C "$path" rev-parse --absolute-git-dir >/dev/null 2>&1; then
+          unreadable="$unreadable  unknown: $path [${branch#refs/heads/}] (worktree unavailable)
+"
+          continue
+        fi
+        if ! tree_status="$(git -C "$path" status --porcelain 2>/dev/null)"; then
+          unreadable="$unreadable  unknown: $path [${branch#refs/heads/}] (status unavailable)
+"
+          continue
+        fi
+        if [ -n "$tree_status" ]; then
+          dirty="$dirty  dirty: $path [${branch#refs/heads/}] (inspect git status before cleanup)
+"
+          continue
+        fi
         stale="$stale- $path [${branch#refs/heads/}]
 "
         ;;
@@ -185,9 +200,12 @@ EOF
     echo "Stale task worktrees: none"
   else
     printf 'Stale task worktrees:\n%s' "$stale"
-    echo "  Branch already in $base_ref and nothing uncommitted: the worktree has nothing left to protect."
+    echo "  Branch already in $base_ref and no tracked or untracked changes were reported."
     echo "  Remove each with: git worktree remove <path>, then delete the branch: git branch -d <branch>"
   fi
+  [ -z "$dirty" ] || printf 'Merged worktrees with local changes (preserve):\n%s' "$dirty"
+  [ -z "$unreadable" ] || printf 'Merged worktrees with unknown status (preserve):\n%s' "$unreadable"
+  [ -z "$stale" ] || echo '  Check ignored files and deletion authorization before removing a worktree.'
 else
   echo "Stale task worktrees: unknown (no upstream base to compare against)"
 fi

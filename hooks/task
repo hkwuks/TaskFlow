@@ -1107,6 +1107,13 @@ case "$command" in
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_ID="$todo_id" TASKFLOW_PAIRS="$tmp_pairs" \
       TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
     echo "promote OK: $todo_id -> $task ($size)"
+    workspace="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$root")"
+    branch="$(git -C "$root" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+    if [ -z "$branch" ]; then
+      if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then branch='detached HEAD'; else branch='unknown (not a Git repository)'; fi
+    fi
+    printf 'Task workspace: %s\nBranch: %s\n' "$workspace" "$branch"
+    echo 'Tell the user the task workspace and branch.'
     echo 'Before drafting, consider available capabilities (skills, tools, MCP, agents) for the current phase; use those that help, or work unaided.'
     ;;
 

@@ -92,16 +92,16 @@ has an issue number or URL.
 ## 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree
 
 - ID: TF-20261109-3c1409
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-09-worktree-visibility
 - Kind: capability
 - Added: 2026-11-09
-- Updated: 2026-11-09
+- Updated: 2026-11-10
 - Goal: 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree 所在路径及对应分支，并研究宿主可见性与展示方式
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Task: `TaskFlowDocs/2026-11-10-worktree-visibility/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## 在 README 中展示 TaskFlow 架构与计划审核
 
