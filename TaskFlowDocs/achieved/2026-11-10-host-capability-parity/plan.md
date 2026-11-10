@@ -1,6 +1,6 @@
 # Plan — 宿主能力对齐
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Reference Pointers
 - `TaskFlowDocs/repository-docs/index.md`、`CONTRIBUTING.md`、`CODE_STYLE.md`
@@ -85,6 +85,7 @@
 - Codex 官方文档将子代理启动单列为 `SubagentStart`，携带 `agent_type`；按该事件记录实际启动，不把普通文件读取视为 Skill 调用。新接线仍需真实宿主验证：https://learn.chatgpt.com/docs/hooks 。
 - 初轮 CI 的 Windows smoke 通过；Ubuntu/macOS 先后暴露宿主状态措辞和新增测试脚本清单遗漏，已分别修复并发起后续 CI。目标平台结果以最后一次运行的实际状态为准。
 - 代码提交 `3d4bc37` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42752923550)：Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 changes 均通过；release 按变更路径跳过。`git diff --check` 和 bundled Python 的 Skill quick validation 通过。
+- 用户验收前最终提交 `f4aeafc` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42753684086)：三系统 smoke、evals、Todo merge audit 和 changes 均通过；release 按变更路径跳过。用户于 2026-11-10 验收可验证范围，真实宿主未测项继续跟踪。
 - 审查：原测试对 dsh 未接线和 Codex 不记录 MCP 的断言随实际事件契约变更，现由配置与合成事件验证替代；新增声明来源、冲突、名称及版本继承检查。真实 Codex / Claude 异步提醒显示及 dsh、CodeBuddy、Trae 真实宿主端到端仍待验证，不能由合成事件或 CI 代替。
 
 ## Change Log
@@ -96,3 +97,11 @@
 ## Follow-ups
 - TF-20261110-0c7346：真实宿主会话中的事件和异步提醒验证；现有能力对齐任务验收后保留此待办，避免未测项目丢失。
 - 完成后开始 TF-20261110-a56e72。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 2026-11-09 实例：Codex 未接入 capability-evidence，Plan 阶段实际读取并使用 planning-and-task-breakdown 后，task approve 报 stage [Plan] was never released。不得将实际使用的能力伪记为 unaided；需支持可审计的真实调用记录与审批恢复，并验证真实宿主。关联任务 TF-20261109-e2df6d。

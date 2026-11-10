@@ -1,6 +1,6 @@
 # 已支持宿主的 TaskFlow 能力对齐
 > Task version: v1
-> Status: planning
+> Status: completed
 
 ## Goal
 核实并修复 TaskFlow 在已支持 Agent 宿主中的能力接线和流程差异，让真实支持的能力可用、不可观察的能力有诚实且可用的处理方式。
