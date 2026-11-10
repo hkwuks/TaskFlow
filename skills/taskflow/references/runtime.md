@@ -56,6 +56,8 @@ An environment running any other agent host needs no hooks: it continues with th
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh columns from Codex's own hook documentation (read 2026-10-29) and measured payloads respectively — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
 
+An event that is not wired is an outstanding integration gap. Mark a capability not supported only when host evidence establishes the missing mechanism; an untested host is neither proof of support nor proof of absence.
+
 **External-lookup capture is recorded by URL, not by tool name, and is documented
 rather than measured.** The predicate is "did this event carry an absolute
 `http(s)` URL", scanned over the whole event text — both `tool_input` and
