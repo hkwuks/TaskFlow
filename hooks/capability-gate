@@ -211,8 +211,8 @@ judge_path() {
   # discipline-level guard and says so in the spec: a Bash write can still reach
   # it, and closing that would need signing, which v1 deliberately does not do.
   case "$file_path" in
-    */taskflow/evidence|*/taskflow/released|*/taskflow/evidence/*|*/taskflow/released/*)
-      deny "TaskFlow capability store is not writable by the agent. Record a stage with:  bash hooks/task unaided STAGE --considered 'concept class'"
+    */taskflow/evidence|*/taskflow/released|*/taskflow/declarations|*/taskflow/evidence/*|*/taskflow/released/*|*/taskflow/declarations/*)
+      deny "TaskFlow capability store is not writable by the agent. Record a stage with: bash hooks/task declared STAGE --capability 'name' or bash hooks/task unaided STAGE --considered 'concept class'"
       ;;
   esac
   case "$base" in
