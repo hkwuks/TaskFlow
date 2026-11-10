@@ -1,6 +1,6 @@
 # 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

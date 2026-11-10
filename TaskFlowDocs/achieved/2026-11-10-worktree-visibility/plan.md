@@ -1,6 +1,6 @@
 # Plan — 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -50,20 +50,20 @@
 - Acceptance: 准确报告路径与分支，未知状态不伪造；常规开发不反复提示。
 - Verification: 隔离 Git 夹具及实际宿主可见性记录。
 - Rollback: 回退本任务提交。
-- Status: in_progress
+- Status: done
 
 ### Step 2 — 合并后工作区和分支收尾
 - Goal: 在合并后而非归档时重新检查并处理当前任务的 worktree 与本地分支，同时报告无法安全清理的情况。
 - Dependencies: 实际合并可验证、所需删除授权明确。
 - Files: `skills/taskflow/SKILL.md`、`hooks/repository-check` 或可复用的既有流程及必要测试。
 - Implementation checklist:
-  - [ ] 检查已合并、未合并、dirty、detached、无基线和被占用 worktree；明确待处理的数据。
-  - [ ] 在清理获授权且条件满足时，按顺序处理 worktree 和本地分支并核实结果。
-  - [ ] 不增加阻断任务开发的后台守卫或强制清理。
+  - [x] 检查已合并、未合并、dirty、detached、无基线和被占用 worktree；明确待处理的数据。
+  - [x] 在清理获授权且条件满足时，按顺序处理 worktree 和本地分支并核实结果。
+  - [x] 不增加阻断任务开发的后台守卫或强制清理。
 - Acceptance: 合并完成后不静默遗漏；不可证明安全时保留并报告，禁止强制删除。
 - Verification: 通过隔离 Git 夹具验证状态和清理顺序；真实宿主可见性分开记录。
 - Rollback: 回退本任务代码与指导；不删除用户原有数据。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -74,12 +74,14 @@
 - 非 Git 验证第一次因测试目录仍被上层 Git 仓库识别而失败；将 Git 搜索边界设置在测试目录父级后复测，通过并报告 unknown。该测试不代表独立宿主 UI 已显示结果。
 - 合并分支对应的 worktree 在隔离夹具中不可访问时，`repository-check` 报告 unknown 并保留，整体治理状态仍为 pass；不同于之前静默跳过。
 - Skill quick validation 在 Windows 默认 GBK 下首次因 UTF-8 文件解码失败；启用 `PYTHONUTF8=1` 后验证通过。
+- [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42791155777) 的 Ubuntu、macOS、Windows smoke 和 evals 通过；release 按路径分类跳过。用户于 2026-11-10 按已验证范围验收并同意归档；清理仍依赖 Agent 在合并后执行，非自动后台删除。
 
 ## Change Log
 - 2026-11-10：基于既有 Todo 建立 v1 草案，待计划批准。
 - 2026-11-10：用户要求同一任务覆盖合并后工作区和本地分支收尾；v1 已获批准但尚未实施，v2 新增清理范围并重新审核。
 
 ## Follow-ups
+- 真实桌面或插件中用户是否看到路径和分支，由未完成的 TF-20261110-0c7346 宿主验证继续跟踪。
 
 ## Version History
 
