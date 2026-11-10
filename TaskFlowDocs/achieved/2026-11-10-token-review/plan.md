@@ -1,6 +1,6 @@
 # Plan — 审视 TaskFlow 流程中的不合理环节和 Token 开销
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -43,12 +43,12 @@
 - Dependencies: 用户授权脱敏查看。
 - Files: 当前任务记录与必要的脱敏证据。
 - Implementation checklist:
-  - [ ] 对照同一会话不同任务及其他适用历史会话，分析耗时、调用和可用 token 记录。
-  - [ ] 比较 Todo 去重、子 Agent 和文档历史重复的范围。
+  - [x] 对照同一会话不同任务及其他适用历史会话，分析耗时、调用和可用 token 记录。
+  - [x] 比较 Todo 去重、子 Agent 和文档历史重复的范围。
 - Acceptance: 形成证据、限制与具体候选，不把关联推为因果。
 - Verification: 按会话、时间与任务边界核对差值及来源，保护敏感数据。
 - Rollback: 更正记录，不改用户历史会话。
-- Status: pending
+- Status: done
 
 ### Step 2 — 审核并实施选定改进
 - Goal: 在 Todo intake 的现有候选比较中识别常用中文的相邻双字，不自动合并条目。
@@ -56,11 +56,11 @@
 - Files: `hooks/task` 和候选比较相关回归测试。
 - Implementation checklist:
   - [x] 实现不依赖新运行时的 UTF-8 常用汉字相邻双字候选；保留既有英文及提示上限。
-  - [ ] 验证中文改写、无关目标、混合语言、重复词和正常英文，明确扩展字集限制。
+  - [x] 验证中文改写、无关目标、混合语言、重复词和正常英文，明确扩展字集限制。
 - Acceptance: 复现的中文近似目标提示候选，不误合并，也不牺牲关键验证或用户决策；无可比数据时不声称节省百分比。
 - Verification: 在隔离 Todo 夹具验证命中、误报及跨平台 CI。
 - Rollback: 回退本任务改动。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -77,12 +77,23 @@
 - 另验证重复英文单词按集合去重计数后不降低相似度；本实现只识别 U+4E00–U+9FFF 的相邻双字，不声称支持扩展汉字或语义同义词。
 - 对当前 12 条未完成 Todo 按相同阈值计算 66 对组合，未产生候选；这是小样本的噪声观察，不代表不存在漏报或误报，也不代替人工语义比较。
 - 首轮 PR CI：macOS 的 Bash 3 在嵌入 shell 单引号的 awk 程序注释中遇到撇号而解析失败；Ubuntu 测试中 `head` 提前关闭管道触发 `pipefail`。移除注释撇号、先完整捕获命令输出后用 awk 读第一行，再等待新一轮 CI。
+- 修复后的 [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42791861336) 的 Ubuntu、macOS 和 Windows smoke 均通过；release 和 evals 按路径分类跳过。用户于 2026-11-10 按已验证范围验收并同意归档。
 
 ## Change Log
 - 2026-11-10：按用户要求开始只读历史会话和当前架构的脱敏取证；尚未制定或批准实现方案。
 
 ## Follow-ups
+- 子 Agent 对照及搜索倾向继续由 TF-20260919-90797c 跟踪，文档历史正文重复继续由 TF-20261011-e27329 跟踪，不声称调查结论覆盖所有会话。
 
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 关注流程总成本、可观测性及质量，不预先假设删减有益；与待办 TF-20260919-90797c（子 Agent 成本实测）及 TF-20261011-e27329（文档历史重复）有范围重叠，实施前需确认分工；另参考已完成的 T-20260908-006。
+- 2026-11-10 用户补充：新增 Todo 时应与现有条目比较，对可合并的重复或高度重叠事项进行合并，避免重复流程和不必要的 Token 消耗；调查现有比较规则的实际效果，保留不同需求和决策，避免误合并。
