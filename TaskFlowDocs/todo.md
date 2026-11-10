@@ -27,6 +27,82 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 审视 TaskFlow 流程中的不合理环节和 Token 开销
+
+- ID: TF-20261110-84d1a9
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-10-workflow-token-review
+- Kind: capability
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 排查 TaskFlow 流程、工具引导及相关记录中不合理或浪费 Token 的环节，并在验证有效后修复或精简
+- Task: Not promoted.
+- Next action: 对照真实会话与现有流程测量 Token、效率及质量影响，辨别可精简环节并制定修复方案。
+- Notes: 关注流程总成本、可观测性及质量，不预先假设删减有益；与待办 TF-20260919-90797c（子 Agent 成本实测）及 TF-20261011-e27329（文档历史重复）有范围重叠，实施前需确认分工；另参考已完成的 T-20260908-006。
+- 2026-11-10 用户补充：新增 Todo 时应与现有条目比较，对可合并的重复或高度重叠事项进行合并，避免重复流程和不必要的 Token 消耗；调查现有比较规则的实际效果，保留不同需求和决策，避免误合并。
+
+## 避免已通过 CI 后的文档跟进重复运行重型测试
+
+- ID: TF-20261110-b73d49
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-10-docs-only-ci-followup
+- Kind: capability
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 让代码已通过 CI 后仅补充验证结果等任务文档的后续提交安全跳过不必要的重型测试，同时保留必要状态检查
+- Task: Not promoted.
+- Next action: 调研已通过提交与后续差异、基础分支变化及 GitHub 必需检查的处理，制定可验证方案。
+- Notes: 关联已完成的路径分类任务 TF-20261020-a46573；现有 PR 分类比较整个 PR 与基线，不能识别代码通过后仅追加文档的情况。
+
+## 调查 Codex 中工具引用机制的引导效果
+
+- ID: TF-20261110-a56e72
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-10-digdig-codex-tool-reference
+- Kind: defect
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 调查 digdig 新会话中工具引用机制对 Codex 的引导效果不佳的问题，并确定可验证的改进方式
+- Task: Not promoted.
+- Next action: 核对该会话的实际工具引用、引导内容与 Codex 行为，明确复现方式和原因。
+- Notes: 用户报告的现象，尚未核实复现或根因；与宿主能力对齐 TF-20261109-293987 相关，具体范围和是否重叠待调查。
+
+## 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实
+
+- ID: TF-20261109-293987
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-09-host-capability-parity
+- Kind: defect
+- Added: 2026-11-09
+- Updated: 2026-11-09
+- Goal: 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实际接线、宿主事件与运行效果，补齐可支持能力和持续验证，区分未接线、未验证与确实不支持；关联 TF-20261109-e2df6d 和 TF-20261104-d3ac3c
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+- Notes: 2026-11-09 实例：Codex 未接入 capability-evidence，Plan 阶段实际读取并使用 planning-and-task-breakdown 后，task approve 报 stage [Plan] was never released。不得将实际使用的能力伪记为 unaided；需支持可审计的真实调用记录与审批恢复，并验证真实宿主。关联任务 TF-20261109-e2df6d。
+
+## 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree
+
+- ID: TF-20261109-3c1409
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-09-worktree-visibility
+- Kind: capability
+- Added: 2026-11-09
+- Updated: 2026-11-09
+- Goal: 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree 所在路径及对应分支，并研究宿主可见性与展示方式
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 在 README 中展示 TaskFlow 架构与计划审核
 
 - ID: TF-20261110-62fd8e
