@@ -1107,6 +1107,7 @@ case "$command" in
     run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_ID="$todo_id" TASKFLOW_PAIRS="$tmp_pairs" \
       TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
     echo "promote OK: $todo_id -> $task ($size)"
+    echo 'Before drafting, consider available capabilities (skills, tools, MCP, agents) for the current phase; use those that help, or work unaided.'
     ;;
 
   # The inverse of `promote`, for the case `promote` itself now refuses but

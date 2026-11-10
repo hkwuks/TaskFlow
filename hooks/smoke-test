@@ -2679,6 +2679,7 @@ grep -q 'git worktree add \.worktrees/2026-01-01-promoted-in-base -b <type>/2026
   || { echo "FAIL base-tree promote did not print a runnable command with <task-id> and <base> filled in"; cat "$iso_out"; exit 1; }
 grep -q '<type>' "$iso_out" || { echo "FAIL base-tree promote silently chose a branch prefix"; cat "$iso_out"; exit 1; }
 grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree promote did not list the legal prefixes"; cat "$iso_out"; exit 1; }
+grep -q -F 'available capabilities' "$iso_out" && { echo "FAIL refused promotion printed success guidance"; exit 1; }
 # Refused means nothing was written, not just nothing was committed.
 [ ! -e "$iso/TaskFlowDocs/2026-01-01-promoted-in-base" ] || { echo "FAIL blocked promote still created the task directory"; exit 1; }
 [ "$iso_todo_digest" = "$(digest "$iso/TaskFlowDocs/todo.md")" ] || { echo "FAIL blocked promote still mutated Todo"; exit 1; }
@@ -2691,6 +2692,8 @@ grep -q 'feature | fix | docs | chore' "$iso_out" || { echo "FAIL base-tree prom
 ) || { echo "FAIL isolation fixture worktree"; exit 1; }
 bash "$HERE/task" promote TF-20260101-aa 2026-01-01-promoted-in-worktree small --kind capability --root "$iso/.worktrees/task-tree" > "$iso_out" 2>&1 \
   || { echo "FAIL promote in a task worktree was refused:"; cat "$iso_out"; exit 1; }
+grep -q -F 'available capabilities' "$iso_out" \
+  || { echo "FAIL successful promotion did not guide capability selection"; cat "$iso_out"; exit 1; }
 [ -f "$iso/.worktrees/task-tree/TaskFlowDocs/2026-01-01-promoted-in-worktree/plan.md" ] \
   || { echo "FAIL task worktree promotion did not write the task"; exit 1; }
 grep -q 'not a task worktree' "$iso_out" && { echo "FAIL task worktree promotion printed the base-tree refusal"; cat "$iso_out"; exit 1; }
@@ -7210,10 +7213,8 @@ rem_silent() {  # rem_silent <label> <input>
   [ "$rc" -eq 0 ] || { echo "FAIL prompt-reminder exited $rc on $1"; exit 1; }
   [ -z "$out" ] || { echo "FAIL prompt-reminder spoke on $1: $out"; exit 1; }
 }
-for rem_phase in planning ready; do
-  write_rem_plan "$rem_phase"
-  rem_silent "a $rem_phase task" "$(rem_event "$rem_repo")"
-done
+write_rem_plan ready
+rem_silent "a ready task" "$(rem_event "$rem_repo")"
 write_rem_plan in_progress
 mkdir -p "$rem_repo/TaskFlowDocs/2026-10-22-second"
 cp "$rem_plan" "$rem_repo/TaskFlowDocs/2026-10-22-second/plan.md"
@@ -7291,13 +7292,17 @@ printf '%s\n' "$ent_ctx" | grep -q -F 'git worktree add' \
 # has to be read and dismissed on every prompt is one a reader learns to skip.
 printf '%s\n' "$ent_ctx" | grep -q -F 'Read-only work' \
   || { echo "FAIL entrance reminder does not exempt read-only work"; exit 1; }
-# `(no active task)` is the state. It must stop being the state once one exists,
-# even one that is still being planned: the four-line in-flight reminder owns
-# `in_progress`/`checking`, and a `planning` task is work already recorded.
+printf '%s\n' "$ent_ctx" | grep -q -F 'available capabilities' \
+  || { echo "FAIL entrance reminder omits capability guidance"; exit 1; }
+# A planning task receives a shorter phase-specific capability reminder.
 mkdir -p "$ent_repo/TaskFlowDocs/2026-11-04-demo"
 printf '# Plan - demo\n> Task version: v1\n> Status: planning\n' \
   > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
-rem_silent "a planning task" "$(ent_event "$ent_repo")"
+ent_planning="$(ent_event "$ent_repo" | bash "$HERE/prompt-reminder" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
+printf '%s\n' "$ent_planning" | grep -q -F 'available capabilities' \
+  || { echo "FAIL planning reminder omits capability guidance"; exit 1; }
+printf '# Plan - demo\n> Task version: v1\n> Status: ready\n' > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
+rem_silent "a ready task" "$(ent_event "$ent_repo")"
 rm -rf "$ent_repo/TaskFlowDocs/2026-11-04-demo"
 # Not started in this repository: `summarize-state` says so, and this hook must
 # not add a second opinion about a repository that has no TaskFlow record.

@@ -75,7 +75,7 @@ has an issue number or URL.
 ## 调查 Codex 中工具引用机制的引导效果
 
 - ID: TF-20261110-a56e72
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-10-digdig-codex-tool-reference
@@ -83,8 +83,8 @@ has an issue number or URL.
 - Added: 2026-11-10
 - Updated: 2026-11-10
 - Goal: 调查 digdig 新会话中工具引用机制对 Codex 的引导效果不佳的问题，并确定可验证的改进方式
-- Task: Not promoted.
-- Next action: 核对该会话的实际工具引用、引导内容与 Codex 行为，明确复现方式和原因。
+- Task: `TaskFlowDocs/2026-11-10-codex-tool-guidance/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 - Notes: 用户报告的现象，尚未核实复现或根因；与宿主能力对齐 TF-20261109-293987 相关，具体范围和是否重叠待调查。
 
 ## 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实
