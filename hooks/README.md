@@ -235,7 +235,7 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
 - `capability-evidence` and `capability-gate` are the pre-write gate pair. The
   recorder and gate are wired where the host exposes the required event shapes;
-  Codex records MCP events and dsh recognizes lowercase tools. Codex
+  Codex records MCP events and subagent starts; dsh recognizes lowercase tools. Codex
   matches `PreToolUse` on `apply_patch` and reads the target paths out of the
   patch text. The first appends one `kind|capability`
   line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;

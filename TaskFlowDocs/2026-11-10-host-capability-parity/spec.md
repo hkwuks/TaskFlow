@@ -15,7 +15,7 @@
 | 能力 | Claude Code | Codex | CodeBuddy | dsh | Trae |
 | --- | --- | --- | --- | --- | --- |
 | 阶段写前门 | 已接线 | 已接线，apply_patch | 已接线 | 已接线，小写和 patch 经合成事件测试 | 已接线 |
-| 能力事件记录 | Skill / Agent / MCP 已接线 | MCP 已接线，经合成事件测试 | Skill / Agent / MCP 已接线 | skill / MCP 已接线，skill 经合成事件测试 | Skill / MCP 已接线 |
+| 能力事件记录 | Skill / Agent / MCP 已接线 | MCP / 子代理启动已接线，真实宿主待验证 | Skill / Agent / MCP 已接线 | skill / MCP 已接线，skill 经合成事件测试 | Skill / MCP 已接线 |
 | 外部查证记录 | 已接线 | 已接线 | 已接线 | 已接线；合成 PostToolUse 事件可由现有记录器处理 | 已接线 |
 | 基础工作区异步提醒 | 已接线，结果交给 Agent | 已接线 | 未接线、能力待核实 | 未接线、能力待核实 | 未接线、能力待核实 |
 

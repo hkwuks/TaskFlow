@@ -31,4 +31,8 @@ grep -qx 'invoke|mcp__example__search' "$store/evidence"
 verdict="$(printf '%s' "$patch" | bash "$HERE/capability-gate")"
 [ -z "$verdict" ] || { echo "FAIL dsh patch rejected observed MCP call: $verdict" >&2; exit 1; }
 grep -qx '2026-11-10-parity-test|v1|Spec|2|invoke|mcp__example__search' "$store/released"
+printf '{"hook_event_name":"SubagentStart","cwd":"%s","agent_type":"reviewer"}' "$repo" | bash "$HERE/capability-evidence"
+grep -qx 'invoke|reviewer' "$store/evidence"
+printf '{"hook_event_name":"SubagentStart","cwd":"%s"}' "$repo" | bash "$HERE/capability-evidence"
+[ "$(wc -l < "$store/evidence" | tr -d ' ')" -eq 3 ] || { echo 'FAIL empty subagent type recorded' >&2; exit 1; }
 echo 'host parity fixture passed'

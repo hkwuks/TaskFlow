@@ -51,7 +51,7 @@ An environment running any other agent host needs no hooks: it continues with th
 | Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) | none (Trae's SessionStart source is only `startup`) |
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
 | Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → deny | `PreToolUse` (`apply_patch`) → deny; real host unverified | `PreToolUse` (`Write|Edit`) → deny | `PreToolUse` (`write|edit|apply_patch`) → deny; real host unverified | `PreToolUse` (`Write|Edit`) → deny |
-| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`mcp__.*`); real host unverified | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`skill`, `mcp__.*`); real host unverified | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
+| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`mcp__.*`) and `SubagentStart`; real host unverified | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`skill`, `mcp__.*`); real host unverified | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
 | External-lookup capture (never releases a stage) | `PostToolBatch` (no matcher) | `PostToolUse` (no matcher) — real host unverified | `PostToolUse` (no matcher) — `tool_response` not confirmed | `PostToolUse` (no matcher) — real host unverified | `PostToolUse` (no matcher) — `tool_response` not confirmed |
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh columns from Codex's own hook documentation (read 2026-10-29) and measured payloads respectively — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
@@ -150,7 +150,7 @@ the column above says so, and it stays that way until a session on a real machin
 confirms the deny reaches the agent — including one `*** Move to:` case, because
 the destination's spelling is the part the documentation leaves least clear.
 
-Codex MCP `PostToolUse` is wired to the capability recorder. A file read or edit
+Codex MCP `PostToolUse` and `SubagentStart` are wired to the capability recorder. A file read or edit
 does not prove a Skill invocation; use the explicit declaration for actual Skill
 use when no independent host event is observable. Real-host delivery remains
 to be verified.

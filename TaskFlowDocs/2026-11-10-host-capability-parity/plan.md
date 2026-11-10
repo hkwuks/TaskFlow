@@ -77,6 +77,9 @@
 - 2026-11-10 Windows Git Bash 隔离夹具：声明不进入观测队列；dsh `skill`、`write`、`apply_patch` 和 Codex MCP 形状分别通过记录、释放及缺失证据拒绝测试；均为合成事件。
 - 独立审批夹具分别通过 v1 声明审批及 v2 继承审批，输出明确区分 `declared (not host-observed)`；这些是假数据夹具，不代表实际宿主事件。
 - dsh 当前官方桥接源码展示 PreToolUse/PostToolUse 按原始工具名和参数转发，PostToolUse 包含响应文本；本机未安装 dsh，版本与真实显示待验证：https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/hooks/hooks-claude-code/src/index.ts 。
+- dsh 官方 MCP 客户端文档确认工具名形如 `mcp__<server>__<tool>`，与接线的 matcher 一致；这不代替真实 dsh 会话验证：https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md 。
+- Codex 官方文档将子代理启动单列为 `SubagentStart`，携带 `agent_type`；按该事件记录实际启动，不把普通文件读取视为 Skill 调用。新接线仍需真实宿主验证：https://learn.chatgpt.com/docs/hooks 。
+- 初轮 CI 的 Windows smoke 通过；Ubuntu/macOS 先后暴露宿主状态措辞和新增测试脚本清单遗漏，已分别修复并发起后续 CI。目标平台结果以最后一次运行的实际状态为准。
 
 ## Change Log
 - 2026-11-10 建立任务草稿；实施方案和不可观测证据语义尚待确认。
