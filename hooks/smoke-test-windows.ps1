@@ -310,6 +310,11 @@ try {
     # check a Windows runner executes, which makes it the only place the defect
     # can be caught automatically.
     #
+    if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
+        $parityRoot = Join-Path $Root 'host-parity'
+        & "$here\run-hook.cmd" test-host-parity $parityRoot
+        if ($LASTEXITCODE -ne 0) { throw 'host parity fixture failed' }
+    }
     # `TASKFLOW_STDIN_SELFCHECK` stops the recursion: the child is this same
     # script and must not spawn a third.
     if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {

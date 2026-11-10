@@ -28,7 +28,26 @@
         "hooks": [
           {
             "type": "command",
-            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' base-write-gate"
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' capability-gate"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "skill|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' capability-evidence"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' external-evidence"
           }
         ]
       }

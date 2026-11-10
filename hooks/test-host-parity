@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+repo="$1"
+mkdir -p "$repo/TaskFlowDocs/2026-11-10-parity-test"
+repo="$(cd "$repo" && pwd)"
+git -C "$repo" init -q
+plan="$repo/TaskFlowDocs/2026-11-10-parity-test/plan.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$plan"
+store="$(git -C "$repo" rev-parse --absolute-git-dir)/taskflow"
+bash "$HERE/task" declared PRD --capability 'example:skill' --root "$repo" >/dev/null
+grep -qx '2026-11-10-parity-test|v1|PRD|example:skill' "$store/declarations"
+[ ! -f "$store/evidence" ] || { echo 'FAIL declaration polluted observed queue' >&2; exit 1; }
+if bash "$HERE/task" declared PRD --capability 'example:other' --root "$repo" >/dev/null 2>&1; then
+  echo 'FAIL duplicate declaration accepted' >&2; exit 1
+fi
+printf '{"hook_event_name":"PostToolUse","tool_name":"skill","cwd":"%s","tool_input":{"name":"dsh:skill"}}' "$repo" | bash "$HERE/capability-evidence"
+grep -qx 'invoke|dsh:skill' "$store/evidence"
+prd_event="{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"write\",\"cwd\":\"$repo\",\"tool_input\":{\"file_path\":\"$repo/TaskFlowDocs/2026-11-10-parity-test/prd.md\"}}"
+verdict="$(printf '%s' "$prd_event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] && [ ! -f "$store/released" ] || { echo "FAIL declaration spent an observed event: $verdict" >&2; exit 1; }
+event="{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"write\",\"cwd\":\"$repo\",\"tool_input\":{\"file_path\":\"$plan\"}}"
+verdict="$(printf '%s' "$event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo "FAIL dsh write did not consume invocation: $verdict" >&2; exit 1; }
+grep -qx '2026-11-10-parity-test|v1|Plan|1|invoke|dsh:skill' "$store/released"
+patch="{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$repo\",\"tool_input\":{\"input\":\"*** Update File: $repo/TaskFlowDocs/2026-11-10-parity-test/spec.md\\n@@\\n-old\\n+new\\n*** End Patch\"}}"
+verdict="$(printf '%s' "$patch" | bash "$HERE/capability-gate")"
+case "$verdict" in *'"permissionDecision":"deny"'*) ;; *) echo "FAIL dsh patch bypassed stage gate: $verdict" >&2; exit 1 ;; esac
+printf '{"hook_event_name":"PostToolUse","tool_name":"mcp__example__search","cwd":"%s","tool_input":{}}' "$repo" | bash "$HERE/capability-evidence"
+grep -qx 'invoke|mcp__example__search' "$store/evidence"
+verdict="$(printf '%s' "$patch" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo "FAIL dsh patch rejected observed MCP call: $verdict" >&2; exit 1; }
+grep -qx '2026-11-10-parity-test|v1|Spec|2|invoke|mcp__example__search' "$store/released"
+printf '{"hook_event_name":"SubagentStart","cwd":"%s","agent_type":"reviewer"}' "$repo" | bash "$HERE/capability-evidence"
+grep -qx 'invoke|reviewer' "$store/evidence"
+printf '{"hook_event_name":"SubagentStart","cwd":"%s"}' "$repo" | bash "$HERE/capability-evidence"
+[ "$(wc -l < "$store/evidence" | tr -d ' ')" -eq 3 ] || { echo 'FAIL empty subagent type recorded' >&2; exit 1; }
+echo 'host parity fixture passed'

@@ -50,11 +50,13 @@ An environment running any other agent host needs no hooks: it continues with th
 | End-of-turn feedback | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `Stop` / `SubagentStop` | `agent/turn-stopping` / `subagent/end` | `Stop` (with `loop_limit`); no subagent tool event |
 | Pre-compaction summary | `PreCompact` | `PreCompact` | `PreCompact` | none (dsh emits `compact` as a SessionStart source) | none (Trae's SessionStart source is only `startup`) |
 | Optional permission guardrail (never approves core writes) | `PermissionRequest` | `PermissionRequest` | `PreToolUse` | `tools/pre-execute` | `PreToolUse` |
-| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → `hookSpecificOutput.permissionDecision: deny` | `PreToolUse` (`apply_patch`) → `hookSpecificOutput.permissionDecision: deny`, path read out of the patch text — documented, not yet measured on a real Codex | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` | not wired — `write`/`edit` are lowercase and the case arms are not | `PreToolUse` (`Write|Edit`) → `hookSpecificOutput.permissionDecision: deny` |
-| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | not wired — `skill` is lowercase too | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
-| External-lookup capture (never releases a stage) | `PostToolBatch` (no matcher) | `PostToolUse` (no matcher) — documented, not yet measured | `PostToolUse` (no matcher) — `tool_response` not confirmed on this host | not supported — the bridge reports lowercase `tool_name` and supplies no batch event | `PostToolUse` (no matcher) — `tool_response` not confirmed on this host |
+| Pre-write capability gate on a stage document (deny only) | `PreToolUse` (`Write`, `Edit`) → deny | `PreToolUse` (`apply_patch`) → deny; real host unverified | `PreToolUse` (`Write|Edit`) → deny | `PreToolUse` (`write|edit|apply_patch`) → deny; real host unverified | `PreToolUse` (`Write|Edit`) → deny |
+| Capability-call capture (feeds the gate) | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`mcp__.*`) and `SubagentStart`; real host unverified | `PostToolUse` (`Skill`, `Agent|Task`, `mcp__.*`) | `PostToolUse` (`skill`, `mcp__.*`); real host unverified | `PostToolUse` (`Skill`, `mcp__.*`) — Trae has no `Agent`/`Task` tool |
+| External-lookup capture (never releases a stage) | `PostToolBatch` (no matcher) | `PostToolUse` (no matcher) — real host unverified | `PostToolUse` (no matcher) — `tool_response` not confirmed | `PostToolUse` (no matcher) — real host unverified | `PostToolUse` (no matcher) — `tool_response` not confirmed |
 
 Host event names and output fields are version-sensitive; check each host's current hooks reference when wiring a new release. The gate's contract was measured against **Claude Code 2.1.282** on 2026-09-27 rather than assumed: `Skill` fires both `PreToolUse` and `PostToolUse`, its `tool_input.skill` carries the capability name, and `PreToolUse` fires for `Edit`. That measurement covers `Skill` only — that `Agent`/`Task` and `mcp__.*` reach `PostToolUse` the same way is inferred from the same tool-call lifecycle, not measured. The Trae column is documented, not measured — see **Trae specifics** below. The CodeBuddy columns come from the packaged CLI rather than from a running session, and the Codex and dsh columns from Codex's own hook documentation (read 2026-10-29) and measured payloads respectively — **CodeBuddy specifics**, **Codex specifics** and **dsh specifics** below each state which standing they hold.
+
+An event that is not wired is an outstanding integration gap. Mark a capability not supported only when host evidence establishes the missing mechanism; an untested host is neither proof of support nor proof of absence.
 
 **External-lookup capture is recorded by URL, not by tool name, and is documented
 rather than measured.** The predicate is "did this event carry an absolute
@@ -76,18 +78,17 @@ fields are the documented Claude Code ones but `tool_response` has not been
 confirmed; if it is absent there, the recorder still sees URLs in the arguments
 and misses URLs that appear only in results. Codex's own hooks documentation
 (read 2026-11-02) gives `tool_name` as `Bash`, `apply_patch` or `mcp__fs__read`
-with a `tool_response` per tool, and lists no batch event. dsh is *not
-supported* rather than not wired: its bridge builds `tool_name` from the
-lowercase `exec.name` with no translation, and offers no batch event to fall back
-on.
+with a `tool_response` per tool, and lists no batch event. The dsh bridge also
+forwards `PostToolUse` arguments and response text; its tool name does not affect
+the URL scanner. The new wiring has not been measured in a real dsh session.
 
-The gate is wired wherever the host delivers **one of the two input shapes `capability-gate` now reads**: the written file's path under `tool_input.file_path` (Claude Code, CodeBuddy, Trae), or the patch text under `tool_input.command` with `tool_name` of `apply_patch` (Codex). A host that reports an edit some other way must not be wired until the gate learns that shape — the hook would find no input, exit 0, and allow every write, while the repository and this document both claimed a gate was present. A silent no-op gate is worse than an absent one, which is why a host is wired only against a shape the script can actually read. The same applies to a host whose tool names miss the matcher arm: the matcher never fires, so the script is not even reached. dsh is that case, and **dsh specifics** below states it.
+The gate reads `tool_input.file_path` for edits and `tool_input.command` or `tool_input.input` for patches. A host whose events have another shape must not be reported as protected until that shape has been verified and handled.
 
-The recorder's predicate is the tool class (`Skill`, `Agent`/`Task`, `mcp__*`), so it travels to any host that reports those names. Trae has no `Agent`/`Task` tool, so that one evidence path exists only where the host does.
+The recorder accepts `Skill`, dsh's `skill`, `Agent`/`Task`, and `mcp__*`. Trae has no `Agent`/`Task` tool, so that evidence path exists only where the host does.
 
 ## Base checkout edit guard
 
-`base-write-gate` checks the target Git worktree before observable file edits: the base checkout of a repository containing `TaskFlowDocs/todo.md` is denied, while a linked worktree and direct Todo intake are allowed. The guard runs first inside `capability-gate`, preventing a denied edit from spending stage evidence. Codex, Claude Code, CodeBuddy and Trae use their existing capability-gate wiring. dsh invokes the guard directly for lowercase `write`/`edit` and `apply_patch` (`tool_input.input`). The dsh tool schemas are documented at https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/fs/tool-fs/README.md; this wiring has not been tested in a real dsh session. Existing host caveats about trusted hooks and event shapes still apply.
+`base-write-gate` checks the target Git worktree before observable file edits: the base checkout of a repository containing `TaskFlowDocs/todo.md` is denied, while a linked worktree and direct Todo intake are allowed. The guard runs first inside `capability-gate`, preventing a denied edit from spending stage evidence. dsh uses lowercase `write`/`edit` and `apply_patch` (`tool_input.input`); its wiring has not been tested in a real dsh session. Existing host caveats about trusted hooks and event shapes still apply.
 
 The check is a guardrail, not a filesystem boundary: shell commands, interactive input, specialized tools that do not emit these events, symlink and hardlink targets and untrusted or disabled hooks can bypass it. On Windows, a test of an MXC profile with the base read-only and the nested worktree writable still allowed a write through a worktree hardlink to change the base file. This is one local fixture result, not a cross-platform claim. A release editing the base checkout through these file tools may be refused; release exceptions are tracked in TF-20261109-ccbb96. It never rolls back another process's writes.
 
@@ -107,7 +108,9 @@ Only `consumed` reads across tasks, and it reads both line shapes: it is the hig
 
 `unaided` is also the only writer that checks that invariant before writing. Its sequence comes from `released` alone, so a store whose `evidence` was deleted or truncated reads as already past the end of the queue; writing then widens the gap instead of closing it, and every stage is denied from that point on with no way back. A declaration now refuses that store and says both numbers, rather than adding the release that makes the desync permanent. The records themselves cannot be rebuilt, so the recovery is `bash hooks/task recover`: it discards only the releases whose sequence points past the end of `evidence` — the ones that can be identified without guessing — keeps every release whose record still exists, and appends what it discarded to `released.discarded` rather than erasing the only remaining statement of which stages had been released. Deleting `<absolute-git-dir>/taskflow` also works and throws away every release, not only the unbacked ones. `approve` refuses the same store for the same reason: it reconciles stages against `released` alone, so an unsupported row would let a stage pass on a record that is gone, and whether a task could be approved would depend on damage.
 
-The gate is wired wherever the host exposes a tool-call hook in one of the two input shapes `capability-gate` reads. On Claude Code, CodeBuddy, and Trae that shape is the written file's path under `tool_input.file_path`, with `Write`/`Edit` for the gate and `Skill`/`Agent`/`Task`/`mcp__*` for the recorder — the same names, so no script gains a host branch. Trae's tool table has no `Agent`/`Task`, so that one evidence path exists only where the host does. On Codex the shape is the patch text under `tool_input.command` with `tool_name` of `apply_patch`: the gate matches it, and the recorder is not wired there, so a stage on Codex is released by `hooks/task unaided` rather than by a recorded invocation.
+The gate accepts file paths under `tool_input.file_path` and patches under `tool_input.command` or `tool_input.input`. Claude Code, CodeBuddy and Trae use `Write`/`Edit`; dsh uses `write`/`edit`; Codex and dsh use `apply_patch`. Codex records observable MCP calls, while dsh's lowercase `skill` uses `tool_input.name`. These wire-level changes require real-host verification.
+
+When a capability really was used but the host did not expose an observable event, `hooks/task declared <stage> --capability <name>` writes to the worktree's separate `declarations` ledger, not the observed-event queue. The Plan must identify the same stage as `Declared` followed by the exact backticked capability name; approval reports declarations separately. Duplicate declarations and conflicts with stage releases are refused. A declaration is an explicit claim, not independent proof of a call.
 
 Four properties are worth stating because each one is load-bearing:
 
@@ -147,14 +150,10 @@ the column above says so, and it stays that way until a session on a real machin
 confirms the deny reaches the agent — including one `*** Move to:` case, because
 the destination's spelling is the part the documentation leaves least clear.
 
-`PostToolUse` is deliberately not wired: `capability-evidence`'s predicate is a
-capability class (`Skill`, `Agent`/`Task`, `mcp__*`), and `apply_patch` is an edit
-tool. Wired, the hook would run, exit 0, and record nothing, while this document
-claimed the host had evidence capture. Measured 2026-10-29: feeding it that event
-changed no evidence line. Capability records, where a host records them at all,
-come from `Skill` and MCP calls and never from an edit; Codex records none while
-its `PostToolUse` capability capture stays unwired, so its stage evidence can
-only come from a `hooks/task unaided` declaration.
+Codex MCP `PostToolUse` and `SubagentStart` are wired to the capability recorder. A file read or edit
+does not prove a Skill invocation; use the explicit declaration for actual Skill
+use when no independent host event is observable. Real-host delivery remains
+to be verified.
 
 ### dsh specifics
 
@@ -177,20 +176,11 @@ an installed dsh rather than assumed:
   is the plugin package, and `dsh/index.js` mounts `hooks-dsh.json` on the bridge
   at load time. The file name is therefore a TaskFlow choice, not a host
   convention, and nothing outside `dsh/index.js` reads it.
-- **Tool names are lowercase, and the bridge does not translate them.** This is
-  why dsh does not wire the capability gate or capability recorder. The bridge builds its payload as
-  `tool_name: exec.name` with no mapping table, and dsh's own file tools register
-  as `write`/`edit` (`dsh-tool-fs`), its skill tool as `skill`. Every matcher in
-  this repository and both hooks' `case "$tool_name"` arms are the PascalCase
-  Claude Code spelling, so on dsh the matcher never fires at all: the hook is not
-  reached, nothing is denied, and a stage document is written ungated on a host
-  the wiring would appear to cover. Measured on **dsh 0.2.0-rc.2** (2026-10-11)
-  against the installed bridge source and its own matcher — `matchesMatcher`
-  compares case-sensitively, so `Write|Edit` against `write` is false while
-  `write|edit` against it is true. Wiring dsh therefore means lowercase arms
-  inside `capability-gate` and `capability-evidence`, not a wiring-file edit;
-  until that exists, `hooks/task unaided` is how a stage is released there. The
-  separate base checkout guard does use the lowercase file-tool events.
+- **Tool names are lowercase, and the bridge does not translate them.** The
+  gate and recorder now recognize dsh's `write`, `edit`, `apply_patch` and
+  `skill` forms, and the bridge forwards tool arguments. The current wiring has
+  synthetic-event coverage but has not been measured in a real dsh session;
+  explicit Skill injection need not produce a `skill` tool event.
 
 ### CodeBuddy specifics
 
@@ -413,6 +403,7 @@ repo-root/
         ├── repo-rules                   # show / install / check default repository rules
         ├── templates                    # the default CONTRIBUTING.md and CODE_STYLE.md
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
+        ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         └── smoke-test                   # assert-style smoke tests
 ```

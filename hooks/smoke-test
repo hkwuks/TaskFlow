@@ -6836,7 +6836,7 @@ printf '%s' "$dsh_out" | grep -q '"hookEventName": *"SessionStart"' || {
 # dsh uses lowercase file-tool names; the isolation guard handles them directly.
 grep -q -F -- 'write|edit|apply_patch' "$HERE/hooks-dsh.json" \
   || { echo "FAIL dsh isolation guard is not wired"; exit 1; }
-grep -q -F -- 'base-write-gate' "$HERE/hooks-dsh.json" \
+grep -q -F -- 'capability-gate' "$HERE/hooks-dsh.json" \
   || { echo "FAIL dsh isolation guard command is missing"; exit 1; }
 
 echo ok
@@ -6993,17 +6993,11 @@ codex_allow="$(printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"
   || { echo "FAIL the Codex wiring command did not run on an unrelated patch"; exit 1; }
 printf '%s' "$codex_allow" | grep -q '"deny"' \
   && { echo "FAIL the Codex wiring refused an unrelated patch:"; printf '%s\n' "$codex_allow"; exit 1; }
-# `capability-evidence` must stay unwired here. Its predicate is a capability class
-# (Skill / Agent|Task / mcp__*), and `apply_patch` is an edit tool: wired, the hook
-# would run, exit 0, and record nothing, while `runtime.md` claimed the host had
-# evidence capture. Measured 2026-10-29 — feeding it that event changed no evidence
-# line. `external-evidence` is the opposite case and is wired: its predicate is a
-# URL in the event, so `apply_patch` recording nothing for *capability* evidence
-# says nothing about whether an edit's text carried an outside URL.
-if grep -q -F -- '"capability-evidence"' "$HERE/hooks-codex.json" \
-   && grep -A3 -- '"PostToolUse"' "$HERE/hooks-codex.json" | grep -q 'capability-evidence'; then
-  echo "FAIL hooks-codex.json wires capability-evidence on PostToolUse, where apply_patch records nothing"; exit 1
-fi
+# Codex reports MCP PostToolUse events; ordinary edits do not prove capability use.
+grep -q -F -- 'hooks/capability-evidence' "$HERE/hooks-codex.json" \
+  || { echo "FAIL Codex MCP capability evidence is not wired"; exit 1; }
+grep -q -F -- '"matcher": "mcp__.*"' "$HERE/hooks-codex.json" \
+  || { echo "FAIL Codex capability evidence matcher misses MCP calls"; exit 1; }
 grep -q -F -- 'hooks/external-evidence' "$HERE/hooks-codex.json" \
   || { echo "FAIL hooks-codex.json does not wire external-evidence; the host would record no lookups"; exit 1; }
 grep -q -F -- 'tool_input.file_path' "$HERE/capability-gate" \
@@ -8248,4 +8242,25 @@ out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc
 [ "$rc" -eq 0 ] || { echo "FAIL a defect task naming an invoked investigation capability was refused: $out"; exit 1; }
 echo ok
 
+printf 'unaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf '2026-01-01-kd-defect|v1|Plan|1|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|2|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
+printf '2026-01-01-kd-defect|v1|PRD|some:debugger\n' > "$kd_gd/taskflow/declarations"
+kd_set_plan "$kd_task" '- [PRD] `some:debugger` — purpose: probe; outcome: probe; incorporated: probe'
+if bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1; then
+  echo 'FAIL a declaration was accepted as observed' >&2; exit 1
+fi
+kd_set_plan "$kd_task" '- [PRD] Declared `some:debugger` — purpose: probe; outcome: probe; incorporated: probe'
+out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" || { echo "FAIL declared approval: $out" >&2; exit 1; }
+case "$out" in *'1 declared (not host-observed)'*) ;; *) echo "FAIL declaration source omitted: $out" >&2; exit 1 ;; esac
+printf '2026-01-01-kd-defect|v1|PRD|another:debugger\n' >> "$kd_gd/taskflow/declarations"
+if bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1; then
+  echo 'FAIL conflicting declarations were accepted' >&2; exit 1
+fi
+: > "$kd_gd/taskflow/declarations"
+printf 'invoke|some:DeclaredDebugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:DeclaredDebugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
+kd_set_plan "$kd_task" '- [PRD] `some:DeclaredDebugger` — purpose: probe; outcome: probe; incorporated: probe'
+bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1 || { echo 'FAIL an observed capability containing Declared was misclassified' >&2; exit 1; }
+
+bash "$HERE/test-host-parity" "$tmp/host-parity"
 echo "ALL SMOKE PASSED"

@@ -27,6 +27,20 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区
+
+- ID: TF-20261110-0c7346
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: follow-up:2026-11-10-host-capability-parity
+- Kind: defect
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区异步提醒，逐项记录事件与提示是否实际到达
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
 - ID: TF-20261110-84d1a9
@@ -76,18 +90,10 @@ has an issue number or URL.
 ## 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实
 
 - ID: TF-20261109-293987
-- Status: inbox
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-09-host-capability-parity
-- Kind: defect
-- Added: 2026-11-09
-- Updated: 2026-11-09
+- Status: done
 - Goal: 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实际接线、宿主事件与运行效果，补齐可支持能力和持续验证，区分未接线、未验证与确实不支持；关联 TF-20261109-e2df6d 和 TF-20261104-d3ac3c
-- Task: Not promoted.
-- Next action: Clarify and promote when ready.
-
-- Notes: 2026-11-09 实例：Codex 未接入 capability-evidence，Plan 阶段实际读取并使用 planning-and-task-breakdown 后，task approve 报 stage [Plan] was never released。不得将实际使用的能力伪记为 unaided；需支持可审计的真实调用记录与审批恢复，并验证真实宿主。关联任务 TF-20261109-e2df6d。
+- Task: `TaskFlowDocs/achieved/2026-11-10-host-capability-parity/`
+- Next action: None — completed and archived.
 
 ## 让插件和桌面应用中的用户能够清楚获知 Agent 创建的 worktree
 
