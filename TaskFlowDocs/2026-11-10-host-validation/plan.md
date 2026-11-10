@@ -81,6 +81,7 @@
 - Codex 上游 issue https://github.com/openai/codex/issues/23411 包含 Windows 桌面版 `functions.exec` 嵌套工具的 hook 未生效报告；官方 https://learn.chatgpt.com/docs/hooks 描述嵌套调用应受 hook 约束。上游 issue 是他人报告，不证明本机根因或当前版本具体修复状态；需区分事件未分发、载入状态、输入格式和 hook 启动失败。
 - 尝试以 app-server `hooks/list` 的 `threadId` 查询当前聊天；沙箱内无法访问控制 socket，提升权限后连接查询未收到初始化响应。可识别的独立 daemon 版本为 0.167.0，但未证明它承载当前桌面聊天，故未将该查询当作已加载 hook 的证据，也没有重启或修改配置。
 - 将同一隔离 `evidence` 路径及文档化的 `tool_input.command` 事件直接送入本机已安装 1.2.1 的 `run-hook.cmd capability-gate`：退出 0 且输出 `permissionDecision: deny`；同路径经当前桌面的 `functions.exec` → `tools.apply_patch` 实际写入未被拒绝。前者验证本机启动器和合成输入，后者是实际路径观察，二者共同排除不了加载、派发或真实输入形态差异。
+- 用户允许后，新建独立 Codex 测试聊天 `01a1c4f4-7f8c-7c00-a9c7-a4d5567c9322`，在项目内隔离文件重复真实 `functions.exec` → `tools.apply_patch`：模拟 evidence 文件仍从 before 改为 after；同一路径交给安装版 `run-hook.cmd capability-gate` 的合成事件返回 deny。该观察排除仅由原聊天创建时间导致的解释，但不能确定 hook 是否实际加载、事件是否分发/匹配或输入形态；不证明任意其他工具路径。
 
 ## Change Log
 - 2026-11-10：按已有 Todo 建立 v1 计划草案。
