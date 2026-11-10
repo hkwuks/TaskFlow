@@ -43,25 +43,29 @@
 - Goal: 形成五宿主逐能力矩阵，定位可观测事件与证据缺口。
 - Acceptance: 区分已接线、未接线、确实不支持和未验证，并提供依据。
 - Verification: 官方宿主契约、当前源文件、实际可用环境与针对性事件。
-- Status: in_progress
+- Rollback: 不更改宿主安装；调查结论在任务文档中更正。
+- Status: done
 
 ### Step 2 — 修复可观察路径与证据语义
 - Goal: 接入 Codex 可观察 MCP 事件；依据已核实的 dsh 契约适配小写 skill、参数和可用事件，核对阶段写门和外部证据。新增最小明确声明命令，为不可观察使用记录 `declared` 来源，更新审批与相关队列读取路径。
 - Acceptance: 宿主观测、声明、unaided 三种来源各自可辨；声明只针对当前工作树、任务、版本、阶段和能力，不能伪称由宿主观测，也不能改变用户审批要求。未确认的事件不猜测接线。
 - Verification: 针对成功、失败、缺失来源、已有 invoke/unaided、重复事件、Test 特例、多工作树及并发/异常存储的必要回归；可行时真实宿主实测。
-- Status: in_progress
+- Rollback: 回退本任务提交恢复原有接线和记录方式；不清理用户数据或配置。
+- Status: done
 
 ### Step 3 — 审核各宿主覆盖
 - Goal: 处理其余可支持差异，记录无法可靠承载和无法验证的项目。
 - Acceptance: 逐项标明依据、静态接线、合成测试和真实宿主测试；不把未实现称为不支持或已验证。非阻断提醒保持非阻断，不强制重启会话。
 - Verification: 对照宿主事件文档与配置逐项复核。
-- Status: pending
+- Rollback: 更正文档和接线，不改用户全局配置。
+- Status: done
 
 ### Step 4 — 验证与交付
 - Goal: 运行相应 CI 与安全审查，更新用户可见文档。
 - Acceptance: CI、宿主实测和限制分别报告，保留用户文件与配置。
 - Verification: 三系统 CI、相关真实宿主探针及 `git diff --check`。
-- Status: pending
+- Rollback: 若最终复核未通过则保留草稿 PR，不合并。
+- Status: done
 
 ## Verification / Review
 - Repository change layer: `skills/taskflow/` and `hooks/` change the plugin for every installing repository; they are not repository-only rules or templates.
@@ -80,6 +84,8 @@
 - dsh 官方 MCP 客户端文档确认工具名形如 `mcp__<server>__<tool>`，与接线的 matcher 一致；这不代替真实 dsh 会话验证：https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md 。
 - Codex 官方文档将子代理启动单列为 `SubagentStart`，携带 `agent_type`；按该事件记录实际启动，不把普通文件读取视为 Skill 调用。新接线仍需真实宿主验证：https://learn.chatgpt.com/docs/hooks 。
 - 初轮 CI 的 Windows smoke 通过；Ubuntu/macOS 先后暴露宿主状态措辞和新增测试脚本清单遗漏，已分别修复并发起后续 CI。目标平台结果以最后一次运行的实际状态为准。
+- 代码提交 `3d4bc37` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42752923550)：Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 changes 均通过；release 按变更路径跳过。`git diff --check` 和 bundled Python 的 Skill quick validation 通过。
+- 审查：原测试对 dsh 未接线和 Codex 不记录 MCP 的断言随实际事件契约变更，现由配置与合成事件验证替代；新增声明来源、冲突、名称及版本继承检查。真实 Codex / Claude 异步提醒显示及 dsh、CodeBuddy、Trae 真实宿主端到端仍待验证，不能由合成事件或 CI 代替。
 
 ## Change Log
 - 2026-11-10 建立任务草稿；实施方案和不可观测证据语义尚待确认。
@@ -88,4 +94,5 @@
 - 2026-11-10 实现细化：声明使用独立的工作树内账本，而非进入自动事件队列，避免并发追加导致证据序号错配；批准范围和来源语义不变。
 
 ## Follow-ups
+- TF-20261110-0c7346：真实宿主会话中的事件和异步提醒验证；现有能力对齐任务验收后保留此待办，避免未测项目丢失。
 - 完成后开始 TF-20261110-a56e72。

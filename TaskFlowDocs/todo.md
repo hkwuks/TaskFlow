@@ -27,6 +27,20 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区
+
+- ID: TF-20261110-0c7346
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: follow-up:2026-11-10-host-capability-parity
+- Kind: defect
+- Added: 2026-11-10
+- Updated: 2026-11-10
+- Goal: 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区异步提醒，逐项记录事件与提示是否实际到达
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
 - ID: TF-20261110-84d1a9
