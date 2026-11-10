@@ -40,6 +40,7 @@ has an issue number or URL.
 - Goal: 在可用的真实宿主会话中验证 TaskFlow 能力对齐及基础工作区异步提醒，逐项记录事件与提示是否实际到达
 - Task: Not promoted.
 - Next action: Clarify and promote when ready.
+- Notes: 同一真实宿主验证时一并观察工具引导提示、实际能力选择和计划质量；区分提示送达与模型采纳，未经对照不声称因果改善。关联 TF-20261110-a56e72。另：合成 `PreToolUse` 事件显示新 `taskflow/declarations` 文件未纳入 evidence/released 的直接编辑流程护栏；需检查并补齐，该护栏不覆盖任意 shell 写入。
 
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
@@ -75,17 +76,10 @@ has an issue number or URL.
 ## 调查 Codex 中工具引用机制的引导效果
 
 - ID: TF-20261110-a56e72
-- Status: inbox
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-10-digdig-codex-tool-reference
-- Kind: defect
-- Added: 2026-11-10
-- Updated: 2026-11-10
+- Status: done
 - Goal: 调查 digdig 新会话中工具引用机制对 Codex 的引导效果不佳的问题，并确定可验证的改进方式
-- Task: Not promoted.
-- Next action: 核对该会话的实际工具引用、引导内容与 Codex 行为，明确复现方式和原因。
-- Notes: 用户报告的现象，尚未核实复现或根因；与宿主能力对齐 TF-20261109-293987 相关，具体范围和是否重叠待调查。
+- Task: `TaskFlowDocs/achieved/2026-11-10-codex-tool-guidance/`
+- Next action: None — completed and archived.
 
 ## 检查并修复已支持 Agent 宿主的 TaskFlow 能力对齐：逐项核实实
 

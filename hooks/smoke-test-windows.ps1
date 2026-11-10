@@ -9,7 +9,7 @@ if ($createdRoot) {
 }
 
 function Invoke-TaskFlow {
-    param([string[]]$Arguments, [switch]$MustFail)
+    param([string[]]$Arguments, [switch]$MustFail, [switch]$RequireGuidance)
     $oldPreference = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     $output = & "$here\run-hook.cmd" task @Arguments 2>&1
@@ -17,6 +17,7 @@ function Invoke-TaskFlow {
     $ErrorActionPreference = $oldPreference
     if ($MustFail -and $exitCode -eq 0) { throw "Expected failure: $($Arguments -join ' ')" }
     if (-not $MustFail -and $exitCode -ne 0) { throw "Command failed: $($Arguments -join ' '): $output" }
+    if ($RequireGuidance -and ($output -join "`n") -notmatch 'available capabilities') { throw 'promotion capability guidance missing on Windows' }
 }
 
 function Invoke-SessionStart {
@@ -103,7 +104,7 @@ try {
     # name one. `capability` because that is what an unclassified promotion
     # would have meant, not because this fixture cares: the assertion below is
     # about a Windows path with a non-ASCII segment surviving the round trip.
-    Invoke-TaskFlow (@('promote', $todoId, '2026-09-11-windows-smoke', 'small', '--kind', 'capability') + $common)
+    Invoke-TaskFlow (@('promote', $todoId, '2026-09-11-windows-smoke', 'small', '--kind', 'capability') + $common) -RequireGuidance
     $task = Join-Path $Root 'TaskFlowDocs\2026-09-11-windows-smoke'
     $plan = Join-Path $task 'plan.md'
 
@@ -176,6 +177,12 @@ try {
         Remove-Item -LiteralPath $eventFile -Force
         return [pscustomobject]@{ Output = ($out -join "`n"); Exit = $code }
     }
+
+    $planningEvent = '{"hook_event_name":"UserPromptSubmit","cwd":"' + $gateRepo.Replace('\', '\\') + '"}'
+    $planningReminder = Invoke-Hook 'prompt-reminder' $planningEvent
+    if ($planningReminder.Exit -ne 0) { throw 'planning reminder failed' }
+    $planningContext = ($planningReminder.Output | ConvertFrom-Json).hookSpecificOutput.additionalContext
+    if ($planningContext -notmatch 'available capabilities') { throw 'planning capability guidance missing on Windows' }
 
     $prdPath = Join-Path $gateTask 'prd.md'
     $specPath = Join-Path $gateTask 'spec.md'

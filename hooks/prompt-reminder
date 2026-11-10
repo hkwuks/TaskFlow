@@ -126,13 +126,14 @@ entrance_reminder() {
 If this instruction asks you to change this repository or deliver a development artifact, record it first — these two commands, in this order:
   bash hooks/task intake "<the goal in one sentence>"
   git worktree add .worktrees/<slug> -b <type>/<slug> <base>
+For development tasks, consider available capabilities (skills, tools, MCP, agents) for the current phase; use those that help, or work unaided.
 Read-only work — explanation, translation, status, research, review, diagnosis — needs neither. If the work is already recorded elsewhere, say where and continue.'
   printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "UserPromptSubmit",\n    "additionalContext": "%s"\n  }\n}\n' "$(escape_for_json "$ctx")"
   exit 0
 }
 
-# Exactly one task line under "# Active tasks", and its status must be a phase
-# where implementation is running. `no active task` prints no line and
+# Exactly one task line under "# Active tasks" in planning or active execution.
+# `no active task` prints no line and
 # `Multiple active tasks` prints a line that does not split into fields; both
 # leave `line` empty and fall through to the entrance reminder below.
 line="$(printf '%s\n' "$summary" | awk '
@@ -153,11 +154,21 @@ line="$(printf '%s\n' "$summary" | awk '
     # The status is the first token of the third field: the value is always one
     # word, and the heading that follows it is separated by an optional em dash.
     split(f[3], w, " ")
-    if (w[1] != "in_progress" && w[1] != "checking") exit 0
+    if (w[1] != "planning" && w[1] != "in_progress" && w[1] != "checking") exit 0
     print picked
   }
 ' )"
 [ -n "$line" ] || { entrance_reminder; exit 0; }
+
+phase="${line#* | }"
+phase="${phase#* | }"
+phase="${phase%% *}"
+if [ "$phase" = planning ]; then
+  ctx="$line
+For this development task, consider available capabilities (skills, tools, MCP, agents) for the current phase; use those that help, or work unaided."
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "UserPromptSubmit",\n    "additionalContext": "%s"\n  }\n}\n' "$(escape_for_json "$ctx")"
+  exit 0
+fi
 
 # Four lines, or three: the derived state verbatim, the material the Plan asks to
 # be reminded of, the question the rule asks, and the default. The default is the
