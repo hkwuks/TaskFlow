@@ -2855,7 +2855,7 @@ for key in smoke release evals; do
   [ "$got" = true ] || { echo "FAIL an unknown path did not run $key"; exit 1; }
 done
 
-# `todo-merge-audit` is the one job with no `if`, and that is the contract: the
+# `todo-merge-audit` has no `if`, and that is the contract: the
 # merge most likely to drop a Todo entry is the one no path set can single out.
 #
 # Read as text, not through a YAML parser. `python3` here is the interpreter the
@@ -2877,9 +2877,12 @@ workflow_jobs="$(awk '
     for (i = 1; i <= n; i++) {
       k = keys[i]
       if (needs[k] != "changes") { print k " does not depend on changes"; bad = 1 }
-      if (cond[k] != "needs.changes.outputs." k " == \x27true\x27") {
+      if (cond[k] != "needs.changes.outputs." k " == \x27true\x27 && needs.changes.outputs.reuse_" k " != \x27true\x27") {
         print k " has the wrong condition: [" cond[k] "]"; bad = 1
       }
+    }
+    if (needs["ci-reuse-test"] != "" || cond["ci-reuse-test"] != "") {
+      print "ci-reuse-test must stay unconditional"; bad = 1
     }
     exit bad + 0
   }
