@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-11-10
+
+### Added
+
+- **Base-checkout edit guard.** Observable file edits in a TaskFlow base checkout are refused; use a task worktree for development. Direct Todo intake remains available. Claude Code and Codex also receive a best-effort asynchronous warning when the base checkout is already dirty after a shell call. The warning does not attribute changes to that call. [#128](https://github.com/hkwuks/TaskFlow/pull/128)
+- **Explicit capability-use declarations.** `hooks/task declared <stage> --capability <name>` records an actual use that the host cannot observe separately from host-observed calls and unaided work. Approval checks the task, version, stage and capability, and reports the source. [#130](https://github.com/hkwuks/TaskFlow/pull/130)
+- **Capability selection guidance.** The existing task entrance and planning prompts and a successful `task promote` offer a short, non-blocking reminder to consider relevant capabilities available in the host. No per-tool watcher or mandatory tool list is added. [#131](https://github.com/hkwuks/TaskFlow/pull/131)
+- **Architecture overview.** The English and Chinese READMEs show the workflow, capability guidance, and Plan Review. [#129](https://github.com/hkwuks/TaskFlow/pull/129)
+
+### Changed
+
+- Codex capability evidence is wired for MCP calls and subagent starts; dsh handles its lowercase skill and file-tool events and forwards external-lookup events. Existing capabilities are documented per host rather than presumed to work identically. [#130](https://github.com/hkwuks/TaskFlow/pull/130)
+
+### Compatibility and known limitations
+
+- Existing workflows that edit the base checkout through an observed file-edit tool can now be refused; use a linked worktree. Release edits may also be affected. The guard is not a filesystem sandbox: shell operations, hardlinks, and other unobserved paths can bypass it.
+- The asynchronous dirty-check is a status reminder, not a before/after comparison. Ignored files and changes that disappear before the check may be missed; notifications can repeat.
+- Declarations are claims by the agent, not independently observed calls. The new declarations file is not yet covered by the direct-edit discipline guard applied to the older evidence files; that guard does not cover arbitrary shell writes either. Follow-up: `TF-20261110-0c7346`.
+- New host-event wiring and asynchronous warning delivery have synthetic and CI coverage, but have not been validated end to end in every real host. The effect of the guidance on actual Codex tool selection has not been measured. These limits are tracked in `TF-20261110-0c7346`.
+- No new installation command or global configuration change is required. Codex and CodeBuddy version strings retain host cachebuster suffixes.
+
+### Verification
+
+- The pre-release `main` commit `433b45f6bf24265fedd77f535582b5ce50c1cabf` passed the full [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/42775484896), including Ubuntu, macOS and Windows smoke, evals, release and Todo merge audit.
+- The release-only commit changes version literals, README version samples and this section. The full smoke suite is not repeated locally because the three-platform matrix covered the implementation on the pre-release commit.
+- `hooks/repository-check .` and `hooks/release-check .` — `STATUS: pass` during preparation; the latter checked the existing v1.2.0 catalog pins and must be repeated after updating the pins. Skill quick validation and `git diff --check` passed.
+
+### Release
+
+- Tag: `v1.2.1`; GitHub Release: https://github.com/hkwuks/TaskFlow/releases/tag/v1.2.1. The tag identifies the release commit; the catalog pins are published atomically with it.
+
 ## [1.2.0] — 2026-11-08
 
 ### Added
