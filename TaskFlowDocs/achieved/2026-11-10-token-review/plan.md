@@ -1,6 +1,6 @@
 # Plan — 审视 TaskFlow 流程中的不合理环节和 Token 开销
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 
@@ -57,11 +57,11 @@
 - Files: 以调查结果为准，候选集中在 `skills/taskflow/SKILL.md`、`skills/taskflow/references/artifacts.md`、`hooks/task` 和已有针对性测试；不提前扩大范围。
 - Implementation checklist:
   - [x] 逐项评估性能、可靠性和用户决策的影响并实现获批项。
-  - [ ] 执行针对性测试及 CI，并明确剩余验证。
+  - [x] 执行针对性测试及 CI，并明确剩余验证。
 - Acceptance: 不损害必要质量和追溯，实测证据支持改进。
 - Verification: 针对性测试、适用的跨平台 CI 和复核。
 - Rollback: 回退任务变更。
-- Status: in_progress
+- Status: done
 
 ### Step 1 — 历史样本与流程检查
 
@@ -91,6 +91,9 @@
 ## Checkpoints
 
 ## Verification / Review
+
+- 2026-11-11 Step 4: 本地针对性检查及三系统 CI 通过；Token 与模型采纳边界已记录。
+- 2026-11-11：修正旧文案检查后，[草稿 PR CI](https://github.com/hkwuks/TaskFlow/actions/runs/42976875246) 的 Ubuntu、macOS、Windows smoke、CI 复用测试、Todo 审计、changes 与 evals 全部通过；release 按路径分类跳过。真实 Agent 对文案的采纳、委派的子 Agent 总 Token、搜索倾向的因果效应仍无充分证据。
 - 2026-11-11 草稿 PR 首轮 CI：Ubuntu 与 macOS smoke 均在旧文案固定检查失败，Windows smoke 通过。依据已批准的新规则更新 `hooks/smoke-test` 的现有契约检查，分别确认沿用既有决定、未决事项仍询问、不擅自合并；`bash -n hooks/smoke-test`、三项局部检查与 `git diff --check` 通过。该修改发生在检查拥有层，反映用户批准的行为变化，并非绕过失败；等待新一轮 CI。
 - 2026-11-11：用户批准两项 Skill 文案改进后，仅修改 `skills/taskflow/SKILL.md` 中重叠选择与重复归档说明；主 Skill 从 70,351 字节变为 70,173 字节（净减 178 字节），不是 Token 测量。
 - 本地验证：Skill `quick_validate.py` 通过；`git diff --check` 通过；只读断言确认已明确决定可沿用、未决事项仍需询问、不擅自合并的约束以及归档失败保护和完整事务说明均存在。未修改测试期望或归档脚本；尚未运行 CI，文本送达不等同模型采纳。

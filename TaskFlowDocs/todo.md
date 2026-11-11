@@ -59,11 +59,10 @@ has an issue number or URL.
 ## 审视 TaskFlow 流程中的不合理环节和 Token 开销
 
 - ID: TF-20261110-84d1a9
-- Status: in_progress
+- Status: done
 - Goal: 排查 TaskFlow 流程、工具引导及相关记录中不合理或浪费 Token 的环节，并在验证有效后修复或精简
-- Task: `TaskFlowDocs/2026-11-10-token-review/`
-- Next action: Re-approve the new Task version before core changes.
-- Updated: 2026-11-11
+- Task: `TaskFlowDocs/achieved/2026-11-10-token-review/`
+- Next action: None — completed and archived.
 
 ## 避免已通过 CI 后的文档跟进重复运行重型测试
 
