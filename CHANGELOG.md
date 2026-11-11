@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [1.2.3] — 2026-11-11
+
+### Changed
+
+- On task version changes, retain still-valid requirements, design, decisions, constraints and completed Plan steps, and review the new documents against the superseded version before approval. Changes and retirements remain possible with a stated reason. [#139](https://github.com/hkwuks/TaskFlow/pull/139)
+- When a Todo ID is known, use the existing bounded `task get` command to retrieve its entry; overlap reviews still inspect all relevant entries and repository-wide reviews can read the full file. [#138](https://github.com/hkwuks/TaskFlow/pull/138)
+- Reuse a user's already explicit decision on overlapping Todo items rather than asking again; keep the full archive transaction in one place. [#136](https://github.com/hkwuks/TaskFlow/pull/136)
+
+### Compatibility and known limitations
+
+- Version retention and comparison are agent guidance and semantic review, not an automatic gate against subsequent rewriting. Tests establish the version command's mechanical preservation, not that agents always follow the guidance.
+- Actual adoption of bounded Todo retrieval and guidance, subagent cost across tasks, and any effect on external-search behavior remain under investigation. One controlled subagent comparison is insufficient for a general rule.
+- The Codex desktop direct-edit hook probe remains unresolved; shell writes remain outside its direct-edit coverage. No new installation command or global configuration change is required.
+
+### Verification
+
+- Pre-release main commit `3d662c15b5561bbd07224971e034c07aaf0a01a3` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/43000277140), including Ubuntu, macOS and Windows smoke, evals, release, CI reuse and Todo merge audit.
+- The release commit changes this section, version literals and README version samples; the smoke suite is not repeated locally because the three-platform CI covers the implementation.
+- `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation and `git diff --check` passed during preparation; `hooks/release-check` checked the existing v1.2.2 pins and is repeated after updating them.
+
+### Release
+
+- Planned tag: `v1.2.3`; the tag and two catalog pins are published atomically after release-owner approval.
+
 ## [1.2.2] — 2026-11-10
 
 ### Changed
