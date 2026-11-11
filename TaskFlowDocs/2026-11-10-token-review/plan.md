@@ -1,6 +1,6 @@
 # Plan — 审视 TaskFlow 流程中的不合理环节和 Token 开销
-> Task version: v2
-> Status: completed
+> Task version: v3
+> Status: in_progress
 
 ## Spec Pointers
 
@@ -9,7 +9,7 @@
 ## Reference Pointers
 
 ## Related Tasks
-- TF-20261110-84d1a9；与 TF-20260919-90797c 子 Agent 成本和 TF-20261011-e27329 文档历史重复相关，保留独立 Todo，不未经决策合并。
+- TF-20261110-84d1a9；与 TF-20260919-90797c 子 Agent 成本和 TF-20261011-e27329 文档历史重复相关，保留独立 Todo，不擅自合并。
 
 ## Skills / Tools Used
 - [PRD] Unaided — none applied; considered: requirements elicitation and framing.
@@ -19,24 +19,68 @@
 
 ## Preconditions
 - 历史会话只提取与流程和 Token 有关的脱敏证据。
-- 本版本工作区为 `.worktrees/2026-11-11-token-review`，分支为 `feature/2026-11-10-token-review`；保留两个专项 Todo 的独立验收边界。
+- 本版本工作区为 `.worktrees/2026-11-11-token-review`，分支为 `feature/token-review`；保留两个专项 Todo 的独立验收边界。
 
 ## Plan Review
 
 - Verdict: sound
-- Coverage: 覆盖整体流程、委派与外部搜索倾向对照、文档重复；专项 Todo 保留独立验收。
-- Verifiability: 保持同题、相同基线与评价标准；主线和子 Agent 用量分别报告，无法取得子 Agent 用量时明确不可测，不计算总节约。
-- Layer ownership: 从用户授权的会话提取脱敏证据，再修改插件自身拥有的规则或脚本。
+- Coverage: Step 5 覆盖各阶段证据、对照与未知项，Step 6 覆盖有明确收益的候选及不修改的结论；已完成的去重专项保留原记录。
+- Verifiability: 核对各阶段命令输出与只读会话事件；输入包含缓存、单次峰值不等同累计量；CI 复用及宿主送达分别按真实证据判断。
+- Layer ownership: Todo 检索指导属于 Skill；宿主工具指令和 GitHub 检查不由 Skill 代替，测试不得靠修改中间产物掩盖问题。
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-11 14:47 +0800
-- Approved version: v2
+- Approved at: 2026-11-11 16:08 +0800
+- Approved version: v3
 - Approved scope: PRD / Spec / Plan
 
+## v3 初步证据与待判定事项
+
+- **入口与定位：** 当前 `todo.md` 为 79,691 字节；对已知 ID 运行 `hooks/task get` 的两个示例输出分别为 1,024 与 5,173 字节。输出大小不等于 Token，但说明针对已知条目不必默认读取整份文件；完整条目仍包含原有说明。跨条目重叠检查不能因只看一个 ID 而省略。
+- **规划与提示：** 当前 Skill 70,173 字节。模拟规划阶段的 `UserPromptSubmit` 输入得到 326 字节、两行提示；无活动任务入口文案为 664 字节、六行。这只验证本地合成输出和静态大小，不能证明每个宿主实际送达，也不代表 Token 或成本。
+- **执行与委派：** 一组同模型同题 CLI 试验，直接组累计输入 156,763（缓存 78,592）、输出 1,030，主线单次输入峰值 49,972；委派组主 Agent 输入 217,010（缓存 174,976）、输出 913、峰值 41,676；子 Agent 输入 165,794（缓存 142,720）、输出 669。父子分别来自各自会话记录，缓存包含在输入中；按父子相加是样本指标，不等同账单。CLI 总耗时约 119.3 秒和 132.7 秒，含初始化和等待。两组主要结论接近，单样本不能推导通用委派阈值。
+- **工具结果体积：** 同一试验中，直接组工具输出合计约 71 KB；委派组主 Agent 约 36 KB、子 Agent 约 73 KB。它们是日志输出字节，不等同主线上下文增量或 Token；在这一题中委派降低主线单次输入峰值但增加父子累计输入。
+- **验证与归档：** PR #136 归档提交修改 `TaskFlowDocs/todo.md`，该路径被 CI 复用方案明确排除，三系统完整 CI 重跑并通过。这是按原安全设计的保守回退；不能称复用故障，也不能未经差异安全证明就跳过。
+- **历史与宿主边界：** 文档历史重复已由 `23e4a89` / `TF-20261018-0f2f6a` 解决，当前模板只在 Plan 中生成历史章节；旧归档不改。Codex 桌面 worktree 路径/托管冲突来自宿主工具要求，TaskFlow 不能覆盖更高层指令。
+- **仍未知：** 一组委派样本不能给出通用阈值；外部搜索组未隔离宿主指令且样本仅一题，不能证明搜索倾向的因果变化。只有两条持久 CLI 试验会话及可能的子会话得到用户授权，不新增项目外试验会话。
+
+## v3 候选及决策
+
+- **已实施，待 CI：** 使用已有 `task get` 定位已知 Todo；比较重叠时仍读取每个相关条目，全库结构审查可读全文。不增加脚本、模式或依赖；实际模型采纳和 Token 节省未验证。
+- **暂不改：** 规划阶段提示的合成输出为 326 字节，无任务入口为 664 字节；真实送达及必要提醒的效果未测，暂不为少量静态文字牺牲防漏保护。
+- **暂不改：** Skill 全长 70,173 字节和一次试验的输出体积提示有进一步调查价值，但单样本不支持大规模拆分或删除规则。
+- **单独保留：** 归档 `todo.md` 不复用 CI 是已批准的保守设计；无可靠差异证明不跳过。子 Agent 成本及搜索因果效应留在原专项，文档历史重复由既有任务解决。
+
+
+
 ## Steps
+
+### Step 5 — 补齐总体流程结论
+- Goal: 对任务入口、规划、实施、验证和收尾分别建立证据与成本矩阵，不把个别修复等同整体优化完成。
+- Dependencies: v3 计划审核和用户批准；利用已授权的脱敏历史记录及两组试验，不擅自新增项目外会话。
+- Files: 本任务记录、现有 `skills/taskflow/SKILL.md` 与相关 hooks；必要时引用关联 Todo。
+- Implementation checklist:
+  - [x] 复核现有同题会话：分开报告主线单次输入峰值、父子会话累计输入、缓存、输出、耗时和结果质量，写明单样本局限。
+  - [x] 对入口、规划、实施、验证、归档逐项梳理已观察的重复、必要成本、尚不能确认的问题和已有修复，区分 TaskFlow 与宿主规则。
+  - [x] 对候选按收益、风险和实现/验证成本排序；仅对证据充分且值得修的问题提出具体轻量方案。
+- Acceptance: 每个阶段有明确结论或可追溯的未知项，既有两项已交付改进不冒充整体完成；无可靠数据时不虚构节省数。
+- Verification: 核对日志事件、源文件、任务和 CI 记录；缓存不重复计入，工具调用数不等于 Token。
+- Rollback: 纠正记录，不修改用户历史会话。
+- Status: done
+
+### Step 6 — 经确认的候选改进
+- Goal: 只实施用户明确确认、收益足以覆盖复杂度的具体改进。
+- Dependencies: Step 5 的证据与具体方案；如没有值得实施的候选，如实保留调查结论。
+- Files: 按候选明确，不预设增加脚本或依赖。
+- Implementation checklist:
+  - [x] 审阅并按用户确认决定实施或不实施每个候选。
+  - [ ] 验证获批改动，并记录未验证的行为。
+- Acceptance: 具体变更与结论相符，不损害用户控制、验证和可追溯性。
+- Verification: 按候选运行必要检查和 CI；不改代码时核对引用与统计即可。
+- Rollback: 回退获批改动。
+- Status: in_progress
 
 ### Step 3 — 整体流程与专项对照
 - Goal: 检查整体流程 Token 成本、委派及外部搜索对照，以及文档语义重复。
@@ -91,6 +135,11 @@
 ## Checkpoints
 
 ## Verification / Review
+- 2026-11-11 v3：按用户批准，在 `skills/taskflow/SKILL.md` 增加已知 Todo ID 时优先 `hooks/task get` 的指导；明确重叠检查仍需读取全部相关条目，全库审查仍可读取整文件。不增加 CLI 参数、脚本、依赖或守卫。
+- 手工验证：对 `TF-20260919-90797c` 和 `TF-20261110-84d1a9`，分别比对 `task get` 与 Todo 中对应完整非空正文，输出为 5,173 和 533 字节；同期 Todo 全文为 79,694 字节。字节量不是 Token，不代表模型一定会按指导执行。`quick_validate.py` 与 `git diff --check` 通过；尚未运行本版 CI。
+- 用户授权的同一 TaskFlow 聊天三段日志中，调用文本包含 Todo 路径分别为 9、22、94 次，包含 Skill 路径分别为 2、4、64 次，包含 Plan 路径分别为 5、24、191 次。仅是字符串命中；批量调用、重复记录和其他输出可能混入，不能视为实际文件读取次数、浪费或可归因 Token。
+
+- 2026-11-11 Step 5: 已核对五阶段证据、计量口径和轻量候选；单样本与宿主边界明确。
 
 - 2026-11-11 Step 4: 本地针对性检查及三系统 CI 通过；Token 与模型采纳边界已记录。
 - 2026-11-11：修正旧文案检查后，[草稿 PR CI](https://github.com/hkwuks/TaskFlow/actions/runs/42976875246) 的 Ubuntu、macOS、Windows smoke、CI 复用测试、Todo 审计、changes 与 evals 全部通过；release 按路径分类跳过。真实 Agent 对文案的采纳、委派的子 Agent 总 Token、搜索倾向的因果效应仍无充分证据。
@@ -120,13 +169,15 @@
 - 首轮 PR CI：macOS 的 Bash 3 在嵌入 shell 单引号的 awk 程序注释中遇到撇号而解析失败；Ubuntu 测试中 `head` 提前关闭管道触发 `pipefail`。移除注释撇号、先完整捕获命令输出后用 awk 读第一行，再等待新一轮 CI。
 - 修复后的 [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42791861336) 的 Ubuntu、macOS 和 Windows smoke 均通过；release 和 evals 按路径分类跳过。用户于 2026-11-10 按已验证范围验收并同意归档。
 
-## 候选改进（待用户确认）
+## v2 已交付的改进
 - 在 `skills/taskflow/SKILL.md` 的 Todo 重叠规则中明确：如果用户在当前会话已经清楚决定相关条目的关系或处理方式，报告该决策并沿用；只有决策尚不明确时才再次询问。保留发现重叠、保留独立需求和不擅自合并的要求。现有文字对所有真实重叠一律要求再次取得选择，可能重复用户已作出的决定；不将本次宿主工具冲突误归因于此规则。
   - 拟替换语义：`If the user has already clearly decided how the overlap is handled, state and follow that decision; otherwise ask the user before planning.` 其余不静默合并、不覆盖独立需求的规则保留。
 - 删除状态定义中与归档章节重复的事务细节，保留状态含义和指向完整归档事务的引用；归档章节、完整性校验及失败处理保持原样。涉及 `skills/taskflow/SKILL.md` 一处，现有发布和语法检查仍适用；这只是几百字节级的静态精简，不宣称实测 Token 或时间节省。
 - 不因单次对照添加强制委派、搜索或额外监控；不改写任何旧归档。候选通过后再验证、审查并根据结果决定是否保留。
 
 ## Change Log
+- 2026-11-11：用户指出整体结论和剩余问题未充分说明；重开 v3，保留 v2 已交付改动并补齐阶段性证据。
+- 2026-11-11 reopen — retrieved achieved task `2026-11-10-token-review` for new work; re-approval required before core changes
 - 2026-11-11：重启整体流程调查，建立 v2 方案草稿，委派与文档重复保持关联专项；批准前不实施代码或规则改动。
 - 2026-11-11 reopen — retrieved achieved task `2026-11-10-token-review` for new work; re-approval required before core changes
 - 2026-11-10：按用户要求开始只读历史会话和当前架构的脱敏取证；尚未制定或批准实现方案。
