@@ -62,17 +62,18 @@ No spec required — small, self-contained task.
 - Implementation checklist:
   - [x] 扩充现有升版夹具，验证 PRD、Spec、Plan 中独立正文及完成步骤。
   - [x] 执行聚焦验证和必需检查，记录未覆盖的真实模型行为。
-  - [ ] 三系统 CI 验证完整 smoke。
+  - [x] 三系统 CI 验证完整 smoke。
 - Acceptance: 验证实际产物而非仅检查提示文案；不把机械检查等同语义保障。
 - Verification: 版本 fixture、语法检查、CI。
 - Rollback: 回退本任务测试修改。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
 ## Verification / Review
+- [PR #139 CI](https://github.com/hkwuks/TaskFlow/actions/runs/42998816536)：Ubuntu、macOS、Windows smoke、evals、CI 复用测试和 Todo 审计通过；release 按路径分类跳过。
 - 本地真实 `hooks/version` 隔离夹具通过：PRD、Spec、Plan 的正文、完成步骤及三个旧版文件均保留；新版本状态与审批按现有脚本重置。
-- `bash -n hooks/smoke-test`、Skill quick_validate（Python UTF-8）、`git diff --check` 通过。完整 smoke 在 Windows Git Bash 的无解释器夹具因共享库加载失败，未到达升版段；等待 CI 三系统验证。
+- `bash -n hooks/smoke-test`、Skill quick_validate（Python UTF-8）、`git diff --check` 通过。完整 smoke 在 Windows Git Bash 的无解释器夹具因共享库加载失败，未到达升版段；后续 CI 三系统验证通过。
 - 规则和对照审核为非阻断指导，测试仅证明机械保留，不证明真实 Agent 必定遵循。
 
 ## Change Log
