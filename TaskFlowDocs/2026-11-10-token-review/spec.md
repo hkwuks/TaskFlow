@@ -1,5 +1,5 @@
 # Spec — 审视 TaskFlow 流程中的不合理环节和 Token 开销
-> Task version: v2
+> Task version: v3
 
 ## Objective and Success Criteria
 - 以脱敏事实识别高成本流程，实施可证明不损害交付质量的最小改进。
@@ -16,6 +16,7 @@
 ## Invariants and Compatibility
 
 ## Validation and Error Semantics
+- 将主线上下文峰值、父子会话累计输入及缓存分别报告；一组数据只描述该次试验，避免将重复输入相加后声称是费用或实际新增长度。
 - 对照试验报告观察条件、可获得的计量数据、缺失数据和质量评价；样本不足时不宣称普遍节省或因果关系。
 - 工作流优化维持验证、用户决策和信息可追溯性；候选方案须独立记录成本与收益。
 - 以可比较样本验证结果；缺失数据不能变成精确节约结论；去重不静默合并不同事项。
