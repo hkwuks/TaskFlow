@@ -5798,8 +5798,10 @@ echo "== the overlap obligation is stated, and the hook report alone is not it =
 # not delegated to whatever the hook happened to notice.
 grep -q -F -- 'Report overlap before you commit to a task.' "$skill/SKILL.md" \
   || { echo "FAIL the overlap-report obligation is not stated"; exit 1; }
-grep -q -F -- 'say so to the user and get their choice before planning either one' "$skill/SKILL.md" \
-  || { echo "FAIL the overlap obligation does not require a user decision"; exit 1; }
+grep -q -F -- 'If the user has already clearly decided how it should be handled, state and follow that decision' "$skill/SKILL.md" \
+  || { echo "FAIL the overlap obligation does not honor an existing user decision"; exit 1; }
+grep -q -F -- 'otherwise get their choice before planning either one' "$skill/SKILL.md" \
+  || { echo "FAIL unresolved overlap does not require a user decision"; exit 1; }
 grep -q -F -- 'never merge, close, or re-scope another entry on your own' "$skill/SKILL.md" \
   || { echo "FAIL the overlap obligation permits unilateral merging"; exit 1; }
 echo ok

@@ -91,6 +91,7 @@
 ## Checkpoints
 
 ## Verification / Review
+- 2026-11-11 草稿 PR 首轮 CI：Ubuntu 与 macOS smoke 均在旧文案固定检查失败，Windows smoke 通过。依据已批准的新规则更新 `hooks/smoke-test` 的现有契约检查，分别确认沿用既有决定、未决事项仍询问、不擅自合并；`bash -n hooks/smoke-test`、三项局部检查与 `git diff --check` 通过。该修改发生在检查拥有层，反映用户批准的行为变化，并非绕过失败；等待新一轮 CI。
 - 2026-11-11：用户批准两项 Skill 文案改进后，仅修改 `skills/taskflow/SKILL.md` 中重叠选择与重复归档说明；主 Skill 从 70,351 字节变为 70,173 字节（净减 178 字节），不是 Token 测量。
 - 本地验证：Skill `quick_validate.py` 通过；`git diff --check` 通过；只读断言确认已明确决定可沿用、未决事项仍需询问、不擅自合并的约束以及归档失败保护和完整事务说明均存在。未修改测试期望或归档脚本；尚未运行 CI，文本送达不等同模型采纳。
 
