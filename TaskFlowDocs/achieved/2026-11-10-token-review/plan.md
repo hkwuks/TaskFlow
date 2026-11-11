@@ -1,5 +1,5 @@
 # Plan — 审视 TaskFlow 流程中的不合理环节和 Token 开销
-> Task version: v1
+> Task version: v2
 > Status: completed
 
 ## Spec Pointers
@@ -19,23 +19,49 @@
 
 ## Preconditions
 - 历史会话只提取与流程和 Token 有关的脱敏证据。
+- 本版本工作区为 `.worktrees/2026-11-11-token-review`，分支为 `feature/2026-11-10-token-review`；保留两个专项 Todo 的独立验收边界。
 
 ## Plan Review
 
 - Verdict: sound
-- Coverage: 中文 Todo 候选缺口有可复现修复和验证；历史样本、子 Agent 与文档重复继续调查，缺少证据时不强行重构。
-- Verifiability: token_count 为多次模型请求的累计，不直接代表任务成本；缓存单独统计。
+- Coverage: 覆盖整体流程、委派与外部搜索倾向对照、文档重复；专项 Todo 保留独立验收。
+- Verifiability: 保持同题、相同基线与评价标准；主线和子 Agent 用量分别报告，无法取得子 Agent 用量时明确不可测，不计算总节约。
 - Layer ownership: 从用户授权的会话提取脱敏证据，再修改插件自身拥有的规则或脚本。
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-10 16:51 +0800
-- Approved version: v1
+- Approved at: 2026-11-11 14:47 +0800
+- Approved version: v2
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
+
+### Step 3 — 整体流程与专项对照
+- Goal: 检查整体流程 Token 成本、委派及外部搜索对照，以及文档语义重复。
+- Dependencies: 形成完整可审阅方案、Plan Review 并获得 v2 批准。
+- Files: 当前任务材料；只读样本来自现行 `skills/taskflow/SKILL.md`、`hooks/task`、`hooks/prompt-reminder`、`hooks/archive`、`hooks/reopen`、Todo 及用户授权的脱敏历史会话。
+- Implementation checklist:
+  - [x] 脱敏检查真实历史会话和现行流程，在不等同调用次数与 Token 的前提下列出具体候选。
+  - [x] 做少量同题对照，控制任务、基线、工具可用性、时间及输出要求；分别记录主线上下文、总 Token、耗时、事实覆盖、正确性与来源。独立设计有无 TaskFlow 上下文的外部搜索对照；无法观测或控制的字段如实报告。
+  - [x] 审查文档语义和历史重复，不改写旧归档。
+- Acceptance: 可追溯数据及限制，提出最小候选；小样本不外推。
+- Verification: 核对实验边界、口径、计数及来源；与现有 Todo 独立交叉引用。
+- Rollback: 更正任务记录，不更改历史会话。
+- Status: done
+
+### Step 4 — 验证并实施已批准的最小改进
+- Goal: 只对有证据、值得修的流程或模板实施轻量改进。
+- Dependencies: Step 3 和具体改进方案获批。
+- Files: 以调查结果为准，候选集中在 `skills/taskflow/SKILL.md`、`skills/taskflow/references/artifacts.md`、`hooks/task` 和已有针对性测试；不提前扩大范围。
+- Implementation checklist:
+  - [x] 逐项评估性能、可靠性和用户决策的影响并实现获批项。
+  - [x] 执行针对性测试及 CI，并明确剩余验证。
+- Acceptance: 不损害必要质量和追溯，实测证据支持改进。
+- Verification: 针对性测试、适用的跨平台 CI 和复核。
+- Rollback: 回退任务变更。
+- Status: done
 
 ### Step 1 — 历史样本与流程检查
 
@@ -65,6 +91,21 @@
 ## Checkpoints
 
 ## Verification / Review
+
+- 2026-11-11 Step 4: 本地针对性检查及三系统 CI 通过；Token 与模型采纳边界已记录。
+- 2026-11-11：修正旧文案检查后，[草稿 PR CI](https://github.com/hkwuks/TaskFlow/actions/runs/42976875246) 的 Ubuntu、macOS、Windows smoke、CI 复用测试、Todo 审计、changes 与 evals 全部通过；release 按路径分类跳过。真实 Agent 对文案的采纳、委派的子 Agent 总 Token、搜索倾向的因果效应仍无充分证据。
+- 2026-11-11 草稿 PR 首轮 CI：Ubuntu 与 macOS smoke 均在旧文案固定检查失败，Windows smoke 通过。依据已批准的新规则更新 `hooks/smoke-test` 的现有契约检查，分别确认沿用既有决定、未决事项仍询问、不擅自合并；`bash -n hooks/smoke-test`、三项局部检查与 `git diff --check` 通过。该修改发生在检查拥有层，反映用户批准的行为变化，并非绕过失败；等待新一轮 CI。
+- 2026-11-11：用户批准两项 Skill 文案改进后，仅修改 `skills/taskflow/SKILL.md` 中重叠选择与重复归档说明；主 Skill 从 70,351 字节变为 70,173 字节（净减 178 字节），不是 Token 测量。
+- 本地验证：Skill `quick_validate.py` 通过；`git diff --check` 通过；只读断言确认已明确决定可沿用、未决事项仍需询问、不擅自合并的约束以及归档失败保护和完整事务说明均存在。未修改测试期望或归档脚本；尚未运行 CI，文本送达不等同模型采纳。
+
+- 2026-11-11 Step 3: 已完成脱敏调查、单题对照及文档抽样；Token 和一般化结论不可测的边界已记录。
+- 2026-11-11 主线直接对照与委派对照：两组回答同一 `hooks/task` get/next/state 问题，均说明写入与审批边界；直接组报告 3 次工具调用及约 28.3 秒，委派组自身 3 次（其中一次因失效 cwd 失败）、子 Agent 3 次，端到端时间不可比。双方最终指出临时文件和 state 非跨文件事务；实际主线和子 Agent Token 均不可得。仅单次样本，不能证明总成本或结论质量的普遍差异。
+- 外部搜索小样本：两组回答同一 Git 官方文档问题，A 不额外加载 TaskFlow 指引，B 额外读取指定 Skill 段落；两组均查官方资料并正确回答。双方宿主指令和可用 Skill 未隔离，A 的问题还明确要求来源，仅能观察本次行为，不能推断 TaskFlow 是否改变一般搜索倾向；Token 和可比的端到端耗时不可得。
+- 近期 25 个归档任务的长行相似度筛查发现多个高度相似对；抽查发现 PRD 的外部来源与 Plan 的参考指针，以及 PRD 实施范围与 Plan 的落点说明存在重复。部分承担不同职责，不能凭相似度自动删除，也未量化 Token 损失；本次不改旧归档。
+- 当前 Skill 为 70,351 字节；其状态说明与完成归档章节中重复描述归档事务，明确重合的长段落分别位于 `skills/taskflow/SKILL.md:200` 与 `:361`。字节数不是 Token，精简后的实际节约和行为影响仍须验证。
+- 单个授权历史长会话中记录 25 次问题工具调用、共 33 个问题；按字词粗筛 17 次含批准/同意/验收，16 次含范围/方案/处理/如何/哪些，两类重叠。它跨多个任务且含必要决策，不能认定任一调用多余或计算省费比例。
+- 2026-11-11 试运行：同题只读检查 `hooks/archive` 与 `hooks/reopen`，主线有既有上下文且使用 1 次工具调用，子 Agent 用 3 次调用并报告命令时钟约 16 秒、额外发现归档复制会话记录；条件不等且未记录端到端同口径耗时，不能作成本或质量胜负结论。子 Agent 工具未提供 Token 用量；当前日志能观察主会话累计字段，但尚不能归并子 Agent 用量，禁止将不可测写作零。
+- 最近 25 个归档任务的 PRD、Spec、Plan 中未检出至少 45 字符的逐行重复；该机械筛查不能排除语义重复或其他样本。
 - 2026-11-10：只读抽样当前 TaskFlow 会话。README 文档任务单次相关轮次记录 12 条命令；宿主对齐及后续工具引导跨多个工作步骤的一轮记录 164 条命令。样本不是对照实验，命令数不是 Token 数，不能据此推导节省比例。已观察到归档文档提交及验证记录可触发后续 CI；具体是否不必要须结合当时规则和检查用途分析。
 - 当前设计中 `tools/workflow-affected` 对整个 PR 与基线的差异分类；文档跟进的 CI 重跑由独立 Todo TF-20261110-b73d49 处理，本任务只记录跨流程成本。
 - 2026-11-10：只读汇总当前历史会话的 token_count。最近一个分段最后一次统计为累计输入 261,825,512、缓存输入 259,895,680、输出 362,449；这属于长会话累计值，各分段可能共享累计口径，不能相加、不能把缓存输入等同于未缓存成本，也不能归因到某一任务或流程。后续应基于连续事件差值、实际阶段边界和可比样本评估。
@@ -79,7 +120,15 @@
 - 首轮 PR CI：macOS 的 Bash 3 在嵌入 shell 单引号的 awk 程序注释中遇到撇号而解析失败；Ubuntu 测试中 `head` 提前关闭管道触发 `pipefail`。移除注释撇号、先完整捕获命令输出后用 awk 读第一行，再等待新一轮 CI。
 - 修复后的 [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42791861336) 的 Ubuntu、macOS 和 Windows smoke 均通过；release 和 evals 按路径分类跳过。用户于 2026-11-10 按已验证范围验收并同意归档。
 
+## 候选改进（待用户确认）
+- 在 `skills/taskflow/SKILL.md` 的 Todo 重叠规则中明确：如果用户在当前会话已经清楚决定相关条目的关系或处理方式，报告该决策并沿用；只有决策尚不明确时才再次询问。保留发现重叠、保留独立需求和不擅自合并的要求。现有文字对所有真实重叠一律要求再次取得选择，可能重复用户已作出的决定；不将本次宿主工具冲突误归因于此规则。
+  - 拟替换语义：`If the user has already clearly decided how the overlap is handled, state and follow that decision; otherwise ask the user before planning.` 其余不静默合并、不覆盖独立需求的规则保留。
+- 删除状态定义中与归档章节重复的事务细节，保留状态含义和指向完整归档事务的引用；归档章节、完整性校验及失败处理保持原样。涉及 `skills/taskflow/SKILL.md` 一处，现有发布和语法检查仍适用；这只是几百字节级的静态精简，不宣称实测 Token 或时间节省。
+- 不因单次对照添加强制委派、搜索或额外监控；不改写任何旧归档。候选通过后再验证、审查并根据结果决定是否保留。
+
 ## Change Log
+- 2026-11-11：重启整体流程调查，建立 v2 方案草稿，委派与文档重复保持关联专项；批准前不实施代码或规则改动。
+- 2026-11-11 reopen — retrieved achieved task `2026-11-10-token-review` for new work; re-approval required before core changes
 - 2026-11-10：按用户要求开始只读历史会话和当前架构的脱敏取证；尚未制定或批准实现方案。
 
 ## Follow-ups

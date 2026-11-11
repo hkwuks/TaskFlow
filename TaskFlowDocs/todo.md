@@ -1057,12 +1057,13 @@ has an issue number or URL.
 - Owner: Codex
 - Source: user request
 - Added: 2026-09-19
-- Updated: 2026-10-11
+- Updated: 2026-11-11
 - Goal: Measure whether delegating exploration to subagents actually reduces main-thread context, before adopting it as guidance.
 - Task: Not promoted.
-- Next action: Assess whether TaskFlow lowers an Agent's tendency to search external sources, and fix the Reference Pointers slot if it does: all 72 achieved tasks put internal repo paths in Reference Pointers (253 bullets, 0 URLs), while external hosts total 4 across the whole archive. Add a control (same task, with and without the injected TaskFlow context) alongside the existing delegation measurement.
+- Next action: 设计少量同题对照，分别记录主线上下文、含子 Agent 的总 Token、耗时与事实质量；对搜索倾向设置独立对照。
 - Notes: **2026-09-19 用户提出**：subagent 委派能不能省 token，要**实测**才知道，别先写进指引。
 - **2026-10-11 用户提出**：用户观察「用了 TaskFlow 之后 Agent 似乎变得不喜欢做网络搜索」，并要求先查是不是真的。用户明确此条**不是**要强制规定调用网络搜索，只是这条倾向值得被测量。
+- 2026-11-11 用户要求与整体流程 Token 优化一并调查；样本不足时不作普遍结论。
 
 **查到的可测痕证**：72 个 achieved 任务里 63 个 `plan.md` 的 `## Reference Pointers` 非空，共 **253 条 bullet，含 URL 的 0 条**；其中 70 条是反引号包起的仓库内路径。放宽到整个任务目录，只有 17/72 出现过任何 URL，主机分布 github.com 39、docs.anthropic.com 2、developers.openai.com 2 —— 第三方外部来源合计 4 条。也就是说名为「参考指针」的槽位已经退化成「我读了哪些仓库文件」。
 
@@ -1204,10 +1205,11 @@ has an issue number or URL.
 - Owner: Claude
 - Source: direct user request
 - Added: 2026-10-11
-- Updated: 2026-10-11
+- Updated: 2026-11-11
 - Goal: Stop duplicating changelog/history content across prd.md, plan.md and spec.md: each document repeats the same change-log or history narrative, which is pure token waste. Assign the history/changelog a single owning document and have the others reference it instead of restating it.
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: 抽样核实 PRD、Spec、Plan 的语义和历史重复，只修当前模板或规则中证实的重复。
+- Notes: 2026-11-11 用户要求纳入整体流程 Token 优化，不改写既有归档文档。
 
 ## Agree on what a closed Step is, so `completed` stops passing one check
 
