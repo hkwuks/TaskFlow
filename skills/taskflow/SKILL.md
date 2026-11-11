@@ -111,6 +111,8 @@ Classify the change into exactly one of two buckets before editing anything. The
 | Work revision (default) | wording, an implementation approach within the approved design, formatting, a progress/checklist update, a verification result, a correction that does not alter an approved contract | Update only affected current documents and record one line in the Plan's change log. Keep the current Task version. |
 | Task-version material change | a change to an approved goal, requirement, acceptance criterion, scope, architecture/interface/data contract, compatibility decision, risk decision, or standard | Archive the current Task version, update every existing core document atomically to `vN+1`, return the task to `ready`, and record a new approval before implementation resumes. |
 
+For a Task-version change, start from the retained current PRD, Spec (if present), and Plan: preserve requirements, design decisions, constraints, and completed steps that remain valid. Amend only what the new request changes; explicitly identify what is changed or retired and why. Before requesting approval, compare the new documents with the superseded version and review that unaffected design and completed work remain represented. This is a semantic review, not an automatic deletion gate.
+
 A completed task is read-only in `TaskFlowDocs/achieved/`: if the classified request belongs to its deliverable, retrieve its complete directory to the active TaskFlowDocs root, record the Todo source and reopen reason, then version and re-approve it before changing core documents or implementation. Create a related task only when the existing-task-first boundary requires one.
 
 ### Missing repository rules and personal rules

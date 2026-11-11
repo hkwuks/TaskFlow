@@ -62,8 +62,8 @@ Treat a Task version change as one operation. Archive only the core documents wh
 2. Write `old/vN/version.md`.
 3. For each core document whose approved content materially changed, copy its prior version into `old/vN/`; do not duplicate unaffected core documents.
 4. Update the retained root documents to `vN+1` in one pass; absent optional documents remain absent.
-5. Set the root PRD and Plan to `ready`, invalidate the prior Approval record, then let the Agent edit only semantic changes and the `version.md` change summary.
-6. Check that all existing core documents agree on the new version.
+5. Set the root PRD and Plan to `ready` and invalidate the prior Approval record. Use the retained documents as the new-version baseline: preserve valid requirements, design, decisions, constraints, and completed Plan steps; amend only affected content, and identify changes or retirements and their reasons in the `version.md` change summary.
+6. Check that all existing core documents agree on the new version. Compare them with the superseded version before approval: verify unaffected design and completed work remain represented, and review the stated reasons for changed or retired content.
 7. Return to `ready` and obtain user approval before implementation.
 
 Design documents may stay out of Git: file-mode archival remains a valid recovery store. When a prior core document is not recoverable from an existing archive (for example, no baseline snapshot exists and the design must not be committed), keep a full `snapshot/` under `old/vN/`. Apply file-mode patches only in a new temporary restore root and verify with `diff --exit-code` or checksums; never restore by overwriting the current task directory.

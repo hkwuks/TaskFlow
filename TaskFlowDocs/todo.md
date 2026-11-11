@@ -1,3 +1,11 @@
+## 任务文档升版时继承并修订已有设计
+
+- ID: TF-20261111-257dbf
+- Status: done
+- Goal: 排查任务因新需求或改动升版时 PRD、Spec、Plan 等设计被整体丢弃的问题；保留历史版本，并让新版本继承仍有效的需求、设计和决策，按实际变化补充、修改或明确废止，避免任务偏离已有设计。
+- Task: `TaskFlowDocs/achieved/2026-11-11-version-design/`
+- Next action: None — completed and archived.
+
 ## Item template
 
 An entry is written by `hooks/task intake` in this shape. The sample is indented so the hooks that parse this file do not read it as an entry — every field a hook matches sits at column 0 in a real entry:

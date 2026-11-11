@@ -1648,8 +1648,15 @@ grep -q 'FAIL: Todo status not promoted' "$rb_out" || { echo "FAIL the failure d
 echo ok
 
 echo "== version bumps root + archives only changed docs =="
+printf '\nPRD baseline requirement stays\n' >> "$docs/2026-09-08-smoke/prd.md"
+printf '\nSPEC baseline constraint stays\n' >> "$docs/2026-09-08-smoke/spec.md"
+printf '\nPLAN baseline decision stays\n- [x] Previously completed step\n' >> "$docs/2026-09-08-smoke/plan.md"
 old_prd=$(digest "$docs/2026-09-08-smoke/prd.md")
 bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
+grep -qxF 'PRD baseline requirement stays' "$docs/2026-09-08-smoke/prd.md" || { echo "FAIL version dropped PRD content"; exit 1; }
+grep -qxF 'SPEC baseline constraint stays' "$docs/2026-09-08-smoke/spec.md" || { echo "FAIL version dropped Spec content"; exit 1; }
+grep -qxF 'PLAN baseline decision stays' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL version dropped Plan content"; exit 1; }
+grep -qxF -- '- [x] Previously completed step' "$docs/2026-09-08-smoke/plan.md" || { echo "FAIL version dropped completed step"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/old/v1/prd.md" ] || { echo "FAIL old prd"; exit 1; }
 [ -f "$docs/2026-09-08-smoke/prd.md" ] || { echo "FAIL changed prd missing at root"; exit 1; }
 [ "$old_prd" = "$(digest "$docs/2026-09-08-smoke/old/v1/prd.md")" ] || { echo "FAIL archived prd changed"; exit 1; }
