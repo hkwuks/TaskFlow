@@ -1,6 +1,6 @@
 # 任务文档升版时继承并修订已有设计
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 ## Goal
 

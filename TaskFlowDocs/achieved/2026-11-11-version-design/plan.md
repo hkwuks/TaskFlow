@@ -1,6 +1,6 @@
 # Plan — 任务文档升版时继承并修订已有设计
 > Task version: v1
-> Status: in_progress
+> Status: completed
 
 No spec required — small, self-contained task.
 
@@ -87,3 +87,11 @@ No spec required — small, self-contained task.
 ## Version History
 
 - v1 — planning.
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 关联已完成的 TF-20260911-05（旧版本文档留存）；本项关注新版本是否承接仍有效的设计，具体问题和原因待核实。

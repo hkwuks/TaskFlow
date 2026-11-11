@@ -1,16 +1,10 @@
 ## 任务文档升版时继承并修订已有设计
 
 - ID: TF-20261111-257dbf
-- Status: in_progress
-- Priority: normal
-- Owner: Codex
-- Source: direct user request
-- Added: 2026-11-11
-- Updated: 2026-11-11
+- Status: done
 - Goal: 排查任务因新需求或改动升版时 PRD、Spec、Plan 等设计被整体丢弃的问题；保留历史版本，并让新版本继承仍有效的需求、设计和决策，按实际变化补充、修改或明确废止，避免任务偏离已有设计。
-- Task: `TaskFlowDocs/2026-11-11-version-design/`
-- Next action: Complete PRD / Spec / Plan and request approval.
-- Notes: 关联已完成的 TF-20260911-05（旧版本文档留存）；本项关注新版本是否承接仍有效的设计，具体问题和原因待核实。
+- Task: `TaskFlowDocs/achieved/2026-11-11-version-design/`
+- Next action: None — completed and archived.
 
 ## Item template
 
