@@ -135,6 +135,7 @@
 ## Checkpoints
 
 ## Verification / Review
+- 2026-11-11 v3 草稿 [CI](https://github.com/hkwuks/TaskFlow/actions/runs/42985722721)：Ubuntu、macOS、Windows smoke、evals、CI 复用测试和 Todo 审计通过，release 按路径分类跳过。此检查验证当前提交，不证明 Agent 实际采纳；整体任务及后续专项保持进行中。
 - 2026-11-11 v3：按用户批准，在 `skills/taskflow/SKILL.md` 增加已知 Todo ID 时优先 `hooks/task get` 的指导；明确重叠检查仍需读取全部相关条目，全库审查仍可读取整文件。不增加 CLI 参数、脚本、依赖或守卫。
 - 手工验证：对 `TF-20260919-90797c` 和 `TF-20261110-84d1a9`，分别比对 `task get` 与 Todo 中对应完整非空正文，输出为 5,173 和 533 字节；同期 Todo 全文为 79,694 字节。字节量不是 Token，不代表模型一定会按指导执行。`quick_validate.py` 与 `git diff --check` 通过；尚未运行本版 CI。
 - 用户授权的同一 TaskFlow 聊天三段日志中，调用文本包含 Todo 路径分别为 9、22、94 次，包含 Skill 路径分别为 2、4、64 次，包含 Plan 路径分别为 5、24、191 次。仅是字符串命中；批量调用、重复记录和其他输出可能混入，不能视为实际文件读取次数、浪费或可归因 Token。
