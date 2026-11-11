@@ -1060,10 +1060,12 @@ has an issue number or URL.
 - Updated: 2026-11-11
 - Goal: Measure whether delegating exploration to subagents actually reduces main-thread context, before adopting it as guidance.
 - Task: Not promoted.
-- Next action: 设计少量同题对照，分别记录主线上下文、含子 Agent 的总 Token、耗时与事实质量；对搜索倾向设置独立对照。
+- Next action: 在已测一组基础上判断是否需要更多任务和重复试验；继续独立核实 TaskFlow 对外部搜索倾向的影响，不以单样本制定通用规则。
 - Notes: **2026-09-19 用户提出**：subagent 委派能不能省 token，要**实测**才知道，别先写进指引。
 - **2026-10-11 用户提出**：用户观察「用了 TaskFlow 之后 Agent 似乎变得不喜欢做网络搜索」，并要求先查是不是真的。用户明确此条**不是**要强制规定调用网络搜索，只是这条倾向值得被测量。
 - 2026-11-11 用户要求与整体流程 Token 优化一并调查；样本不足时不作普遍结论。
+- 2026-11-11 一组同题只读 CLI 对照（同模型、相同工作区；父子会话用量分开计）：直接组累计输入 156,763（其中缓存 78,592）、输出 1,030；委派组主 Agent 输入 217,010（缓存 174,976）、输出 913，子 Agent 输入 165,794（缓存 142,720）、输出 669。主 Agent 单次输入峰值分别为 49,972 和 41,676；两个 CLI 的总墙钟耗时约 119.3 秒和 132.7 秒，包含初始化/等待。按父子会话记录直接相加，委派组累计输入 382,804；缓存计入输入而非另加，指标不等于账单或上下文增量。两组均覆盖三个命令的主要读写与审批边界；仅一组样本，不推断普遍阈值。
+- CLI `--ephemeral` 一次试运行的委派启动报找不到会话记录；正常模式可启动并记录子会话。外部搜索试验两组均查官方资料，但宿主指令未隔离且问题要求来源，不能证明 TaskFlow 对一般搜索倾向的因果影响。
 
 **查到的可测痕证**：72 个 achieved 任务里 63 个 `plan.md` 的 `## Reference Pointers` 非空，共 **253 条 bullet，含 URL 的 0 条**；其中 70 条是反引号包起的仓库内路径。放宽到整个任务目录，只有 17/72 出现过任何 URL，主机分布 github.com 39、docs.anthropic.com 2、developers.openai.com 2 —— 第三方外部来源合计 4 条。也就是说名为「参考指针」的槽位已经退化成「我读了哪些仓库文件」。
 
@@ -1200,7 +1202,7 @@ has an issue number or URL.
 ## Stop duplicating changelog/history content across prd.md, plan.md and spec.md: e
 
 - ID: TF-20261011-e27329
-- Status: inbox
+- Status: done
 - Priority: normal
 - Owner: Claude
 - Source: direct user request
@@ -1208,8 +1210,10 @@ has an issue number or URL.
 - Updated: 2026-11-11
 - Goal: Stop duplicating changelog/history content across prd.md, plan.md and spec.md: each document repeats the same change-log or history narrative, which is pure token waste. Assign the history/changelog a single owning document and have the others reference it instead of restating it.
 - Task: Not promoted.
-- Next action: 抽样核实 PRD、Spec、Plan 的语义和历史重复，只修当前模板或规则中证实的重复。
+- Next action: None — satisfied by TF-20261018-0f2f6a; no new implementation required.
 - Notes: 2026-11-11 用户要求纳入整体流程 Token 优化，不改写既有归档文档。
+
+- 2026-11-11 核实：已归档任务 TF-20261018-0f2f6a 和提交 `23e4a89` 已让 Plan 独占版本史，PRD/Spec 当前模板不再生成历史章节；现有 smoke 覆盖 PRD 无、Plan 有版本史。121 个归档任务抽查中，最近 25 个未发现多个文档各有历史章节；旧归档保留不改。其他文档间的职责性内容相似不等于历史重复。
 
 ## Agree on what a closed Step is, so `completed` stops passing one check
 
