@@ -1,6 +1,6 @@
 # 仓库代码版本提交与回退点
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Goal
 

@@ -1,6 +1,6 @@
 # Plan — 仓库代码版本提交与回退点
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -88,6 +88,7 @@
 - 审查中用真实 Git 夹具复现 `assume-unchanged` 会让已修改文件被普通状态检查漏掉；修复后拒绝隐藏索引路径，Windows 定向测试同时覆盖 `assume-unchanged` 与 `skip-worktree`，完整 Linux smoke 重跑 `ALL SMOKE PASSED`。
 - 代码提交 `7fa00ab` 与 `1ddea08`；实际任务运行 `hooks/version-baseline check . 2026-11-12-version-commits v1` 通过，报告从 `b502679` 到 `1ddea08` 的提交范围。
 
+- GitHub [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/43190832429) 在提交 `b3a90b7` 上通过 Ubuntu、macOS、Windows smoke、evals、Todo merge audit 和 CI 复用测试；release 按路径跳过。
 - PR 模板 `.github/pull_request_template.md`：Summary 说明版本回退点及未提交变更拒绝；TaskFlow traceability 对应本任务、hooks/skill 范围、`hkwuks/TaskFlow:main`；Verification 对应 Hooks CI、`git diff --check`、Skill 校验及本 Plan；Review boundaries 对应秘密、文件范围、远端/基线和已知限制。
 - 2026-11-12 只读核对 `origin` 为 `https://github.com/hkwuks/TaskFlow.git`，GitHub 默认分支 `main`，非 fork；`git ls-remote` 的 main 为 `b502679ef2b517376336891a5524824c106e2c64`，是当前任务分支祖先；远端状态会随时间变化。
 - 已审查工作树变更只涉及本任务记录及已提交的 hooks / skill 文件；测试使用虚构 Git 夹具，不纳入凭据或用户文件。忽略文件、旧任务基线缺失和本地基线丢失的限制已写入 `spec.md`。
