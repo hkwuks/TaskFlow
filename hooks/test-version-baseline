@@ -21,12 +21,18 @@ printf 'task only\n' > "$fixture/TaskFlowDocs/$task/plan.md"
 printf 'todo\n' > "$fixture/TaskFlowDocs/todo.md"
 check init "$fixture" "$task" v1
 check check "$fixture" "$task" v1
+git -C "$fixture" update-index --assume-unchanged code.txt
 printf 'changed\n' >> "$fixture/code.txt"
+reject check check "$fixture" "$task" v1
+git -C "$fixture" update-index --no-assume-unchanged code.txt
 reject check check "$fixture" "$task" v1
 git -C "$fixture" add code.txt
 reject check check "$fixture" "$task" v1
 git -C "$fixture" commit -qm code
 check check "$fixture" "$task" v1
+git -C "$fixture" update-index --skip-worktree code.txt
+reject check check "$fixture" "$task" v1
+git -C "$fixture" update-index --no-skip-worktree code.txt
 printf 'outside task\n' > "$fixture/design with spaces.md"
 reject check check "$fixture" "$task" v1
 git -C "$fixture" add 'design with spaces.md'

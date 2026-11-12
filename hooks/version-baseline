@@ -13,6 +13,14 @@ git_dir="$(git -C "$root" rev-parse --absolute-git-dir)" || { echo 'cannot locat
 head="$(git -C "$root" rev-parse --verify HEAD^{commit})" || { echo 'Git HEAD is not a commit' >&2; exit 1; }
 store="$git_dir/taskflow/version-baselines/$task"
 file="$store/$version"
+# Git status omits assume-unchanged and skip-worktree files, so refuse those
+# flags rather than silently treating a potentially modified file as clean.
+tracked="$(git -C "$root" ls-files -v -- . ":(exclude,top)TaskFlowDocs/$task/**" ':(exclude,top)TaskFlowDocs/todo.md')" || { echo 'cannot inspect Git index' >&2; exit 1; }
+hidden="$(printf '%s\n' "$tracked" | grep -E '^[a-zS] ' || true)"
+if [ -n "$hidden" ]; then
+  printf 'Git index hides paths from status; inspect and clear their flags before %s %s:\n%s\n' "$action" "$version" "$hidden" >&2
+  exit 1
+fi
 # Porcelain quotes unusual path names, so a newline in a file name is not lost.
 status="$(git -C "$root" status --porcelain --untracked-files=all -- . ":(exclude,top)TaskFlowDocs/$task/**" ':(exclude,top)TaskFlowDocs/todo.md')" || { echo 'cannot inspect Git worktree' >&2; exit 1; }
 if [ -n "$status" ]; then
