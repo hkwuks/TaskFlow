@@ -29,6 +29,8 @@ if [ $# -eq 0 ]; then
   trap 'rm -rf "$tmp"' EXIT
 fi
 
+bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
+
 echo "== completion-gate decides the one shared answer =="
 # `archive`, `task complete`, `task state in_progress` and `task progress` all
 # ask this file whether the Plan may be treated as approved/finished. Two copies
@@ -1031,6 +1033,8 @@ EOF
   git add -A && git commit -qm base
   git worktree add -q .worktrees/tear-task -b chore/tear-task
 ) || { echo "FAIL teardown fixture worktree"; exit 1; }
+bash "$HERE/version-baseline" init "$tear/.worktrees/tear-task" 2026-09-08-tear v1
+printf '.worktrees/\n' >> "$tear/.git/info/exclude"
 tear_out="$tmp/archive-teardown-out"
 bash "$HERE/archive" 2026-09-08-tear "$tear/.worktrees/tear-task" > "$tear_out" 2>&1 \
   || { echo "FAIL archive in a linked worktree:"; cat "$tear_out"; exit 1; }
@@ -1068,6 +1072,7 @@ cat >> "$tear/TaskFlowDocs/todo.md" <<'EOF'
 - Status: in_progress
 - Task: `TaskFlowDocs/2026-09-08-tear-base/`
 EOF
+bash "$HERE/version-baseline" init "$tear" 2026-09-08-tear-base v1
 tear_base_out="$tmp/archive-teardown-base-out"
 bash "$HERE/archive" 2026-09-08-tear-base "$tear" > "$tear_base_out" 2>&1 \
   || { echo "FAIL archive from the main working tree:"; cat "$tear_base_out"; exit 1; }
@@ -1115,6 +1120,7 @@ lcl_plan_body='# Sessions — local only
 '
 # The record is written in the worktree, the way a session there would leave it.
 printf '%s' "$lcl_plan_body" > "$lcl_wt/TaskFlowDocs/$lcl_task/sessions.md"
+bash "$HERE/version-baseline" init "$lcl_wt" "$lcl_task" v1
 lcl_out="$tmp/archive-local-only-out"
 bash "$HERE/archive" "$lcl_task" "$lcl_wt" > "$lcl_out" 2>&1 \
   || { echo "FAIL archive with a clone-local file:"; cat "$lcl_out"; exit 1; }
@@ -1131,6 +1137,7 @@ git -C "$lcl" status --porcelain -- "TaskFlowDocs/achieved/$lcl_task" > "$tmp/lc
   && { echo "FAIL the carried copy showed up in the base checkout's git status:"; cat "$tmp/lcl.status"; exit 1; }
 # Nothing to carry means nothing said, and no empty directory left behind in the
 # base checkout on behalf of a file that does not exist.
+git -C "$lcl_wt" add -A && git -C "$lcl_wt" commit -qm 'archive first fixture'
 lcl2_task=2026-09-08-nolocal
 mkdir -p "$lcl_wt/TaskFlowDocs/$lcl2_task" "$lcl/TaskFlowDocs/achieved"
 cat > "$lcl_wt/TaskFlowDocs/$lcl2_task/prd.md" <<'EOF'
@@ -1145,6 +1152,7 @@ cat >> "$lcl_wt/TaskFlowDocs/todo.md" <<'EOF'
 - Status: in_progress
 - Task: `TaskFlowDocs/2026-09-08-nolocal/`
 EOF
+bash "$HERE/version-baseline" init "$lcl_wt" "$lcl2_task" v1
 lcl2_out="$tmp/archive-nolocal-out"
 bash "$HERE/archive" "$lcl2_task" "$lcl_wt" > "$lcl2_out" 2>&1 \
   || { echo "FAIL archive without a clone-local file:"; cat "$lcl2_out"; exit 1; }
@@ -1155,6 +1163,7 @@ grep -q 'archive note' "$lcl2_out" \
 # A copy that cannot be written is reported and does not fail the archive: the
 # transaction is the directory move and the Todo entry, and a resume record is
 # neither. Nothing else in the output changes.
+git -C "$lcl_wt" add -A && git -C "$lcl_wt" commit -qm 'archive second fixture'
 lcl3_task=2026-09-08-nocopy
 mkdir -p "$lcl_wt/TaskFlowDocs/$lcl3_task"
 cat > "$lcl_wt/TaskFlowDocs/$lcl3_task/prd.md" <<'EOF'
@@ -1170,6 +1179,7 @@ cat >> "$lcl_wt/TaskFlowDocs/todo.md" <<'EOF'
 - Task: `TaskFlowDocs/2026-09-08-nocopy/`
 EOF
 printf 'x\n' > "$lcl_wt/TaskFlowDocs/$lcl3_task/sessions.md"
+bash "$HERE/version-baseline" init "$lcl_wt" "$lcl3_task" v1
 chmod a-w "$lcl/TaskFlowDocs/achieved"
 lcl3_out="$tmp/archive-nocopy-out"
 lcl3_rc=0
@@ -1479,6 +1489,7 @@ cp "$HERE/task" "$roll/task"
 cp "$HERE/task-id" "$roll/task-id"
 cp "$HERE/completion-gate" "$roll/completion-gate"
 cp "$HERE/approval-check" "$roll/approval-check"
+cp "$HERE/version-baseline" "$roll/version-baseline"
 printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
 chmod +x "$roll/archive" "$roll/task-id" "$roll/completion-gate" "$roll/approval-check" "$roll/task"
 rf="$tmp/rollback-root"
@@ -1757,6 +1768,7 @@ write_dirty_fixture "$vroot/TaskFlowDocs/2026-09-09-dirty"
   git add -A && git commit -q -m fixture
 ) || { echo "FAIL version fixture repository"; exit 1; }
 dirty="$vroot/TaskFlowDocs/2026-09-09-dirty"
+bash "$HERE/version-baseline" init "$vroot" 2026-09-09-dirty v2
 # The next version's content, written before the bump was taken: the case that
 # silently polluted old/v1 for 2026-09-15-no-python-hooks.
 printf '# PRD — Dirty\n> Task version: v2\n> Status: in_progress\n\n## Goal\n\nv3 CONTENT ALREADY WRITTEN\n' > "$dirty/prd.md"
@@ -1781,7 +1793,9 @@ printf '# PRD — Dirty\n> Task version: v2\n> Status: in_progress\n\n## Goal\n\
 (
   cd "$uroot" || exit 1
   git init -q . && git config user.email smoke@example.invalid && git config user.name smoke
+  git commit --allow-empty -qm baseline
 ) || { echo "FAIL untracked fixture repository"; exit 1; }
+bash "$HERE/version-baseline" init "$uroot" 2026-09-09-untracked v2
 bash "$HERE/version" 2026-09-09-untracked v3 "$uroot" prd.md >/dev/null ||
   { echo "FAIL untracked document refused"; exit 1; }
 [ -f "$uroot/TaskFlowDocs/2026-09-09-untracked/old/v2/prd.md" ] || { echo "FAIL untracked document not archived"; exit 1; }
@@ -2468,6 +2482,7 @@ for ef_ok in '## External Facts
 done
 # `promote` leaves the section unanswered, and an unanswered skeleton is refused.
 # This is the half that makes the field mandatory rather than merely available.
+git -C "$ap" add -A && git -C "$ap" commit -qm 'record earlier approval fixtures'
 ap_new="$ap/TaskFlowDocs/2026-09-09-approve-skeleton"
 bash "$HERE/task" intake "Approve skeleton goal." "local fixture" --root "$ap" >/dev/null
 bash "$HERE/task" promote "$(awk '/^- ID: TF-/{id=$3} END{print id}' "$ap/TaskFlowDocs/todo.md")" \
@@ -8122,7 +8137,7 @@ echo "== a defect task has to name what investigates the cause =="
 # — a check on how to investigate belongs to the capability, not to this repo.
 kd="$tmp/kind"
 mkdir -p "$kd/.worktrees/t"
-( cd "$kd" && git init -q . ) >/dev/null 2>&1 || true
+( cd "$kd" && git init -q . && git config user.email smoke@example.invalid && git config user.name smoke && git commit --allow-empty -qm baseline ) >/dev/null 2>&1 || true
 ( cd "$kd" && git worktree add .worktrees/t -b feature/kind >/dev/null 2>&1 ) || {
   echo "FAIL kind fixture worktree"; exit 1; }
 kdw="$kd/.worktrees/t"

@@ -391,6 +391,7 @@ repo-root/
         ├── task-id                      # the one rule for a legal task name
         ├── approval-check               # the one rule for whether a Plan's version is approved
         ├── completion-gate              # the one rule for an approved, finished Plan
+        ├── version-baseline             # verify each task version has a Git rollback point
         ├── task                         # explicit intake/promote/state/progress/unaided/complete
         ├── summarize-state              # shared state-summary generator
         ├── archive                      # full archive transaction (incl. Todo update)
@@ -405,6 +406,7 @@ repo-root/
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
         ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
+        ├── test-version-baseline        # real Git lifecycle regression fixture
         └── smoke-test                   # assert-style smoke tests
 ```
 

@@ -57,6 +57,9 @@ fi
 
 archdir="$docs/$task/old/$oldv"
 [ ! -e "$archdir" ] || { echo "archive already exists: $archdir"; exit 1; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+bash "$HERE/version-baseline" check "$root" "$task" "$oldv" || exit 1
+bash "$HERE/version-baseline" init "$root" "$task" "$newv" || exit 1
 mkdir -p "$archdir"
 
 # version.md (always)
