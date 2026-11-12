@@ -174,7 +174,7 @@ A phase's artifact has an equivalent outside TaskFlow. TaskFlow names these itse
 | --- | --- | --- | --- |
 | 1. Define — PRD | `prd.md` | requirements elicitation and framing; divergent exploration; root cause; defect investigation | expanding a vague goal into several directions before converging on one, interviewing the user, refining a vague idea into testable requirements, writing a requirements document; and, when the request is to fix something already wrong, finding out why it is wrong before writing what should be true instead |
 | 2. Research — Reference | `reference/` | literature and evidence review | searching external sources, assessing evidence quality, annotating findings |
-| 3. Design — Spec decision | `spec.md`, or the recorded `No spec required` | architecture and design specification | methodology or architecture design, interface/contract definition |
+| 3. Design — Spec decision | `spec.md`, or the recorded `No spec required` | architecture and design specification | writing or reviewing technical specifications and testable acceptance criteria, methodology or architecture design, interface/contract definition |
 | 4. Plan — execution contract | `plan.md` | work breakdown and task decomposition | decomposing work into verifiable steps, sequencing dependencies, estimating |
 | 5. Build — implement by Plan | the change itself | incremental implementation | language and framework conventions, pattern guidance for the code being written |
 | 6. Verify and review | acceptance and findings | testing strategy and code review | designing or writing tests, adversarial review, security or performance review |
