@@ -40,6 +40,8 @@ Create `old/vN/version.md` with:
 
 ## Git mode
 
+`task promote` records the task version's starting Git commit in the current worktree. `version`, `task complete`, and direct `archive` verify that baseline and refuse outstanding changes outside the current task directory and `TaskFlowDocs/todo.md`; other repository documents count too. Make one or more focused commits as the change warrants before ending a version; do not make an empty commit for a version with only task-record changes. The baseline is local Git metadata: a lost baseline or rewritten history cannot be silently reconstructed, ignored files are not checked, and later squash or rebase may remove an individual commit. Do not stage or discard unrelated work to satisfy the check.
+
 When task documents may be committed, record the exact start and end commits or commit range in `version.md`. Use Git diff/history to inspect mechanical edits. `old/vN/` only needs the semantic archive entry; do not duplicate the repository history.
 
 ## File mode

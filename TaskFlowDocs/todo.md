@@ -35,6 +35,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影
+
+- ID: TF-20261112-8dd98e
+- Status: done
+- Goal: 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影响适时增加提交，确保溯源和回退
+- Task: `TaskFlowDocs/achieved/2026-11-12-version-commits/`
+- Next action: None — completed and archived.
+
 ## 在真实 GitHub PR 中验证已合并的文档跟进 CI 复用及失败回退
 
 - ID: TF-20261110-8c4e24
