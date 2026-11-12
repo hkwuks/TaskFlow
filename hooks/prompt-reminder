@@ -322,11 +322,10 @@ ${conflicts}" ;;
   fi
 fi
 
-context="$line
-$capability_guidance${reinforce_line:+
+context="$line${reinforce_line:+
 $reinforce_line}${rules_line:+
 $rules_line}
-Searching is allowed: if this step needs a fact from outside this repository — a version, a spec, another project's behaviour — go and look, with any tool. The lookup is recorded for you.
+$capability_guidance Searching is allowed: if this step needs a fact from outside this repository — a version, a spec, another project's behaviour — go and look, with any tool. The lookup is recorded for you.
 This instruction is a TaskFlow change event and must be classified before you act on it: does it change what this task promised to deliver, or only how it is delivered?
 If it changes the promise, archive this Task version, bump every core document to vN+1, and return the task to ready for re-approval. Otherwise it is a work revision: update the affected documents and add one line to the Plan change log. When it is not obvious, take the work revision."
 
