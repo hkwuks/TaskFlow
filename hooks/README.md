@@ -28,6 +28,7 @@ taskflow/hooks/
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
 ├── approval-check      # the one rule for whether a Plan's current version is approved
 ├── completion-gate     # the one rule for what counts as an approved, finished Plan
+├── version-baseline             # verify each task version has a Git rollback point
 ├── task                # explicit intake/promote/unpromote/state/progress/unaided/recover/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
 ├── version             # atomic version transition (changed docs only)
@@ -42,6 +43,7 @@ taskflow/hooks/
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
+├── test-version-baseline        # real Git lifecycle regression fixture
 └── smoke-test          # assert-style smoke tests
 ```
 

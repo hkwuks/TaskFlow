@@ -42,6 +42,8 @@ grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not compl
 # enters the rollback path — the active directory, the Todo and the absent
 # achieved path are all untouched.
 bash "$HERE/completion-gate" "$docs/$task" || exit 1
+version="$(sed -n 's/^> Task version: //p' "$docs/$task/plan.md" | head -1)"
+bash "$HERE/version-baseline" check "$root" "$task" "$version" || exit 1
 
 todo="$docs/todo.md"
 [ -f "$todo" ] || { echo "todo.md missing; archive not started"; exit 1; }

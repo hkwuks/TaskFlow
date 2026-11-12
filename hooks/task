@@ -979,6 +979,7 @@ case "$command" in
     goal="$(run_task_awk "$todo" TASKFLOW_CMD=get TASKFLOW_ID="$todo_id" TASKFLOW_KEYS="Goal" \
       TASKFLOW_NOTFOUND="Todo entry not found: $todo_id" | sed -n '2p')"
 
+    bash "$SCRIPT_DIR/version-baseline" init "$root" "$task" v1 || fail "Git baseline not established; promotion not started"
     mkdir -p "$base"
     {
       printf '%s\n' "# $title"
@@ -2153,6 +2154,8 @@ STAGE_LINES
     # than the pipe buffer, so a 111 KB Plan with an unchecked item first in the
     # file was archived 15 times out of 15. See `completion-gate`.
     bash "$SCRIPT_DIR/completion-gate" "$base" || exit 1
+    version="$(sed -n 's/^> Task version: //p' "$plan" | head -1)"
+    bash "$SCRIPT_DIR/version-baseline" check "$root" "$task" "$version" || exit 1
     [ -e "$docs/achieved/$task" ] && fail "achieved/$task already exists"
     todo="$docs/todo.md"
     [ -f "$todo" ] || fail "todo.md missing; completion not started"

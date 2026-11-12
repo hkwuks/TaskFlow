@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# Run with a new, dedicated directory; the fixture is retained for inspection.
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-version-baseline <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+check() { bash "$HERE/version-baseline" "$@"; }
+reject() { if "$@"; then echo 'expected refusal' >&2; exit 1; fi; }
+task=2026-11-12-fixture
+git -C "$fixture" init -q
+git -C "$fixture" config user.name 'Fixture Test'
+git -C "$fixture" config user.email 'fixture@example.invalid'
+printf 'initial\n' > "$fixture/code.txt"
+git -C "$fixture" add code.txt
+git -C "$fixture" commit -qm baseline
+mkdir -p "$fixture/TaskFlowDocs/$task"
+printf 'task only\n' > "$fixture/TaskFlowDocs/$task/plan.md"
+printf 'todo\n' > "$fixture/TaskFlowDocs/todo.md"
+check init "$fixture" "$task" v1
+check check "$fixture" "$task" v1
+git -C "$fixture" update-index --assume-unchanged code.txt
+printf 'changed\n' >> "$fixture/code.txt"
+reject check check "$fixture" "$task" v1
+git -C "$fixture" update-index --no-assume-unchanged code.txt
+reject check check "$fixture" "$task" v1
+git -C "$fixture" add code.txt
+reject check check "$fixture" "$task" v1
+git -C "$fixture" commit -qm code
+check check "$fixture" "$task" v1
+git -C "$fixture" update-index --skip-worktree code.txt
+reject check check "$fixture" "$task" v1
+git -C "$fixture" update-index --no-skip-worktree code.txt
+printf 'outside task\n' > "$fixture/design with spaces.md"
+reject check check "$fixture" "$task" v1
+git -C "$fixture" add 'design with spaces.md'
+git -C "$fixture" commit -qm design
+git -C "$fixture" mv 'design with spaces.md' 'design renamed.md'
+reject check check "$fixture" "$task" v1
+git -C "$fixture" commit -qm rename
+git -C "$fixture" rm --cached -q 'design renamed.md'
+reject check check "$fixture" "$task" v1
+git -C "$fixture" add 'design renamed.md'
+check init "$fixture" "$task" v2
+check check "$fixture" "$task" v2
+reject check check "$fixture" "$task" v3
+printf 'other task\n' > "$fixture/TaskFlowDocs/other-task.md"
+reject check check "$fixture" "$task" v2
+git -C "$fixture" add TaskFlowDocs/other-task.md
+git -C "$fixture" commit -qm other
+printf '# PRD\n> Task version: v2\n> Status: in_progress\n' > "$fixture/TaskFlowDocs/$task/prd.md"
+printf '# Plan\n> Task version: v2\n> Status: in_progress\n\n## Approval\n- Status: approved\n' > "$fixture/TaskFlowDocs/$task/plan.md"
+printf 'new code\n' >> "$fixture/code.txt"
+reject bash "$HERE/version" "$task" v3 "$fixture" prd.md
+grep -q '^> Task version: v2$' "$fixture/TaskFlowDocs/$task/plan.md"
+[ ! -e "$fixture/TaskFlowDocs/$task/old/v2" ]
+git -C "$fixture" add code.txt
+git -C "$fixture" commit -qm next-version
+bash "$HERE/version" "$task" v3 "$fixture" prd.md
+check check "$fixture" "$task" v3
+cat > "$fixture/TaskFlowDocs/$task/prd.md" <<'EOF'
+# PRD
+> Task version: v3
+> Status: completed
+EOF
+cat > "$fixture/TaskFlowDocs/$task/plan.md" <<'EOF'
+# Plan
+> Task version: v3
+> Status: completed
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-11-12 00:00 +0800
+- Approved version: v3
+- Approved scope: PRD / Plan
+
+## Steps
+### Step 1 — fixture
+- Status: done
+EOF
+cat > "$fixture/TaskFlowDocs/todo.md" <<EOF
+## Fixture
+- ID: TF-20261112-fixture
+- Status: in_progress
+- Goal: Fixture
+- Task: \`TaskFlowDocs/$task/\`
+- Next action: complete
+EOF
+printf 'uncommitted before archive\n' >> "$fixture/code.txt"
+reject bash "$HERE/archive" "$task" "$fixture"
+[ -d "$fixture/TaskFlowDocs/$task" ]
+[ ! -e "$fixture/TaskFlowDocs/achieved/$task" ]
+git -C "$fixture" add code.txt
+git -C "$fixture" commit -qm archive-check
+bash "$HERE/archive" "$task" "$fixture"
+[ -d "$fixture/TaskFlowDocs/achieved/$task" ]
+git -C "$fixture" add TaskFlowDocs
+git -C "$fixture" commit -qm archived-fixture
+task=2026-11-12-complete
+mkdir -p "$fixture/TaskFlowDocs/$task"
+cat > "$fixture/TaskFlowDocs/$task/prd.md" <<'EOF'
+# PRD
+> Task version: v1
+> Status: in_progress
+EOF
+cat > "$fixture/TaskFlowDocs/$task/plan.md" <<'EOF'
+# Plan
+> Task version: v1
+> Status: in_progress
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-11-12 00:00 +0800
+- Approved version: v1
+- Approved scope: PRD / Plan
+
+## Steps
+### Step 1 — fixture
+- Status: done
+EOF
+cat > "$fixture/TaskFlowDocs/todo.md" <<EOF
+## Fixture
+- ID: TF-20261112-complete
+- Status: in_progress
+- Goal: Fixture
+- Task: \`TaskFlowDocs/$task/\`
+- Next action: complete
+EOF
+check init "$fixture" "$task" v1
+printf 'uncommitted before complete\n' >> "$fixture/code.txt"
+reject bash "$HERE/task" complete "$task" --user-accepted --root "$fixture"
+grep -q '^> Status: in_progress$' "$fixture/TaskFlowDocs/$task/plan.md"
+[ -d "$fixture/TaskFlowDocs/$task" ]
+git -C "$fixture" add code.txt
+git -C "$fixture" commit -qm complete-check
+bash "$HERE/task" complete "$task" --user-accepted --root "$fixture"
+[ -d "$fixture/TaskFlowDocs/achieved/$task" ]
+linked="${fixture}-linked"
+git -C "$fixture" worktree add -q --detach "$linked" HEAD
+reject check check "$linked" "$task" v1
+check init "$linked" "$task" v1
+printf 'unicode\n' > "$linked/测试 文件.txt"
+reject check check "$linked" "$task" v1
+git -C "$linked" add '测试 文件.txt'
+git -C "$linked" commit -qm unicode
+check check "$linked" "$task" v1
+orphan="$(printf 'unrelated history\n' | git -C "$linked" commit-tree HEAD^{tree})"
+git -C "$linked" update-ref HEAD "$orphan"
+reject check check "$linked" "$task" v1
+printf 'PASS: real Git checkpoints, lifecycle and worktree isolation; fixtures retained at %s and %s\n' "$fixture" "$linked"

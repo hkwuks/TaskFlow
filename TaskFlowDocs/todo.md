@@ -1263,3 +1263,11 @@ has an issue number or URL.
 - Task: `TaskFlowDocs/achieved/2026-10-31-external-facts/`
 - Next action: None — completed and archived.
 
+## 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影
+
+- ID: TF-20261112-8dd98e
+- Status: done
+- Goal: 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影响适时增加提交，确保溯源和回退
+- Task: `TaskFlowDocs/achieved/2026-11-12-version-commits/`
+- Next action: None — completed and archived.
+
