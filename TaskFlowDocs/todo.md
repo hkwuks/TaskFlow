@@ -66,7 +66,7 @@ has an issue number or URL.
 - Source: user:2026-11-12
 - Kind: defect
 - Added: 2026-11-12
-- Updated: 2026-11-12
+- Updated: 2026-11-13
 - Goal: 调查并修复 TaskFlow 能力选择与计划审查未解决实际问题，复核流程标记式修复并以真实行为验证
 - Task: `TaskFlowDocs/2026-11-12-capability-outcomes/`
 - Next action: Complete PRD / Spec / Plan and request approval.

@@ -1,5 +1,5 @@
 # Plan — 改善 TaskFlow 能力选择与问题解决效果
-> Task version: v1
+> Task version: v2
 > Status: in_progress
 
 ## Spec Pointers
@@ -22,12 +22,11 @@
 
 ## Skills / Tools Used
 
-- [PRD] Declared `agent-skills:debugging-and-error-recovery` — purpose: 重建真实失败、定位所属层；outcome: 区分记录、提示和模型行为；incorporated: 背景与验收。声明不表示宿主自动观测。
-- [Plan] Declared `agent-skills:planning-and-task-breakdown` — purpose: 按依赖拆分调查、验证和改进；outcome: 区分可观测机制与行为验证；incorporated: 调查步骤。声明不表示宿主自动观测。
-- [Spec] Unaided — 根据已读取源码和已调用技能的调查结果整理候选和边界；considered: architecture and design。阶段记录在首稿之后补录，不能声称写作前已通过门禁。
-- [Test] Unaided — 制定真实行为与隔离验证口径；considered: testing strategy。
-- 后续调查读取 `agent-skills:idea-refine`，比较实际能力选择、机制真实性和结果验证；与任务事实的决策均写入现有任务文件。
-- 后续读取 `agent-skills:spec-driven-development` 重审规格：保留 TaskFlow 的 Spec 位置与标题，检查目标、命令、项目结构、代码约束、测试策略和边界；现稿仍缺选定的实施契约、各阶段可执行验收和完整测试命令，暂不视为可审批规格。该技能是在首稿后才读取，不能追称参与首稿。
+- [PRD] Declared `agent-skills:spec-driven-development` — purpose: 复核已有 root cause investigation 证据并将用户新决定转成可核对需求；outcome: 保留已发现的根因与未验证假设，区分测试交付和行为证据；incorporated: PRD。
+- [Spec] Declared `agent-skills:spec-driven-development` — purpose: 维持已有架构和证据边界；outcome: 区分静态测试与后续真实观察；incorporated: Spec。
+- [Plan] Declared `agent-skills:planning-and-task-breakdown` — purpose: 拆解回归、风险说明与 PR；outcome: 可验证步骤及依赖；incorporated: 本计划。
+- [Test] Declared `agent-skills:test-driven-development` — purpose: 审查应运行的现有测试与回归；outcome: 全量 smoke、离线评估和宿主接线检查；incorporated: 验证步骤。
+- v1 已有技能调用及限制保留在 `old/v1/plan.md`。
 
 ## Preconditions
 
@@ -37,93 +36,72 @@
 ## Plan Review
 
 - Verdict: sound
-- Coverage: Step 1 对应失败重建，Step 2 对应七阶段提示及兼容，Step 3 对应静态检查，Step 4 对应真实行为与产物验收，Step 5 对应交付和残留风险。七阶段中未达标的场景必须在 Step 4 保持未完成并回到 Step 2，不能以文字断言替代。
-- Verifiability: 可运行现有脚本与有监督的真实宿主对照；规格、审查、构思各有一次候选提示对照，但其提示来自测试用户而非真实 hook，尚不证明新 hook 有效。对照须同时检查提示到达、能力选择与产物；不可运行或出现越界时记录失败，不能标记验收通过。
-- Layer ownership: 能力发现提示属于 TaskFlow；方法与产物质量属于实际能力及验收。既有事件队列只证明记录，模型语义无法由字段证明；本方案不伪称修复事件错配或覆盖所有写入路径。
+- Coverage: Step 1 确认 v2 用户决定和既有证据；Step 2 检查合并后的产品与测试；Step 3 保留真实使用中的风险和日志局限；Step 4 完成用户授权的 PR 与归档。
+- Verifiability: 以本分支的自动化测试、技能校验、Git 差异及 PR CI 验证；已有真实样本如实列出，不将测试通过写成行为结果通过。
+- Layer ownership: TaskFlow 负责引导与测试；宿主决定可观测事件，日志只辅助用户后续观察，产物质量仍需实际复核。
 
 ## Approval
 
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-12 19:29 +0800
-- Approved version: v1
+- Approved at: 2026-11-13 14:42 +0800
+- Approved version: v2
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
 
-### Step 1 — 复核既有案例与真实行为基线
+### Step 1 — 确认用户决定和既有证据
 
-- Goal: 用历史记录和合适的实际宿主试验定位问题，记录能力选择、调查和产物。
-- Dependencies: 用户已知悉隔离限制并同意本机测试，指示仅读取测试仓库和必要技能、监控并在发现越界时中断。
-- Files: 当前任务文档和必要的脱敏样本。
+- Goal: 保留 v1 历史和未验证事实，准确反映用户决定。
+- Dependencies: 用户已明确要求测试通过后先 PR，使用中结合日志迭代。
+- Files: `prd.md`、`spec.md`、`plan.md`、`old/v1/`。
 - Implementation checklist:
-  - [x] 对照本次失败、digdig 历史案例与旧任务测试范围。
-  - [x] 明确真实测试的数据边界并获得用户授权。
-  - [x] 依照用户批准的监控方式执行可复核的普通开发任务基线。
-  - [x] 归纳已证实原因与待验证假设。
-- Acceptance: 每条结论有证据来源和限制；不把离线字符串测试描述为模型测试。
-- Verification: 复核事件、工具调用和实际产物。
-- Rollback: 更正任务记录，不改写历史会话。
-- Status: in_progress
+  - [x] 归档 v1，记录自动化测试交付条件与未完成的行为对照。
+- Acceptance: 不将未验证的技能贡献或行为结果写成已通过。
+- Verification: 对照用户原话、v1 记录与 v2 文档。
+- Rollback: 通过 Git 和 `old/v1/` 查阅既有版本。
+- Status: done
 
-### Step 2 — 实现阶段能力引导
+### Step 2 — 验证合并后的引导和日志兼容
 
-- Goal: 让既有提示要求按当前工作内容匹配实际能力，并让阶段表覆盖可用规格、探索和审查能力的概念。
-- Dependencies: 本版本 PRD、Spec、Plan 经用户批准；Step 1 的可复核基线及其限制已记录。
-- Files: `hooks/prompt-reminder`、`skills/taskflow/SKILL.md`；若验证发现需要，调整已有宿主连线和 `skills/taskflow/references/runtime.md`。
+- Goal: 确认能力引导在已合并日志基线上通过测试。
+- Dependencies: v2 获用户授权。
+- Files: `hooks/`、`skills/taskflow/`、项目内临时夹具。
 - Implementation checklist:
-  - [x] 为 planning、in_progress、checking 和无活动任务的开发入口审查提示时机与内容，保持只读任务、无适用能力和同阶段继续工作的合理路径；不得虚构具体阶段。
-  - [x] 在阶段概念中补充 Spec 编写等能匹配实际技能描述的用途；保留 TaskFlow 固定标题及任务文件作为唯一事实源。
-  - [x] 不新增调用记录字段、技能名称白名单或硬门禁；如需超出规格的机制，先修订规格并重新取得批准。
-- Acceptance: 七阶段各有明确入口；提示要求检查描述、适用时先调用并审核结果；无合适能力可自行完成。既有状态、无任务及非开发请求语义不退化。
-- Verification: 对照 Spec 七阶段矩阵、现有宿主 hook 表和现有 prompt-reminder 输出。
-- Rollback: 恢复本 Step 相关文件至版本基线，保留用户文件及任务记录。
-- Status: in_progress
-
-### Step 3 — 验证提示契约与宿主覆盖
-
-- Goal: 确认提示按状态输出、不产生副作用且不会损坏既有生命周期。
-- Dependencies: Step 2。
-- Files: `hooks/smoke-test`、必要的现有宿主测试与配置。
-- Implementation checklist:
-  - [ ] 覆盖 planning、in_progress、checking、无任务、多任务及非开发场景，验证状态输出、能力引导、unaided 和既有提示兼容；检验 hook 不修改工作区或 Git 状态。
-  - [x] 运行 `bash hooks/smoke-test <项目内测试夹具目录>`、`python evals/runner.py`、`git diff --check` 和仓库要求的 skill 校验；记录环境失败及回归。
-  - [x] 对照五个已声明宿主的提示入口，缺失或宿主不支持时核实并记录，不能仅按配置推断真实运行。
-- Acceptance: 定向测试和适用本地检查通过；静态断言只证明提示契约。
-- Verification: 记录命令、结果与保留的测试证据；PR CI 覆盖三平台。
-- Rollback: 回滚本 Step 的测试与连线变更，不改变基线断言以掩盖失败。
-- Status: in_progress
-
-### Step 4 — 真实阶段和产物验收
-
-- Goal: 确认真实模型收到产品提示后，适当地使用能力并产出满足任务的结果。
-- Dependencies: Step 3；遵守用户已允许的测试范围、实时监控及官方缓存保留规则。
-- Files: 当前任务 `plan.md` 与必要的项目内测试夹具；不写产品外配置。
-- Implementation checklist:
-  - [ ] 按 Spec 矩阵对定义／头脑风暴、研究、Spec、Plan、实现、测试审查、完成归档分别运行或复用有证据的正反场景；记录任务、能力、hook 提示、调用和结果，区分真实阶段与只读模拟。
-  - [ ] 重放 Spec 遗漏、审查及构思场景，比较现有基线与实际产品提示；检查规格边界、根因／验证及方案取舍，使用无适用能力和无需发散的负对照。
-  - [ ] 任何缺口重现、产物不可靠或提示不可达时，记录原因并回到 Step 2；缺少真实宿主结果的阶段不得称作通过。
-- Acceptance: 逐阶段结果满足需求并可复核；不凭调用或声明数量宣布有效。
-- Verification: 保存最小必要调用与产物证据，标明模型不确定性、失败、使用量和未覆盖宿主。
-- Rollback: 清理本任务测试创建的夹具，保留官方插件更新及用户文件。
+  - [ ] 运行 Windows 与 Linux 适用 smoke、离线评估、技能校验和差异检查。
+- Acceptance: 必需检查通过；任何失败定位并修复，不靠修改断言掩盖。
+- Verification: 记录命令、结果及失败原因，PR 后核对全部平台 CI。
+- Rollback: 按提交回退，保留历史。
 - Status: pending
 
-### Step 5 — 交付审查与收尾
+### Step 3 — 记录后续观察范围
 
-- Goal: 完成交付、提交回退点并如实记录限制。
-- Dependencies: Step 4 全部验收通过及用户验收。
-- Files: 任务记录、修改的产品和测试文件。
+- Goal: 保留原 v1 的不足，以实际使用反馈和可选脱敏日志继续迭代。
+- Dependencies: Step 1。
+- Files: `plan.md`。
 - Implementation checklist:
-  - [ ] 复核差异与七阶段验收；提交至少一次本版本代码变更，必要时增加有意义的阶段提交。
-  - [ ] 按 TaskFlow 完成归档与仓库 PR 流程；合并、推送及清理仅按用户已有授权执行。
-- Acceptance: 用户问题得到实际解决、回退点和验证可追溯；所有未覆盖事项明确，不虚报完成。
-- Verification: `git diff --check`、提交状态和用户验收。
-- Rollback: 按提交回退本任务变更，保留无关工作。
+  - [x] 标明规格技能贡献、实现能力选择、盲评和其他宿主真实效果尚未充分验证。
+- Acceptance: 不以自动化测试或日志事件声称问题已彻底解决。
+- Verification: 对照 v1 的测试和产物记录。
+- Rollback: 更正误述，不修改历史记录。
+- Status: done
+
+### Step 4 — 用户授权的 PR 与任务归档
+
+- Goal: 在测试通过后归档并提交 PR，保留版本 Git 回退点。
+- Dependencies: Step 2；用户明确要求测试通过后先 PR。
+- Files: 任务记录和已修改产品文件。
+- Implementation checklist:
+  - [ ] 完成差异审查、版本提交与 PR 模板检查。
+  - [ ] 归档任务，创建 PR 并核对 Hooks CI。
+- Acceptance: v2 Git 提交可回退；PR 及任务文档如实列出局限。
+- Verification: 提交、归档路径和 PR 检查结果。
+- Rollback: 按提交回退，不删除其他分支。
 - Status: pending
 
 ## Checkpoints
 
-方案批准前不修改产品实现。
+v2 的验收调整由用户于 2026-11-13 明确提出；归档 v1 后按该决定验证和提交。
 
 ## Verification / Review
 
@@ -231,6 +209,8 @@
 
 ## Change Log
 
+- 2026-11-13：用户决定相关自动化测试通过后先提 PR，未完成的真实使用效果通过脱敏日志及产物复核持续迭代；该验收标准变化归档 v1 并建立 v2。
+
 - 2026-11-12：应用户要求将工作树复制到项目 `.worktrees/capability-outcomes`，逐文件校验后修复 Git 登记。Codex 应用拒绝附加非托管工作树；旧目录保留，后续命令须显式使用项目内路径。
 
 - 2026-11-12：同步已合并的 `main`；在任何产品代码修改前记录 v1 Git 基线 `d0b5ebc748703acd19f275f3d423959b0557a9fb`。真实 hook 夹具复现无关 MCP 事件可释放 Plan。
@@ -238,6 +218,8 @@
 - 2026-11-12：用户确认分成两个关联任务，允许必要真实模型验证，先实测再决定机制；明确允许上述仓库数据发送，试验发生范围外读取并已中断。
 
 ## Follow-ups
+
+- 正式使用后结合用户允许的脱敏日志及产物反馈，继续观察规格技能贡献、实现阶段能力选择、受控盲评和其他宿主效果；日志不保证可观察到所有调用。
 
 真实宿主验证与既有 TF-20261110-0c7346 的边界待后续确认。
 
