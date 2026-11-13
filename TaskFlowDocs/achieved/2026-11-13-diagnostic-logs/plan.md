@@ -1,6 +1,6 @@
 # Plan — TaskFlow 脱敏诊断日志与导出
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
