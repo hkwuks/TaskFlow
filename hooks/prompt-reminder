@@ -116,7 +116,7 @@ escape_for_json() {
 # nothing when a task is in flight (the four-line reminder below owns that
 # case). It never refuses anything: `--task` says a hard gate belongs at
 # `PreToolUse`, and the user chose this delivery instead.
-capability_guidance='Before substantive work, match the current work against available capability descriptions (skills, tools, MCP, agents). If a capability fits, read or invoke it through the host and review its result; otherwise work unaided.'
+capability_guidance='Before substantive work, match the current work against available capability descriptions (skills, tools, MCP, agents). Consider task-specific expertise as well as lifecycle guidance: for example, research, specification, work breakdown, implementation, testing, review or decision records, as relevant to this work. If a capability fits, read or invoke it through the host and review its result; otherwise work unaided.'
 
 entrance_reminder() {
   local ctx

@@ -7259,7 +7259,7 @@ printf '%s\n' "$rem_line" | grep -q -F -- "$(sed -n 's/^- \(2026-10-22-demo | v1
 printf '%s\n' "$rem_line" | grep -q -F 'approval: approved' || { echo "FAIL reminder omits approval"; exit 1; }
 printf '%s\n' "$rem_line" | grep -q -F 'next: Step 1 First' || { echo "FAIL reminder omits the next Step"; exit 1; }
 printf '%s\n' "$rem_ctx" | grep -q -F 'change event' || { echo "FAIL reminder does not ask for classification"; exit 1; }
-for rem_expected in 'available capability descriptions' 'read or invoke' 'work unaided'; do
+for rem_expected in 'available capability descriptions' 'task-specific expertise' 'read or invoke' 'work unaided'; do
   printf '%s\n' "$rem_ctx" | grep -q -F "$rem_expected" || { echo "FAIL in_progress reminder omits $rem_expected"; exit 1; }
 done
 # The permission to search belongs here rather than only in the skill: the pause
