@@ -382,6 +382,9 @@ repo-root/
         ├── install-git-hygiene          # per-clone Git config: Todo merge driver + local-file excludes
         ├── merge-todo                   # the driver: merges todo.md by entry
         ├── repository-docs-context      # syncs index metadata + derives routes
+        ├── diagnostic-event             # asynchronous allowlisted event recording
+        ├── diagnostic-log               # user-controlled enable, disable, export
+        ├── test-diagnostic-log          # privacy and nonblocking fixture
         ├── capability-evidence          # records real invocations in the worktree store
         ├── external-evidence            # records outside URLs from any tool event, in a separate store
         ├── capability-gate              # refuses a stage document's first body write

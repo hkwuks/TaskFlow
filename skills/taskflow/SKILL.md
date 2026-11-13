@@ -429,3 +429,7 @@ Before declaring a task complete, confirm:
 - [ ] Validation results and failure classification are in `plan.md`.
 - [ ] Scope, sensitive-data, and concurrent-write checks passed.
 - [ ] Completion gates passed before moving to `TaskFlowDocs/achieved/`.
+
+## Optional diagnostics
+
+When a user asks to enable, disable, or export TaskFlow diagnostic logs, run the installed plugin's `hooks/diagnostic-log` from the affected repository. Derive the plugin root from this skill's installed `SKILL.md` location, not from the user's repository. Use `enable`, `disable`, or `export <new-local-file>` respectively. Logging is off by default and does not upload. Logs contain only allowlisted event categories, results, timestamps and fixed capability categories; they exclude prompts, commands, paths, code, personal information and tool outputs. Recording is asynchronous and can lose events. Fixed skill-name mentions in shell commands are classified without retaining commands; mentions do not prove a successful read. An absent event does not prove that a capability was not used or explain the model's decision.

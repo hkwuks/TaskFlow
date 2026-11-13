@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Diagnostic writes run in a detached worker; the hook itself does no log I/O.
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ "${1:-}" != worker ]; then
+  bash "$HERE/diagnostic-event" worker <&0 >/dev/null 2>&1 &
+  exit 0
+fi
+umask 077
+payload="$(cat)" || exit 0
+field() { printf '%s' "$payload" | bash "$HERE/json-field" "$1" 2>/dev/null; }
+root="$(field cwd)" || exit 0
+[ -n "$root" ] || root="$PWD"
+gitdir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
+store="$gitdir/taskflow/diagnostics"
+[ ! -L "$gitdir/taskflow" ] && [ ! -L "$store" ] || exit 0
+[ -f "$store/enabled" ] && [ ! -L "$store/enabled" ] || exit 0
+[ "$(cat "$store/enabled" 2>/dev/null)" = on ] || exit 0
+[ ! -L "$store/events" ] || exit 0
+[ ! -e "$store/events" ] || [ -f "$store/events" ] || exit 0
+name="$(field hook_event_name)" || exit 0
+tool="$(field tool_name)" || exit 0
+case "$name" in
+  SessionStart) event=session; result=observed; kind=none ;;
+  UserPromptSubmit) event=prompt; result=observed; kind=none ;;
+  SubagentStart) event=agent; result=observed; kind=agent ;;
+  PostToolUse|PostToolUseFailure)
+    event=tool
+    case "$name" in PostToolUse) result=observed ;; *) result=failed ;; esac
+    case "$tool" in Skill|skill) kind=skill ;; Agent|Task) kind=agent ;; mcp__*) kind=mcp ;; Bash|PowerShell|shell|shell_command|exec_command) kind=shell ;; *) kind=other ;; esac ;;
+  *) exit 0 ;;
+esac
+capability=unknown
+if [ "$kind" = skill ]; then
+  skill="$(field tool_input.skill)" || exit 0
+  [ -n "$skill" ] || skill="$(field tool_input.name)" || exit 0
+  case "$skill" in
+    agent-skills:spec-driven-development) capability=spec ;;
+    agent-skills:idea-refine) capability=brainstorm ;;
+    agent-skills:planning-and-task-breakdown) capability=planning ;;
+    agent-skills:code-review-and-quality) capability=review ;;
+  esac
+elif [ "$kind" = shell ]; then
+  command="$(field tool_input.command)" || exit 0
+  [ -n "$command" ] || command="$(field tool_input.cmd)" || exit 0
+  case "$command" in
+    *spec-driven-development*) capability=spec_mention ;;
+    *idea-refine*) capability=brainstorm_mention ;;
+    *planning-and-task-breakdown*) capability=planning_mention ;;
+    *code-review-and-quality*) capability=review_mention ;;
+  esac
+fi
+# Bounded growth: drop new events after the limit rather than delete logs.
+if [ -f "$store/events" ]; then
+  bytes="$(wc -c < "$store/events" 2>/dev/null)" || exit 0
+  [ "$bytes" -lt 1048576 ] || exit 0
+fi
+stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || exit 0
+printf '%s|%s|%s|%s|%s\n' "$stamp" "$event" "$result" "$kind" "$capability" >> "$store/events" 2>/dev/null || :
+exit 0

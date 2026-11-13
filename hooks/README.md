@@ -19,6 +19,9 @@ taskflow/hooks/
 ├── merge-todo          # the driver: merges TaskFlowDocs/todo.md by entry
 ├── summarize-state     # derives the state summary (shared logic)
 ├── repository-docs-context # syncs index metadata and derives routes
+├── diagnostic-event    # launches the best-effort redacted event worker
+├── diagnostic-log      # enables, disables and exports diagnostic records
+├── test-diagnostic-log # privacy, export and nonblocking fixture
 ├── capability-evidence # records observable capability invocations
 ├── external-evidence   # records outside URLs from tool events
 ├── capability-gate     # refuses a stage document's first body write

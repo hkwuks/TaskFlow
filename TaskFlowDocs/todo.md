@@ -35,6 +35,20 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，
+
+- ID: TF-20261113-5681c7
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: direct user request
+- Kind: capability
+- Added: 2026-11-13
+- Updated: 2026-11-13
+- Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
+- Task: `TaskFlowDocs/2026-11-13-diagnostic-logs/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
 ## 排查任务版本 Git 回退点检查的子模块忽略规则及子目录 root
 
 - ID: TF-20261112-f593c5
