@@ -1,6 +1,6 @@
 # Plan — TaskFlow 脱敏诊断日志与导出
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 
@@ -76,11 +76,11 @@
 - Files: 现有测试与项目内临时夹具。
 - Implementation checklist:
   - [x] 测试敏感输入、恶意记录、默认关闭、导出失败、并发和受控阻塞。
-  - [ ] 运行适用 smoke、离线评估和至少一个受授权真实宿主场景，记录覆盖边界。
+  - [x] 运行适用 smoke、离线评估和至少一个受授权真实宿主场景，记录覆盖边界。
 - Acceptance: 隐私和非阻塞测试通过，测试材料及宿主限制可审计。
 - Verification: 命令、结果及脱敏证据。
 - Rollback: 按授权清理本次测试夹具，保留用户数据。
-- Status: in_progress
+- Status: done
 
 ### Step 4 — 审查与交付
 
@@ -88,11 +88,11 @@
 - Dependencies: Step 3。
 - Files: 变更及任务记录。
 - Implementation checklist:
-  - [ ] 完成审查、Git 提交、记录验证与限制。
+  - [x] 完成审查、Git 提交、记录验证与限制。
 - Acceptance: 代码、说明和测试一致；不擅自推送、合并或发布。
 - Verification: `git diff --check`、Git 状态与提交检查。
 - Rollback: 按提交回退。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
@@ -101,8 +101,10 @@
 - Windows 与 WSL 的 `hooks/test-diagnostic-log` 通过：默认关闭、后台入口、合成密钥和代码不落盘、恶意记录过滤、并发格式、固定技能及命令中提及的分类、禁覆盖和人为延迟的 Git/存储检查。事件记录采用异步旁路；合成阻塞测试验证入口在等待上限前返回，不证明所有文件系统和宿主都无延迟。
 - 在 WSL 的 Windows 挂载目录复现并发追加丢失少量事件；保留记录格式完整，日志为尽力记录而非完整审计。达到约 1 MiB 停止追加，文档已说明。
 - Windows 完整 smoke（包括最终诊断测试入口、双 shell 配置和开放 stdin）通过。`python evals/runner.py` PASS (6)；WSL Python 运行技能校验通过。Windows 默认 Python 缺 PyYAML，未安装依赖。
-- 创建并临时安装本地测试插件，随后通过正式 CLI 移除插件和市场，核实缓存副本及市场均不存在，官方更新保留。当前 computer-use 技能禁止操作 Codex CLI 和安全权限界面，无法自动信任测试 hook；未完成真实宿主端到端验证，不能将其作为通过；已再次准备临时测试插件，等待用户手动信任指定诊断 hook。Linux 全量 smoke 的首次夹具准备因 Windows Git 工作树路径不适用于 WSL 失败；第二次复制时误排除诊断脚本而失败。修正后暴露旧的固定命令数量断言和两个脚本清单未更新；补充逐宿主逐事件接线断言及清单后，在私有 tmpfs 中重跑得到 `ALL SMOKE PASSED`。
+- 创建并临时安装本地测试插件，随后通过正式 CLI 移除插件和市场，核实缓存副本及市场均不存在，官方更新保留；第二轮真实宿主测试后再次移除插件与市场，精确删除其 11 个 hook 状态并以 TOML 结构对比确认其他配置不变。当前 computer-use 技能禁止操作 Codex CLI 和安全权限界面，无法自动信任测试 hook；用户手动信任指定诊断 hook 后，在受监控合成仓库运行 `codex exec --json --sandbox read-only`，会话和答复完成、退出 0，未观察到工具调用；项目日志出现 session 和 prompt 两条事件，用户指定本地路径的 JSONL 导出仅含五个允许字段。此次未覆盖真实宿主的工具调用事件或其他宿主，不能推断其行为。Linux 全量 smoke 的首次夹具准备因 Windows Git 工作树路径不适用于 WSL 失败；第二次复制时误排除诊断脚本而失败。修正后暴露旧的固定命令数量断言和两个脚本清单未更新；补充逐宿主逐事件接线断言及清单后，在私有 tmpfs 中重跑得到 `ALL SMOKE PASSED`。
 - 自审：日志仅输出固定枚举与生成的时间，导出重新校验、通过硬链接发布而不覆盖现有目标；不支持硬链接的目标文件系统将返回失败。提及分类仅表示工具输入含固定技能名，不证明成功读取或采用；不记录原命令。
+
+- 代码提交 `7218bfa`，检查记录提交 `67617a5`；最终验收记录将另行提交。
 
 ## Change Log
 

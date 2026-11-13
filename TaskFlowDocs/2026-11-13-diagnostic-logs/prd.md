@@ -1,6 +1,6 @@
 # TaskFlow 脱敏诊断日志与导出
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Goal
 
