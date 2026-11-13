@@ -108,6 +108,8 @@
 
 - PR 模板 `.github/pull_request_template.md`：Summary 说明默认关闭、脱敏导出及宿主限制；TaskFlow traceability 指向本归档、日志范围和 `hkwuks/TaskFlow` 的 `main`；Verification 填入独立分支复测、技能校验、diff 检查和 Hooks 工作流；Review boundaries 核对敏感信息、无关变更、目标及限制。Hooks 只由 PR 或 main push 触发，须先创建 PR 才能取得该 PR 的 CI 结果，结果未到时保持待完成并回填。
 
+- PR 首次 Windows CI 因测试使用 PowerShell 字符串管道，环境编码在 JSON 前插入 BOM，导致 SessionStart 的输入解析失败；改用 `cmd` 的空 stdin，继续检查两种 shell 中的实际 hook 命令。Linux 和 macOS CI 已通过；修复后的 CI 须重新通过。
+
 ## Change Log
 
 - 2026-11-13：用户确定默认关闭、本地指定路径导出、仅允许列表元数据；日志不阻塞被观察代码。

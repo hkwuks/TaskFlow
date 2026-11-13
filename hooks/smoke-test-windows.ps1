@@ -83,9 +83,9 @@ try {
                 foreach ($handler in $group.hooks) {
                     $configured = $handler.commandWindows.Replace('${PLUGIN_ROOT}', (Split-Path -Parent $here))
                     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($configured))
-                    $shellOutput = '{}' | & powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded 2>&1
+                    $shellOutput = & cmd.exe /d /c "powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded < nul" 2>&1
                     if ($LASTEXITCODE -ne 0) { throw "Codex Windows hook $($event.Name) failed to launch: $shellOutput" }
-                    $shellOutput = '{}' | & cmd.exe /d /s /c $configured 2>&1
+                    $shellOutput = & cmd.exe /d /s /c "$configured < nul" 2>&1
                     if ($LASTEXITCODE -ne 0) { throw "Codex cmd hook $($event.Name) failed to launch: $shellOutput" }
                 }
             }
