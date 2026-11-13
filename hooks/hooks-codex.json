@@ -8,7 +8,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/session-start\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" session-start"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" session-start"
           }
         ]
       }
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/capability-evidence\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
           }
         ]
       }
@@ -30,7 +30,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/prompt-reminder\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" prompt-reminder"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" prompt-reminder"
           }
         ]
       }
@@ -42,7 +42,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/capability-gate\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-gate"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-gate"
           }
         ]
       }
@@ -54,7 +54,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/capability-evidence\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
           }
         ]
       },
@@ -64,7 +64,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/base-status-reminder\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" base-status-reminder",
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" base-status-reminder",
             "async": true
           }
         ]
@@ -74,7 +74,7 @@
           {
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/external-evidence\"",
-            "commandWindows": "\"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" external-evidence"
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" external-evidence"
           }
         ]
       }

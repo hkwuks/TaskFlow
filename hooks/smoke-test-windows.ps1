@@ -75,6 +75,22 @@ try {
     }
     'WINDOWS SCRIPT IS ASCII'
 
+    # Exercise the configured commands, not only the launcher invoked directly.
+    $codexHooks = [IO.File]::ReadAllText((Join-Path $here 'hooks-codex.json')) | ConvertFrom-Json
+    foreach ($event in $codexHooks.hooks.PSObject.Properties) {
+        foreach ($group in $event.Value) {
+            foreach ($handler in $group.hooks) {
+                $configured = $handler.commandWindows.Replace('${PLUGIN_ROOT}', (Split-Path -Parent $here))
+                $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($configured))
+                $shellOutput = '{}' | & powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded 2>&1
+                if ($LASTEXITCODE -ne 0) { throw "Codex Windows hook $($event.Name) failed to launch: $shellOutput" }
+                $shellOutput = '{}' | & cmd.exe /d /s /c $configured 2>&1
+                if ($LASTEXITCODE -ne 0) { throw "Codex cmd hook $($event.Name) failed to launch: $shellOutput" }
+            }
+        }
+    }
+    'CODEX WINDOWS HOOK COMMANDS PASSED'
+
     $launcherArgs = @('space value', ([string]([char]0x4E2D) + [char]0x6587), 'quoted value', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
     $launcherOutput = @(& "$here\run-hook.cmd" smoke-test --echo-args @launcherArgs 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "Launcher argument check failed: $launcherOutput" }
