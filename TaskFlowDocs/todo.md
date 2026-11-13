@@ -52,16 +52,10 @@ has an issue number or URL.
 ## 调查并修复 TaskFlow 能力选择与计划审查未解决实际问题，复
 
 - ID: TF-20261112-21a0ce
-- Status: in_progress
-- Priority: normal
-- Owner: Unknown
-- Source: user:2026-11-12
-- Kind: defect
-- Added: 2026-11-12
-- Updated: 2026-11-13
+- Status: done
 - Goal: 调查并修复 TaskFlow 能力选择与计划审查未解决实际问题，复核流程标记式修复并以真实行为验证
-- Task: `TaskFlowDocs/2026-11-12-capability-outcomes/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-11-12-capability-outcomes/`
+- Next action: None — completed and archived.
 
 ## 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影
 

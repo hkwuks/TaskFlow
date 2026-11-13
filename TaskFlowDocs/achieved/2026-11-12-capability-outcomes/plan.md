@@ -1,6 +1,6 @@
 # Plan — 改善 TaskFlow 能力选择与问题解决效果
 > Task version: v2
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
