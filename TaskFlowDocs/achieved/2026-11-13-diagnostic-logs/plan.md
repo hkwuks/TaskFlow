@@ -12,7 +12,7 @@
 
 ## Related Tasks
 
-- 关联 `TaskFlowDocs/2026-11-12-capability-outcomes/` v1：日志为后续正式安装排查提供独立交付；不宣称完成原任务的行为验收。
+- 关联 `fix/taskflow-capability-outcomes` 分支的 `TaskFlowDocs/2026-11-12-capability-outcomes/` v1（尚未合入 main）：日志为后续正式安装排查提供独立交付；不宣称完成原任务的行为验收。
 
 ## Skills / Tools Used
 
@@ -100,16 +100,21 @@
 
 - Windows 与 WSL 的 `hooks/test-diagnostic-log` 通过：默认关闭、后台入口、合成密钥和代码不落盘、恶意记录过滤、并发格式、固定技能及命令中提及的分类、禁覆盖和人为延迟的 Git/存储检查。事件记录采用异步旁路；合成阻塞测试验证入口在等待上限前返回，不证明所有文件系统和宿主都无延迟。
 - 在 WSL 的 Windows 挂载目录复现并发追加丢失少量事件；保留记录格式完整，日志为尽力记录而非完整审计。达到约 1 MiB 停止追加，文档已说明。
-- Windows 完整 smoke（包括最终诊断测试入口、双 shell 配置和开放 stdin）通过。`python evals/runner.py` PASS (6)；WSL Python 运行技能校验通过。Windows 默认 Python 缺 PyYAML，未安装依赖。
+- 独立 PR 分支的 Windows 完整 smoke（包括诊断测试入口、双 shell 配置和开放 stdin）通过；分支上的 WSL 诊断测试通过。`python evals/runner.py` PASS (6)；WSL Python 运行技能校验通过。Windows 默认 Python 缺 PyYAML，未安装依赖。
 - 创建并临时安装本地测试插件，随后通过正式 CLI 移除插件和市场，核实缓存副本及市场均不存在，官方更新保留；第二轮真实宿主测试后再次移除插件与市场，精确删除其 11 个 hook 状态并以 TOML 结构对比确认其他配置不变。当前 computer-use 技能禁止操作 Codex CLI 和安全权限界面，无法自动信任测试 hook；用户手动信任指定诊断 hook 后，在受监控合成仓库运行 `codex exec --json --sandbox read-only`，会话和答复完成、退出 0，未观察到工具调用；项目日志出现 session 和 prompt 两条事件，用户指定本地路径的 JSONL 导出仅含五个允许字段。此次未覆盖真实宿主的工具调用事件或其他宿主，不能推断其行为。Linux 全量 smoke 的首次夹具准备因 Windows Git 工作树路径不适用于 WSL 失败；第二次复制时误排除诊断脚本而失败。修正后暴露旧的固定命令数量断言和两个脚本清单未更新；补充逐宿主逐事件接线断言及清单后，在私有 tmpfs 中重跑得到 `ALL SMOKE PASSED`。
 - 自审：日志仅输出固定枚举与生成的时间，导出重新校验、通过硬链接发布而不覆盖现有目标；不支持硬链接的目标文件系统将返回失败。提及分类仅表示工具输入含固定技能名，不证明成功读取或采用；不记录原命令。
 
-- 代码提交 `7218bfa`，检查记录提交 `67617a5`；最终验收记录将另行提交。
+- 原关联分支代码提交 `7218bfa`、检查记录提交 `67617a5`；日志独立 PR 分支分别移植为 `cdac9fc`、`29915f9`，并保留真实宿主验收与归档提交。
+
+- PR 模板 `.github/pull_request_template.md`：Summary 说明默认关闭、脱敏导出及宿主限制；TaskFlow traceability 指向本归档、日志范围和 `hkwuks/TaskFlow` 的 `main`；Verification 填入独立分支复测、技能校验、diff 检查和 Hooks 工作流；Review boundaries 核对敏感信息、无关变更、目标及限制。Hooks 只由 PR 或 main push 触发，须先创建 PR 才能取得该 PR 的 CI 结果，结果未到时保持待完成并回填。
+
+- PR 首次 Windows CI 因测试使用 PowerShell 字符串管道，环境编码在 JSON 前插入 BOM，导致 SessionStart 的输入解析失败；改用 `cmd` 的空 stdin，继续检查两种 shell 中的实际 hook 命令。Linux 和 macOS CI 已通过；修复后的 CI 须重新通过。
 
 ## Change Log
 
 - 2026-11-13：用户确定默认关闭、本地指定路径导出、仅允许列表元数据；日志不阻塞被观察代码。
 - 2026-11-13：实现固定类别的命令提及识别，只保存枚举，不保存命令；与已批准范围一致，属于工作修订。
+- 2026-11-13：为单独交付已验收日志，从已核实的 main 分出 PR 分支，移植必要的 Windows hook 启动修复与日志提交；另一任务和其待办继续留在原分支。
 
 ## Follow-ups
 
