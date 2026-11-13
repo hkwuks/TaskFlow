@@ -35,10 +35,24 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 排查任务版本 Git 回退点检查的子模块忽略规则及子目录 root
+
+- ID: TF-20261112-f593c5
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: direct user request
+- Kind: defect
+- Added: 2026-11-12
+- Updated: 2026-11-12
+- Goal: 排查任务版本 Git 回退点检查的子模块忽略规则及子目录 root 边界
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 调查并修复 TaskFlow 能力选择与计划审查未解决实际问题，复
 
 - ID: TF-20261112-21a0ce
-- Status: promoted
+- Status: in_progress
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-12
