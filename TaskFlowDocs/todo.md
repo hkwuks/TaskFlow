@@ -35,14 +35,6 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
-## 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，
-
-- ID: TF-20261113-5681c7
-- Status: done
-- Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
-- Task: `TaskFlowDocs/achieved/2026-11-13-diagnostic-logs/`
-- Next action: None — completed and archived.
-
 ## 排查任务版本 Git 回退点检查的子模块忽略规则及子目录 root
 
 - ID: TF-20261112-f593c5
@@ -70,6 +62,14 @@ has an issue number or URL.
 - Goal: 调查并修复 TaskFlow 能力选择与计划审查未解决实际问题，复核流程标记式修复并以真实行为验证
 - Task: `TaskFlowDocs/2026-11-12-capability-outcomes/`
 - Next action: Complete PRD / Spec / Plan and request approval.
+
+## 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影
+
+- ID: TF-20261112-8dd98e
+- Status: done
+- Goal: 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影响适时增加提交，确保溯源和回退
+- Task: `TaskFlowDocs/achieved/2026-11-12-version-commits/`
+- Next action: None — completed and archived.
 
 ## 在真实 GitHub PR 中验证已合并的文档跟进 CI 复用及失败回退
 
@@ -1285,11 +1285,10 @@ has an issue number or URL.
 - Task: `TaskFlowDocs/achieved/2026-10-31-external-facts/`
 - Next action: None — completed and archived.
 
-## 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影
+## 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，
 
-- ID: TF-20261112-8dd98e
+- ID: TF-20261113-5681c7
 - Status: done
-- Goal: 长程任务的每个代码迭代版本至少一次 Git 提交，并按改动影响适时增加提交，确保溯源和回退
-- Task: `TaskFlowDocs/achieved/2026-11-12-version-commits/`
+- Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
+- Task: `TaskFlowDocs/achieved/2026-11-13-diagnostic-logs/`
 - Next action: None — completed and archived.
-

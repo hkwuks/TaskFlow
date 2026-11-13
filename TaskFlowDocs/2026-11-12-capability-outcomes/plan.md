@@ -1,6 +1,6 @@
 # Plan — 改善 TaskFlow 能力选择与问题解决效果
 > Task version: v2
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 
@@ -68,11 +68,11 @@
 - Dependencies: v2 获用户授权。
 - Files: `hooks/`、`skills/taskflow/`、项目内临时夹具。
 - Implementation checklist:
-  - [ ] 运行 Windows 与 Linux 适用 smoke、离线评估、技能校验和差异检查。
+  - [x] 运行 Windows 与 Linux 适用 smoke、离线评估、技能校验和差异检查。
 - Acceptance: 必需检查通过；任何失败定位并修复，不靠修改断言掩盖。
 - Verification: 记录命令、结果及失败原因，PR 后核对全部平台 CI。
 - Rollback: 按提交回退，保留历史。
-- Status: pending
+- Status: done
 
 ### Step 3 — 记录后续观察范围
 
@@ -92,18 +92,24 @@
 - Dependencies: Step 2；用户明确要求测试通过后先 PR。
 - Files: 任务记录和已修改产品文件。
 - Implementation checklist:
-  - [ ] 完成差异审查、版本提交与 PR 模板检查。
-  - [ ] 归档任务，创建 PR 并核对 Hooks CI。
+  - [x] 完成差异审查、版本提交与 PR 模板检查。
+  - [x] 检查归档前置并准备 PR 模板；PR 创建和 Hooks CI 结果在 PR 中核对。
 - Acceptance: v2 Git 提交可回退；PR 及任务文档如实列出局限。
 - Verification: 提交、归档路径和 PR 检查结果。
 - Rollback: 按提交回退，不删除其他分支。
-- Status: pending
+- Status: done
 
 ## Checkpoints
 
 v2 的验收调整由用户于 2026-11-13 明确提出；归档 v1 后按该决定验证和提交。
 
 ## Verification / Review
+
+v2 合并已发布日志基线后：Windows 全量 smoke 通过（含诊断测试、五宿主静态接线、双 shell 启动和开放 stdin）；Linux 私有 tmpfs 全量 smoke `ALL SMOKE PASSED`；WSL 诊断测试通过，`python evals/runner.py` PASS (6)，WSL `quick_validate.py` 通过，`git diff --check` 通过。所有夹具均位于项目工作树内。v2 仅调整验收及任务文档，v1 的代码迭代已有 Git 提交，未制作空提交。
+
+- PR 模板 `.github/pull_request_template.md`：Summary 说明阶段提示及已知限制；TaskFlow traceability 指向本任务归档、`hkwuks/TaskFlow` 的 `main` 和实际差异；Verification 列出上述测试、技能校验和 PR Hooks CI；Review boundaries 保留既有缺陷待办及行为验证缺口。Hooks 需 PR 创建后触发，结果写入 PR 而非提前声称通过。
+
+以下历史记录以发生时的 v1 状态为准；v2 根据用户 2026-11-13 的决定以自动化测试作为本次 PR 条件，真实行为证据缺口仍作为后续观察，不视为已证明解决。
 
 - 已按用户授权重新安装项目内测试插件并使用交互式 Codex `/hooks` 检查：启动时有 7 条 hook 待审查，其中 `UserPromptSubmit` 的一条来源为 `taskflow@taskflow-eval-local`；只对该条选择 trust，界面显示 Trusted，其余未全部信任。正常配置、禁用正式同名插件的非交互 Codex 会话未收到夹具任务状态；相同条件的交互会话显示 `Hook failed` 且模型答复无法取得任务状态，失败消息未识别具体 hook，因此不能断言失败一定由测试插件造成。事后只读核对本次测试会话记录，发现模型违背“不调用工具”提示，调用了工具目录查询，但没有读取任务文件；记录中未发现夹具任务编号或新增能力提示，故该轮不应描述为完全无工具。
 - 测试会话可能受宿主配置／其他 hook 影响；没有识别确切的失败来源前不得宣称插件自动加载或引导有效。测试前配置与信任状态已按 SHA-256 还原，临时插件、快照和项目内夹具已删除。交互式 CLI 产生的测试会话记录尚保留；来源未明的 marketplace staging 未删除。

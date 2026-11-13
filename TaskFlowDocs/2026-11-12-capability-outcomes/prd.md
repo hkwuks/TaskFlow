@@ -1,6 +1,6 @@
 # 改善 TaskFlow 能力选择与问题解决效果
 > Task version: v2
-> Status: in_progress
+> Status: checking
 
 ## Goal
 
