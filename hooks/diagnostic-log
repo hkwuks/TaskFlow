@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# User-controlled, worktree-local diagnostic logging and export.
+set -euo pipefail
+umask 077
+usage() { echo 'Usage: bash hooks/diagnostic-log enable|disable|export <new-file>' >&2; exit 2; }
+[ "$#" -ge 1 ] || usage
+command="$1"; shift
+case "$command" in enable|disable) [ "$#" -eq 0 ] || usage ;; export) [ "$#" -eq 1 ] || usage ;; *) usage ;; esac
+gitdir="$(git rev-parse --absolute-git-dir)"
+store="$gitdir/taskflow/diagnostics"
+[ ! -L "$gitdir/taskflow" ] && [ ! -L "$store" ] || { echo 'Invalid diagnostic directory' >&2; exit 1; }
+case "$command" in
+  enable)
+    mkdir -p "$store"
+    [ ! -L "$store/enabled" ] && { [ ! -e "$store/enabled" ] || [ -f "$store/enabled" ]; } || { echo 'Invalid diagnostic control file' >&2; exit 1; }
+    printf 'on\n' > "$store/enabled"
+    echo 'TaskFlow diagnostics enabled.' ;;
+  disable)
+    [ -d "$store" ] || { echo 'TaskFlow diagnostics already disabled.'; exit 0; }
+    [ ! -L "$store/enabled" ] && { [ ! -e "$store/enabled" ] || [ -f "$store/enabled" ]; } || { echo 'Invalid diagnostic control file' >&2; exit 1; }
+    printf 'off\n' > "$store/enabled"
+    echo 'TaskFlow diagnostics disabled.' ;;
+  export)
+    [ -f "$store/events" ] && [ ! -L "$store/events" ] || { echo 'No diagnostic events available.' >&2; exit 1; }
+    target="$1"
+    [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Cannot create export; choose a new file.' >&2; exit 1; }
+    tmp="$(mktemp "${target}.taskflow.XXXXXXXX")" || { echo 'Cannot create export.' >&2; exit 1; }
+    trap 'rm -f -- "$tmp"' EXIT
+    awk -F'|' '
+      NF == 5 && $1 ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$/ &&
+      ($2 == "session" || $2 == "prompt" || $2 == "agent" || $2 == "tool") &&
+      ($3 == "observed" || $3 == "completed" || $3 == "failed") &&
+      ($4 == "none" || $4 == "agent" || $4 == "skill" || $4 == "mcp" || $4 == "shell" || $4 == "other") &&
+      ($5 == "unknown" || $5 == "spec" || $5 == "brainstorm" || $5 == "planning" || $5 == "review" || $5 == "spec_mention" || $5 == "brainstorm_mention" || $5 == "planning_mention" || $5 == "review_mention") {
+        printf "{\"time\":\"%s\",\"event\":\"%s\",\"result\":\"%s\",\"kind\":\"%s\",\"capability\":\"%s\"}\n", $1,$2,$3,$4,$5
+      }
+    ' "$store/events" > "$tmp" || { echo 'Cannot prepare export.' >&2; exit 1; }
+    # A hard link publishes the complete file without replacing an existing target.
+    ln "$tmp" "$target" 2>/dev/null || { echo 'Cannot create export; choose a new file.' >&2; exit 1; }
+    echo 'TaskFlow diagnostics exported.' ;;
+esac

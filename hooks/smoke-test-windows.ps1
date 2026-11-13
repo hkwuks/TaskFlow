@@ -75,6 +75,24 @@ try {
     }
     'WINDOWS SCRIPT IS ASCII'
 
+    if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
+        # Exercise the configured commands, not only the launcher invoked directly.
+        $codexHooks = [IO.File]::ReadAllText((Join-Path $here 'hooks-codex.json')) | ConvertFrom-Json
+        foreach ($event in $codexHooks.hooks.PSObject.Properties) {
+            foreach ($group in $event.Value) {
+                foreach ($handler in $group.hooks) {
+                    $configured = $handler.commandWindows.Replace('${PLUGIN_ROOT}', (Split-Path -Parent $here))
+                    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($configured))
+                    $shellOutput = & cmd.exe /d /c "powershell.exe -NoProfile -NonInteractive -EncodedCommand $encoded < nul" 2>&1
+                    if ($LASTEXITCODE -ne 0) { throw "Codex Windows hook $($event.Name) failed to launch: $shellOutput" }
+                    $shellOutput = & cmd.exe /d /s /c "$configured < nul" 2>&1
+                    if ($LASTEXITCODE -ne 0) { throw "Codex cmd hook $($event.Name) failed to launch: $shellOutput" }
+                }
+            }
+        }
+        'CODEX WINDOWS HOOK COMMANDS PASSED'
+    }
+
     $launcherArgs = @('space value', ([string]([char]0x4E2D) + [char]0x6587), 'quoted value', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten')
     $launcherOutput = @(& "$here\run-hook.cmd" smoke-test --echo-args @launcherArgs 2>&1)
     if ($LASTEXITCODE -ne 0) { throw "Launcher argument check failed: $launcherOutput" }
@@ -319,6 +337,9 @@ try {
     #
     if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
         $parityRoot = Join-Path $Root 'host-parity'
+        $diagnosticRoot = Join-Path $Root 'diagnostic-fixture'
+        & "$here\run-hook.cmd" test-diagnostic-log $diagnosticRoot
+        if ($LASTEXITCODE -ne 0) { throw 'Diagnostic log test failed' }
         & "$here\run-hook.cmd" test-host-parity $parityRoot
         if ($LASTEXITCODE -ne 0) { throw 'host parity fixture failed' }
     }
@@ -328,7 +349,8 @@ try {
         $self = $MyInvocation.MyCommand.Path
         $psi = New-Object Diagnostics.ProcessStartInfo
         $psi.FileName = (Get-Command powershell.exe).Source
-        $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $self + '"'
+        $childRoot = Join-Path $Root 'stdin-selfcheck'
+        $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $self + '" -Root "' + $childRoot + '"'
         $psi.RedirectStandardInput = $true   # a pipe nobody writes or closes
         $psi.RedirectStandardOutput = $true
         $psi.RedirectStandardError = $true

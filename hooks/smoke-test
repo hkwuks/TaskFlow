@@ -30,6 +30,7 @@ if [ $# -eq 0 ]; then
 fi
 
 bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
+bash "$HERE/test-diagnostic-log" "$tmp/diagnostic-fixture"
 
 echo "== completion-gate decides the one shared answer =="
 # `archive`, `task complete`, `task state in_progress` and `task progress` all
@@ -6948,6 +6949,20 @@ grep -q -F -- 'lowercase' "$HERE/../skills/taskflow/references/runtime.md" \
   || { echo "FAIL runtime.md no longer states the dsh tool-name reason"; exit 1; }
 echo ok
 
+echo "== diagnostic events are wired to the intended host events =="
+for diagnostic_config in hooks.json hooks-codex.json hooks-codebuddy.json hooks-dsh.json hooks-trae.json; do
+  diagnostic_events='SessionStart UserPromptSubmit PostToolUse'
+  case "$diagnostic_config" in hooks.json) diagnostic_events="$diagnostic_events PostToolUseFailure" ;; hooks-codex.json) diagnostic_events="$diagnostic_events SubagentStart" ;; esac
+  for diagnostic_event in $diagnostic_events; do
+    awk -v wanted="$diagnostic_event" '
+      /^    "[[:alnum:]]+": \[/ { active = ($0 ~ "^    \"" wanted "\": \\[") }
+      active && /"command":.*diagnostic-event/ { found = 1 }
+      END { exit !found }
+    ' "$HERE/$diagnostic_config" || { echo "FAIL $diagnostic_config lacks diagnostic hook for $diagnostic_event"; exit 1; }
+  done
+done
+echo ok
+
 echo "== every host whose contract matches the gate actually wires it =="
 # Measured 2026-10-11: `task approve` requires a release record, and the gate was
 # its only writer. A host wiring no tool-call event therefore had no gate, no
@@ -6971,7 +6986,7 @@ for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher
     || { echo "FAIL hooks/hooks-codebuddy.json is missing $cb_pat"; exit 1; }
 done
 cb_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$cb_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$cb_cmds" | grep -c .)" -eq 6 ] \
+[ "$(printf '%s\n' "$cb_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 6 ] \
   || { echo "FAIL hooks/hooks-codebuddy.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$cb_cmds"; exit 1; }
 cb_root="$(cd "$HERE/.." && pwd)"
 cb_run() {  # cb_run <script-name> <event-json>
@@ -7101,7 +7116,7 @@ trae_root="$(cd "$HERE/.." && pwd)"
 # them: left in, `\"path\"` reaches the shell as a word whose characters include
 # two quote marks, and sh reports "not found" for a path that exists.
 trae_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$trae_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$trae_cmds" | grep -c .)" -eq 6 ] \
+[ "$(printf '%s\n' "$trae_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 6 ] \
   || { echo "FAIL hooks/hooks-trae.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$trae_cmds"; exit 1; }
 printf '%s\n' "$trae_cmds" | grep -q "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>'" \
   || { echo "FAIL hooks/hooks-trae.json does not set CLAUDE_PLUGIN_ROOT: Trae would discard the SessionStart context silently"; exit 1; }

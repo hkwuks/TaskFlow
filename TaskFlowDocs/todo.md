@@ -1257,3 +1257,10 @@ has an issue number or URL.
 - Task: `TaskFlowDocs/achieved/2026-10-31-external-facts/`
 - Next action: None — completed and archived.
 
+## 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，
+
+- ID: TF-20261113-5681c7
+- Status: done
+- Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
+- Task: `TaskFlowDocs/achieved/2026-11-13-diagnostic-logs/`
+- Next action: None — completed and archived.

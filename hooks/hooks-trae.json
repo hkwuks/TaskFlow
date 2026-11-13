@@ -12,6 +12,15 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' diagnostic-event",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -20,6 +29,15 @@
           {
             "type": "command",
             "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' prompt-reminder",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' diagnostic-event",
             "timeout": 30
           }
         ]
@@ -63,6 +81,15 @@
           {
             "type": "command",
             "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' external-evidence",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' diagnostic-event",
             "timeout": 30
           }
         ]

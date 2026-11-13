@@ -11,6 +11,15 @@
             "shell": "bash"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" diagnostic-event",
+            "shell": "bash"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -19,6 +28,15 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" prompt-reminder",
+            "shell": "bash"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" diagnostic-event",
             "shell": "bash"
           }
         ]
@@ -58,6 +76,15 @@
             "async": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" diagnostic-event",
+            "shell": "bash"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -88,6 +115,15 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-evidence",
+            "shell": "bash"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" diagnostic-event",
             "shell": "bash"
           }
         ]
