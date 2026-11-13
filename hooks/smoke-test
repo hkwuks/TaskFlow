@@ -7274,6 +7274,9 @@ printf '%s\n' "$rem_line" | grep -q -F -- "$(sed -n 's/^- \(2026-10-22-demo | v1
 printf '%s\n' "$rem_line" | grep -q -F 'approval: approved' || { echo "FAIL reminder omits approval"; exit 1; }
 printf '%s\n' "$rem_line" | grep -q -F 'next: Step 1 First' || { echo "FAIL reminder omits the next Step"; exit 1; }
 printf '%s\n' "$rem_ctx" | grep -q -F 'change event' || { echo "FAIL reminder does not ask for classification"; exit 1; }
+for rem_expected in 'available capability descriptions' 'task-specific expertise' 'confirmed scope' 'read or invoke' 'work unaided'; do
+  printf '%s\n' "$rem_ctx" | grep -q -F "$rem_expected" || { echo "FAIL in_progress reminder omits $rem_expected"; exit 1; }
+done
 # The permission to search belongs here rather than only in the skill: the pause
 # points are three moments, and a Step that discovers mid-run that it needs a fact
 # outside the repository is between them. Read as a field so an escaped copy in
@@ -7283,8 +7286,9 @@ printf '%s\n' "$rem_ctx" | grep -q -F 'Searching is allowed' \
 # `checking` is still in flight -- verification runs there and a defect found in
 # it is the same case.
 write_rem_plan checking
-rem_event "$rem_repo" | bash "$HERE/prompt-reminder" | grep -q -F 'additionalContext' \
-  || { echo "FAIL reminder silent while checking"; exit 1; }
+rem_check_ctx="$(rem_event "$rem_repo" | bash "$HERE/prompt-reminder" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
+printf '%s\n' "$rem_check_ctx" | grep -q -F 'available capability descriptions' \
+  || { echo "FAIL checking reminder omits capability guidance"; exit 1; }
 echo ok
 
 echo "== prompt-reminder is silent outside the window where drift happens =="
@@ -7377,16 +7381,16 @@ printf '%s\n' "$ent_ctx" | grep -q -F 'git worktree add' \
 # has to be read and dismissed on every prompt is one a reader learns to skip.
 printf '%s\n' "$ent_ctx" | grep -q -F 'Read-only work' \
   || { echo "FAIL entrance reminder does not exempt read-only work"; exit 1; }
-printf '%s\n' "$ent_ctx" | grep -q -F 'available capabilities' \
+printf '%s\n' "$ent_ctx" | grep -q -F 'available capability descriptions' \
   || { echo "FAIL entrance reminder omits capability guidance"; exit 1; }
 # A planning task receives a shorter phase-specific capability reminder.
 mkdir -p "$ent_repo/TaskFlowDocs/2026-11-04-demo"
 printf '# Plan - demo\n> Task version: v1\n> Status: planning\n' \
   > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
 ent_planning="$(ent_event "$ent_repo" | bash "$HERE/prompt-reminder" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
-printf '%s\n' "$ent_planning" | grep -q -F 'available capabilities' \
+printf '%s\n' "$ent_planning" | grep -q -F 'available capability descriptions' \
   || { echo "FAIL planning reminder omits capability guidance"; exit 1; }
-[ "$(printf '%s\n' "$ent_planning" | grep -c -F 'available capabilities')" -eq 1 ] \
+[ "$(printf '%s\n' "$ent_planning" | grep -c -F 'available capability descriptions')" -eq 1 ] \
   || { echo "FAIL planning reminder repeated capability guidance"; exit 1; }
 printf '# Plan - demo\n> Task version: v1\n> Status: ready\n' > "$ent_repo/TaskFlowDocs/2026-11-04-demo/plan.md"
 rem_silent "a ready task" "$(ent_event "$ent_repo")"

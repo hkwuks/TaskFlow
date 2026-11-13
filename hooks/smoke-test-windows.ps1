@@ -200,7 +200,7 @@ try {
     $planningReminder = Invoke-Hook 'prompt-reminder' $planningEvent
     if ($planningReminder.Exit -ne 0) { throw 'planning reminder failed' }
     $planningContext = ($planningReminder.Output | ConvertFrom-Json).hookSpecificOutput.additionalContext
-    if ($planningContext -notmatch 'available capabilities') { throw 'planning capability guidance missing on Windows' }
+    if ($planningContext -notmatch 'available capability descriptions' -or $planningContext -notmatch 'task-specific expertise') { throw 'planning capability guidance missing on Windows' }
 
     $prdPath = Join-Path $gateTask 'prd.md'
     $specPath = Join-Path $gateTask 'spec.md'
