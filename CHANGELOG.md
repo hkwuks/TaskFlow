@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [1.2.4] — 2026-11-13
+
+### Added
+
+- **Git checkpoints for task versions.** Check for a committed repository rollback point before a task version advances or completes; versions changing only their own task documents and the Todo entry do not require an empty commit. [#140](https://github.com/hkwuks/TaskFlow/pull/140)
+- **Opt-in diagnostic logs.** Record allowlisted event categories and export them to a user-specified new local file. Logging is off by default and excludes prompts, commands, paths, code, personal information, keys and tool output. [#141](https://github.com/hkwuks/TaskFlow/pull/141)
+
+### Changed
+
+- Remind agents to match each stage's actual work against available capabilities and review results against the confirmed scope. Clarify that specification writing and testable acceptance criteria fit the design phase. [#142](https://github.com/hkwuks/TaskFlow/pull/142)
+- Launch Codex Windows hooks through `cmd.exe` to avoid the PowerShell command parsing failure. [#141](https://github.com/hkwuks/TaskFlow/pull/141)
+
+### Compatibility and known limitations
+
+- Diagnostic logging is asynchronous and best effort, stops near 1 MiB and may lose events. Export requires a filesystem that supports hard links. Shell-command skill mentions are fixed categories, not proof that a skill was read or adopted.
+- The real Codex test verified session and prompt events; real tool-call events and other host sessions have not been verified end to end. Actual capability selection, skill contribution and artifact quality remain to be evaluated in use.
+- Git checkpoint checks exclude Git-ignored files. Submodule ignore rules and subdirectory-root behavior have an open follow-up (`TF-20261112-f593c5`).
+
+### Verification
+
+- Pre-release main commit `ebd31f2a8f18999f41e98eb7bcb9c5624a35d15a` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/43382216161), including Ubuntu, macOS and Windows smoke, evals, release, CI reuse and Todo merge audit.
+- The release-only commit changes this section, version literals and README version samples; the smoke suite is not repeated locally because the three-platform CI covers the implementation.
+- `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation and `git diff --check` passed during preparation. The release check verified the existing v1.2.3 catalog pins and must be repeated after the new pins are set.
+- At the user's direction, preparation used the existing project-internal worktree on a local branch tracking `origin/main`; the base checkout and another worktree with local changes were left untouched.
+
+### Release
+
+- Planned tag: `v1.2.4`; after release-owner approval the tag and two marketplace pins are published atomically.
+
 ## [1.2.3] — 2026-11-11
 
 ### Changed
