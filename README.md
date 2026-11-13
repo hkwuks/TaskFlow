@@ -16,6 +16,11 @@
 
 </div>
 
+## Optional diagnostic log
+
+TaskFlow diagnostics are off by default. From the affected repository, ask the TaskFlow agent to enable diagnostics, or run `bash <installed-taskflow>/hooks/diagnostic-log enable` to enable them and `bash <installed-taskflow>/hooks/diagnostic-log disable` to stop recording. Export to a new local file with `bash <installed-taskflow>/hooks/diagnostic-log export /path/to/new-file.jsonl`; the export is never uploaded. Export requires a filesystem supporting hard links. Only fixed event categories, result categories and UTC timestamps are stored; no prompts, commands, paths, code, personal data, tool output or arbitrary capability names are recorded. Recording stops when the log reaches approximately 1 MiB; asynchronous events can be lost. For a few fixed skill names, a shell command is classified as a mention without retaining the command; a mention does not prove a read succeeded. Hosts expose different events; missing records do not establish that a capability was not used or why the model chose it.
+
+
 > [!IMPORTANT]
 > **TaskFlow is a workflow convention, not an Agent.** It does not select tools or take decisions itself. It may coordinate with host/harness hooks (Claude Code, Codex CLI, CodeBuddy, dsh, and Trae) for bounded bookkeeping and context summaries; hooks never write core documents and never approve. It gives humans and Agents a shared, inspectable place to record what a task means and how it changed.
 

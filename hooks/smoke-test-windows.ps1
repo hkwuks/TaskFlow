@@ -335,6 +335,9 @@ try {
     #
     if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
         $parityRoot = Join-Path $Root 'host-parity'
+        $diagnosticRoot = Join-Path $Root 'diagnostic-fixture'
+        & "$here\run-hook.cmd" test-diagnostic-log $diagnosticRoot
+        if ($LASTEXITCODE -ne 0) { throw 'Diagnostic log test failed' }
         & "$here\run-hook.cmd" test-host-parity $parityRoot
         if ($LASTEXITCODE -ne 0) { throw 'host parity fixture failed' }
     }

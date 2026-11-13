@@ -16,6 +16,11 @@
 
 </div>
 
+## 可选诊断日志
+
+TaskFlow 诊断日志默认关闭。在相关仓库中请 TaskFlow Agent 启用诊断日志，或运行 `bash <已安装的 TaskFlow 路径>/hooks/diagnostic-log enable` 启用，运行 `bash <已安装的 TaskFlow 路径>/hooks/diagnostic-log disable` 停止记录；使用 `bash <已安装的 TaskFlow 路径>/hooks/diagnostic-log export /path/to/new-file.jsonl` 导出到新的本地文件，导出不会自动上传；导出目标所在文件系统须支持硬链接。日志只保存固定事件类别、结果类别和 UTC 时间，不记录提示词、命令、路径、代码、个人信息、工具输出或任意能力名称。日志达到约 1 MiB 后停止写入；记录异步执行，事件可能丢失。对于少数固定技能名，只从 shell 命令中提取“被提及”的固定类别，不保存命令；被提及不代表读取成功。各宿主可提供的事件不同；缺少记录不能证明未使用能力，也不能解释模型选择原因。
+
+
 > [!IMPORTANT]
 > **TaskFlow 是流程约定，不是 Agent。** 它不选择工具、也不替 Agent 决策。它可与宿主/工具链 hook（Claude Code、Codex CLI、CodeBuddy、dsh 与 Trae）协作做有边界的记账和上下文摘要；hook 绝不写核心文档、绝不代为批准。它为人和 Agent 提供一个共同的、可检查的地方，记录任务是什么以及它如何变化。
 

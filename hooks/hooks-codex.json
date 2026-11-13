@@ -11,6 +11,15 @@
             "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" session-start"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/diagnostic-event\"",
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" diagnostic-event"
+          }
+        ]
       }
     ],
     "SubagentStart": [
@@ -22,6 +31,15 @@
             "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" capability-evidence"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/diagnostic-event\"",
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" diagnostic-event"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -31,6 +49,15 @@
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/prompt-reminder\"",
             "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" prompt-reminder"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/diagnostic-event\"",
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" diagnostic-event"
           }
         ]
       }
@@ -75,6 +102,15 @@
             "type": "command",
             "command": "bash \"${PLUGIN_ROOT}/hooks/external-evidence\"",
             "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" external-evidence"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${PLUGIN_ROOT}/hooks/diagnostic-event\"",
+            "commandWindows": "cmd.exe /d /c call \"${PLUGIN_ROOT}\\hooks\\run-hook.cmd\" diagnostic-event"
           }
         ]
       }
