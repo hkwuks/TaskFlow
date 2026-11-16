@@ -320,3 +320,7 @@ Hosts without hooks run the base flow unchanged; hooks are optional.
 The `base-write-gate` checks observable file-edit targets before `capability-gate` consumes evidence. It is not a filesystem sandbox: shell and other unobserved paths can still write, and release edits may be refused. See `skills/taskflow/references/runtime.md` for host coverage.
 
 Codex and Claude Code also check the base checkout asynchronously after shell calls. They report existing uncommitted changes outside Todo without claiming which command or person caused them. Claude Code delivers asynchronous output to the agent on a later turn rather than showing it directly to the user. This is a Git status reminder, not a before/after comparison; ignored files and changes that disappear before the check may be missed.
+
+## Optional remote Todo backend
+
+`remote-todo` is an explicit command, not an event-bound network hook. Run it from the user repository and invoke it using the installed plugin's `hooks/remote-todo` path. `mode-set` and `connect` configure the project; `list` combines local items with configured GitHub/GitLab sources. See `skills/taskflow/references/runtime.md#remote-todo-backend` for the operations, authentication, private recovery records, and non-atomic failure semantics. The local mode remains the default.

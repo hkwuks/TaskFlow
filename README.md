@@ -109,6 +109,23 @@ flowchart TD
 
 TaskFlow guides the Agent to consider useful capabilities at each phase; it does not select a particular tool. Plan Review happens before approval and is separate from the review of the implemented result. Hooks assist where the host supports them, and their coverage differs by host; see [runtime.md](skills/taskflow/references/runtime.md) for the event map and limitations.
 
+## Optional remote Issue Todos
+
+A project defaults to local `TaskFlowDocs/todo.md`. To use Issues as the Todo record, configure one or more GitHub or GitLab repositories (including self-hosted instances) and select remote mode. Run these commands from the project repository in Bash; replace the example plugin path with your installed TaskFlow location:
+
+```bash
+TASKFLOW_PLUGIN_ROOT="/path/to/installed/TaskFlow"  # replace with the installed plugin path
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" connect work github github.com owner/repo
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" connect lab gitlab git.example.org group/project
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" mode-set remote
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" list
+```
+
+The host's `gh` or `glab` must already be installed and authenticated for each host; credentials are not written to the project. Remote access happens only when requested. `list` retains local items and identifies incomplete sources. In remote mode, an explicit `bash "$TASKFLOW_PLUGIN_ROOT/hooks/task" intake <goal> --local` still creates one local item.
+
+Use `remote-todo create`, `edit`, `label`, `stage`, and `promote` to work with a selected Issue. `migrate-to-remote <todo-id> <alias>` keeps the original local entry; `migrate-to-local <alias> <number> --detach` copies content locally and disconnects an existing association without changing the Issue. `snapshot <new-file>` saves an optional time-stamped remote copy; it can contain private Issue content and may become stale.
+
+A remote write can succeed even when its response is lost. Inspect the operation ID before retrying; `resolve`, `resolve-absent --checked`, and `ack-update --checked` are explicit recovery operations. GitHub and GitLab cannot generally guarantee atomic conditional Issue edits, so concurrent changes can still race. Local recovery files must be Git-excluded; run `bash "$TASKFLOW_PLUGIN_ROOT/hooks/install-git-hygiene"` if prompted. See [runtime details](skills/taskflow/references/runtime.md#remote-todo-backend).
 ## Repository documents
 
 `TaskFlowDocs/repository-docs/index.md` is the authoritative routing and check record for repository rules, repository guidance, and scoped personal rules. Repository-owned documents stay authoritative at their conventional source locations.
@@ -121,7 +138,7 @@ For fork, remote, or pull-request work, TaskFlow records the configured remotes,
 
 TaskFlow never writes a task document in the base working tree: each task runs on its own short-lived branch and its own working tree, created before the first task document rather than before the first edit. `CONTRIBUTING.md` states the branch rule; the Skill states the worktree rule.
 
-Because every task appends to the one `TaskFlowDocs/todo.md`, TaskFlow ships a Git merge driver for it, installed per clone by `hooks/session-start`. Two branches that each added an entry, or that changed different entries, merge without a human; the same entry changed differently on both sides is still left as a real conflict. Todo IDs are derived from the goal rather than from a counter, so two branches cut from the same base cannot allocate the same ID. Merging a pull request in a hosting web UI runs server-side and does not use the driver, so that path falls back to an ordinary content conflict.
+Because local tasks and promoted remote tasks may share `TaskFlowDocs/todo.md`, TaskFlow ships a Git merge driver for it, installed per clone by `hooks/session-start`. Two branches that each added an entry, or that changed different entries, merge without a human; the same entry changed differently on both sides is still left as a real conflict. Todo IDs are derived from the goal rather than from a counter, so two branches cut from the same base cannot allocate the same ID. Merging a pull request in a hosting web UI runs server-side and does not use the driver, so that path falls back to an ordinary content conflict.
 
 Before creating or updating a pull request, TaskFlow reads the applicable `.github/pull_request_template.md`, satisfies every required item, records the field mapping and verification in `plan.md`, and blocks PR mutation when a required item is missing or ambiguous.
 
@@ -131,7 +148,7 @@ Any user correction or addition to an approved task is classified before documen
 
 ## Todo intake
 
-TaskFlow applies automatically only to repository development requests: features, fixes, refactors, tests, and configuration/build/CI changes. A release is the exception — it runs `RELEASE.md` directly on the base checkout, with no Todo item, task directory, branch, or PRD/Plan, and its record is the `CHANGELOG.md` section and the GitHub Release body. Read-only explanation, translation, status, research, review, and diagnosis do not create Todo or task documents; a later implementation request starts the workflow then. Explicitly invoking `$taskflow` opts planning or research into the workflow. For applicable requests, `TaskFlowDocs/todo.md` is the mandatory first record. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`.
+TaskFlow applies automatically only to repository development requests: features, fixes, refactors, tests, and configuration/build/CI changes. A release is the exception — it runs `RELEASE.md` directly on the base checkout, with no Todo item, task directory, branch, or PRD/Plan, and its record is the `CHANGELOG.md` section and the GitHub Release body. Read-only explanation, translation, status, research, review, and diagnosis do not create Todo or task documents; a later implementation request starts the workflow then. Explicitly invoking `$taskflow` opts planning or research into the workflow. For applicable requests, record the request first in the selected Todo backend: local `TaskFlowDocs/todo.md` by default, or an explicitly configured remote Issue repository. An item moves from `inbox` to `clarified`, then is promoted into a task directory with `prd.md`, optional `spec.md`, and `plan.md`; it enters `in_progress` after approval and closes as `done` or `cancelled`.
 
 After verification, TaskFlow moves the whole task directory to `TaskFlowDocs/achieved/<task-id>/`, updates the Todo item's task path and status to `done`, and verifies the active path is absent. If later work belongs to that achieved deliverable, it retrieves the directory to the active root, records the Todo source and reopen reason, creates a new Task version, and returns to approval before changing implementation. Achieved tasks are read-only; their `old/vN/` history is read only when the current documents or a version summary require it.
 
@@ -426,7 +443,7 @@ Once installed, tell your Agent:
 Use $taskflow to plan, execute, verify, and archive this task.
 ```
 
-Then: add ideas to `TaskFlowDocs/todo.md`; promote clarified items into `prd.md`, `spec.md` (when needed), and `plan.md`; review the task documents, record approval, then implement one planned step at a time using its checklist.
+Then: add ideas to the selected local Todo or remote Issue repository; promote clarified items into `prd.md`, `spec.md` (when needed), and `plan.md`; review the task documents, record approval, then implement one planned step at a time using its checklist.
 
 > [!TIP]
 > A small, obvious one-file change can still be a direct change with minimal verification. TaskFlow does not create documents merely to satisfy a process.

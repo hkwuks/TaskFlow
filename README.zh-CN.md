@@ -76,6 +76,23 @@ flowchart TD
 
 TaskFlow 引导 Agent 在每个阶段考虑有帮助的能力，但不替它选择具体工具。计划审核发生在用户批准之前，与实施完成后的成果评审分开。Hook 仅在宿主支持时辅助执行，各宿主覆盖范围不同；事件映射和限制见 [runtime.md](skills/taskflow/references/runtime.md)。
 
+## 可选的远端 Issue 待办
+
+项目默认使用本地 `TaskFlowDocs/todo.md`。如需把 Issue 用作待办记录，可配置一个或多个 GitHub、GitLab 仓库（包括自托管实例），并选择远程模式。请在项目仓库的 Bash 中运行，并把示例路径改为实际安装的 TaskFlow 目录：
+
+```bash
+TASKFLOW_PLUGIN_ROOT="/path/to/installed/TaskFlow"  # replace with the installed plugin path
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" connect work github github.com owner/repo
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" connect lab gitlab git.example.org group/project
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" mode-set remote
+bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" list
+```
+
+所选宿主须已安装并登录对应的 `gh` 或 `glab`；项目配置不保存凭据。只有显式操作才会访问远端。`list` 会保留本地条目并提示不完整的来源；在远程默认模式下，仍可用 `bash "$TASKFLOW_PLUGIN_ROOT/hooks/task" intake <goal> --local` 显式创建单条本地待办。
+
+使用 `remote-todo create`、`edit`、`label`、`stage` 和 `promote` 操作选定 Issue。`migrate-to-remote <todo-id> <alias>` 保留原本地条目；`migrate-to-local <alias> <number> --detach` 将内容复制到本地并解除已有关系，不修改远端 Issue。`snapshot <new-file>` 可保存带时间的远端快照；其中可能包含私有 Issue 内容，也可能过期。
+
+远端写入超时不代表一定失败，重试前须核对操作 ID；`resolve`、`resolve-absent --checked` 和 `ack-update --checked` 用于显式恢复。GitHub 和 GitLab 通常不能保证 Issue 的原子条件更新，并发修改仍可能发生竞态。本地恢复记录必须被 Git 排除，收到提示时运行 `bash "$TASKFLOW_PLUGIN_ROOT/hooks/install-git-hygiene"`。具体命令、隐私和平台限制见[运行时说明](skills/taskflow/references/runtime.md#remote-todo-backend)。
 ## 仓库文档
 
 `TaskFlowDocs/repository-docs/index.md` 是仓库规则、仓库指引和有范围个人规则的权威路由与检查记录；具体规则内容仍以惯用位置上的源文档为准。
@@ -88,7 +105,7 @@ TaskFlow 引导 Agent 在每个阶段考虑有帮助的能力，但不替它选�
 
 TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立短生命周期分支与独立工作区，且在工作区的建立是在**第一份任务文档之前**，而不是第一次改动之前。分支规则写在 `CONTRIBUTING.md`，worktree 规则写在 Skill 中。
 
-由于所有任务都追加同一个 `TaskFlowDocs/todo.md`，TaskFlow 为它内置了 Git 合并驱动，由 `hooks/session-start` 按克隆安装。两个分支各自新增条目、或修改不同条目时无需人工介入；同一条目两侧改法不同仍会保留为真实冲突。Todo ID 由目标内容派生而非递增计数，因此同一基点切出的两个分支不会分到同一个 ID。在托管平台网页端合并 PR 时由服务端执行，不会使用该驱动，这条路径仍退化为普通内容冲突。
+由于本地任务和已提升的远端任务可能共用 `TaskFlowDocs/todo.md`，TaskFlow 为它内置了 Git 合并驱动，由 `hooks/session-start` 按克隆安装。两个分支各自新增条目、或修改不同条目时无需人工介入；同一条目两侧改法不同仍会保留为真实冲突。Todo ID 由目标内容派生而非递增计数，因此同一基点切出的两个分支不会分到同一个 ID。在托管平台网页端合并 PR 时由服务端执行，不会使用该驱动，这条路径仍退化为普通内容冲突。
 
 创建或更新 Pull Request 前，TaskFlow 必须读取适用的 `.github/pull_request_template.md`，完成每个必填项，在 `plan.md` 中记录字段映射和验证结果；必填项缺失或有歧义时禁止修改 PR。
 
@@ -98,7 +115,7 @@ TaskFlow 从不在 base 工作区里写任务文档：每个任务使用独立�
 
 ## Todo 收件箱
 
-TaskFlow 只自动用于仓库开发需求：功能、Bug 修复、重构、测试、配置/构建/CI 变更。**发布是例外**——它直接在 base 检出上执行 `RELEASE.md`，不创建 Todo 条目、任务目录、分支，也不写 PRD/Plan；它的记录是 `CHANGELOG.md` 段落与 GitHub Release 正文。只读解释、翻译、状态查询、研究、审查和诊断不会创建 Todo 或任务文档；若之后要求实施，再从该实施请求开始进入流程。用户显式调用 `$taskflow` 时，规划或研究也会进入流程。对于适用请求，`TaskFlowDocs/todo.md` 是强制首条记录；条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进，提升后创建 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。
+TaskFlow 只自动用于仓库开发需求：功能、Bug 修复、重构、测试、配置/构建/CI 变更。**发布是例外**——它直接在 base 检出上执行 `RELEASE.md`，不创建 Todo 条目、任务目录、分支，也不写 PRD/Plan；它的记录是 `CHANGELOG.md` 段落与 GitHub Release 正文。只读解释、翻译、状态查询、研究、审查和诊断不会创建 Todo 或任务文档；若之后要求实施，再从该实施请求开始进入流程。用户显式调用 `$taskflow` 时，规划或研究也会进入流程。对于适用请求，应先记录到所选 Todo 存储：默认是本地 `TaskFlowDocs/todo.md`，也可显式配置远端 Issue 仓库；条目按 `inbox → clarified → promoted → in_progress → done/cancelled` 演进，提升后创建 `prd.md`、按需创建 `spec.md` 和 `plan.md`，批准后才进入实施。
 
 验证通过后，TaskFlow 将整个任务目录移入 `TaskFlowDocs/achieved/<task-id>/`，同步 Todo 的任务路径和 `done` 状态，并确认活动路径已不存在。已归档任务只读；其 `old/vN/` 历史仅在当前文档或版本摘要需要时才读取。之后若新工作属于该已完成交付物，先将目录取回活动根目录，记录 Todo 来源与重新打开原因，创建新的 Task version，并在修改实现前重新经过批准门禁。
 
@@ -376,7 +393,7 @@ dsh plugin --profile web add <仓库根目录>
 使用 $taskflow 规划、执行、验证并归档这个任务。
 ```
 
-然后把想法记录到 `TaskFlowDocs/todo.md`；澄清后的条目再提升为 `prd.md`、按需的 `spec.md` 和 `plan.md`；审阅任务文档并记录批准，再按每个步骤的 checklist 实施和记录验证结果。
+然后把想法记录到所选本地 Todo 或远端 Issue 仓库；澄清后的条目再提升为 `prd.md`、按需的 `spec.md` 和 `plan.md`；审阅任务文档并记录批准，再按每个步骤的 checklist 实施和记录验证结果。
 
 > [!TIP]
 > 边界清晰的简单单文件修改可以直接完成并做最小验证，不必为了流程创建空文档。

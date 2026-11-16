@@ -35,6 +35,21 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 支持使用远程仓库 Issues 作为用户的待办列表
+
+- ID: TF-20261116-7e2c41
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: direct user request
+- Kind: capability
+- Added: 2026-11-16
+- Updated: 2026-11-16
+- Goal: 支持将远程仓库的 Issues 作为用户的 Todo 列表记录使用。
+- Task: `TaskFlowDocs/2026-11-16-remote-issue-todos/`
+- Next action: 按批准的计划实施并验证远程 Issue 待办。
+
+
 ## 排查任务版本 Git 回退点检查的子模块忽略规则及子目录 root
 
 - ID: TF-20261112-f593c5
