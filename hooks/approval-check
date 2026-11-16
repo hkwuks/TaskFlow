@@ -109,12 +109,13 @@ result="$(awk -v stale_only="$stale_only" '
     if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) }
     next
   }
-  /^## Approval$/ { inap = 1; next }
+  /^## Approval$/ { approvals++; inap = 1; next }
   inap && $0 == "- Status: approved" { st = 1 }
   inap && $0 == "- Approved by: pending" { pend = 1 }
   inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
   END {
     if (fence != "") { print "unclosed Markdown fence"; exit 1 }
+    if (approvals > 1) { print "Plan has more than one Approval section"; exit 1 }
     if (ver == "") { print "missing Plan Task version"; exit 1 }
     if (stale_only) {
       # Only a superseded approval blocks a write. `pending` and an absent field

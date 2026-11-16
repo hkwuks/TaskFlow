@@ -423,6 +423,21 @@ function overlap(   w) {
 }
 { n++; line[n] = $0 }
 END {
+  if (cmd == "step") {
+    for (i = 1; i <= n; i++) {
+      text = line[i]; sub(/\r$/, "", text)
+      for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+      marker = substr(text, 1, 1); run = 0
+      if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+      if (fence != "") {
+        fenced[i] = 1
+        if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      } else if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) {
+        fenced[i] = 1; fence = marker; fence_len = run
+      }
+    }
+    if (fence != "") die("unclosed Markdown fence")
+  }
   scan()
 
   if (cmd == "get") {
@@ -561,7 +576,7 @@ END {
   if (cmd == "step") {
     a = 0; b = 0
     for (i = 1; i <= n; i++) {
-      if (at(line[i], "### Step ")) {
+      if (!fenced[i] && at(line[i], "### Step ")) {
         rest = substr(line[i], 10)
         if (match(rest, /^[0-9]+/)) {
           num = substr(rest, 1, RLENGTH)
@@ -572,20 +587,22 @@ END {
     }
     if (a == 0) die("Step " step " not found")
     for (i = a + 1; i <= n; i++) {
-      if (at(line[i], "### Step ") || at(line[i], "## ")) break
+      if (!fenced[i] && (at(line[i], "### Step ") || at(line[i], "## "))) break
     }
     b = i - 1
     if (step_status == "done") {
       for (i = a; i <= b; i++) {
-        if (line[i] ~ /^[[:space:]]*- \[ \]/) die("Step " step " has unchecked items")
+        if (!fenced[i] && line[i] ~ /^[[:space:]]*- \[ \]/) die("Step " step " has unchecked items")
       }
     }
-    if (!setr(a, b, "Status", step_status)) die("Step " step " missing Status")
+    status_line = 0; for (i = a; i <= b; i++) if (!fenced[i] && at(line[i], "- Status:")) { status_line = i; break }
+    if (!status_line) die("Step " step " missing Status")
+    line[status_line] = "- Status: " step_status
     if (verification != "") {
       vline = "- " today " Step " step ": " verification
       found = 0
       for (i = 1; i <= n; i++) {
-        if (line[i] == "## Verification / Review") {
+        if (!fenced[i] && line[i] == "## Verification / Review") {
           # Equivalent to replacing "## Verification / Review\n" with
           # "## Verification / Review\n\n<line>\n": a blank line and the entry are
           # inserted directly after the heading, and whatever followed stays.
