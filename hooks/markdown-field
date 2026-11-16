@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Read exactly one document metadata field outside fenced Markdown examples.
+set -euo pipefail
+[ "$#" -eq 2 ] || { echo 'usage: markdown-field <Task version|Status|Todo Record|Check> <file>' >&2; exit 1; }
+case "$1" in 'Task version'|Status|'Todo Record'|Check) ;; *) echo 'unsupported metadata field' >&2; exit 1 ;; esac
+awk -v field="$1" '
+  {
+    text = $0; sub(/\r$/, "", text)
+    for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+    marker = substr(text, 1, 1); run = 0
+    if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+    if (fence != "") {
+      if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      next
+    }
+    if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) {
+      fence = marker; fence_len = run; next
+    }
+    if (field == "Check") next
+    if (field == "Todo Record") { if ($0 == "## Todo Record") count++; next }
+    prefix = "> " field ": "
+    if (index($0, prefix) == 1) { count++; value = substr($0, length(prefix) + 1); sub(/\r$/, "", value) }
+  }
+  END {
+    if (fence != "") { print "unclosed Markdown fence" > "/dev/stderr"; exit 1 }
+    if (field == "Check") { print "ok"; exit 0 }
+    if (field == "Todo Record") { if (count > 1) { print "ambiguous Todo Record" > "/dev/stderr"; exit 1 } print count + 0; exit 0 }
+    if (count != 1 || value == "") { print "missing or ambiguous " field > "/dev/stderr"; exit 1 }
+    print value
+  }
+' "$2"

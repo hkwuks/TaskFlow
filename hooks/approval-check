@@ -106,7 +106,7 @@ result="$(awk -v stale_only="$stale_only" '
   }
   /^## / { inap = 0 }
   /^> Task version: v[0-9][0-9]*$/ {
-    if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) }
+    versions++; if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) }
     next
   }
   /^## Approval$/ { approvals++; inap = 1; next }
@@ -116,7 +116,7 @@ result="$(awk -v stale_only="$stale_only" '
   END {
     if (fence != "") { print "unclosed Markdown fence"; exit 1 }
     if (approvals > 1) { print "Plan has more than one Approval section"; exit 1 }
-    if (ver == "") { print "missing Plan Task version"; exit 1 }
+    if (versions != 1) { print "missing or ambiguous Plan Task version"; exit 1 }
     if (stale_only) {
       # Only a superseded approval blocks a write. `pending` and an absent field
       # are both "nothing approved yet", which is every task before its first

@@ -98,6 +98,14 @@ cg_case duplicate-approval 1 'more than one Approval' '> Task version: v1
 - Approved by: user
 - Approved version: v1
 '
+cg_case duplicate-plan-review 1 'duplicate reserved sections' "${cg_approved}"'## Plan Review
+- Verdict: sound
+## Plan Review
+- Verdict: needs revision
+'
+printf '# Spec\n```markdown\nunclosed\n' > "$cg/T/spec.md"
+cg_case unclosed-spec 1 'invalid Markdown fence in spec.md' "$cg_approved"
+rm -f "$cg/T/spec.md"
 cg_case unapproved 1 'not approved' '> Task version: v1
 ## Approval
 - Status: requested
@@ -297,6 +305,32 @@ awk '
   real && $0 == "- Status: done" { real_ok = 1 }
   END { exit !(example_ok && real_ok) }
 ' "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL progress edited fenced example'; exit 1; }
+# State transitions update live metadata and retain leading fenced examples.
+cat > "$progress_fence/TaskFlowDocs/todo.md" <<'STATE_TODO'
+## Example
+- ID: TF-20260101-abcdef
+- Status: promoted
+- Task: `TaskFlowDocs/2026-01-01-example/`
+- Updated: 2026-01-01
+STATE_TODO
+cat > "$progress_fence/TaskFlowDocs/2026-01-01-example/prd.md" <<'STATE_PRD'
+# PRD
+> Task version: v1
+> Status: planning
+STATE_PRD
+cat > "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" <<'STATE_PLAN'
+# Plan
+```markdown
+> Status: example
+```
+> Task version: v1
+> Status: planning
+## Approval
+- Status: requested
+STATE_PLAN
+bash "$HERE/task" state 2026-01-01-example ready --root "$progress_fence" >/dev/null
+grep -qx '> Status: example' "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL state changed fenced example'; exit 1; }
+grep -qx '> Status: ready' "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL state did not update live status'; exit 1; }
 # A promotion that never got a Plan is the case `task complete` can reach,
 # because `task_paths` only requires the directory. The gate says so in words
 # rather than letting awk report a missing file.
@@ -1057,6 +1091,34 @@ check_refusal unchecked 'unchecked items' 's/^  - \[x\] done$/  - [ ] not done/'
 check_refusal unfinished 'unfinished Steps' 's/^- Status: done$/- Status: in_progress/'
 echo ok
 
+# A completed status in an example cannot stand in for task completion.
+gate_example="$(gate_root example-status)"
+for example_doc in prd.md plan.md; do
+  example_path="$gate_example/TaskFlowDocs/2026-09-08-gate/$example_doc"
+  sed 's/^> Status: completed$/> Status: planning/' "$example_path" > "$example_path.tmp" && mv "$example_path.tmp" "$example_path"
+  printf '\n```markdown\n> Status: completed\n```\n' >> "$example_path"
+done
+if bash "$HERE/archive" 2026-09-08-gate "$gate_example" >/dev/null 2>&1; then
+  echo 'FAIL archive accepted fenced completion status'; exit 1
+fi
+[ -d "$gate_example/TaskFlowDocs/2026-09-08-gate" ] || { echo 'FAIL archive moved unfinished task'; exit 1; }
+# Existing Todo Record may be followed by an external tool section.
+gate_sections="$(gate_root sections)"
+printf '%s\n' '- Notes: preserved note' >> "$gate_sections/TaskFlowDocs/todo.md"
+cat >> "$gate_sections/TaskFlowDocs/2026-09-08-gate/plan.md" <<'TOOL_SECTION'
+## Todo Record
+old note
+## Tool Extra
+tool details
+TOOL_SECTION
+bash "$HERE/archive" 2026-09-08-gate "$gate_sections" >/dev/null
+awk '
+  /^## Todo Record$/ { record = 1; next }
+  /^## Tool Extra$/ { record = 0; extra = 1; next }
+  record && /preserved note/ { note = 1 }
+  extra && $0 == "tool details" { details = 1 }
+  END { exit !(note && details) }
+' "$gate_sections/TaskFlowDocs/achieved/2026-09-08-gate/plan.md" || { echo 'FAIL archive misplaced Todo Record or changed extra content'; exit 1; }
 echo "== archive names the worktree teardown only from a linked worktree =="
 # The teardown cannot be acted on when it is printed — `complete` runs before the
 # push and the merge — so the instruction carries its own condition and the
@@ -1545,6 +1607,7 @@ cp "$HERE/task" "$roll/task"
 cp "$HERE/task-id" "$roll/task-id"
 cp "$HERE/completion-gate" "$roll/completion-gate"
 cp "$HERE/approval-check" "$roll/approval-check"
+cp "$HERE/markdown-field" "$roll/markdown-field"
 cp "$HERE/version-baseline" "$roll/version-baseline"
 printf '%s\n' '#!/bin/sh' 'echo "archive stub: forced failure"' 'exit 1' > "$roll/archive"
 chmod +x "$roll/archive" "$roll/task-id" "$roll/completion-gate" "$roll/approval-check" "$roll/task"
@@ -1719,6 +1782,44 @@ printf '\nPRD baseline requirement stays\n' >> "$docs/2026-09-08-smoke/prd.md"
 printf '\nSPEC baseline constraint stays\n' >> "$docs/2026-09-08-smoke/spec.md"
 printf '\nPLAN baseline decision stays\n- [x] Previously completed step\n' >> "$docs/2026-09-08-smoke/plan.md"
 old_prd=$(digest "$docs/2026-09-08-smoke/prd.md")
+# Version transitions change metadata, not illustrative fenced examples.
+version_fence="$tmp/version-fence"
+mkdir -p "$version_fence/TaskFlowDocs/2026-01-01-example"
+printf '# Example\n> Task version: v1\n> Status: in_progress\n' > "$version_fence/TaskFlowDocs/2026-01-01-example/prd.md"
+cat > "$version_fence/TaskFlowDocs/2026-01-01-example/plan.md" <<'VERSION_FENCE'
+# Plan
+> Task version: v1
+> Status: in_progress
+## Approval
+- Status: approved
+- Approved by: user
+- Approved version: v1
+## Example
+```markdown
+> Task version: v1
+> Status: example
+## Approval
+- Status: example
+```
+VERSION_FENCE
+bash "$HERE/version" 2026-01-01-example v2 "$version_fence" prd.md >/dev/null
+awk '
+  /^```markdown$/ { example = 1; next }
+  /^```$/ { example = 0 }
+  example && $0 == "> Task version: v1" { version_ok = 1 }
+  example && $0 == "> Status: example" { state_ok = 1 }
+  example && $0 == "- Status: example" { approval_ok = 1 }
+  END { exit !(version_ok && state_ok && approval_ok) }
+' "$version_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL version changed fenced example'; exit 1; }
+# An ambiguous status must fail before the old version is archived.
+version_duplicate="$tmp/version-duplicate"
+mkdir -p "$version_duplicate/TaskFlowDocs/2026-01-01-example"
+printf '# PRD\n> Task version: v1\n> Status: planning\n> Status: checking\n' > "$version_duplicate/TaskFlowDocs/2026-01-01-example/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n## Approval\n- Status: requested\n' > "$version_duplicate/TaskFlowDocs/2026-01-01-example/plan.md"
+if bash "$HERE/version" 2026-01-01-example v2 "$version_duplicate" prd.md >/dev/null 2>&1; then
+  echo 'FAIL version accepted ambiguous status'; exit 1
+fi
+[ ! -e "$version_duplicate/TaskFlowDocs/2026-01-01-example/old/v1" ] || { echo 'FAIL version archived before refusing status'; exit 1; }
 bash "$HERE/version" 2026-09-08-smoke v2 "$tmp" prd.md >/dev/null
 grep -qxF 'PRD baseline requirement stays' "$docs/2026-09-08-smoke/prd.md" || { echo "FAIL version dropped PRD content"; exit 1; }
 grep -qxF 'SPEC baseline constraint stays' "$docs/2026-09-08-smoke/spec.md" || { echo "FAIL version dropped Spec content"; exit 1; }
@@ -2381,7 +2482,23 @@ set_skills_body "$ap_task/plan.md" \
   "$ap_line_prd" \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
   "$ap_line_test"
+# Conflicting duplicate reserved sections cannot be ignored at approval.
+cp "$ap_task/plan.md" "$ap/plan-before-duplicate.md"
+printf '\n## Plan Review\n- Verdict: needs revision\n' >> "$ap_task/plan.md"
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>&1; then
+  echo 'FAIL approve accepted duplicate Plan Review'; exit 1
+fi
+cp "$ap/plan-before-duplicate.md" "$ap_task/plan.md"
+cat >> "$ap_task/plan.md" <<'APPROVAL_EXAMPLE'
+## Tool Example
+```markdown
+## Approval
+- Status: example
+- Approved by: example
+```
+APPROVAL_EXAMPLE
 bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" > "$ap/approve.out"
+grep -qx -- '- Status: example' "$ap_task/plan.md" || { echo "FAIL approve rewrote fenced example"; exit 1; }
 grep -q 'stages released by the gate: 1 invoked, 2 unaided' "$ap/approve.out" \
   || { echo "FAIL approve did not report the released stages"; cat "$ap/approve.out"; exit 1; }
 approval_fields="$(awk '
