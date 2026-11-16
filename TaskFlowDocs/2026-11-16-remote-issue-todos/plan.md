@@ -1,5 +1,5 @@
 # Plan — 远程 Issues 待办
-> Task version: v1
+> Task version: v2
 > Status: in_progress
 
 ## Reference Pointers
@@ -18,8 +18,15 @@
 - [PRD] `agent-skills:spec-driven-development` — purpose: 梳理需求；outcome: succeeded；incorporated: 按用户选择明确验收。
 - [Spec] `agent-skills:api-and-interface-design` — purpose: 界定接口；outcome: succeeded；incorporated: 平台身份与失败语义。
 - [Plan] `agent-skills:planning-and-task-breakdown` — purpose: 拆解步骤；outcome: succeeded；incorporated: 按依赖编排验证切片。
+- [Security] `agent-skills:security-and-hardening` — purpose: 限制快照信任边界；outcome: succeeded；incorporated: 允许列表和拒绝不完整数据。
 - [Test] `agent-skills:test-driven-development` — purpose: 建立失败先行与端到端断言；outcome: succeeded；incorporated: 覆盖两平台、失败恢复、冲突和完整生命周期。
 - get-api-docs 的 chub 查询仅找到 SDK 内容；以 GitHub/GitLab 官方文档为 API 来源，实施前核验选定接口。
+
+- [PRD] Declared `agent-skills:spec-driven-development` — v2 字段范围与验收。
+- [Spec] Declared `agent-skills:api-and-interface-design` — 快照输出和失败契约。
+- [Plan] Declared `agent-skills:planning-and-task-breakdown` — v2 测试、实现和回退步骤。
+
+- [Test] Declared `agent-skills:test-driven-development` — 先验证快照泄漏，再验证字段允许列表。
 
 ## 前置条件和设计选择
 - 改动归属插件行为：`skills/taskflow/` 与 `hooks/`，会影响使用远程模式的安装者；默认本地模式保持现有路径。
@@ -31,15 +38,16 @@
 
 ## Plan Review
 - Verdict: sound
-- Coverage: PRD 验收 1（本地默认/配置）→ Step 2；2（汇总/分页）→ Step 2；3（创建/编辑/标签）→ Step 3；4（生命周期）→ Step 4；5（故障、恢复和已接受的竞态）→ Steps 1、3、4；6（迁移）→ Step 3；7（归属/去重）→ Steps 2–3；8（快照）→ Step 2；9（平台及回归测试）→ Steps 2–5。
-- Verifiability: Step 1 比对官方文档和记录；Step 2 测试完整、部分失败与只读快照；Step 3 的服务端状态断言覆盖创建、编辑、迁移及失败；Step 4 检查远端标签和本地目录的最终状态；Step 5 逐条复核 PRD 并运行相应宿主测试。
+- v2 审阅：新增 Step 6 逐项覆盖快照字段、泄漏、格式校验和失败不落盘；其余 v1 验收及范围保留。测试观察最终快照内容而非仅检查流程标记。
+- Coverage: PRD 验收 1（本地默认/配置）→ Step 2；2（汇总/分页）→ Step 2；3（创建/编辑/标签）→ Step 3；4（生命周期）→ Step 4；5（故障、恢复和已接受的竞态）→ Steps 1、3、4；6（迁移）→ Step 3；7（归属/去重）→ Steps 2–3；8（快照）→ Steps 2、6；9（平台及回归测试）→ Steps 2–5。
+- Verifiability: Step 1 比对官方文档和记录；Step 2 测试完整、部分失败与只读快照；Step 6 以含伪凭据的真实输出检查允许字段及失败不落盘；Step 3 的服务端状态断言覆盖创建、编辑、迁移及失败；Step 4 检查远端标签和本地目录的最终状态；Step 5 逐条复核 PRD 并运行相应宿主测试。
 - Layer ownership: 远端适配器负责协议和结果；本地任务层负责关联及恢复；展示层负责选择、告知及过期状态。测试断言远端实际结果和本地状态；修改已有测试仅在接口契约确有变化时记录，不以改中间值掩盖错误。
 
 ## Approval
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-16 14:51 +08:00
-- Approved version: v1
+- Approved at: 2026-11-16 18:53 +0800
+- Approved version: v2
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
@@ -105,6 +113,19 @@
 - Rollback: 按切片提交回退代码；不自动删除用户数据或远端 Issue。
 - Status: in_progress
 
+### Step 6 — 限定快照内容并验证隐私
+- Goal: 实施用户选择的仅编号、状态和更新时间的快照；保留所有其他 v1 功能和批准的边界。
+- Dependencies: 用户于 2026-11-16 选择该方案；v1 代码和文档已保留。
+- Files: `hooks/remote-todo`、`hooks/test-remote-todo-snapshot`、双语 README、`skills/taskflow/references/runtime.md`。
+- Implementation checklist:
+  - [x] 先以伪凭据、标题、正文和标签构造失败测试，覆盖两平台和无效字段。
+  - [x] 仅输出校验过的来源序号、编号、状态和更新时间；失败不创建快照。
+  - [ ] 更新双语说明，运行定向和跨平台测试并提交 v2 Git 回退点。
+- Acceptance: 快照不包含远端自由文本或原始 JSON；多源可按来源顺序识别；无效状态、时间或来源失败时不落盘；原有列表、迁移和写入行为不变。
+- Verification: 先观察原实现泄漏测试失败，再验证两平台、伪凭据、无效字段、部分失败、已有文件保护及 PR CI。
+- Rollback: 回退 v2 代码提交；不删除或覆盖用户现有快照。
+- Status: in_progress
+
 ## Checkpoints
 - Steps 1–2 后检查身份、平台差异和读取端到端结果。
 - Steps 3–4 后检查失败恢复、去重和完整生命周期。
@@ -138,14 +159,17 @@
 
 - 归档前复核发现 `snapshot` 原样写入远端 Issue 内容，若内容含凭据则违反 PRD 的快照凭据要求。先撤回未提交的归档；用户批准验收基于此前披露的限制，不应误认为已接受该新发现。需确定快照隐私方案并修复后再完成验收。
 
+- v2 快照回归先在旧实现复现伪凭据和自由文本泄漏，再以 GitHub/GitLab 夹具验证允许列表、来源顺序、状态归一、时间格式、目标已存在和来源不完整；Windows 启动器定向测试通过。v2 的跨平台 CI 尚待运行。
+
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
 - Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交；PR Hooks CI 已在代码提交 `4e1b09f` 通过 Ubuntu、macOS、Windows。Git Bash 本机测试不单独构成 Linux/macOS 验收。
 - Review boundaries：不提交恢复数据、测试夹具或其他 Todo；不含凭据；真实 GitLab、自托管与远程写入未验证，远程创建及并发编辑存在已披露竞态。
-- PR 状态：用户已在知悉真实服务测试限制后批准验收；归档前新发现快照凭据风险，修复前保持草稿。
+- PR 状态：用户选择仅保存编号、状态和更新时间；v2 修复、验证及重新验收前保持草稿。
 
 ## Change Log
+- 2026-11-16：用户选择快照只保留编号、状态和更新时间；v2 明确字段允许列表并保留 v1 其他要求。
 - 2026-11-16：记录用户决定、起草规格，并基于任务拆解技能编写计划。
 - 2026-11-16：核验官方接口，发现 GitHub 常规写请求不能依赖通用条件更新；用户接受仅更新指定字段、写前后核对并提示剩余竞态。
 - 2026-11-16：用户明确同意实施计划；手工记录批准，因为 `hooks/task` 每次运行会删除其临时目录，而当前用户规则禁止未经许可删除文件。

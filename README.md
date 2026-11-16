@@ -123,7 +123,7 @@ bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" list
 
 The host's `gh` or `glab` must already be installed and authenticated for each host; credentials are not written to the project. Remote access happens only when requested. `list` retains local items and identifies incomplete sources. In remote mode, an explicit `bash "$TASKFLOW_PLUGIN_ROOT/hooks/task" intake <goal> --local` still creates one local item.
 
-Use `remote-todo create`, `edit`, `label`, `stage`, and `promote` to work with a selected Issue. `migrate-to-remote <todo-id> <alias>` keeps the original local entry; `migrate-to-local <alias> <number> --detach` copies content locally and disconnects an existing association without changing the Issue. `snapshot <new-file>` saves an optional time-stamped remote copy; it can contain private Issue content and may become stale.
+Use `remote-todo create`, `edit`, `label`, `stage`, and `promote` to work with a selected Issue. `migrate-to-remote <todo-id> <alias>` keeps the original local entry; `migrate-to-local <alias> <number> --detach` copies content locally and disconnects an existing association without changing the Issue. `snapshot <new-file>` saves optional historical metadata: source order, Issue numbers, states and update times. Titles, bodies and labels are omitted; the metadata may still reveal activity and become stale. Source numbers refer to configuration order at export time, so retain that order separately if it may change.
 
 To reconnect an unpromoted local copy to its original Issue, use `reattach-todo <todo-id> <alias> --remote-authoritative` after reconciling differences. The local copy remains on disk and the remote Issue becomes authoritative; this does not update the Issue.
 

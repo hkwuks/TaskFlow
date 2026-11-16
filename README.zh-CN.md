@@ -90,7 +90,7 @@ bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" list
 
 所选宿主须已安装并登录对应的 `gh` 或 `glab`；项目配置不保存凭据。只有显式操作才会访问远端。`list` 会保留本地条目并提示不完整的来源；在远程默认模式下，仍可用 `bash "$TASKFLOW_PLUGIN_ROOT/hooks/task" intake <goal> --local` 显式创建单条本地待办。
 
-使用 `remote-todo create`、`edit`、`label`、`stage` 和 `promote` 操作选定 Issue。`migrate-to-remote <todo-id> <alias>` 保留原本地条目；`migrate-to-local <alias> <number> --detach` 将内容复制到本地并解除已有关系，不修改远端 Issue。`snapshot <new-file>` 可保存带时间的远端快照；其中可能包含私有 Issue 内容，也可能过期。
+使用 `remote-todo create`、`edit`、`label`、`stage` 和 `promote` 操作选定 Issue。`migrate-to-remote <todo-id> <alias>` 保留原本地条目；`migrate-to-local <alias> <number> --detach` 将内容复制到本地并解除已有关系，不修改远端 Issue。`snapshot <new-file>` 可保存历史元数据：来源顺序、Issue 编号、状态和更新时间；不包含标题、正文或标签。元数据仍可能透露活动情况，也可能过期。来源序号对应导出时的配置顺序；如顺序可能变动，请另行保留当时的顺序。
 
 未提升的本地副本可在核对差异后使用 `reattach-todo <todo-id> <alias> --remote-authoritative` 重新关联原 Issue。本地副本保留，远端 Issue 成为主记录，此操作不修改远端。
 
