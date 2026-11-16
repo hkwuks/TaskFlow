@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 root=.
@@ -9,16 +9,16 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate) ;; *) usage ;; esac
+case "$command" in mode|validate|list) ;; *) usage ;; esac
 config="$root/TaskFlowDocs/remote-todos.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  [ "$command" = mode ] && echo local || echo 'OK local'
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
 # The file has a mode line followed by tab-separated alias, platform, host and path.
 # Never print rejected data: it might contain accidentally pasted credentials.
-awk -F '\t' -v action="$command" '
+result=$(awk -F '\t' -v action="$command" '
   function invalid() { bad = 1 }
   NR == 1 {
     if (NF != 1 || ($1 != "local" && $1 != "remote")) invalid()
@@ -35,6 +35,36 @@ awk -F '\t' -v action="$command" '
   END {
     if (NR == 0 || bad) { print "Invalid remote Todo configuration." > "/dev/stderr"; exit 2 }
     if (action == "mode") print mode
-    else print "OK " mode
+    else if (action == "validate") print "OK " mode
   }
-' "$config"
+' "$config")
+if [ "$command" != list ]; then
+  printf '%s\n' "$result"
+  exit 0
+fi
+connections="$(awk 'NR > 1 { print }' "$config")"
+[ -n "$connections" ] || { echo 'No remote Todo repositories configured.' >&2; exit 2; }
+failed=0
+tab="$(printf '\t')"
+while IFS="$tab" read -r alias platform host project; do
+  printf 'SOURCE %s %s %s %s\n' "$alias" "$platform" "$host" "$project"
+  if [ "$platform" = github ]; then
+    if output="$(gh api "repos/$project/issues?state=all&per_page=100" --hostname "$host" --paginate --jq '.[] | select(.pull_request == null) | @json' 2>/dev/null)"; then
+      [ -z "$output" ] || printf '%s\n' "$output"
+    else
+      printf 'Incomplete: could not read source %s.\n' "$alias" >&2
+      failed=1
+    fi
+  else
+    encoded="${project//\//%2F}"
+    if output="$(glab api "projects/$encoded/issues?scope=all&state=all&per_page=100" --hostname "$host" --paginate --output ndjson 2>/dev/null)"; then
+      [ -z "$output" ] || printf '%s\n' "$output"
+    else
+      printf 'Incomplete: could not read source %s.\n' "$alias" >&2
+      failed=1
+    fi
+  fi
+done <<EOF
+$connections
+EOF
+[ "$failed" -eq 0 ] || exit 2

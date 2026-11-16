@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-list <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\ngh-main\tgithub\tgithub.com\towner/repo\ngl-main\tgitlab\tgit.example.org\tgroup/sub/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$TEST_ARGS/gh.args"
+printf '%s\n' '{"number":7,"title":"github item"}'
+EOF
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" > "$TEST_ARGS/glab.args"
+printf '%s\n' '{"iid":7,"title":"gitlab item"}'
+EOF
+chmod +x "$fixture/bin/gh" "$fixture/bin/glab"
+PATH="$fixture/bin:$PATH" TEST_ARGS="$fixture" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/out"
+grep -q 'github item' "$fixture/out" || { echo 'FAIL missing GitHub issue'; exit 1; }
+grep -q 'gitlab item' "$fixture/out" || { echo 'FAIL missing GitLab issue'; exit 1; }
+grep -q 'gh-main' "$fixture/out" || { echo 'FAIL missing GitHub source'; exit 1; }
+grep -q 'gl-main' "$fixture/out" || { echo 'FAIL missing GitLab source'; exit 1; }
+grep -q 'group%2Fsub%2Frepo' "$fixture/glab.args" || { echo 'FAIL GitLab path encoding'; exit 1; }
+grep -q 'pull_request' "$fixture/gh.args" || { echo 'FAIL GitHub PR filter'; exit 1; }
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/glab"
+if PATH="$fixture/bin:$PATH" TEST_ARGS="$fixture" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/partial" 2>&1; then
+  echo 'FAIL partial failure was reported as complete'; exit 1
+fi
+grep -q 'gl-main' "$fixture/partial" || { echo 'FAIL missing failed source'; exit 1; }
+echo 'PASS remote todo list'
