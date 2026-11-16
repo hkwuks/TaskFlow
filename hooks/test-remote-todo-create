@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-create <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'Text with \\ and "quotes"\n' > "$fixture/body"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+cat > "$TEST_FIXTURE/sent"
+printf '%s\n' '{"number":17,"title":"result"}'
+EOF
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+cat > "$TEST_FIXTURE/sent-gitlab"
+printf '%s\n' '{"iid":19,"title":"result"}'
+EOF
+chmod +x "$fixture/bin/gh" "$fixture/bin/glab"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create main 'Example title' "$fixture/body" --root "$fixture" > "$fixture/out"
+grep -q '17' "$fixture/out" || { echo 'FAIL missing created number'; exit 1; }
+grep -q 'Text with' "$fixture/sent" || { echo 'FAIL missing content'; exit 1; }
+grep -q 'taskflow-operation:' "$fixture/sent" || { echo 'FAIL missing operation marker'; exit 1; }
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create lab 'Example title' "$fixture/body" --root "$fixture" > "$fixture/out-lab"
+grep -q '19' "$fixture/out-lab" || { echo 'FAIL missing GitLab number'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+cat > /dev/null
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create main 'Maybe created' "$fixture/body" --root "$fixture" > "$fixture/out-failed" 2>&1; then
+  echo 'FAIL uncertain response reported success'; exit 1
+fi
+grep -qi 'unknown' "$fixture/out-failed" || { echo 'FAIL unknown result not reported'; exit 1; }
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create main 'Maybe created' "$fixture/body" --root "$fixture" > "$fixture/out-repeat" 2>&1; then
+  echo 'FAIL unresolved operation allowed retry'; exit 1
+fi
+grep -qi 'unresolved' "$fixture/out-repeat" || { echo 'FAIL unresolved operation not reported'; exit 1; }
+if grep -R 'Maybe created' "$fixture/TaskFlowDocs/.remote-todo-operations" >/dev/null 2>&1; then echo 'FAIL operation record contains issue title'; exit 1; fi
+echo 'PASS remote todo create'

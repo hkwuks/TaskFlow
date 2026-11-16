@@ -1,17 +1,29 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
 if [ "$command" = snapshot ]; then [ "$#" -ge 1 ] || usage; target="$1"; shift; fi
+if [ "$command" = resolve-absent ]; then
+  [ "$#" -ge 2 ] && [ "$2" = --checked ] || usage
+  resolve_id="$1"; shift 2
+fi
+if [ "$command" = resolve ]; then
+  [ "$#" -ge 2 ] || usage
+  resolve_id="$1"; resolve_number="$2"; shift 2
+fi
+if [ "$command" = create ]; then
+  [ "$#" -ge 3 ] || usage
+  selected="$1"; title="$2"; body="$3"; shift 3
+fi
 root=.
 if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate|list|snapshot) ;; *) usage ;; esac
+case "$command" in mode|validate|list|snapshot|create|resolve|resolve-absent) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -22,7 +34,7 @@ if [ "$command" = snapshot ]; then
 fi
 config="$root/TaskFlowDocs/remote-todos.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|resolve|resolve-absent) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -48,8 +60,97 @@ result=$(awk -F '\t' -v action="$command" '
     else if (action == "validate") print "OK " mode
   }
 ' "$config")
-if [ "$command" != list ]; then
+if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
+  exit 0
+fi
+if [ "$command" = resolve-absent ]; then
+  [[ "$resolve_id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Invalid operation ID.' >&2; exit 2; }
+  record="$root/TaskFlowDocs/.remote-todo-operations/$resolve_id"
+  [ -f "$record" ] && [ ! -L "$record" ] && [ ! -L "$root/TaskFlowDocs/.remote-todo-operations" ] || { echo 'Operation record not found.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r state platform host project saved_id < "$record"
+  [ "$state" = pending ] && [ "$saved_id" = "$resolve_id" ] || { echo 'Invalid operation record.' >&2; exit 2; }
+  if awk -F '\t' 'NR > 1 && ($1 == "confirmed" || $1 == "absent") { found = 1 } END { if (!found) exit 1 }' "$record"; then
+    echo 'Operation already resolved.' >&2; exit 2
+  fi
+  printf 'absent\tuser-checked\n' >> "$record" || { echo 'Cannot save the decision.' >&2; exit 2; }
+  echo 'Recorded user-confirmed absence; no remote Issue was changed.'
+  exit 0
+fi
+if [ "$command" = resolve ]; then
+  [[ "$resolve_id" =~ ^[0-9a-f]{32}$ ]] && [[ "$resolve_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid operation ID or Issue number.' >&2; exit 2; }
+  record="$root/TaskFlowDocs/.remote-todo-operations/$resolve_id"
+  [ -f "$record" ] && [ ! -L "$record" ] && [ ! -L "$root/TaskFlowDocs/.remote-todo-operations" ] || { echo 'Operation record not found.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r state platform host project saved_id < "$record"
+  [ "$state" = pending ] && [ "$saved_id" = "$resolve_id" ] || { echo 'Invalid operation record.' >&2; exit 2; }
+  awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR > 1 && $2 == p && $3 == h && $4 == r { found = 1 } END { if (!found) exit 1 }' "$config" || { echo 'Operation source is not configured.' >&2; exit 2; }
+  if awk -F '\t' 'NR > 1 && ($1 == "confirmed" || $1 == "absent") { found = 1 } END { if (!found) exit 1 }' "$record"; then
+    echo 'Operation already confirmed.' >&2; exit 2
+  fi
+  if [ "$platform" = github ]; then
+    response="$(gh api "repos/$project/issues/$resolve_number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot verify remote Issue.' >&2; exit 2; }
+    number_key=number; body_key=body
+  else
+    encoded="${project//\//%2F}"
+    response="$(glab api "projects/$encoded/issues/$resolve_number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot verify remote Issue.' >&2; exit 2; }
+    number_key=iid; body_key=description
+  fi
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+  body_value="$(printf '%s' "$response" | bash "$HERE/json-field" "$body_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+  [ "$actual" = "$resolve_number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
+  case "$body_value" in *"<!-- taskflow-operation:$resolve_id -->"*) ;; *) echo 'Remote Issue operation marker mismatch.' >&2; exit 2 ;; esac
+  printf 'confirmed\t%s\n' "$resolve_number" >> "$record" || { echo 'Cannot confirm operation.' >&2; exit 2; }
+  printf 'Operation %s confirmed as Issue #%s.\n' "$resolve_id" "$resolve_number"
+  exit 0
+fi
+if [ "$command" = create ]; then
+  [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || { echo 'Invalid source alias.' >&2; exit 2; }
+  [ -n "$title" ] && [ -f "$body" ] && [ -r "$body" ] || { echo 'A title and readable body file are required.' >&2; exit 2; }
+  connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+  id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  store="$root/TaskFlowDocs/.remote-todo-operations"
+  umask 077
+  [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
+  mkdir -p "$store"
+  [ -d "$store" ] && [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
+  for existing in "$store"/*; do
+    [ -e "$existing" ] || [ -L "$existing" ] || continue
+    [ -f "$existing" ] && [ ! -L "$existing" ] || { echo 'Invalid operation record.' >&2; exit 2; }
+    if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" '
+      NR == 1 { valid = NF == 5 && $1 == "pending"; same = $2 == p && $3 == h && $4 == r }
+      NR == 2 && NF == 2 && (($1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/) || ($1 == "absent" && $2 == "user-checked")) { confirmed = 1 }
+      END { if (!valid || (same && !confirmed)) exit 0; exit 1 }
+    ' "$existing"; then
+      echo 'Unresolved creation operation exists; inspect and resolve it before creating another Issue in this source.' >&2
+      exit 2
+    fi
+  done
+  record="$store/$id"
+  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\n' "$platform" "$host" "$project" "$id" > "$record") || { echo 'Cannot save operation intent.' >&2; exit 2; }
+  echo 'Creating remote Issue; concurrent changes may not be detected.' >&2
+  if [ "$platform" = github ]; then
+    if response="$({ cat "$body"; printf '\n\n<!-- taskflow-operation:%s -->\n' "$id"; } | gh api "repos/$project/issues" --hostname "$host" --method POST --raw-field "title=$title" --field body=@- 2>/dev/null)"; then :
+    else echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; fi
+    key=number
+  else
+    encoded="${project//\//%2F}"
+    if response="$({ cat "$body"; printf '\n\n<!-- taskflow-operation:%s -->\n' "$id"; } | glab api "projects/$encoded/issues" --hostname "$host" --method POST --raw-field "title=$title" --field description=@- 2>/dev/null)"; then :
+    else echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; fi
+    key=iid
+  fi
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  number="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$key")" || { echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; }
+  [[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; }
+  printf 'confirmed\t%s\n' "$number" >> "$record" || { echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; }
+  printf 'Created %s #%s (operation %s).\n' "$selected" "$number" "$id"
   exit 0
 fi
 connections="$(awk 'NR > 1 { print }' "$config")"
