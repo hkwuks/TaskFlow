@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
+if [ "$command" = mode-set ]; then [ "$#" -ge 1 ] || usage; requested_mode="$1"; shift; fi
+if [ "$command" = connect ]; then [ "$#" -ge 4 ] || usage; new_alias="$1"; new_platform="$2"; new_host="$3"; new_project="$4"; shift 4; fi
 if [ "$command" = snapshot ]; then [ "$#" -ge 1 ] || usage; target="$1"; shift; fi
 if [ "$command" = ack-update ]; then
   [ "$#" -ge 2 ] && [ "$2" = --checked ] || usage
@@ -47,7 +49,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate|list|snapshot|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|mode-set|connect|validate|list|snapshot|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -56,15 +58,8 @@ if [ "$command" = snapshot ]; then
   (set -o noclobber; printf 'Snapshot UTC: %s (read-only historical data; may be stale)\n%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$content" > "$target") || { echo 'Cannot create snapshot.' >&2; exit 2; }
   exit 0
 fi
-config="$root/TaskFlowDocs/remote-todos.conf"
-if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
-  exit 0
-fi
-[ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
-# The file has a mode line followed by tab-separated alias, platform, host and path.
-# Never print rejected data: it might contain accidentally pasted credentials.
-result=$(awk -F '\t' -v action="$command" '
+validate_config() {
+  awk -F '\t' -v action="$2" '
   function invalid() { bad = 1 }
   NR == 1 {
     if (NF != 1 || ($1 != "local" && $1 != "remote")) invalid()
@@ -83,7 +78,47 @@ result=$(awk -F '\t' -v action="$command" '
     if (action == "mode") print mode
     else if (action == "validate") print "OK " mode
   }
-' "$config")
+' "$1"
+}
+config="$root/TaskFlowDocs/remote-todos.conf"
+if [ "$command" = mode-set ] || [ "$command" = connect ]; then
+  if [ "$command" = mode-set ]; then case "$requested_mode" in local|remote) ;; *) echo 'Invalid Todo mode.' >&2; exit 2 ;; esac
+  else
+    for part in "$new_alias" "$new_platform" "$new_host" "$new_project"; do
+      [[ "$part" != *[[:cntrl:]]* ]] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
+    done
+    printf 'local\n%s\t%s\t%s\t%s\n' "$new_alias" "$new_platform" "$new_host" "$new_project" | validate_config /dev/stdin validate >/dev/null || exit 2
+  fi
+  mkdir -p "$root/TaskFlowDocs"
+  lock="$root/TaskFlowDocs/.remote-todo-config-lock"
+  mkdir "$lock" 2>/dev/null || { echo 'Todo configuration is busy or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
+  if [ -e "$config" ]; then [ -f "$config" ] && validate_config "$config" validate >/dev/null || exit 2; fi
+  if [ "$command" = connect ] && [ -f "$config" ]; then
+    if awk -F '\t' -v name="$new_alias" 'NR > 1 && $1 == name { found = 1 } END { if (!found) exit 1 }' "$config"; then echo 'Source alias already exists.' >&2; exit 2; fi
+  fi
+  tmp="$(mktemp "$root/TaskFlowDocs/.remote-todo-config.XXXXXXXX")" || { echo 'Cannot stage Todo configuration.' >&2; exit 2; }
+  if [ -f "$config" ]; then
+    if [ "$command" = mode-set ]; then awk -v mode="$requested_mode" 'NR == 1 { print mode; next } { print }' "$config" > "$tmp"
+    else cat "$config" > "$tmp"; fi
+  else
+    if [ "$command" = mode-set ]; then printf '%s\n' "$requested_mode" > "$tmp"; else printf 'local\n' > "$tmp"; fi
+  fi
+  if [ "$command" = connect ]; then printf '%s\t%s\t%s\t%s\n' "$new_alias" "$new_platform" "$new_host" "$new_project" >> "$tmp"; fi
+  validate_config "$tmp" validate >/dev/null || { echo 'Staged configuration invalid; original retained.' >&2; exit 2; }
+  mv "$tmp" "$config" || { echo 'Cannot publish configuration; original retained where possible.' >&2; exit 2; }
+  echo 'Remote Todo configuration updated.'
+  exit 0
+fi
+if [ ! -e "$config" ] && [ ! -L "$config" ]; then
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  exit 0
+fi
+[ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
+# The file has a mode line followed by tab-separated alias, platform, host and path.
+# Never print rejected data: it might contain accidentally pasted credentials.
+result="$(validate_config "$config" "$command")"
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
   exit 0

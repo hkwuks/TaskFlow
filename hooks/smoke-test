@@ -33,7 +33,7 @@ bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
 bash "$HERE/test-diagnostic-log" "$tmp/diagnostic-fixture"
 bash "$HERE/test-json-field-numbers"
 bash "$HERE/test-json-field-arrays"
-for remote_case in todo todo-list todo-snapshot todo-create todo-recover todo-concurrency todo-edit todo-stage todo-label todo-link todo-task-state todo-archive todo-private; do
+for remote_case in todo todo-configure todo-list todo-snapshot todo-create todo-recover todo-concurrency todo-edit todo-stage todo-label todo-link todo-task-state todo-archive todo-private; do
   bash "$HERE/test-remote-$remote_case" "$tmp/remote-$remote_case"
 done
 
