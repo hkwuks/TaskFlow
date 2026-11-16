@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-detach-archived <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/achieved/2026-11-16-demo" "$fixture/bin" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/remote-issue"
+printf '# PRD\n> Task version: v1\n> Status: completed\n' > "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n\n## Change Log\n' > "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/plan.md"
+printf '## Task\n- ID: TF-20261116-abcdef\n- Status: done\n- Goal: Original goal\n- Task: `TaskFlowDocs/achieved/2026-11-16-demo/`\n- Next action: None\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":17,"title":"Latest","body":"Archived copy","state":"closed","created_at":"2026-01-02T00:00:00Z","labels":["taskflow:done"]}'
+EOF
+chmod +x "$fixture/bin/gh"
+before="$(cksum < "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/plan.md")"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$fixture" > "$fixture/out"
+[ "$(cksum < "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/plan.md")" = "$before" ] || { echo 'FAIL archived task was changed'; exit 1; }
+grep -q 'Archived copy' "$fixture/TaskFlowDocs/remote-todo-links/task-2026-11-16-demo-copy.md" || { echo 'FAIL missing reference copy'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TMPDIR="$fixture/tmp" bash "$HERE/reopen" 2026-11-16-demo "$fixture" > "$fixture/reopen" || { echo 'FAIL detached task reopen required remote'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue" ] || { echo 'FAIL task not reopened'; exit 1; }
+echo 'PASS remote todo archived detach'
