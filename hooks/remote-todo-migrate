@@ -16,6 +16,16 @@ entry="$(awk -v wanted="$local_id" '
 ' "$todo")" || { echo 'Todo ID missing or ambiguous.' >&2; exit 2; }
 title="$(printf '%s\n' "$entry" | awk '/^- Goal: / { count++; value = substr($0, 9) } END { if (count != 1 || value == "") exit 2; print value }')" || { echo 'Todo goal missing or ambiguous.' >&2; exit 2; }
 [[ "$title" != *[[:cntrl:]]* ]] || { echo 'Todo goal contains control characters.' >&2; exit 2; }
+local_status="$(printf '%s\n' "$entry" | awk '/^- Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }')" || { echo 'Todo status missing or ambiguous.' >&2; exit 2; }
+task_id="$(printf '%s\n' "$entry" | sed -n 's/^- Task: `TaskFlowDocs\/\([^`/]*\)\/`$/\1/p')"
+stage="$local_status"
+if [ -n "$task_id" ]; then
+  bash "$HERE/task-id" "$task_id" || exit 2
+  [ -f "$root/TaskFlowDocs/$task_id/prd.md" ] || { echo 'Active task PRD not found.' >&2; exit 2; }
+  stage="$(awk '/^> Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }' "$root/TaskFlowDocs/$task_id/prd.md")" || { echo 'Task phase missing or ambiguous.' >&2; exit 2; }
+  [ "$stage" != completed ] || stage=done
+fi
+case "$stage" in inbox|clarified|promoted|planning|ready|in_progress|checking|blocked|done|cancelled) ;; *) echo 'Unsupported local Todo or task status.' >&2; exit 2 ;; esac
 connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
 tab="$(printf '\t')"
 IFS="$tab" read -r alias platform host project <<EOF
@@ -75,7 +85,10 @@ if [ -z "$confirmed" ]; then
   fi
   printf 'confirmed\t%s\n' "$confirmed" >> "$link" || { echo 'Cannot save migration link; retry after inspecting the operation.' >&2; exit 2; }
 fi
-task_id="$(printf '%s\n' "$entry" | sed -n 's/^- Task: `TaskFlowDocs\/\([^`/]*\)\/`$/\1/p')"
+if ! awk -F '\t' '$1 == "stage-synced" && NF == 2 { found = 1 } END { if (!found) exit 1 }' "$link"; then
+  bash "$HERE/remote-todo" stage "$selected" "$confirmed" "$stage" --root "$root" || { echo 'Migration created the Issue but its initial stage needs recovery.' >&2; exit 2; }
+  printf 'stage-synced\t%s\n' "$stage" >> "$link" || { echo 'Cannot save migration stage; inspect both sides before retrying.' >&2; exit 2; }
+fi
 if [ -n "$task_id" ]; then
   bash "$HERE/task-id" "$task_id" || exit 2
   ref="$root/TaskFlowDocs/$task_id/remote-issue"

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-migrate-stage <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf '## Completed\n\n- ID: TF-20261116-abcdef\n- Status: done\n- Goal: Old completed work\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *' repos/owner/repo/issues '--*|*' repos/owner/repo/issues --hostname '* ) cat >/dev/null; printf '%s\n' '{"number":17}' ;;
+  *' --method POST '*) printf done > "$TEST_FIXTURE/label" ;;
+  *' --method PATCH '*) printf closed > "$TEST_FIXTURE/state" ;;
+  *' --method DELETE '*) : ;;
+  *) if [ -f "$TEST_FIXTURE/label" ]; then printf '%s\n' '{"number":17,"state":"closed","labels":["taskflow:done"]}'; else printf '%s\n' '{"number":17,"state":"open","labels":[]}'; fi ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/out"
+[ -f "$fixture/label" ] && [ "$(cat "$fixture/label")" = done ] || { echo 'FAIL did not apply migrated status label'; exit 1; }
+[ -f "$fixture/state" ] && [ "$(cat "$fixture/state")" = closed ] || { echo 'FAIL did not close completed Issue'; exit 1; }
+echo 'PASS remote todo migration stage'

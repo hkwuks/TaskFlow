@@ -26,9 +26,13 @@ cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
 EOF
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-printf 'call\n' >> "$TEST_FIXTURE/calls"
-cat > "$TEST_FIXTURE/sent"
-printf '%s\n' '{"number":17,"title":"Move this task"}'
+endpoint="$2"
+case "$endpoint" in
+  repos/owner/repo/issues) printf 'call\n' >> "$TEST_FIXTURE/calls"; cat > "$TEST_FIXTURE/sent"; printf '%s\n' '{"number":17,"title":"Move this task"}' ;;
+  */labels) number="${endpoint%/labels}"; number="${number##*/}"; printf yes > "$TEST_FIXTURE/stage-$number" ;;
+  */labels/*) : ;;
+  *) number="${endpoint##*/}"; case " $* " in *' --method PATCH '*) : ;; *) if [ -f "$TEST_FIXTURE/stage-$number" ]; then printf '{"number":%s,"state":"open","labels":["taskflow:inbox"]}\n' "$number"; else printf '{"number":%s,"state":"open","labels":[]}\n' "$number"; fi ;; esac ;;
+esac
 EOF
 chmod +x "$fixture/bin/gh"
 before="$(cksum < "$fixture/TaskFlowDocs/todo.md")"
@@ -69,10 +73,15 @@ if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" mi
 id="$(awk -F '\t' 'NR == 1 { print $2 }' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222")"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-printf '{"number":31,"body":"<!-- taskflow-operation:%s -->"}\n' "$TEST_OPERATION"
+endpoint="$2"
+case "$endpoint" in
+  */labels) printf yes > "$TEST_FIXTURE/stage-31" ;;
+  */labels/*) : ;;
+  *) case " $* " in *' --method PATCH '*) : ;; *) if [ -f "$TEST_FIXTURE/stage-31" ]; then printf '{"number":31,"state":"open","labels":["taskflow:inbox"],"body":"<!-- taskflow-operation:%s -->"}\n' "${TEST_OPERATION:-}"; else printf '{"number":31,"state":"open","labels":[],"body":"<!-- taskflow-operation:%s -->"}\n' "${TEST_OPERATION:-}"; fi ;; esac ;;
+esac
 EOF
 chmod +x "$fixture/bin/gh"
-PATH="$fixture/bin:$PATH" TEST_OPERATION="$id" bash "$HERE/remote-todo" resolve "$id" 31 --root "$fixture" > "$fixture/resolved"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TEST_OPERATION="$id" bash "$HERE/remote-todo" resolve "$id" 31 --root "$fixture" > "$fixture/resolved"
 PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-222222 main --root "$fixture" > "$fixture/finished"
 grep -q '31' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222" || { echo 'FAIL uncertain recovery did not link'; exit 1; }
 [ "$(wc -l < "$fixture/uncertain-calls" | tr -d ' ')" = 1 ] || { echo 'FAIL recovery created a duplicate'; exit 1; }

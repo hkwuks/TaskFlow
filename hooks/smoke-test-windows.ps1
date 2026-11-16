@@ -346,7 +346,7 @@ try {
             & "$here\run-hook.cmd" $jsonTest
             if ($LASTEXITCODE -ne 0) { throw "$jsonTest failed" }
         }
-        foreach ($remoteTest in @('todo', 'todo-configure', 'todo-list', 'todo-snapshot', 'todo-create', 'todo-recover', 'todo-concurrency', 'todo-edit', 'todo-stage', 'todo-label', 'todo-migrate', 'todo-link', 'todo-task-state', 'todo-archive', 'todo-private')) {
+        foreach ($remoteTest in @('todo', 'todo-configure', 'todo-list', 'todo-snapshot', 'todo-create', 'todo-recover', 'todo-concurrency', 'todo-edit', 'todo-stage', 'todo-label', 'todo-migrate', 'todo-migrate-stage', 'todo-link', 'todo-task-state', 'todo-archive', 'todo-private')) {
             & "$here\run-hook.cmd" "test-remote-$remoteTest" (Join-Path $Root "remote-$remoteTest")
             if ($LASTEXITCODE -ne 0) { throw "test-remote-$remoteTest failed" }
         }
