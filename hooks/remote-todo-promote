@@ -71,6 +71,10 @@ if [ "$existing" = 'Not promoted.' ]; then
 elif [ "$existing" != "\`TaskFlowDocs/$task/\`" ]; then
   echo 'This Issue already points to another local task.' >&2; exit 2
 fi
+detached="$docs/remote-todo-links/task-$task.detached"
+if [ -e "$detached" ] || [ -L "$detached" ]; then
+  echo 'This task was detached from its Issue; inspect both records before reconnecting.' >&2; exit 2
+fi
 ref="$docs/$task/remote-issue"
 if [ -e "$ref" ] || [ -L "$ref" ]; then
   [ -f "$ref" ] && [ ! -L "$ref" ] || { echo 'Invalid task association.' >&2; exit 2; }

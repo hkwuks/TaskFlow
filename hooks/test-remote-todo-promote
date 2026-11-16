@@ -34,4 +34,8 @@ grep -q 'Remote task' "$fixture/work/TaskFlowDocs/2026-11-16-demo/prd.md" || { e
 [ -f "$fixture/label" ] || { echo 'FAIL remote stage not synchronized'; exit 1; }
 PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/remote-todo" promote main 17 2026-11-16-demo small --kind capability --root "$fixture/work" > "$fixture/retry"
 [ "$(grep -c '^## Remote Issue ' "$fixture/work/TaskFlowDocs/todo.md")" = 1 ] || { echo 'FAIL duplicate local association'; exit 1; }
+mkdir -p "$fixture/work/TaskFlowDocs/remote-todo-links"
+printf 'detached\tgithub\tgithub.com\towner/repo\t17\n' > "$fixture/work/TaskFlowDocs/remote-todo-links/task-2026-11-16-demo.detached"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/remote-todo" promote main 17 2026-11-16-demo small --kind capability --root "$fixture/work" > "$fixture/detached" 2>&1; then echo 'FAIL detached task reported as reconnected'; exit 1; fi
+grep -qi 'detached' "$fixture/detached" || { echo 'FAIL detached task guidance'; exit 1; }
 echo 'PASS remote todo promote'
