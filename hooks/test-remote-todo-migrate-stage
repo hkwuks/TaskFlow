@@ -12,8 +12,10 @@ printf '## Completed\n\n- ID: TF-20261116-abcdef\n- Status: done\n- Goal: Old co
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "${2:-}" in
+  *'issues?'*) exit 0 ;;
   *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
 esac
+case "${2:-}" in *'issues?'*) exit 0 ;; esac
 case " $* " in
   *' repos/owner/repo/issues '--*|*' repos/owner/repo/issues --hostname '* ) cat >/dev/null; printf '%s\n' '{"number":17}' ;;
   *' --method POST '*) printf done > "$TEST_FIXTURE/label" ;;

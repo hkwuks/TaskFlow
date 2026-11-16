@@ -49,4 +49,12 @@ printf 'New body' > "$fixture/new-body"
 PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit lab 19 body "$fixture/new-body" --root "$fixture" > "$fixture/out-lab"
 grep -q 'group%2Frepo' "$fixture/glab-args" || { echo 'FAIL GitLab path encoding'; exit 1; }
 [ "$(cat "$fixture/glab-body")" = 'New body' ] || { echo 'FAIL GitLab body'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in *' --method PATCH '*) cat > "$TEST_FIXTURE/github-body"; printf yes > "$TEST_FIXTURE/github-body-written" ;; esac
+if [ -f "$TEST_FIXTURE/github-body-written" ]; then printf '%s\n' '{"number":20,"body":"New body\n\n<!-- taskflow-migration:TF-20261116-aabbcc -->\n"}'; else printf '%s\n' '{"number":20,"body":"Old body\n\n<!-- taskflow-migration:TF-20261116-aabbcc -->"}'; fi
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit main 20 body "$fixture/new-body" --root "$fixture" > "$fixture/out-migration"
+grep -Fq '<!-- taskflow-migration:TF-20261116-aabbcc -->' "$fixture/github-body" || { echo 'FAIL body edit lost migration identity'; exit 1; }
 echo 'PASS remote todo edit'

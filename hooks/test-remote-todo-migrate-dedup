@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || exit 1
+fixture="$1"
+[ ! -e "$fixture" ] || exit 1
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\ngh\tgithub\tgithub.com\towner/repo\ngl\tgitlab\tgitlab.com\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+printf '## Test\n\n- ID: TF-20261116-aabbcc\n- Status: inbox\n- Goal: Test cross worktree\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$2" in
+  *'issues?'*) [ "${FAIL_READ:-0}" = 0 ] || exit 1; printf '%s\n' '{"number":23,"body":"<!-- taskflow-migration:TF-20261116-aabbcc -->"}' ;;
+  *) printf 'write\n' >> "$TEST_FIXTURE/writes"; exit 1 ;;
+esac
+EOF
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+case "$2" in
+  *'issues?'*) [ "${FAIL_READ:-0}" = 0 ] || exit 1; printf '%s\n' '{"iid":24,"description":"<!-- taskflow-migration:TF-20261116-aabbcc -->"}' ;;
+  *) printf 'write\n' >> "$TEST_FIXTURE/writes"; exit 1 ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh" "$fixture/bin/glab"
+for source in gh gl; do
+  mkdir -p "$fixture/$source/TaskFlowDocs"
+  cp "$fixture/TaskFlowDocs/remote-todos.conf" "$fixture/TaskFlowDocs/todo.md" "$fixture/TaskFlowDocs/.gitignore" "$fixture/$source/TaskFlowDocs/"
+  if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-aabbcc "$source" --root "$fixture/$source" > "$fixture/$source.out" 2>&1; then echo 'FAIL duplicate migration succeeded'; exit 1; fi
+  grep -qi 'already.*migration\|migration.*already' "$fixture/$source.out" || { echo 'FAIL existing marker not reported'; exit 1; }
+done
+mkdir -p "$fixture/failure/TaskFlowDocs"
+cp "$fixture/TaskFlowDocs/remote-todos.conf" "$fixture/TaskFlowDocs/todo.md" "$fixture/TaskFlowDocs/.gitignore" "$fixture/failure/TaskFlowDocs/"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" FAIL_READ=1 bash "$HERE/remote-todo" migrate-to-remote TF-20261116-aabbcc gh --root "$fixture/failure" > "$fixture/failure.out" 2>&1; then echo 'FAIL incomplete remote check succeeded'; exit 1; fi
+grep -qi 'cannot check' "$fixture/failure.out" || { echo 'FAIL incomplete remote check not reported'; exit 1; }
+mkdir -p "$fixture/failure-gl/TaskFlowDocs"
+cp "$fixture/TaskFlowDocs/remote-todos.conf" "$fixture/TaskFlowDocs/todo.md" "$fixture/TaskFlowDocs/.gitignore" "$fixture/failure-gl/TaskFlowDocs/"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" FAIL_READ=1 bash "$HERE/remote-todo" migrate-to-remote TF-20261116-aabbcc gl --root "$fixture/failure-gl" > "$fixture/failure-gl.out" 2>&1; then echo 'FAIL incomplete GitLab check succeeded'; exit 1; fi
+grep -qi 'cannot check' "$fixture/failure-gl.out" || { echo 'FAIL incomplete GitLab check not reported'; exit 1; }
+[ ! -e "$fixture/writes" ] || { echo 'FAIL remote write despite duplicate'; exit 1; }
+echo 'PASS cross-worktree migration check'

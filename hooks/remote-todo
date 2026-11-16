@@ -427,8 +427,22 @@ EOF
   before="$(get_issue)" || { echo 'Cannot read remote Issue; edit not started.' >&2; exit 2; }
   actual="$(printf '%s' "$before" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue; edit not started.' >&2; exit 2; }
   [ "$actual" = "$issue_number" ] || { echo 'Remote Issue identity mismatch; edit not started.' >&2; exit 2; }
+  retained_markers=''
   if [ "$field" = title ]; then expected="$value"; api_field=title
-  else expected="$(cat "$value")" || { echo 'Cannot read body file.' >&2; exit 2; }; api_field="$body_key"; fi
+  else
+    expected="$(cat "$value")" || { echo 'Cannot read body file.' >&2; exit 2; }; api_field="$body_key"
+    original_body="$(printf '%s' "$before" | bash "$HERE/json-field" "$body_key")" || { echo 'Cannot parse remote body; edit not started.' >&2; exit 2; }
+    markers="$(printf '%s\n' "$original_body" | grep -oE '<!-- taskflow-migration:(TF|T)-[0-9]{8}-[a-z0-9]+ -->' || true)"
+    if [ -n "$markers" ]; then
+      while IFS= read -r marker; do
+        case "$expected" in *"$marker"*) ;; *) retained_markers="${retained_markers}${retained_markers:+
+}$marker" ;; esac
+      done <<EOF
+$markers
+EOF
+    fi
+    if [ -n "$retained_markers" ]; then expected="$({ cat "$value"; printf '\n\n%s\n' "$retained_markers"; })"; fi
+  fi
   id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
   private_store TaskFlowDocs/.remote-todo-updates || exit 2
@@ -460,7 +474,7 @@ EOF
     if response="$("$cli" api "$endpoint" --hostname "$host" --method "$method" --raw-field "title=$value" 2>/dev/null)"; then :
     else echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; fi
   else
-    if response="$(cat "$value" | "$cli" api "$endpoint" --hostname "$host" --method "$method" --field "$api_field=@-" 2>/dev/null)"; then :
+    if response="$({ cat "$value"; if [ -n "$retained_markers" ]; then printf '\n\n%s\n' "$retained_markers"; fi; } | "$cli" api "$endpoint" --hostname "$host" --method "$method" --field "$api_field=@-" 2>/dev/null)"; then :
     else echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; fi
   fi
   after="$(get_issue)" || { echo "Result unknown for operation $id; inspect the remote Issue before retrying." >&2; exit 2; }

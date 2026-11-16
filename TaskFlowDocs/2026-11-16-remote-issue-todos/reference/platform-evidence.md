@@ -12,3 +12,5 @@
 - 两平台真实私有、自托管实例及故障注入尚未运行；本证据只来自文档和本机只读命令。
 ## 真实 GitHub 只读验证
 - 2026-11-16：使用项目内隔离配置执行实际 `remote-todo list-remote`，退出码 0，返回 1 条 Issue。单独对公开 API 按类型计数为 1 条 Issue、141 条 Pull Request，过滤结果与 Issue 数一致；未记录 Issue 内容。没有执行真实远端写入。
+
+- 复核 GitLab CLI 官方文档：`--paginate --output ndjson` 每个对象一行，`--field description=@-` 从标准输入读取内容；本机无 `glab`，仍未进行真实客户端验证。

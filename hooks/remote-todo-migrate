@@ -78,8 +78,28 @@ if [ -z "$confirmed" ]; then
     esac
   fi
   if [ -z "$confirmed" ]; then
-    echo 'Migrating the selected Todo content to the selected remote repository.' >&2
-    if ! printf '%s\n' "$entry" | bash "$HERE/remote-todo" create "$selected" "$title" - --operation-id "$id" --root "$root"; then
+    marker="<!-- taskflow-migration:$local_id -->"
+    echo 'Checking the whole remote Issue source for this migration marker; do not migrate this Todo simultaneously from another worktree or machine.' >&2
+    if [ "$platform" = github ]; then
+      candidates="$(gh api "repos/$project/issues?state=all&per_page=100" --hostname "$host" --paginate --jq '.[] | select(.pull_request == null) | @json' 2>/dev/null)" || { echo 'Cannot check all remote Issues; migration not started.' >&2; exit 2; }
+      number_key=number; body_key=body
+    else
+      encoded="${project//\//%2F}"
+      candidates="$(glab api "projects/$encoded/issues?scope=all&state=all&per_page=100" --hostname "$host" --paginate --output ndjson 2>/dev/null)" || { echo 'Cannot check all remote Issues; migration not started.' >&2; exit 2; }
+      number_key=iid; body_key=description
+    fi
+    if [ -n "$candidates" ]; then
+      while IFS= read -r candidate; do
+        number="$(printf '%s' "$candidate" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Invalid remote Issue list; migration not started.' >&2; exit 2; }
+        [[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid remote Issue identity; migration not started.' >&2; exit 2; }
+        remote_body="$(printf '%s' "$candidate" | bash "$HERE/json-field" "$body_key")" || { echo 'Invalid remote Issue body; migration not started.' >&2; exit 2; }
+        case "$remote_body" in *"$marker"*) echo "An Issue with this migration marker already exists (#$number); inspect it before proceeding." >&2; exit 2 ;; esac
+      done <<EOF
+$candidates
+EOF
+    fi
+    echo 'Migrating the selected Todo content to the selected remote repository; concurrent migrations can still race.' >&2
+    if ! { printf '%s\n\n%s\n' "$entry" "$marker"; } | bash "$HERE/remote-todo" create "$selected" "$title" - --operation-id "$id" --root "$root"; then
       echo "Migration operation $id needs inspection before retrying." >&2; exit 2
     fi
     record="$root/TaskFlowDocs/.remote-todo-operations/$id"

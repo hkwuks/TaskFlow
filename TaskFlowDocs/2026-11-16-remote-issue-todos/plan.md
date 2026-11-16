@@ -50,7 +50,7 @@
 - Files: `spec.md`、`plan.md`、`reference/platform-evidence.md`。
 - Implementation checklist:
   - [ ] 按官方文档和可控服务核验接口、权限及条件更新，记录不能保证的并发窗口。
-  - [ ] 定义身份格式、阶段标签、明确结果不明时的恢复与重复创建防护。
+  - [x] 定义身份格式、阶段标签、明确结果不明时的恢复与重复创建防护。
 - Acceptance: 已确认的官方接口约束、已知限制和恢复步骤可审核；无资料证实的行为标注未验证，接口实际行为由后续测试验证。
 - Verification: 引用已核查的官方文档并逐项审阅身份、阶段标签、已知竞态和操作恢复协议；接口夹具在后续实现步骤验证实际请求。
 - Rollback: 仅撤回本步骤未使用的设计记录。
@@ -61,12 +61,12 @@
 - Dependencies: Step 1。
 - Files: 新增 `hooks/remote-todo`（显式远端操作）、`hooks/test-remote-todo`；按需调整 `hooks/json-field`、`hooks/smoke-test`、`skills/taskflow/SKILL.md`。
 - Implementation checklist:
-  - [ ] 实现显式模式选择、多仓库配置及分页读取，区分身份并排除 GitHub PR。
-  - [ ] 实现部分失败提示和用户选择的本地只读快照，不写入凭据。
+  - [x] 实现显式模式选择、多仓库配置及分页读取，区分身份并排除 GitHub PR。
+  - [x] 实现部分失败提示和用户选择的本地只读快照，不写入凭据。
 - Acceptance: 本地默认行为保持；两个平台的多仓库列表、错误和快照均可验证。
 - Verification: 可控接口测试、Windows 与 Unix 入口测试。
 - Rollback: 回退该切片提交，保留用户配置和已有待办。
-- Status: pending
+- Status: done
 
 ### Step 3 — 创建、编辑与迁移切片
 - Goal: 支持用户指定目标的创建、修改、标签操作及双向按需迁移。
@@ -78,7 +78,7 @@
 - Acceptance: 同号、重复操作、部分成功、权限不足和并发更改都有明确结果，不静默删除或覆盖。
 - Verification: 对两平台使用模拟服务器注入超时、丢响应、冲突和部分写入；校验服务端实际状态。
 - Rollback: 回退代码提交；已创建远端 Issue 保留，由用户决定后续处理。
-- Status: pending
+- Status: in_progress
 
 ### Step 4 — 任务生命周期切片
 - Goal: 把远端主记录接入提升、阶段变化、完成、取消、归档和恢复。
@@ -90,7 +90,7 @@
 - Acceptance: 可从远端 Issue 完整走通任务生命周期；错误时不丢失任务目录或错误报告完成。
 - Verification: 两平台端到端夹具及本地模式回归。
 - Rollback: 回退该切片；保留任务目录、Issue 和关联记录供恢复。
-- Status: pending
+- Status: in_progress
 
 ### Step 5 — 集成与验收
 - Goal: 更新全部宿主说明并验证完整功能。
@@ -103,7 +103,7 @@
 - Acceptance: 文档与实现一致，两平台和本地模式回归通过，未验证内容准确披露。
 - Verification: 针对性测试、`git diff --check`、skill 校验及适用的跨平台 CI。
 - Rollback: 按切片提交回退代码；不自动删除用户数据或远端 Issue。
-- Status: pending
+- Status: in_progress
 
 ## Checkpoints
 - Steps 1–2 后检查身份、平台差异和读取端到端结果。
@@ -119,9 +119,9 @@
 - 已实现远端标题/正文编辑、标签与阶段变更、任务提升、双向复制/显式解除关联及混合列表去重；主要写入路径仍以模拟接口验证，完整验收尚未完成。
 - 远端恢复目录需要 Git 本地排除，未排除或包含已追踪文件时拒绝写入；测试覆盖固定探针绕过与强制追踪。
 - GitHub 缺失阶段标签的创建、任务状态、归档/恢复、迁移与解除关联的定向夹具通过；真实 GitHub 写入、自托管实例和真实 GitLab 尚未验证。
-- 2026-11-16 Windows 完整测试首次发现 `complete --root` 调用 `archive` 丢失根目录；已修复并在重跑中通过生命周期段。完整 Windows 和 Bash 测试仍运行，最终结果待记录。
+- 2026-11-16 Windows 完整测试首次发现 `complete --root` 调用 `archive` 丢失根目录；已修复并在重跑中通过生命周期段。Windows 全量测试最终通过；Bash 全量在 Git Bash 上运行到独立复制 Bash 的原有测试时因缺少 Windows DLL 中止（该套件不在 Windows CI 运行）。Windows 运行时部分脚本使用系统临时目录，未遵守项目内临时目录边界；没有删除项目外文件，后续测试显式设置项目内临时目录。
 - `quick_validate.py skills/taskflow` 使用现有 torch Python 环境通过；`git diff --check` 通过。
-- 已解除关联的旧待办或任务不会伪报重新连接；保留原记录，重新连接流程仍未实现。跨独立工作区并发迁移的处理方案等待用户选择，不可声称已防止重复创建。
+- 已解除关联的旧待办或任务不会伪报重新连接；保留原记录，重新连接流程仍未实现。用户选择稳定标记和迁移前全量检查；两平台重复标记及读取失败夹具通过。检查与创建非原子操作，同一条 Todo 不得在多台机器或 worktree 中同时迁移；用户手动移除标记也会削弱检查。
 - 2026-11-16：用户同意项目级默认、条目级归属、显式迁移和可选只读快照；用户已审阅需求方向；随后明确同意实施计划。
 
 ## Change Log
@@ -132,3 +132,4 @@
 
 ## Follow-ups
 - 实际服务测试资源尚未确定；缺少时不把模拟结果说成真实宿主验收。
+- 2026-11-16：用户选择跨工作区稳定标记与迁移前核对，明确不得并发迁移同一条；GitHub/GitLab 重复标记、读取失败、正文编辑保留标记及 Windows 启动器定向测试通过。

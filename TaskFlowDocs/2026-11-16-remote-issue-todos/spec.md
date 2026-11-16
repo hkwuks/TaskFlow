@@ -65,3 +65,6 @@
 - 生命周期标签固定为 `taskflow:inbox`、`taskflow:clarified`、`taskflow:promoted`、`taskflow:planning`、`taskflow:ready`、`taskflow:in_progress`、`taskflow:checking`、`taskflow:blocked`、`taskflow:done`、`taskflow:cancelled`，更新时增删 TaskFlow 阶段标签，不替换其他标签。完成与取消均关闭 Issue，重新打开任务时重新打开 Issue。缺失标签创建行为和权限必须明确告知；GitHub 与 GitLab 分别使用其原生标签接口。
 - 可选只读快照和恢复意图不能写入诊断日志，不包含凭据。快照开启及位置由用户选择；默认关闭。故障导致关联更新未完成时不标记整体成功，保留已知远端身份以便恢复。
 - `gh` / `glab` 作为用户显式选择远程模式的外部工具；本地模式和已有 hooks 不新增语言运行时依赖。复用或扩展仓库 JSON 处理能力时必须覆盖嵌套数组、Unicode、特殊字符及恶意输入。
+## 跨工作区迁移防重
+- 用户选择稳定 Todo 标记：创建前分页检查目标仓库所有 Issue，出现匹配或检查不完整时停止；不同工作区和机器不得同时迁移同一条 Todo，因为检查与创建不是原子操作。
+- TaskFlow 正文编辑保留稳定标记；用户或其他客户端删除标记会削弱后续检查。标记匹配只提示人工核对，不自动合并记录。
