@@ -64,6 +64,8 @@ if [ -z "$origin_task" ] && [ "$detached_count" -eq 1 ]; then origin_task="$deta
 origin_link=
 for link in "$root"/TaskFlowDocs/remote-todo-links/*; do
   [ -e "$link" ] || [ -L "$link" ] || continue
+  link_id="${link##*/}"
+  [[ "$link_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || continue
   [ -f "$link" ] && [ ! -L "$link" ] || { echo 'Invalid existing Todo association.' >&2; exit 2; }
   if [ -e "$link.detached" ] || [ -L "$link.detached" ]; then
     [ -f "$link.detached" ] && [ ! -L "$link.detached" ] || { echo 'Invalid Todo detach record.' >&2; exit 2; }

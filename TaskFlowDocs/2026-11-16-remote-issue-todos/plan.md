@@ -73,24 +73,24 @@
 - Dependencies: Steps 1–2。
 - Files: `hooks/remote-todo`、`hooks/test-remote-todo`、`hooks/task`、`skills/taskflow/references/runtime.md`。
 - Implementation checklist:
-  - [ ] 验证目标与输入，执行新建、编辑及保留无关标签的更新。
-  - [ ] 执行选择式迁移、关联去重及结果不明的核对恢复；保留原始记录。
+  - [x] 验证目标与输入，执行新建、编辑及保留无关标签的更新。
+  - [x] 执行选择式迁移、关联去重及结果不明的核对恢复；保留原始记录。
 - Acceptance: 同号、重复操作、部分成功、权限不足和并发更改都有明确结果，不静默删除或覆盖。
 - Verification: 对两平台使用模拟服务器注入超时、丢响应、冲突和部分写入；校验服务端实际状态。
 - Rollback: 回退代码提交；已创建远端 Issue 保留，由用户决定后续处理。
-- Status: in_progress
+- Status: done
 
 ### Step 4 — 任务生命周期切片
 - Goal: 把远端主记录接入提升、阶段变化、完成、取消、归档和恢复。
 - Dependencies: Steps 1–3。
 - Files: `hooks/task`、`hooks/archive`、`hooks/reopen`、`hooks/summarize-state`、`hooks/test-remote-todo`。
 - Implementation checklist:
-  - [ ] 以稳定关联路由本地和远端条目，阶段标签变更保留其他标签。
-  - [ ] 覆盖完成、取消、重开和跨系统中断，远端失败保留本地恢复信息。
+  - [x] 以稳定关联路由本地和远端条目，阶段标签变更保留其他标签。
+  - [x] 覆盖完成、取消、重开和跨系统中断，远端失败保留本地恢复信息。
 - Acceptance: 可从远端 Issue 完整走通任务生命周期；错误时不丢失任务目录或错误报告完成。
 - Verification: 两平台端到端夹具及本地模式回归。
 - Rollback: 回退该切片；保留任务目录、Issue 和关联记录供恢复。
-- Status: in_progress
+- Status: done
 
 ### Step 5 — 集成与验收
 - Goal: 更新全部宿主说明并验证完整功能。
@@ -123,6 +123,10 @@
 - `quick_validate.py skills/taskflow` 使用现有 torch Python 环境通过；`git diff --check` 通过。
 - 已解除关联的任务可在远端与本地阶段一致且未被其他任务占用时显式重新连接，保留历史；再次解除关联时保留旧副本并重新获取。GitHub/GitLab 夹具验证了冲突及恢复同步。未提升的远端本地副本可以明确选择远端为准并重新关联原 Issue；保留本地副本，禁止误用迁移在原仓库创建重复 Issue。用户选择稳定标记和迁移前全量检查；两平台重复标记及读取失败夹具通过。检查与创建非原子操作，同一条 Todo 不得在多台机器或 worktree 中同时迁移；用户手动移除标记也会削弱检查。
 - 2026-11-16：用户同意项目级默认、条目级归属、显式迁移和可选只读快照；用户已审阅需求方向；随后明确同意实施计划。
+
+- Windows 完整回归 `windows-full-05` 通过，包括开放标准输入测试；之后对只读关联记录语义、孤立记录、跨仓库迁移与历史去重的调整分别运行 Windows 启动器定向测试通过，未重跑整个套件。
+- Linux/macOS 完整回归未在本机运行：Git Bash 执行 Bash 全量测试时，仓库原有的隔离 Bash 夹具缺少 Windows DLL 而中止；不可把它当作 Linux/macOS 通过。真实 GitHub 写入、自托管服务和真实 GitLab 仍未验证。
+- 验收前需用户实际使用或另行提供测试服务；任务未归档或发布。测试夹具留在任务参考目录，另一条独立 Todo 保留在未提交工作区。
 
 ## Change Log
 - 2026-11-16：记录用户决定、起草规格，并基于任务拆解技能编写计划。

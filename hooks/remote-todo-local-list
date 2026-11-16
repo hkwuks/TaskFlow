@@ -67,7 +67,7 @@ EOF
     fi
   fi
   if [ -f "$mapping" ] && [ ! -L "$mapping" ] && [ ! -e "$mapping.detached" ]; then
-    header="$(awk -F '\t' 'NR == 1 && NF == 5 && $1 == "pending" { p = $3; h = $4; r = $5 } $1 == "confirmed" && NF == 2 && $2 ~ /^[1-9][0-9]*$/ { n = $2 } $1 == "stage-synced" && NF == 2 { synced = 1 } END { if (p != "" && n != "" && synced) print p "\t" h "\t" r "\t" n }' "$mapping")"
+    header="$(awk -F '\t' 'NR == 1 && NF == 5 && $1 == "pending" { p = $3; h = $4; r = $5 } $1 == "confirmed" && NF == 2 && $2 ~ /^[1-9][0-9]*$/ { n = $2 } ($1 == "stage-synced" || $1 == "remote-authoritative") && NF == 2 { synced = 1 } END { if (p != "" && n != "" && synced) print p "\t" h "\t" r "\t" n }' "$mapping")"
     if [ -n "$header" ]; then
       IFS="$tab" read -r p h r n <<EOF
 $header

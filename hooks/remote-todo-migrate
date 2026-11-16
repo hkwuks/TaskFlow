@@ -52,7 +52,16 @@ trap 'rmdir "$lock" 2>/dev/null || true' EXIT
 link="$links/$local_id"
 [ ! -L "$link" ] || { echo 'Invalid Todo migration link.' >&2; exit 2; }
 if [ -e "$link.detached" ] || [ -L "$link.detached" ]; then
-  echo 'This Todo was detached from its previous Issue; inspect both records before migrating it again.' >&2; exit 2
+  [ -f "$link" ] && [ ! -L "$link" ] && [ -f "$link.detached" ] && [ ! -L "$link.detached" ] && [ "$(cat "$link.detached")" = "$(printf 'detached\t%s' "$local_id")" ] || { echo 'This Todo was detached from its previous Issue; inspect both records before migrating it again.' >&2; exit 2; }
+  awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR == 1 { valid = NF == 5 && $1 == "pending"; same = $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/ { confirmed = 1 } END { if (!valid || !confirmed || same) exit 1 }' "$link" || { echo 'Previous association is invalid or belongs to the selected source; inspect before migrating.' >&2; exit 2; }
+  history_id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$history_id" =~ ^[0-9a-f]{32}$ ]] || exit 2
+  [ ! -e "$link.history-$history_id" ] && [ ! -e "$link.detached.history-$history_id" ] || exit 2
+  mv -n "$link" "$link.history-$history_id" || exit 2
+  [ ! -e "$link" ] && [ -f "$link.history-$history_id" ] || { echo 'Association history collision.' >&2; exit 2; }
+  if ! mv -n "$link.detached" "$link.detached.history-$history_id" || [ -e "$link.detached" ]; then
+    mv -n "$link.history-$history_id" "$link" || true
+    echo 'Cannot preserve previous detach record; inspect associations.' >&2; exit 2
+  fi
 fi
 new_id() { od -An -N16 -tx1 /dev/urandom | tr -d ' \n'; }
 if [ ! -e "$link" ]; then

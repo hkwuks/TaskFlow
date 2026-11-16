@@ -28,6 +28,8 @@ mapping="$links/$id"; marker="$mapping.detached"
 [ ! -L "$mapping" ] && [ ! -L "$marker" ] || { echo 'Invalid Todo association.' >&2; exit 2; }
 for other in "$links"/*; do
   [ -e "$other" ] || [ -L "$other" ] || continue
+  other_id="${other##*/}"
+  [[ "$other_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || continue
   [ "$other" != "$mapping" ] || continue
   [ -f "$other" ] && [ ! -L "$other" ] || { echo 'Invalid Todo association.' >&2; exit 2; }
   if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { confirmed = 1 } END { if (!(same && confirmed)) exit 1 }' "$other"; then
@@ -54,9 +56,10 @@ state="$(printf '%s' "$response" | bash "$HERE/json-field" state)" || exit 2
 [ "$actual" = "$number" ] && { [ "$state" = open ] || [ "$state" = opened ] || [ "$state" = closed ]; } || { echo 'Remote Issue identity or state invalid.' >&2; exit 2; }
 op="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$op" =~ ^[0-9a-f]{32}$ ]] || exit 2
 if [ ! -e "$mapping" ]; then
-  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\nconfirmed\t%s\nstage-synced\tremote\n' "$op" "$platform" "$host" "$project" "$number" > "$mapping") || { echo 'Cannot save association; inspect before retrying.' >&2; exit 2; }
+  [ ! -e "$marker" ] || { echo 'Orphaned detach record; inspect before reattaching.' >&2; exit 2; }
+  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\nconfirmed\t%s\nremote-authoritative\tconfirmed\n' "$op" "$platform" "$host" "$project" "$number" > "$mapping") || { echo 'Cannot save association; inspect before retrying.' >&2; exit 2; }
 else
-  [ -f "$mapping" ] && awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { found = 1 } $1 == "stage-synced" && NF == 2 { synced = 1 } END { if (!(valid && found && synced)) exit 1 }' "$mapping" || { echo 'Existing Todo association differs.' >&2; exit 2; }
+  [ -f "$mapping" ] && awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { found = 1 } ($1 == "stage-synced" || $1 == "remote-authoritative") && NF == 2 { synced = 1 } END { if (!(valid && found && synced)) exit 1 }' "$mapping" || { echo 'Existing Todo association differs.' >&2; exit 2; }
   if [ -e "$marker" ]; then
     [ -f "$marker" ] && [ "$(cat "$marker")" = "$(printf 'detached\t%s' "$id")" ] || { echo 'Invalid detach record.' >&2; exit 2; }
     history="$marker.history-$op"; [ ! -e "$history" ] && [ ! -L "$history" ] || exit 2

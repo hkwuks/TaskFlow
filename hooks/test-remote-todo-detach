@@ -9,6 +9,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
 printf '## Existing\n- ID: TF-20261116-abcdef\n- Status: inbox\n- Goal: Old local title\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
 printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-deadbe.history-0123456789abcdef0123456789abcdef"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case " $* " in *' --method '*) echo 'unexpected remote mutation' >&2; exit 1 ;; esac

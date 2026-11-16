@@ -28,10 +28,17 @@ copy_id="$(sed -n 's/^Copied remote Issue to local Todo \([^;]*\);.*/\1/p' "$fix
 if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-remote "$copy_id" main --root "$fixture" > "$fixture/copy-migrate" 2>&1; then echo 'FAIL duplicated an existing Issue'; exit 1; fi
 grep -qi 'remote copy' "$fixture/copy-migrate" || { echo 'FAIL missing duplicate prevention guidance'; exit 1; }
 if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --root "$fixture" >/dev/null 2>&1; then echo 'FAIL accepted reattachment without explicit remote authority'; exit 1; fi
+orphan="$fixture/orphan"
+mkdir -p "$orphan/TaskFlowDocs/remote-todo-links"
+cp "$fixture/TaskFlowDocs/todo.md" "$fixture/TaskFlowDocs/remote-todos.conf" "$orphan/TaskFlowDocs/"
+printf 'detached\t%s\n' "$copy_id" > "$orphan/TaskFlowDocs/remote-todo-links/$copy_id.detached"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$orphan" > "$fixture/reattach-orphan" 2>&1; then echo 'FAIL accepted orphaned detach record'; exit 1; fi
+[ ! -e "$orphan/TaskFlowDocs/remote-todo-links/$copy_id" ] || { echo 'FAIL orphaned record caused new mapping'; exit 1; }
 if PATH="$fixture/bin:$PATH" FAIL_READ=1 bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach-offline" 2>&1; then echo 'FAIL reattached while remote unavailable'; exit 1; fi
 [ ! -e "$fixture/TaskFlowDocs/remote-todo-links/$copy_id" ] || { echo 'FAIL offline reattachment changed local association'; exit 1; }
 PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach" || { echo 'FAIL could not reattach local copy'; exit 1; }
 [ -f "$fixture/TaskFlowDocs/remote-todo-links/$copy_id" ] || { echo 'FAIL missing Todo association'; exit 1; }
+grep -Fqx "$(printf 'remote-authoritative\tconfirmed')" "$fixture/TaskFlowDocs/remote-todo-links/$copy_id" || { echo 'FAIL association misstates remote operation'; exit 1; }
 PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$fixture" > "$fixture/redetach" || { echo 'FAIL could not detach same local copy'; exit 1; }
 [ -f "$fixture/TaskFlowDocs/remote-todo-links/$copy_id.detached" ] || { echo 'FAIL missing Todo detach'; exit 1; }
 PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach-again" || { echo 'FAIL repeated reattachment'; exit 1; }
