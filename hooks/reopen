@@ -61,6 +61,10 @@ entry_block() {  # entry_block <needle>
 # so leaving the directory where it is beats moving it and reporting the rest.
 entry_block "\`$was\`" >/dev/null || { echo "Todo entry for $task missing; reopen not started"; exit 1; }
 
+if [ -e "$docs/achieved/$task/remote-issue" ] || [ -L "$docs/achieved/$task/remote-issue" ]; then
+  bash "$HERE/remote-todo" stage-task "$task" promoted --root "$root" || { echo 'Remote stage update failed; local reopen was not started.' >&2; exit 1; }
+  echo 'Remote stage updated; if local reopen fails, inspect both sides before retrying.' >&2
+fi
 plan="$docs/achieved/$task/plan.md"
 todo_tmp="$todo.tmp"
 plan_tmp="$plan.tmp"

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-archive <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/2026-11-16-demo" "$fixture/bin" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+git -C "$fixture" init -q
+git -C "$fixture" config user.name 'Fixture Test'
+git -C "$fixture" config user.email 'fixture@example.invalid'
+printf 'bin/\ntmp/\nout\nreopen-out\nargs\nlabel\nstate\nTaskFlowDocs/.remote-todo-updates/\n' > "$fixture/.gitignore"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+git -C "$fixture" add .gitignore TaskFlowDocs/remote-todos.conf
+git -C "$fixture" commit -qm baseline
+printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue"
+printf '# PRD\n> Task version: v1\n> Status: completed\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md"
+cat > "$fixture/TaskFlowDocs/2026-11-16-demo/plan.md" <<'EOF'
+# Plan
+> Task version: v1
+> Status: completed
+
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-11-16 12:00 +08:00
+- Approved version: v1
+- Approved scope: PRD / Spec / Plan
+
+## Change Log
+EOF
+printf '## Test\n\n- ID: TF-20261116-abcdef\n- Status: in_progress\n- Updated: 2026-11-16\n- Goal: demo\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n- Next action: verify\n' > "$fixture/TaskFlowDocs/todo.md"
+bash "$HERE/version-baseline" init "$fixture" 2026-11-16-demo v1
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/args"
+case " $* " in
+  *' --method DELETE '*) : ;;
+  *' --method POST '*) case " $* " in *' labels[]=taskflow:done '*) printf done > "$TEST_FIXTURE/label" ;; *' labels[]=taskflow:promoted '*) printf promoted > "$TEST_FIXTURE/label" ;; esac ;;
+  *' --method PATCH '*) case " $* " in *' state=closed '*) printf closed > "$TEST_FIXTURE/state" ;; *) printf open > "$TEST_FIXTURE/state" ;; esac ;;
+  *) label=in_progress; state=open; [ ! -f "$TEST_FIXTURE/label" ] || label="$(cat "$TEST_FIXTURE/label")"; [ ! -f "$TEST_FIXTURE/state" ] || state="$(cat "$TEST_FIXTURE/state")"; printf '{"number":17,"state":"%s","labels":["taskflow:%s","user-label"]}\n' "$state" "$label" ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/archive" 2026-11-16-demo "$fixture" > "$fixture/out"
+[ "$(cat "$fixture/state")" = closed ] || { echo 'FAIL archive did not close Issue'; exit 1; }
+[ "$(cat "$fixture/label")" = done ] || { echo 'FAIL archive did not set done'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/achieved/2026-11-16-demo/remote-issue" ] || { echo 'FAIL missing archived association'; exit 1; }
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/reopen" 2026-11-16-demo "$fixture" > "$fixture/reopen-out"
+[ "$(cat "$fixture/state")" = open ] || { echo 'FAIL reopen did not open Issue'; exit 1; }
+[ "$(cat "$fixture/label")" = promoted ] || { echo 'FAIL reopen did not set promoted'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue" ] || { echo 'FAIL missing active association'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+before="$(cksum < "$fixture/TaskFlowDocs/todo.md")"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/archive" 2026-11-16-demo "$fixture" > "$fixture/out" 2>&1; then echo 'FAIL archive succeeded after remote failure'; exit 1; fi
+[ -d "$fixture/TaskFlowDocs/2026-11-16-demo" ] || { echo 'FAIL archive moved task despite remote failure'; exit 1; }
+[ "$(cksum < "$fixture/TaskFlowDocs/todo.md")" = "$before" ] || { echo 'FAIL Todo changed after remote failure'; exit 1; }
+echo 'PASS remote todo archive and reopen'

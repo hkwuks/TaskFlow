@@ -51,6 +51,10 @@ if ! grep -q "\`TaskFlowDocs/$task/\`" "$todo"; then
   echo "Todo entry for $task missing; archive not started"; exit 1
 fi
 
+if [ -e "$docs/$task/remote-issue" ] || [ -L "$docs/$task/remote-issue" ]; then
+  bash "$HERE/remote-todo" stage-task "$task" done --root "$root" || { echo 'Remote stage update failed; local archive was not started.' >&2; exit 1; }
+  echo 'Remote stage updated; if local archive fails, inspect both sides before retrying.' >&2
+fi
 # Undo whatever step 2–4 already did, so a failure never leaves active and
 # achieved both present, a half-rewritten Todo beside a moved directory, or a
 # Todo record appended to a Plan whose entry is about to come back.
