@@ -1235,7 +1235,7 @@ case "$command" in
       *) todo_status=in_progress ;;
     esac
     if [ -e "$base/remote-issue" ] || [ -L "$base/remote-issue" ]; then
-      bash "$SCRIPT_DIR/remote-todo" stage-task "$task" "$todo_status" --root "$root" || fail 'Remote stage update failed; local state was not changed.'
+      bash "$SCRIPT_DIR/remote-todo" stage-task "$task" "$new_state" --root "$root" || fail 'Remote stage update failed; local state was not changed.'
       echo 'Remote stage updated; if a later local write fails, inspect both sides before retrying.' >&2
     fi
     {

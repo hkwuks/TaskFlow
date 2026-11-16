@@ -19,12 +19,12 @@ case " $* " in
   *' --method DELETE '*) : ;;
   *' --method POST '*) : ;;
   *' --method PATCH '*) printf yes > "$TEST_FIXTURE/done" ;;
-  *) if [ -f "$TEST_FIXTURE/done" ]; then printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:promoted","user-label"]}'; else printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:inbox","user-label"]}'; fi ;;
+  *) if [ -f "$TEST_FIXTURE/done" ]; then printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:planning","user-label"]}'; else printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:inbox","user-label"]}'; fi ;;
 esac
 EOF
 chmod +x "$fixture/bin/gh"
 PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/task" state 2026-11-16-demo planning --root "$fixture" > "$fixture/out"
-grep -q 'taskflow:promoted' "$fixture/args" || { echo 'FAIL remote stage was not updated'; exit 1; }
+grep -q 'taskflow:planning' "$fixture/args" || { echo 'FAIL remote stage was not updated'; exit 1; }
 grep -q '^> Status: planning' "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL local state'; exit 1; }
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash

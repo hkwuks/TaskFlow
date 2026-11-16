@@ -225,7 +225,7 @@ EOF
 fi
 if [ "$command" = stage ]; then
   [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$issue_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
-  case "$stage" in inbox|clarified|promoted|in_progress|done|cancelled) ;; *) echo 'Invalid TaskFlow stage.' >&2; exit 2 ;; esac
+  case "$stage" in inbox|clarified|promoted|planning|ready|in_progress|checking|blocked|done|cancelled) ;; *) echo 'Invalid TaskFlow stage.' >&2; exit 2 ;; esac
   connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
   tab="$(printf '\t')"
   IFS="$tab" read -r alias platform host project <<EOF
@@ -242,7 +242,7 @@ EOF
   actual="$(printf '%s' "$before" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
   [ "$actual" = "$issue_number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
   present=''
-  for item in inbox clarified promoted in_progress done cancelled; do
+  for item in inbox clarified promoted planning ready in_progress checking blocked done cancelled; do
     has="$(printf '%s' "$before" | bash "$HERE/json-field" --array-has labels "taskflow:$item")" || { echo 'Cannot parse Issue labels.' >&2; exit 2; }
     if [ "$has" = yes ] && [ "$item" != "$stage" ]; then present="$present $item"; fi
   done
@@ -293,7 +293,7 @@ EOF
   actual="$(printf '%s' "$after" | bash "$HERE/json-field" state)" || { echo "Result unknown for operation $id." >&2; exit 2; }
   if [ "$platform" = gitlab ] && [ "$desired_state" = open ]; then desired_state=opened; fi
   [ "$actual" = "$desired_state" ] || { echo "Result unknown for operation $id: state mismatch." >&2; exit 2; }
-  for item in inbox clarified promoted in_progress done cancelled; do
+  for item in inbox clarified promoted planning ready in_progress checking blocked done cancelled; do
     has="$(printf '%s' "$after" | bash "$HERE/json-field" --array-has labels "taskflow:$item")" || { echo "Result unknown for operation $id: invalid labels." >&2; exit 2; }
     if { [ "$item" = "$stage" ] && [ "$has" != yes ]; } || { [ "$item" != "$stage" ] && [ "$has" = yes ]; }; then echo "Result unknown for operation $id: stage mismatch." >&2; exit 2; fi
   done
