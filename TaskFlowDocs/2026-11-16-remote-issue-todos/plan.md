@@ -128,6 +128,13 @@
 - Linux/macOS 完整回归未在本机运行：Git Bash 执行 Bash 全量测试时，仓库原有的隔离 Bash 夹具缺少 Windows DLL 而中止；不可把它当作 Linux/macOS 通过。真实 GitHub 写入、自托管服务和真实 GitLab 仍未验证。
 - 验收前需用户实际使用或另行提供测试服务；任务未归档或发布。测试夹具留在任务参考目录，另一条独立 Todo 保留在未提交工作区。
 
+## PR Template Mapping
+- Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
+- TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
+- Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交，须由本次 PR 的 Hooks CI 验证当前提交。Git Bash 全量测试不等同 Linux/macOS 验收。
+- Review boundaries：不提交恢复数据、测试夹具或其他 Todo；不含凭据；真实 GitLab、自托管与远程写入未验证，远程创建及并发编辑存在已披露竞态。
+- PR 状态：用户授权提交 PR，尚未表达最终产品验收；遵循仓库规则先创建 draft，保留活动任务和未完成验收，CI 完成后记录结果。
+
 ## Change Log
 - 2026-11-16：记录用户决定、起草规格，并基于任务拆解技能编写计划。
 - 2026-11-16：核验官方接口，发现 GitHub 常规写请求不能依赖通用条件更新；用户接受仅更新指定字段、写前后核对并提示剩余竞态。
