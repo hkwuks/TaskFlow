@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-mixed-list <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/remote-todo-links" "$fixture/TaskFlowDocs/2026-11-16-linked" "$fixture/bin" "$fixture/local/TaskFlowDocs"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nsecond\tgithub\tGITHUB.COM\tOWNER/REPO\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+## Local
+- ID: TF-20261116-111111
+- Status: inbox
+- Goal: Local only
+- Task: Not promoted.
+
+## Migrated
+- ID: TF-20261116-222222
+- Status: inbox
+- Goal: Already migrated
+- Task: Not promoted.
+
+## Linked task
+- ID: TF-20261116-444444
+- Status: in_progress
+- Goal: Already linked
+- Task: `TaskFlowDocs/2026-11-16-linked/`
+EOF
+printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/2026-11-16-linked/remote-issue"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":17,"title":"Remote item"}'
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/out"
+grep -q 'Local only' "$fixture/out" || { echo 'FAIL missing local item'; exit 1; }
+grep -q 'Remote item' "$fixture/out" || { echo 'FAIL missing remote item'; exit 1; }
+[ "$(grep -c 'Remote item' "$fixture/out")" = 1 ] || { echo 'FAIL duplicated remote issue across aliases'; exit 1; }
+if grep -q 'Already migrated' "$fixture/out"; then echo 'FAIL duplicated linked local item'; exit 1; fi
+if grep -q 'Already linked' "$fixture/out"; then echo 'FAIL duplicated linked task'; exit 1; fi
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/partial" 2>&1; then echo 'FAIL missing source was treated as complete'; exit 1; fi
+grep -q 'Already migrated' "$fixture/partial" || { echo 'FAIL lost local item when source unavailable'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":"invalid","title":"spoof"}'
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/invalid" 2>&1; then echo 'FAIL invalid identity treated as complete'; exit 1; fi
+grep -q 'Already migrated' "$fixture/invalid" || { echo 'FAIL invalid response hid local item'; exit 1; }
+printf '## Local\n- ID: TF-20261116-333333\n- Status: inbox\n- Goal: Offline item\n' > "$fixture/local/TaskFlowDocs/todo.md"
+bash "$HERE/remote-todo" list --root "$fixture/local" > "$fixture/offline"
+grep -q 'Offline item' "$fixture/offline" || { echo 'FAIL local-only list'; exit 1; }
+echo 'PASS remote todo mixed list'

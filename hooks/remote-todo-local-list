@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# List local Todo entries not represented by a successfully read remote Issue.
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: remote-todo-local-list <root>' >&2; exit 2; }
+root="$1"
+todo="$root/TaskFlowDocs/todo.md"
+[ -f "$todo" ] && [ ! -L "$todo" ] || exit 0
+HERE="$(cd "$(dirname "$0")" && pwd)"
+seen="$(cat)"
+tab="$(printf '\t')"
+contains() {
+  case "
+$seen
+" in *"
+$1
+"*) return 0 ;; *) return 1 ;; esac
+}
+key_for() {
+  local p="$1" h="$2" r="$3" n="$4"
+  case "$p" in github|gitlab) ;; *) return 1 ;; esac
+  [[ "$h" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ ]] && [[ "$r" =~ ^[A-Za-z0-9_./-]+$ ]] && [[ "$n" =~ ^[1-9][0-9]*$ ]] || return 1
+  h="$(printf '%s' "$h" | tr '[:upper:]' '[:lower:]')"
+  if [ "$p" = github ]; then r="$(printf '%s' "$r" | tr '[:upper:]' '[:lower:]')"; fi
+  printf '%s|%s|%s|%s' "$p" "$h" "$r" "$n"
+}
+awk '
+  function flush() {
+    if (id == "") return
+    if (status == "") status = "unknown"
+    if (goal == "") goal = "(no goal)"
+    gsub(/[[:cntrl:]]/, "", id); gsub(/[[:cntrl:]]/, "", status); gsub(/[[:cntrl:]]/, "", goal); gsub(/[[:cntrl:]]/, "", task)
+    print id "\t" status "\t" goal "\t" task
+  }
+  /^## / { flush(); id = status = goal = task = ""; next }
+  /^- ID: / { id = substr($0, 7); next }
+  /^- Status: / { status = substr($0, 11); next }
+  /^- Goal: / { goal = substr($0, 9); next }
+  /^- Task: / { task = substr($0, 9); next }
+  END { flush() }
+' "$todo" | while IFS="$tab" read -r id status goal task; do
+  [[ "$id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || continue
+  key=''
+  mapping="$root/TaskFlowDocs/remote-todo-links/$id"
+  if [ -f "$mapping" ] && [ ! -L "$mapping" ] && [ ! -e "$mapping.detached" ]; then
+    header="$(awk -F '\t' 'NR == 1 && NF == 5 && $1 == "pending" { p = $3; h = $4; r = $5 } $1 == "confirmed" && NF == 2 && $2 ~ /^[1-9][0-9]*$/ { n = $2 } $1 == "stage-synced" && NF == 2 { synced = 1 } END { if (p != "" && n != "" && synced) print p "\t" h "\t" r "\t" n }' "$mapping")"
+    if [ -n "$header" ]; then
+      IFS="$tab" read -r p h r n <<EOF
+$header
+EOF
+      key="$(key_for "$p" "$h" "$r" "$n")" || key=''
+    fi
+  fi
+  case "$task" in
+    \`TaskFlowDocs/*/\`)
+      task_id="${task#\`TaskFlowDocs/}"; task_id="${task_id%/\`}"
+      if [ -z "$key" ] && bash "$HERE/task-id" "$task_id" >/dev/null 2>&1; then
+        ref="$root/TaskFlowDocs/$task_id/remote-issue"
+        if [ -f "$ref" ] && [ ! -L "$ref" ] && [ ! -e "$ref.detached" ]; then
+          IFS="$tab" read -r p h r n < "$ref"
+          key="$(key_for "$p" "$h" "$r" "$n")" || key=''
+        fi
+      fi ;;
+  esac
+  if [ -n "$key" ] && contains "$key"; then continue; fi
+  printf 'LOCAL %s [%s] %s\n' "$id" "$status" "$goal"
+done

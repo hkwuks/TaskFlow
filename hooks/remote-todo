@@ -55,11 +55,11 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|mode-set|connect|validate|list|snapshot|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|mode-set|connect|validate|list|list-remote|snapshot|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
-  if ! content="$(bash "$0" list --root "$root")"; then echo 'Snapshot not created: remote listing incomplete.' >&2; exit 2; fi
+  if ! content="$(bash "$0" list-remote --root "$root")"; then echo 'Snapshot not created: remote listing incomplete.' >&2; exit 2; fi
   umask 077
   (set -o noclobber; printf 'Snapshot UTC: %s (read-only historical data; may be stale)\n%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$content" > "$target") || { echo 'Cannot create snapshot.' >&2; exit 2; }
   exit 0
@@ -118,7 +118,7 @@ if [ "$command" = mode-set ] || [ "$command" = connect ]; then
   exit 0
 fi
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) HERE="$(cd "$(dirname "$0")" && pwd)"; exec bash "$HERE/remote-todo-local-list" "$root" </dev/null ;; list-remote|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -518,28 +518,50 @@ EOF
   exit 0
 fi
 connections="$(awk 'NR > 1 { print }' "$config")"
-[ -n "$connections" ] || { echo 'No remote Todo repositories configured.' >&2; exit 2; }
 failed=0
-tab="$(printf '\t')"
-while IFS="$tab" read -r alias platform host project; do
-  printf 'SOURCE %s %s %s %s\n' "$alias" "$platform" "$host" "$project"
-  if [ "$platform" = github ]; then
-    if output="$(gh api "repos/$project/issues?state=all&per_page=100" --hostname "$host" --paginate --jq '.[] | select(.pull_request == null) | @json' 2>/dev/null)"; then
-      [ -z "$output" ] || printf '%s\n' "$output"
+seen=''
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ -n "$connections" ]; then
+  tab="$(printf '\t')"
+  while IFS="$tab" read -r alias platform host project; do
+    printf 'SOURCE %s %s %s %s\n' "$alias" "$platform" "$host" "$project"
+    if [ "$platform" = github ]; then
+      if output="$(gh api "repos/$project/issues?state=all&per_page=100" --hostname "$host" --paginate --jq '.[] | select(.pull_request == null) | @json' 2>/dev/null)"; then number_key=number
+      else printf 'Incomplete: could not read source %s.\n' "$alias" >&2; failed=1; continue; fi
     else
-      printf 'Incomplete: could not read source %s.\n' "$alias" >&2
-      failed=1
+      encoded="${project//\//%2F}"
+      if output="$(glab api "projects/$encoded/issues?scope=all&state=all&per_page=100" --hostname "$host" --paginate --output ndjson 2>/dev/null)"; then number_key=iid
+      else printf 'Incomplete: could not read source %s.\n' "$alias" >&2; failed=1; continue; fi
     fi
-  else
-    encoded="${project//\//%2F}"
-    if output="$(glab api "projects/$encoded/issues?scope=all&state=all&per_page=100" --hostname "$host" --paginate --output ndjson 2>/dev/null)"; then
-      [ -z "$output" ] || printf '%s\n' "$output"
-    else
-      printf 'Incomplete: could not read source %s.\n' "$alias" >&2
-      failed=1
+    source_keys=''; new_output=''; valid=1
+    if [ -n "$output" ]; then
+      normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+      normalized_project="$project"
+      if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; fi
+      while IFS= read -r item; do
+        number="$(printf '%s' "$item" | bash "$HERE/json-field" --numbers "$number_key" 2>/dev/null)" || { valid=0; break; }
+        if ! [[ "$number" =~ ^[1-9][0-9]*$ ]]; then valid=0; break; fi
+        key="$platform|$normalized_host|$normalized_project|$number"
+        case "
+$seen$source_keys
+" in *"
+$key
+"*) continue ;; esac
+        source_keys="$source_keys
+$key"
+        if [ -n "$new_output" ]; then new_output="$new_output
+$item"; else new_output="$item"; fi
+      done <<EOF
+$output
+EOF
     fi
-  fi
-done <<EOF
+    if [ "$valid" -ne 1 ]; then printf 'Incomplete: invalid response from source %s.\n' "$alias" >&2; failed=1; continue; fi
+    [ -z "$new_output" ] || printf '%s\n' "$new_output"
+    seen="$seen$source_keys"
+  done <<EOF
 $connections
 EOF
+fi
+if [ "$command" = list ]; then printf '%s\n' "$seen" | bash "$HERE/remote-todo-local-list" "$root"; fi
+if [ "$command" = list-remote ] && [ -z "$connections" ]; then echo 'No remote Todo repositories configured.' >&2; exit 2; fi
 [ "$failed" -eq 0 ] || exit 2
