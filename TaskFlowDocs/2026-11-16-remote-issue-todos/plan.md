@@ -132,10 +132,12 @@
 
 - PR #143 第二轮 macOS 回归在中文标签 URL 编码失败；怀疑 Bash 3.2 的字节符号扩展。编码时显式限制为无符号 8 位，Windows Git Bash 的中文标签回归通过；macOS 结果以重跑 CI 为准。
 
+- PR #143 的 Hooks CI 在代码提交 `4e1b09fb59b95e984b116552e7ad9e507db308a9` 全部通过，包括 Ubuntu、macOS、Windows、评估、发布和 Todo 合并检查：[CI run 43848406813](https://github.com/hkwuks/TaskFlow/actions/runs/43848406813)。此前两次失败的清单及 macOS 中文标签问题均已修复。真实 GitLab、自托管及远端写入仍未实测。
+
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
-- Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交，须由本次 PR 的 Hooks CI 验证当前提交。Git Bash 全量测试不等同 Linux/macOS 验收。
+- Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交；PR Hooks CI 已在代码提交 `4e1b09f` 通过 Ubuntu、macOS、Windows。Git Bash 本机测试不单独构成 Linux/macOS 验收。
 - Review boundaries：不提交恢复数据、测试夹具或其他 Todo；不含凭据；真实 GitLab、自托管与远程写入未验证，远程创建及并发编辑存在已披露竞态。
 - PR 状态：用户授权提交 PR，尚未表达最终产品验收；遵循仓库规则先创建 draft，保留活动任务和未完成验收，CI 完成后记录结果。
 
