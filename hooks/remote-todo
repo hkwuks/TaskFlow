@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -26,6 +26,10 @@ if [ "$command" = label ]; then
   [ "$#" -ge 4 ] || usage
   selected="$1"; issue_number="$2"; action="$3"; label="$4"; shift 4
 fi
+if [ "$command" = stage-task ]; then
+  [ "$#" -ge 2 ] || usage
+  task_id="$1"; stage="$2"; shift 2
+fi
 if [ "$command" = stage ]; then
   [ "$#" -ge 3 ] || usage
   selected="$1"; issue_number="$2"; stage="$3"; shift 3
@@ -43,7 +47,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate|list|snapshot|create|edit|stage|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|validate|list|snapshot|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -54,7 +58,7 @@ if [ "$command" = snapshot ]; then
 fi
 config="$root/TaskFlowDocs/remote-todos.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -83,6 +87,21 @@ result=$(awk -F '\t' -v action="$command" '
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
   exit 0
+fi
+if [ "$command" = stage-task ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  bash "$HERE/task-id" "$task_id" || exit 2
+  active="$root/TaskFlowDocs/$task_id/remote-issue"
+  achieved="$root/TaskFlowDocs/achieved/$task_id/remote-issue"
+  [ ! -e "$active" ] || [ ! -e "$achieved" ] || { echo 'Ambiguous task association.' >&2; exit 2; }
+  ref="$active"
+  [ -e "$ref" ] || ref="$achieved"
+  [ -f "$ref" ] && [ ! -L "$ref" ] || { echo 'Remote task association not found.' >&2; exit 2; }
+  awk -F '\t' 'NR == 1 { valid = NF == 4 && ($1 == "github" || $1 == "gitlab") && $4 ~ /^[1-9][0-9]*$/ } END { if (NR != 1 || !valid) exit 1 }' "$ref" || { echo 'Invalid remote task association.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r platform host project issue_number < "$ref"
+  selected="$(awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR > 1 && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) { print $1; found = 1; exit } END { if (!found) exit 1 }' "$config")" || { echo 'Associated remote source is not configured.' >&2; exit 2; }
+  exec bash "$0" stage "$selected" "$issue_number" "$stage" --root "$root"
 fi
 if [ "$command" = link ]; then
   [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$issue_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
