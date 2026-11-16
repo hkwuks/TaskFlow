@@ -35,6 +35,21 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 放宽 TaskFlow 文档内容约束，允许工具补充内容
+
+- ID: TF-20261116-b893dc
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: direct user request
+- Kind: capability
+- Added: 2026-11-16
+- Updated: 2026-11-16
+- Goal: 调整 TaskFlow 文档要求，使其仅规定必须包含的内容，允许被引用的工具和技能按需写入更多内容，避免不必要的内容限制。
+- Task: `TaskFlowDocs/2026-11-16-flexible-task-documents/`
+- Next action: 请用户验收已验证的实现，并确认测试限制。
+- Notes: 与 TF-20261110-84d1a9 对流程和文档重复的审视相关，但本条聚焦 TaskFlow 对工具输出内容的约束；不预设修改现有条目。
+
 ## 支持使用远程仓库 Issues 作为用户的待办列表
 
 - ID: TF-20261116-7e2c41
