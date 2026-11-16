@@ -103,6 +103,14 @@ if [ "$command" = stage-task ]; then
   selected="$(awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR > 1 && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) { print $1; found = 1; exit } END { if (!found) exit 1 }' "$config")" || { echo 'Associated remote source is not configured.' >&2; exit 2; }
   exec bash "$0" stage "$selected" "$issue_number" "$stage" --root "$root"
 fi
+private_store() {
+  relative="$1"
+  if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$root" check-ignore --no-index -q -- "$relative/$id" 2>/dev/null || { echo 'Private recovery storage is not Git-excluded; run hooks/install-git-hygiene before remote writes.' >&2; return 2; }
+    tracked="$(git -C "$root" ls-files -- "$relative")" || { echo 'Cannot inspect private recovery storage.' >&2; return 2; }
+    [ -z "$tracked" ] || { echo 'Recovery storage contains tracked files; inspect them before remote writes.' >&2; return 2; }
+  fi
+}
 if [ "$command" = link ]; then
   [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$issue_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
   HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -168,6 +176,7 @@ EOF
   if { [ "$action" = add ] && [ "$has" = yes ]; } || { [ "$action" = remove ] && [ "$has" = no ]; }; then echo 'Label already has the requested state.'; exit 0; fi
   id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  private_store TaskFlowDocs/.remote-todo-updates || exit 2
   store="$root/TaskFlowDocs/.remote-todo-updates"
   umask 077
   [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
@@ -242,6 +251,7 @@ EOF
   case "$stage" in done|cancelled) desired_state=closed; event=close ;; esac
   id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  private_store TaskFlowDocs/.remote-todo-updates || exit 2
   store="$root/TaskFlowDocs/.remote-todo-updates"
   umask 077
   [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
@@ -322,6 +332,7 @@ EOF
   else expected="$(cat "$value")" || { echo 'Cannot read body file.' >&2; exit 2; }; api_field="$body_key"; fi
   id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  private_store TaskFlowDocs/.remote-todo-updates || exit 2
   store="$root/TaskFlowDocs/.remote-todo-updates"
   umask 077
   [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
@@ -414,6 +425,7 @@ $connection
 EOF
   id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  private_store TaskFlowDocs/.remote-todo-operations || exit 2
   store="$root/TaskFlowDocs/.remote-todo-operations"
   umask 077
   [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }

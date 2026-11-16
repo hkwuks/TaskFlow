@@ -6,7 +6,7 @@
 #   * `merge.taskflow-todo.driver` in the repository's own config, so parallel
 #     task branches merge `TaskFlowDocs/todo.md` by entry
 #   * a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`
-#   * two ignore rules in `.git/info/exclude`, for the files that belong to one
+#   * local-only ignore rules in `.git/info/exclude`, for the files that belong to one
 #     clone rather than to the repository
 #
 # Nothing is written outside the repository, and nothing tracked is edited: a
@@ -53,12 +53,13 @@ if [ ! -f "$info" ] || ! grep -qxF 'TaskFlowDocs/todo.md merge=taskflow-todo' "$
   printf 'TaskFlowDocs/todo.md merge=taskflow-todo\n' >> "$info" 2>/dev/null || exit 0
 fi
 
-# Two TaskFlow files belong to the clone, not to the repository:
+# These TaskFlow paths belong to the clone, not to the repository:
 #   * `repository-docs/personal.md` is a personal rule, which is never team policy
 #   * `sessions.md` carries a session id, a working directory, timestamps and
 #     `Session availability: local-only`, so it is a resume index for the machine
 #     that wrote it
-# Both are documented as never committed, and until now nothing made that true
+#   * remote Todo operation and update records contain local recovery state
+# These are documented as never committed, and until now nothing made that true
 # for a repository that is not this one: a `.gitignore` line lives in a tracked
 # file, so it would change every clone's view — including the clones that really
 # do want to commit them. `info/exclude` is the per-clone place for a per-clone
@@ -76,7 +77,9 @@ fi
 # trying to recognise them as the same rule would be a guess, and the direction
 # it fails is the file getting committed again.
 LOCAL_ONLY='TaskFlowDocs/repository-docs/personal.md
-TaskFlowDocs/**/sessions.md'
+TaskFlowDocs/**/sessions.md
+TaskFlowDocs/.remote-todo-operations/
+TaskFlowDocs/.remote-todo-updates/'
 exclude="$(git -C "$root" rev-parse --git-path info/exclude 2>/dev/null)" || exit 0
 [ -n "$exclude" ] || exit 0
 case "$exclude" in /*|[A-Za-z]:[/\\]*) ;; *) exclude="$root/$exclude" ;; esac

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-private <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+git -C "$fixture" init -q
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'body' > "$fixture/body"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' '{"number":17}'
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" create main 'title' "$fixture/body" --root "$fixture" > "$fixture/refused" 2>&1; then echo 'FAIL wrote without private ignore'; exit 1; fi
+[ ! -e "$fixture/TaskFlowDocs/.remote-todo-operations" ] || { echo 'FAIL created nonprivate store'; exit 1; }
+printf '.remote-todo-operations/.taskflow-probe\n' > "$fixture/TaskFlowDocs/.gitignore"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" create main 'title' "$fixture/body" --root "$fixture" > "$fixture/probe-refused" 2>&1; then echo 'FAIL checked only a fixed probe'; exit 1; fi
+[ ! -e "$fixture/TaskFlowDocs/.remote-todo-operations" ] || { echo 'FAIL created partially ignored store'; exit 1; }
+TASKFLOW_REPO_ROOT="$fixture" bash "$HERE/install-git-hygiene"
+git -C "$fixture" check-ignore -q TaskFlowDocs/.remote-todo-operations/test || { echo 'FAIL operations not excluded'; exit 1; }
+git -C "$fixture" check-ignore -q TaskFlowDocs/.remote-todo-updates/test || { echo 'FAIL updates not excluded'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" create main 'title' "$fixture/body" --root "$fixture" > "$fixture/out"
+git -C "$fixture" status --porcelain --untracked-files=all > "$fixture/status"
+if grep -q 'remote-todo-operations' "$fixture/status"; then echo 'FAIL private record appears in status'; exit 1; fi
+printf 'tracked fixture\n' > "$fixture/TaskFlowDocs/.remote-todo-updates-tracked"
+mkdir -p "$fixture/TaskFlowDocs/.remote-todo-operations"
+printf 'tracked fixture\n' > "$fixture/TaskFlowDocs/.remote-todo-operations/tracked"
+git -C "$fixture" add -f TaskFlowDocs/.remote-todo-operations/tracked
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" create main 'another' "$fixture/body" --root "$fixture" > "$fixture/tracked-refused" 2>&1; then echo 'FAIL tracked recovery storage accepted'; exit 1; fi
+grep -qi tracked "$fixture/tracked-refused" || { echo 'FAIL tracked storage not reported'; exit 1; }
+echo 'PASS remote todo private storage'

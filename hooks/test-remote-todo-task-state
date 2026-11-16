@@ -5,6 +5,7 @@ fixture="$1"
 [ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
 mkdir -p "$fixture/TaskFlowDocs/2026-11-16-demo" "$fixture/bin" "$fixture/tmp"
 fixture="$(cd "$fixture" && pwd -P)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
 printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue"
