@@ -49,12 +49,12 @@
 - Dependencies: 计划获准且官方文档可读。
 - Files: `spec.md`、`plan.md`、`reference/platform-evidence.md`。
 - Implementation checklist:
-  - [ ] 按官方文档和可控服务核验接口、权限及条件更新，记录不能保证的并发窗口。
+  - [x] 按官方文档和可控 CLI 夹具核验接口、权限及条件更新，记录不能保证的并发窗口；未运行真实 GitLab、自托管或远端写入，用户知悉限制后批准验收。
   - [x] 定义身份格式、阶段标签、明确结果不明时的恢复与重复创建防护。
 - Acceptance: 已确认的官方接口约束、已知限制和恢复步骤可审核；无资料证实的行为标注未验证，接口实际行为由后续测试验证。
 - Verification: 引用已核查的官方文档并逐项审阅身份、阶段标签、已知竞态和操作恢复协议；接口夹具在后续实现步骤验证实际请求。
 - Rollback: 仅撤回本步骤未使用的设计记录。
-- Status: in_progress
+- Status: done
 
 ### Step 2 — 本地模式与远端读取切片
 - Goal: 配置项目默认方式与多个实例，按记录归属汇总远端及保留本地记录。
@@ -97,9 +97,9 @@
 - Dependencies: Steps 1–4。
 - Files: `skills/taskflow/SKILL.md`、`skills/taskflow/references/runtime.md`、`README.md`、`README.zh-CN.md`、`.github/workflows/hooks.yml`。
 - Implementation checklist:
-  - [ ] 更新双语文档和主机入口，说明权限、快照隐私、恢复和并发限制。
+  - [x] 更新双语文档和主机入口，说明权限、快照隐私、恢复和并发限制。
   - [ ] 覆盖 PRD 每项验收，审阅安全边界及改动，记录真实服务未验证之处。
-  - [ ] 运行必要的本地检查和 CI 相关测试，提交代码回退点。
+  - [x] 运行必要的本地检查和 CI 相关测试，提交代码回退点。
 - Acceptance: 文档与实现一致，两平台和本地模式回归通过，未验证内容准确披露。
 - Verification: 针对性测试、`git diff --check`、skill 校验及适用的跨平台 CI。
 - Rollback: 按切片提交回退代码；不自动删除用户数据或远端 Issue。
@@ -126,7 +126,7 @@
 
 - Windows 完整回归 `windows-full-05` 通过，包括开放标准输入测试；之后对只读关联记录语义、孤立记录、跨仓库迁移与历史去重的调整分别运行 Windows 启动器定向测试通过，未重跑整个套件。
 - Linux/macOS 完整回归未在本机运行：Git Bash 执行 Bash 全量测试时，仓库原有的隔离 Bash 夹具缺少 Windows DLL 而中止；不可把它当作 Linux/macOS 通过。真实 GitHub 写入、自托管服务和真实 GitLab 仍未验证。
-- 验收前需用户实际使用或另行提供测试服务；任务未归档或发布。测试夹具留在任务参考目录，另一条独立 Todo 保留在未提交工作区。
+- 用户在知悉真实 GitLab、自托管和远端写入未实测的情况下批准本次验收；这些真实平台验证保留为后续工作。测试夹具留在任务参考目录，另一条独立 Todo 保留在未提交工作区。
 
 - PR #143 的首轮 Hooks CI：Ubuntu 在 hooks 清单检查失败，原因是两份清单遗漏新增脚本；已在 `hooks/README.md` 和 `runtime.md` 列出实际脚本，并修正网络命令说明。与 CI 相同的清单检查和 `git diff --check` 在项目内通过；修复后的完整 CI 待重跑。
 
@@ -134,12 +134,16 @@
 
 - PR #143 的 Hooks CI 在代码提交 `4e1b09fb59b95e984b116552e7ad9e507db308a9` 全部通过，包括 Ubuntu、macOS、Windows、评估、发布和 Todo 合并检查：[CI run 43848406813](https://github.com/hkwuks/TaskFlow/actions/runs/43848406813)。此前两次失败的清单及 macOS 中文标签问题均已修复。真实 GitLab、自托管及远端写入仍未实测。
 
+- 用户于 2026-11-16 批准本任务验收；此批准不表示已运行真实 GitLab、自托管或远端写入测试。PRD 逐项审阅：配置/本地默认对应配置与 intake 夹具；多源分页和 PR 过滤对应列表夹具及 GitHub 只读验证；创建、编辑、标签、阶段和恢复对应两平台 CLI 夹具；迁移、去重、快照和任务生命周期对应各自回归及三平台 Hooks CI。真实平台验证边界列为后续工作，不伪称通过。
+
+- 归档前复核发现 `snapshot` 原样写入远端 Issue 内容，若内容含凭据则违反 PRD 的快照凭据要求。先撤回未提交的归档；用户批准验收基于此前披露的限制，不应误认为已接受该新发现。需确定快照隐私方案并修复后再完成验收。
+
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
 - Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交；PR Hooks CI 已在代码提交 `4e1b09f` 通过 Ubuntu、macOS、Windows。Git Bash 本机测试不单独构成 Linux/macOS 验收。
 - Review boundaries：不提交恢复数据、测试夹具或其他 Todo；不含凭据；真实 GitLab、自托管与远程写入未验证，远程创建及并发编辑存在已披露竞态。
-- PR 状态：用户授权提交 PR，尚未表达最终产品验收；遵循仓库规则先创建 draft，保留活动任务和未完成验收，CI 完成后记录结果。
+- PR 状态：用户已在知悉真实服务测试限制后批准验收；归档前新发现快照凭据风险，修复前保持草稿。
 
 ## Change Log
 - 2026-11-16：记录用户决定、起草规格，并基于任务拆解技能编写计划。
@@ -148,5 +152,5 @@
 - 2026-11-16：实现并提交配置、模拟读取、快照、创建恢复、编辑、标签、阶段同步和 Git 私有记录保护；全部是阶段成果，不代表完整功能已完成。
 
 ## Follow-ups
-- 实际服务测试资源尚未确定；缺少时不把模拟结果说成真实宿主验收。
+- 实际服务测试资源尚未确定；继续验证真实 GitLab、自托管及远端写入，不把模拟结果说成真实宿主验证。
 - 2026-11-16：用户选择跨工作区稳定标记与迁移前核对，明确不得并发迁移同一条；GitHub/GitLab 重复标记、读取失败、正文编辑保留标记及 Windows 启动器定向测试通过。
