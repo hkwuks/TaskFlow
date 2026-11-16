@@ -31,6 +31,17 @@ tab="$(printf '\t')"
 IFS="$tab" read -r alias platform host project <<EOF
 $connection
 EOF
+external="$(printf '%s\n' "$entry" | sed -n 's/^- External: //p')"
+normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"; normalized_project="$project"
+if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; prefix="https://$normalized_host/$normalized_project/issues/"
+else prefix="https://$normalized_host/$project/-/issues/"; fi
+case "$external" in
+  "$prefix"*)
+    source_number="${external#"$prefix"}"
+    if [[ "$source_number" =~ ^[1-9][0-9]*$ ]] && printf '%s\n' "$entry" | grep -Fx -- "    <!-- taskflow-copy-complete:$local_id -->" >/dev/null; then
+      echo 'This Todo is a remote copy; use reattach-todo with --remote-authoritative after reconciling it instead of creating a duplicate.' >&2; exit 2
+    fi ;;
+esac
 links="$root/TaskFlowDocs/remote-todo-links"
 [ ! -L "$links" ] || { echo 'Invalid Todo links directory.' >&2; exit 2; }
 mkdir -p "$links"

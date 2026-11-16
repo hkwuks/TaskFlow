@@ -10,6 +10,8 @@ printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.o
 printf '## Existing\n- ID: TF-20261116-abcdef\n- Status: inbox\n- Goal: Original item\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case " $* " in *' --method '*) echo 'unexpected remote write' >&2; exit 1 ;; esac
+[ "${FAIL_READ:-0}" = 0 ] || exit 1
 printf '%s\n' '{"number":17,"title":"Remote task","body":"First line\n## fake heading\n- ID: TF-00000000-aaaaaa","state":"open","created_at":"2026-01-02T00:00:00Z","labels":[]}'
 EOF
 chmod +x "$fixture/bin/gh"
@@ -21,6 +23,18 @@ if grep -q '^- ID: TF-00000000-aaaaaa$' "$fixture/TaskFlowDocs/todo.md"; then ec
 before="$(cksum < "$fixture/TaskFlowDocs/todo.md")"
 PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$fixture" > "$fixture/retry"
 [ "$(cksum < "$fixture/TaskFlowDocs/todo.md")" = "$before" ] || { echo 'FAIL duplicate local copy'; exit 1; }
+copy_id="$(sed -n 's/^Copied remote Issue to local Todo \([^;]*\);.*/\1/p' "$fixture/out")"
+[ -n "$copy_id" ] || { echo 'FAIL missing copied Todo ID'; exit 1; }
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-remote "$copy_id" main --root "$fixture" > "$fixture/copy-migrate" 2>&1; then echo 'FAIL duplicated an existing Issue'; exit 1; fi
+grep -qi 'remote copy' "$fixture/copy-migrate" || { echo 'FAIL missing duplicate prevention guidance'; exit 1; }
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --root "$fixture" >/dev/null 2>&1; then echo 'FAIL accepted reattachment without explicit remote authority'; exit 1; fi
+if PATH="$fixture/bin:$PATH" FAIL_READ=1 bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach-offline" 2>&1; then echo 'FAIL reattached while remote unavailable'; exit 1; fi
+[ ! -e "$fixture/TaskFlowDocs/remote-todo-links/$copy_id" ] || { echo 'FAIL offline reattachment changed local association'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach" || { echo 'FAIL could not reattach local copy'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/remote-todo-links/$copy_id" ] || { echo 'FAIL missing Todo association'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$fixture" > "$fixture/redetach" || { echo 'FAIL could not detach same local copy'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/remote-todo-links/$copy_id.detached" ] || { echo 'FAIL missing Todo detach'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$copy_id" main --remote-authoritative --root "$fixture" > "$fixture/reattach-again" || { echo 'FAIL repeated reattachment'; exit 1; }
 partial="$fixture/partial"
 mkdir -p "$partial/TaskFlowDocs"
 cp "$fixture/TaskFlowDocs/remote-todos.conf" "$partial/TaskFlowDocs/remote-todos.conf"
@@ -30,6 +44,7 @@ if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 -
 grep -qi 'incomplete' "$partial/out" || { echo 'FAIL incomplete copy not reported'; exit 1; }
 cat > "$fixture/bin/glab" <<'EOF'
 #!/usr/bin/env bash
+case " $* " in *' --method '*) echo 'unexpected remote write' >&2; exit 1 ;; esac
 printf '%s\n' '{"iid":19,"title":"GitLab task","description":"Remote details","state":"closed","created_at":"2026-02-03T00:00:00Z","labels":["taskflow:cancelled"]}'
 EOF
 chmod +x "$fixture/bin/glab"
@@ -37,4 +52,10 @@ PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local lab 19 --roo
 grep -q 'GitLab task' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL missing GitLab task'; exit 1; }
 grep -q 'https://git.example.org/group/sub/repo/-/issues/19' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL GitLab origin'; exit 1; }
 grep -q '^- Status: cancelled$' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL GitLab status'; exit 1; }
+lab_id="$(sed -n 's/^Copied remote Issue to local Todo \([^;]*\);.*/\1/p' "$fixture/gitlab-out")"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$lab_id" lab --remote-authoritative --root "$fixture" > "$fixture/lab-reattach" || { echo 'FAIL GitLab copy reattachment'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local lab 19 --detach --root "$fixture" > "$fixture/lab-redetach" || { echo 'FAIL GitLab repeated detach'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" reattach-todo "$lab_id" lab --remote-authoritative --root "$fixture" > "$fixture/lab-reattach-again" || { echo 'FAIL GitLab repeated reattachment'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/reattach-list"
+if grep -Fq "LOCAL $copy_id " "$fixture/reattach-list" || grep -Fq "LOCAL $lab_id " "$fixture/reattach-list"; then echo 'FAIL reattached copies duplicated in list'; exit 1; fi
 echo 'PASS remote todo to local'

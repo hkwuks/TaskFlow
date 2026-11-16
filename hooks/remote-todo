@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | migrate-to-remote <todo-id> <alias> [--root <path>] | promote <alias> <number> <task-id> small|large --kind <kind> [--root <path>] | migrate-to-local <alias> <number> [--detach] [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | migrate-to-remote <todo-id> <alias> [--root <path>] | promote <alias> <number> <task-id> small|large --kind <kind> [--root <path>] | migrate-to-local <alias> <number> [--detach] [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | reattach-task <task-id> [--root <path>] | reattach-todo <todo-id> <alias> --remote-authoritative [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -28,6 +28,8 @@ if [ "$command" = label ]; then
   [ "$#" -ge 4 ] || usage
   selected="$1"; issue_number="$2"; action="$3"; label="$4"; shift 4
 fi
+if [ "$command" = reattach-task ]; then [ "$#" -ge 1 ] || usage; task_id="$1"; shift; fi
+if [ "$command" = reattach-todo ]; then [ "$#" -ge 3 ] && [ "$3" = --remote-authoritative ] || usage; local_id="$1"; selected="$2"; shift 3; fi
 if [ "$command" = stage-task ]; then
   [ "$#" -ge 2 ] || usage
   task_id="$1"; stage="$2"; shift 2
@@ -64,7 +66,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|mode-set|connect|validate|list|list-remote|snapshot|create|migrate-to-remote|migrate-to-local|promote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|mode-set|connect|validate|list|list-remote|snapshot|create|migrate-to-remote|migrate-to-local|promote|edit|stage|stage-task|reattach-task|reattach-todo|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -153,7 +155,7 @@ if [ "$command" = stage-task ]; then
   exec bash "$0" stage "$selected" "$issue_number" "$stage" --root "$root"
 fi
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) HERE="$(cd "$(dirname "$0")" && pwd)"; exec bash "$HERE/remote-todo-local-list" "$root" </dev/null ;; list-remote|create|migrate-to-remote|migrate-to-local|promote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) HERE="$(cd "$(dirname "$0")" && pwd)"; exec bash "$HERE/remote-todo-local-list" "$root" </dev/null ;; list-remote|create|migrate-to-remote|migrate-to-local|promote|edit|stage|stage-task|reattach-task|reattach-todo|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -163,6 +165,14 @@ result="$(validate_config "$config" "$command")"
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
   exit 0
+fi
+if [ "$command" = reattach-todo ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  exec bash "$HERE/remote-todo-reattach-todo" "$local_id" "$selected" "$root"
+fi
+if [ "$command" = reattach-task ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  exec bash "$HERE/remote-todo-reattach" "$task_id" "$root"
 fi
 if [ "$command" = promote ]; then
   HERE="$(cd "$(dirname "$0")" && pwd)"

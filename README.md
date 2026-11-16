@@ -125,6 +125,10 @@ The host's `gh` or `glab` must already be installed and authenticated for each h
 
 Use `remote-todo create`, `edit`, `label`, `stage`, and `promote` to work with a selected Issue. `migrate-to-remote <todo-id> <alias>` keeps the original local entry; `migrate-to-local <alias> <number> --detach` copies content locally and disconnects an existing association without changing the Issue. `snapshot <new-file>` saves an optional time-stamped remote copy; it can contain private Issue content and may become stale.
 
+To reconnect an unpromoted local copy to its original Issue, use `reattach-todo <todo-id> <alias> --remote-authoritative` after reconciling differences. The local copy remains on disk and the remote Issue becomes authoritative; this does not update the Issue.
+
+For a detached active task, `reattach-task <task-id>` reconnects the original Issue only when its stage matches the local task and it is not linked to another task. Reconcile any differences first; earlier local copies and detach records are retained.
+
 Migration checks a stable Todo marker across all Issues in the selected repository before creation. Do not migrate the same Todo simultaneously from multiple worktrees or machines: the check and creation are not atomic. Editing or removing the marker outside TaskFlow can defeat later checks.
 
 A remote write can succeed even when its response is lost. Inspect the operation ID before retrying; `resolve`, `resolve-absent --checked`, and `ack-update --checked` are explicit recovery operations. GitHub and GitLab cannot generally guarantee atomic conditional Issue edits, so concurrent changes can still race. Local recovery files must be Git-excluded; run `bash "$TASKFLOW_PLUGIN_ROOT/hooks/install-git-hygiene"` if prompted. See [runtime details](skills/taskflow/references/runtime.md#remote-todo-backend).

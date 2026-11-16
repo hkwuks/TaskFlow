@@ -92,6 +92,10 @@ bash "$TASKFLOW_PLUGIN_ROOT/hooks/remote-todo" list
 
 使用 `remote-todo create`、`edit`、`label`、`stage` 和 `promote` 操作选定 Issue。`migrate-to-remote <todo-id> <alias>` 保留原本地条目；`migrate-to-local <alias> <number> --detach` 将内容复制到本地并解除已有关系，不修改远端 Issue。`snapshot <new-file>` 可保存带时间的远端快照；其中可能包含私有 Issue 内容，也可能过期。
 
+未提升的本地副本可在核对差异后使用 `reattach-todo <todo-id> <alias> --remote-authoritative` 重新关联原 Issue。本地副本保留，远端 Issue 成为主记录，此操作不修改远端。
+
+已解除关联的活动任务可以用 `reattach-task <task-id>` 重新连接原 Issue；仅当远端阶段与本地一致且 Issue 未关联其他任务时才会连接。请先核对并解决差异；原本地副本和解除关联记录会保留。
+
 迁移前会检查目标仓库全部 Issue 中的稳定 Todo 标记。不要在多个工作区或机器上同时迁移同一条 Todo：检查与创建并非原子操作。在 TaskFlow 外编辑或删除标记会削弱后续去重。
 
 远端写入超时不代表一定失败，重试前须核对操作 ID；`resolve`、`resolve-absent --checked` 和 `ack-update --checked` 用于显式恢复。GitHub 和 GitLab 通常不能保证 Issue 的原子条件更新，并发修改仍可能发生竞态。本地恢复记录必须被 Git 排除，收到提示时运行 `bash "$TASKFLOW_PLUGIN_ROOT/hooks/install-git-hygiene"`。具体命令、隐私和平台限制见[运行时说明](skills/taskflow/references/runtime.md#remote-todo-backend)。

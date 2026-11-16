@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Reattach only when the existing remote and local task phases already agree.
+set -euo pipefail
+[ "$#" -eq 2 ] || exit 2
+task="$1"; root="$2"; HERE="$(cd "$(dirname "$0")" && pwd)"
+bash "$HERE/task-id" "$task" || exit 2
+docs="$root/TaskFlowDocs"; links="$docs/remote-todo-links"; ref="$docs/$task/remote-issue"; marker="$links/task-$task.detached"
+[ -f "$ref" ] && [ ! -L "$ref" ] && [ -f "$marker" ] && [ ! -L "$marker" ] && [ ! -L "$links" ] || { echo 'Detached task association not found.' >&2; exit 2; }
+[ -f "$docs/$task/prd.md" ] && [ -f "$docs/$task/plan.md" ] || { echo 'Active task documents not found.' >&2; exit 2; }
+awk -F '\t' 'NR == 1 { valid = NF == 4 && ($1 == "github" || $1 == "gitlab") && $4 ~ /^[1-9][0-9]*$/ } END { if (NR != 1 || !valid) exit 1 }' "$ref" || { echo 'Invalid task association.' >&2; exit 2; }
+tab="$(printf '\t')"; IFS="$tab" read -r platform host project number < "$ref"
+expected="$(printf 'detached\t%s\t%s\t%s\t%s' "$platform" "$host" "$project" "$number")"
+[ "$(cat "$marker")" = "$expected" ] || { echo 'Task detach record does not match the association.' >&2; exit 2; }
+phase="$(awk '/^> Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }' "$docs/$task/prd.md")" || { echo 'Invalid local task phase.' >&2; exit 2; }
+case "$phase" in planning|ready|in_progress|checking|blocked) ;; *) echo 'Unsupported active task phase.' >&2; exit 2 ;; esac
+config="$docs/remote-todos.conf"
+selected="$(awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR > 1 && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) { print $1; found = 1; exit } END { if (!found) exit 1 }' "$config")" || { echo 'Associated remote source is not configured.' >&2; exit 2; }
+link_lock="$docs/.remote-todo-link-lock"; task_lock="$links/.lock-task-$task"
+mkdir "$link_lock" 2>/dev/null || { echo 'Remote association is busy or needs inspection.' >&2; exit 2; }
+mkdir "$task_lock" 2>/dev/null || { rmdir "$link_lock" 2>/dev/null || true; echo 'Task association is busy or needs inspection.' >&2; exit 2; }
+trap 'rmdir "$task_lock" 2>/dev/null || true; rmdir "$link_lock" 2>/dev/null || true' EXIT
+[ -f "$marker" ] && [ ! -L "$marker" ] && [ "$(cat "$marker")" = "$expected" ] || { echo 'Task detach record changed; inspect before retrying.' >&2; exit 2; }
+for other in "$docs"/*/remote-issue "$docs"/achieved/*/remote-issue; do
+  [ -e "$other" ] || [ -L "$other" ] || continue
+  [ "$other" != "$ref" ] || continue
+  [ -f "$other" ] && [ ! -L "$other" ] || { echo 'Invalid task association.' >&2; exit 2; }
+  if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n } END { if (!same) exit 1 }' "$other"; then
+    other_task="${other%/remote-issue}"; other_task="${other_task##*/}"; other_marker="$links/task-$other_task.detached"
+    [ -f "$other_marker" ] && [ ! -L "$other_marker" ] || { echo 'Remote Issue is already associated with another task.' >&2; exit 2; }
+    awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n } END { if (NR != 1 || !valid) exit 1 }' "$other_marker" || { echo 'Invalid task detach record.' >&2; exit 2; }
+  fi
+done
+if [ "$platform" = github ]; then
+  response="$(gh api "repos/$project/issues/$number" --hostname "$host" --jq 'select(.pull_request == null) | .labels |= map(.name)' 2>/dev/null)" || { echo 'Cannot read remote Issue; task remains detached.' >&2; exit 2; }; number_key=number
+else
+  encoded="${project//\//%2F}"; response="$(glab api "projects/$encoded/issues/$number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot read remote Issue; task remains detached.' >&2; exit 2; }; number_key=iid
+fi
+actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$number_key")" || exit 2
+state="$(printf '%s' "$response" | bash "$HERE/json-field" state)" || exit 2
+[ "$actual" = "$number" ] && { [ "$state" = open ] || [ "$state" = opened ]; } || { echo 'Remote Issue identity or state differs; reconcile before reattaching.' >&2; exit 2; }
+for item in inbox clarified promoted planning ready in_progress checking blocked done cancelled; do
+  has="$(printf '%s' "$response" | bash "$HERE/json-field" --array-has labels "taskflow:$item")" || exit 2
+  if { [ "$item" = "$phase" ] && [ "$has" != yes ]; } || { [ "$item" != "$phase" ] && [ "$has" = yes ]; }; then echo 'Remote and local task phases differ; reconcile before reattaching.' >&2; exit 2; fi
+done
+local_marker=''
+for file in "$links"/*.detached; do
+  [ -e "$file" ] || [ -L "$file" ] || continue
+  [ "$file" != "$marker" ] || continue
+  [ -f "$file" ] && [ ! -L "$file" ] || { echo 'Invalid detach record.' >&2; exit 2; }
+  if [ "$(cat "$file")" = "$(printf 'detached-task\t%s' "$task")" ]; then [ -z "$local_marker" ] || { echo 'Multiple Todo detach records need inspection.' >&2; exit 2; }; local_marker="$file"; fi
+done
+if [ -n "$local_marker" ]; then
+  local_id="${local_marker##*/}"; local_id="${local_id%.detached}"
+  [[ "$local_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || { echo 'Invalid Todo detach record name.' >&2; exit 2; }
+  local_lock="$links/.lock-$local_id"
+  mkdir "$local_lock" 2>/dev/null || { echo 'Todo association is busy or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$local_lock" 2>/dev/null || true; rmdir "$task_lock" 2>/dev/null || true; rmdir "$link_lock" 2>/dev/null || true' EXIT
+  [ -f "$local_marker" ] && [ ! -L "$local_marker" ] && [ "$(cat "$local_marker")" = "$(printf 'detached-task\t%s' "$task")" ] || { echo 'Todo detach record changed; inspect before retrying.' >&2; exit 2; }
+fi
+id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$id" =~ ^[0-9a-f]{32}$ ]] || exit 2
+history="$marker.history-$id"; [ ! -e "$history" ] && [ ! -L "$history" ] || exit 2
+if [ -n "$local_marker" ]; then
+  local_history="$local_marker.history-$id"; [ ! -e "$local_history" ] && [ ! -L "$local_history" ] || exit 2
+  mv -n "$local_marker" "$local_history" || { echo 'Cannot preserve Todo detach history.' >&2; exit 2; }
+  [ ! -e "$local_marker" ] && [ -f "$local_history" ] || { echo 'Todo detach history collision; inspect before retrying.' >&2; exit 2; }
+fi
+if ! mv -n "$marker" "$history" || [ -e "$marker" ] || [ ! -f "$history" ]; then
+  if [ -n "$local_marker" ]; then mv -n "$local_history" "$local_marker" || true; fi
+  echo 'Cannot preserve task detach history; inspect local associations.' >&2; exit 2
+fi
+printf 'Reattached task %s to %s #%s; local and remote phases agree.\n' "$task" "$selected" "$number"
