@@ -581,10 +581,11 @@ END {
         if (match(rest, /^[0-9]+/)) {
           num = substr(rest, 1, RLENGTH)
           following = substr(rest, RLENGTH + 1, 1)
-          if (num == step && following !~ /[A-Za-z0-9_]/) { a = i; break }
+          if (num == step && following !~ /[A-Za-z0-9_]/) { matches++; if (!a) a = i }
         }
       }
     }
+    if (matches > 1) die("duplicate Step " step)
     if (a == 0) die("Step " step " not found")
     for (i = a + 1; i <= n; i++) {
       if (!fenced[i] && (at(line[i], "### Step ") || at(line[i], "## "))) break

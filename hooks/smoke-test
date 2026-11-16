@@ -106,6 +106,33 @@ cg_case duplicate-plan-review 1 'duplicate reserved sections' "${cg_approved}"'#
 printf '# Spec\n```markdown\nunclosed\n' > "$cg/T/spec.md"
 cg_case unclosed-spec 1 'invalid Markdown fence in spec.md' "$cg_approved"
 rm -f "$cg/T/spec.md"
+cg_case duplicate-approval-field 1 'ambiguous Approval fields' '> Task version: v1
+## Approval
+- Status: requested
+- Status: approved
+- Approved by: user
+- Approved version: v1
+'
+cg_case duplicate-step-number 1 'duplicate Step' "${cg_approved}"'## Steps
+### Step 1 — a
+- Status: done
+### Step 1 — b
+- Status: done
+'
+cg_case missing-approver 1 'not approved' "$(printf '> Task version: v1\n## Approval\n- Status: approved\n- Approved by:   \n- Approved version: v1\n')"
+cg_case tilde-fenced-example 0 '' "${cg_approved}"'## Example
+   ~~~~markdown
+- [ ] example
+```
+### Step 9 — example
+- Status: pending
+~~~~
+'
+cg_case short-fence-closure 1 'unclosed Markdown fence' "${cg_approved}"'## Example
+~~~~
+- [ ] example
+~~~
+'
 cg_case unapproved 1 'not approved' '> Task version: v1
 ## Approval
 - Status: requested
@@ -305,6 +332,16 @@ awk '
   real && $0 == "- Status: done" { real_ok = 1 }
   END { exit !(example_ok && real_ok) }
 ' "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL progress edited fenced example'; exit 1; }
+# Duplicate real Step numbers fail before progress can rewrite either block.
+cat >> "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" <<'DUPLICATE_STEP'
+### Step 1 — duplicate
+- Status: pending
+DUPLICATE_STEP
+cp "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" "$tmp/progress-before-duplicate.md"
+if bash "$HERE/task" progress 2026-01-01-example 1 done --root "$progress_fence" >/dev/null 2>&1; then
+  echo 'FAIL progress accepted duplicate Step'; exit 1
+fi
+cmp "$tmp/progress-before-duplicate.md" "$progress_fence/TaskFlowDocs/2026-01-01-example/plan.md" || { echo 'FAIL duplicate Step changed Plan'; exit 1; }
 # State transitions update live metadata and retain leading fenced examples.
 cat > "$progress_fence/TaskFlowDocs/todo.md" <<'STATE_TODO'
 ## Example

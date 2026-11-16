@@ -110,12 +110,14 @@ result="$(awk -v stale_only="$stale_only" '
     next
   }
   /^## Approval$/ { approvals++; inap = 1; next }
-  inap && $0 == "- Status: approved" { st = 1 }
-  inap && $0 == "- Approved by: pending" { pend = 1 }
-  inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
+  inap && /^### Step / { inap = 0; next }
+  inap && /^- Status:/ { status_fields++; if ($0 == "- Status: approved") st = 1 }
+  inap && /^- Approved by:/ { by_fields++; by = substr($0, 16); gsub(/^[[:space:]]+|[[:space:]]+$/, "", by); if (by == "pending") pend = 1 }
+  inap && index($0, "- Approved version: ") == 1 { version_fields++; av = substr($0, 21) }
   END {
     if (fence != "") { print "unclosed Markdown fence"; exit 1 }
     if (approvals > 1) { print "Plan has more than one Approval section"; exit 1 }
+    if (status_fields > 1 || by_fields > 1 || version_fields > 1) { print "Plan has ambiguous Approval fields"; exit 1 }
     if (versions != 1) { print "missing or ambiguous Plan Task version"; exit 1 }
     if (stale_only) {
       # Only a superseded approval blocks a write. `pending` and an absent field
@@ -125,7 +127,7 @@ result="$(awk -v stale_only="$stale_only" '
       print "this document was approved at " av " but the Plan now says " ver "; the approval does not cover it. Approve the document as it now stands:  bash hooks/task approve <task-id>"
       exit 1
     }
-    if (!st || av != ver || pend) { print "current Task version is not approved"; exit 1 }
+    if (!st || by == "" || av != ver || pend) { print "current Task version is not approved"; exit 1 }
     exit 0
   }
 ' "$plan")" || { printf '%s\n' "$result" >&2; exit 1; }

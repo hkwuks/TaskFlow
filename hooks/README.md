@@ -31,6 +31,7 @@ taskflow/hooks/
 ├── task-id             # the one rule for what is a legal task name; used by task/archive/reopen
 ├── approval-check      # the one rule for whether a Plan's current version is approved
 ├── completion-gate     # the one rule for what counts as an approved, finished Plan
+├── markdown-field      # read task metadata outside fenced examples
 ├── version-baseline             # verify each task version has a Git rollback point
 ├── task                # explicit intake/promote/unpromote/state/progress/unaided/recover/complete edits
 ├── archive             # full archive transaction (incl. Todo update)
