@@ -121,11 +121,19 @@ EOF
   [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
   mkdir -p "$store"
   [ -d "$store" ] && [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
+  normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  normalized_project="$project"
+  if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; fi
+  lock_id="$(printf '%s\n%s\n%s\n' "$platform" "$normalized_host" "$normalized_project" | cksum | awk '{ print $1 "-" $2 }')"
+  lock="$store/.create-$lock_id"
+  # Only the empty directory created by this process is removed; crash locks are retained.
+  mkdir "$lock" 2>/dev/null || { echo 'A creation for this source is already in progress or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
   for existing in "$store"/*; do
     [ -e "$existing" ] || [ -L "$existing" ] || continue
     [ -f "$existing" ] && [ ! -L "$existing" ] || { echo 'Invalid operation record.' >&2; exit 2; }
     if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" '
-      NR == 1 { valid = NF == 5 && $1 == "pending"; same = $2 == p && $3 == h && $4 == r }
+      NR == 1 { valid = NF == 5 && $1 == "pending"; same = $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) }
       NR == 2 && NF == 2 && (($1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/) || ($1 == "absent" && $2 == "user-checked")) { confirmed = 1 }
       END { if (!valid || (same && !confirmed)) exit 0; exit 1 }
     ' "$existing"; then

@@ -6,7 +6,7 @@ fixture="$1"
 mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
 fixture="$(cd "$fixture" && pwd -P)"
 HERE="$(cd "$(dirname "$0")" && pwd)"
-printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nothercase\tgithub\tGITHUB.COM\tOWNER/REPO\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
 printf 'Text with \\ and "quotes"\n' > "$fixture/body"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -35,7 +35,7 @@ if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" cr
   echo 'FAIL uncertain response reported success'; exit 1
 fi
 grep -qi 'unknown' "$fixture/out-failed" || { echo 'FAIL unknown result not reported'; exit 1; }
-if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create main 'Maybe created' "$fixture/body" --root "$fixture" > "$fixture/out-repeat" 2>&1; then
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create othercase 'Maybe created' "$fixture/body" --root "$fixture" > "$fixture/out-repeat" 2>&1; then
   echo 'FAIL unresolved operation allowed retry'; exit 1
 fi
 grep -qi 'unresolved' "$fixture/out-repeat" || { echo 'FAIL unresolved operation not reported'; exit 1; }
