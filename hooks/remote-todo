@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -17,6 +17,10 @@ fi
 if [ "$command" = resolve ]; then
   [ "$#" -ge 2 ] || usage
   resolve_id="$1"; resolve_number="$2"; shift 2
+fi
+if [ "$command" = label ]; then
+  [ "$#" -ge 4 ] || usage
+  selected="$1"; issue_number="$2"; action="$3"; label="$4"; shift 4
 fi
 if [ "$command" = stage ]; then
   [ "$#" -ge 3 ] || usage
@@ -35,7 +39,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate|list|snapshot|create|edit|stage|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|validate|list|snapshot|create|edit|stage|label|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -46,7 +50,7 @@ if [ "$command" = snapshot ]; then
 fi
 config="$root/TaskFlowDocs/remote-todos.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|label|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -74,6 +78,79 @@ result=$(awk -F '\t' -v action="$command" '
 ' "$config")
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
+  exit 0
+fi
+if [ "$command" = label ]; then
+  [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$issue_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
+  case "$action" in add|remove) ;; *) echo 'Invalid label operation.' >&2; exit 2 ;; esac
+  [ -n "$label" ] && [[ "$label" != *[[:cntrl:]]* ]] || { echo 'Invalid label.' >&2; exit 2; }
+  case "$label" in taskflow:*) echo 'TaskFlow stage labels are managed by the stage command.' >&2; exit 2 ;; esac
+  connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+  if [ "$platform" = github ]; then endpoint="repos/$project/issues/$issue_number"; number_key=number
+  else
+    case "$label" in *,*) echo 'GitLab label names containing commas cannot be changed safely through this interface.' >&2; exit 2 ;; esac
+    encoded="${project//\//%2F}"; endpoint="projects/$encoded/issues/$issue_number"; number_key=iid
+  fi
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  label_get() {
+    if [ "$platform" = github ]; then gh api "$endpoint" --hostname "$host" --jq 'select(.pull_request == null) | .labels |= map(.name)' 2>/dev/null
+    else glab api "$endpoint" --hostname "$host" 2>/dev/null; fi
+  }
+  before="$(label_get)" || { echo 'Cannot read remote Issue; label not changed.' >&2; exit 2; }
+  actual="$(printf '%s' "$before" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+  [ "$actual" = "$issue_number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
+  has="$(printf '%s' "$before" | bash "$HERE/json-field" --array-has labels "$label")" || { echo 'Cannot parse Issue labels.' >&2; exit 2; }
+  if { [ "$action" = add ] && [ "$has" = yes ]; } || { [ "$action" = remove ] && [ "$has" = no ]; }; then echo 'Label already has the requested state.'; exit 0; fi
+  id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  store="$root/TaskFlowDocs/.remote-todo-updates"
+  umask 077
+  [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
+  mkdir -p "$store"
+  [ -d "$store" ] && [ ! -L "$store" ] || { echo 'Invalid operation directory.' >&2; exit 2; }
+  normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  normalized_project="$project"
+  if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; fi
+  lock_id="$(printf '%s\n%s\n%s\n%s\nlabel\n' "$platform" "$normalized_host" "$normalized_project" "$issue_number" | cksum | awk '{ print $1 "-" $2 }')"
+  lock="$store/.edit-$lock_id"
+  mkdir "$lock" 2>/dev/null || { echo 'A label update is already in progress or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  for existing in "$store"/*; do
+    [ -e "$existing" ] || [ -L "$existing" ] || continue
+    [ -f "$existing" ] && [ ! -L "$existing" ] || { echo 'Invalid operation record.' >&2; exit 2; }
+    if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$issue_number" '
+      NR == 1 { valid = NF == 7 && $1 == "pending"; same = $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n && $6 == "label" }
+      NR == 2 && ($1 == "confirmed" || $1 == "reviewed") { resolved = 1 }
+      END { if (!valid || (same && !resolved)) exit 0; exit 1 }
+    ' "$existing"; then echo 'Unresolved label update exists; inspect it before retrying.' >&2; exit 2; fi
+  done
+  record="$store/$id"
+  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\tlabel\t%s\n' "$platform" "$host" "$project" "$issue_number" "$id" > "$record") || { echo 'Cannot save operation intent.' >&2; exit 2; }
+  echo 'Updating one label; GitLab may create a missing label. Concurrent edits may race.' >&2
+  if [ "$platform" = github ] && [ "$action" = add ]; then
+    gh api "$endpoint/labels" --hostname "$host" --method POST --raw-field "labels[]=$label" >/dev/null 2>&1 || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
+  elif [ "$platform" = github ]; then
+    encoded_label=''
+    LC_ALL=C
+    for ((i=0; i<${#label}; i++)); do
+      c="${label:i:1}"
+      case "$c" in [A-Za-z0-9._~-]) encoded_label="$encoded_label$c" ;; *) printf -v hex '%%%02X' "'$c"; encoded_label="$encoded_label$hex" ;; esac
+    done
+    gh api "$endpoint/labels/$encoded_label" --hostname "$host" --method DELETE >/dev/null 2>&1 || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
+  else
+    glab api "$endpoint" --hostname "$host" --method PUT --raw-field "${action}_labels=$label" >/dev/null 2>&1 || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
+  fi
+  after="$(label_get)" || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
+  actual="$(printf '%s' "$after" | bash "$HERE/json-field" --numbers "$number_key")" || { echo "Result unknown for operation $id." >&2; exit 2; }
+  [ "$actual" = "$issue_number" ] || { echo "Result unknown for operation $id: identity mismatch." >&2; exit 2; }
+  has="$(printf '%s' "$after" | bash "$HERE/json-field" --array-has labels "$label")" || { echo "Result unknown for operation $id: invalid labels." >&2; exit 2; }
+  if { [ "$action" = add ] && [ "$has" != yes ]; } || { [ "$action" = remove ] && [ "$has" != no ]; }; then echo "Result unknown for operation $id: label state mismatch." >&2; exit 2; fi
+  printf 'confirmed\n' >> "$record" || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
+  printf 'Updated label on %s #%s (operation %s).\n' "$selected" "$issue_number" "$id"
   exit 0
 fi
 if [ "$command" = stage ]; then

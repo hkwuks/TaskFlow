@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-label <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/gh-args"
+case " $* " in
+  *' --method DELETE '*) printf yes > "$TEST_FIXTURE/gh-done" ;;
+  *) if [ -f "$TEST_FIXTURE/gh-done" ]; then printf '%s\n' '{"number":17,"labels":["unrelated"]}'; else printf '%s\n' '{"number":17,"labels":["needs review","unrelated"]}'; fi ;;
+esac
+EOF
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/glab-args"
+case " $* " in
+  *' --method PUT '*) printf yes > "$TEST_FIXTURE/glab-done" ;;
+  *) if [ -f "$TEST_FIXTURE/glab-done" ]; then printf '%s\n' '{"iid":19,"labels":["new label","unrelated"]}'; else printf '%s\n' '{"iid":19,"labels":["unrelated"]}'; fi ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh" "$fixture/bin/glab"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" label main 17 remove 'needs review' --root "$fixture" > "$fixture/gh-out"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" label lab 19 add 'new label' --root "$fixture" > "$fixture/glab-out"
+grep -q 'labels/needs%20review' "$fixture/gh-args" || { echo 'FAIL label path encoding'; exit 1; }
+grep -q 'add_labels=new label' "$fixture/glab-args" || { echo 'FAIL GitLab add label'; exit 1; }
+if grep -q 'unrelated' "$fixture/gh-args" || grep -q 'unrelated' "$fixture/glab-args"; then echo 'FAIL unrelated label changed'; exit 1; fi
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" label lab 19 add 'one,two' --root "$fixture" >/dev/null 2>&1; then echo 'FAIL ambiguous GitLab label'; exit 1; fi
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" label main 17 add 'taskflow:done' --root "$fixture" >/dev/null 2>&1; then echo 'FAIL reserved stage label'; exit 1; fi
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/utf-args"
+case " $* " in
+  *' --method DELETE '*) printf yes > "$TEST_FIXTURE/utf-done" ;;
+  *) if [ -f "$TEST_FIXTURE/utf-done" ]; then printf '%s\n' '{"number":17,"labels":["unrelated"]}'; else printf '%s\n' '{"number":17,"labels":["测试","unrelated"]}'; fi ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" label main 17 remove '测试' --root "$fixture" > "$fixture/utf-out"
+grep -q 'labels/%E6%B5%8B%E8%AF%95' "$fixture/utf-args" || { echo 'FAIL UTF-8 label encoding'; exit 1; }
+echo 'PASS remote todo label'
