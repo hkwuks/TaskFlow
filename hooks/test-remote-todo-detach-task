@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-detach-task <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/2026-11-16-demo" "$fixture/TaskFlowDocs/remote-todo-links" "$fixture/bin" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tplanning\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/plan.md"
+printf '## Task\n- ID: TF-20261116-abcdef\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: Original goal\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in *' --method '*) echo 'unexpected remote mutation' >&2; exit 1 ;; esac
+printf '%s\n' '{"number":17,"title":"Latest remote title","body":"Latest remote description","state":"open","created_at":"2026-01-02T00:00:00Z","labels":["taskflow:planning"]}'
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$fixture" >/dev/null 2>&1; then echo 'FAIL implicit task detach'; exit 1; fi
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$fixture" > "$fixture/out"
+grep -q 'Original goal' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL original task entry lost'; exit 1; }
+grep -q 'Latest remote description' "$fixture/TaskFlowDocs/remote-todo-links/task-2026-11-16-demo-copy.md" || { echo 'FAIL missing task copy'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/remote-todo-links/task-2026-11-16-demo.detached" ] || { echo 'FAIL missing task detach'; exit 1; }
+grep -q "$(printf 'detached-task\t2026-11-16-demo')" "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef.detached" || { echo 'FAIL missing Todo detach'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/list"
+grep -q 'Original goal' "$fixture/list" || { echo 'FAIL detached local task hidden'; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/2026-11-16-other"
+printf '# PRD\n' > "$fixture/TaskFlowDocs/2026-11-16-other/prd.md"
+printf '# Plan\n' > "$fixture/TaskFlowDocs/2026-11-16-other/plan.md"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" link main 17 2026-11-16-other --root "$fixture" > "$fixture/relink" || { echo 'FAIL detached issue could not link to another task'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TMPDIR="$fixture/tmp" bash "$HERE/task" state 2026-11-16-demo planning --root "$fixture" > "$fixture/state-out" || { echo 'FAIL detached task still required remote'; exit 1; }
+grep -q '^> Status: planning' "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL local task state'; exit 1; }
+second="$fixture/local-only"
+mkdir -p "$second/TaskFlowDocs/2026-11-16-demo" "$second/TaskFlowDocs/remote-todo-links" "$second/tmp"
+printf 'github\tgithub.com\towner/repo\t17\n' > "$second/TaskFlowDocs/2026-11-16-demo/remote-issue"
+printf 'detached\tgithub\tgithub.com\towner/repo\t17\n' > "$second/TaskFlowDocs/remote-todo-links/task-2026-11-16-demo.detached"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$second/TaskFlowDocs/2026-11-16-demo/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$second/TaskFlowDocs/2026-11-16-demo/plan.md"
+printf '## Task\n- ID: TF-20261116-abcdef\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: Local\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n' > "$second/TaskFlowDocs/todo.md"
+PATH="$fixture/bin:$PATH" TMPDIR="$second/tmp" bash "$HERE/task" state 2026-11-16-demo planning --root "$second" >/dev/null || { echo 'FAIL detached task needs remote config'; exit 1; }
+echo 'PASS remote todo task detach'

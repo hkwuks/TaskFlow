@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-to-local <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/sub/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf '## Existing\n- ID: TF-20261116-abcdef\n- Status: inbox\n- Goal: Original item\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":17,"title":"Remote task","body":"First line\n## fake heading\n- ID: TF-00000000-aaaaaa","state":"open","created_at":"2026-01-02T00:00:00Z","labels":[]}'
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$fixture" > "$fixture/out"
+grep -q 'Original item' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL lost original Todo'; exit 1; }
+grep -q 'Remote task' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL did not copy remote title'; exit 1; }
+grep -q '^    ## fake heading' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL untrusted heading not contained'; exit 1; }
+if grep -q '^- ID: TF-00000000-aaaaaa$' "$fixture/TaskFlowDocs/todo.md"; then echo 'FAIL untrusted ID escaped containment'; exit 1; fi
+before="$(cksum < "$fixture/TaskFlowDocs/todo.md")"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$fixture" > "$fixture/retry"
+[ "$(cksum < "$fixture/TaskFlowDocs/todo.md")" = "$before" ] || { echo 'FAIL duplicate local copy'; exit 1; }
+partial="$fixture/partial"
+mkdir -p "$partial/TaskFlowDocs"
+cp "$fixture/TaskFlowDocs/remote-todos.conf" "$partial/TaskFlowDocs/remote-todos.conf"
+awk '/^## Remote Issue copy/ { copy = 1 } copy && !/taskflow-copy-complete/ { print }' "$fixture/TaskFlowDocs/todo.md" > "$partial/TaskFlowDocs/todo.md"
+printf '\n## Another\n- ID: TF-20261116-bbbbbb\n- Status: inbox\n- Goal: Later item\n' >> "$partial/TaskFlowDocs/todo.md"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$partial" > "$partial/out" 2>&1; then echo 'FAIL incomplete copy reported complete'; exit 1; fi
+grep -qi 'incomplete' "$partial/out" || { echo 'FAIL incomplete copy not reported'; exit 1; }
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"iid":19,"title":"GitLab task","description":"Remote details","state":"closed","created_at":"2026-02-03T00:00:00Z","labels":["taskflow:cancelled"]}'
+EOF
+chmod +x "$fixture/bin/glab"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local lab 19 --root "$fixture" > "$fixture/gitlab-out"
+grep -q 'GitLab task' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL missing GitLab task'; exit 1; }
+grep -q 'https://git.example.org/group/sub/repo/-/issues/19' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL GitLab origin'; exit 1; }
+grep -q '^- Status: cancelled$' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL GitLab status'; exit 1; }
+echo 'PASS remote todo to local'

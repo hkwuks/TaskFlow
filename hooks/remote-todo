@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | migrate-to-remote <todo-id> <alias> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | migrate-to-remote <todo-id> <alias> [--root <path>] | migrate-to-local <alias> <number> [--detach] [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -40,6 +40,11 @@ if [ "$command" = edit ]; then
   [ "$#" -ge 4 ] || usage
   selected="$1"; issue_number="$2"; field="$3"; value="$4"; shift 4
 fi
+if [ "$command" = migrate-to-local ]; then
+  [ "$#" -ge 2 ] || usage
+  selected="$1"; issue_number="$2"; shift 2
+  detach=0; if [ "${1:-}" = --detach ]; then detach=1; shift; fi
+fi
 if [ "$command" = migrate-to-remote ]; then
   [ "$#" -ge 2 ] || usage
   local_id="$1"; selected="$2"; shift 2
@@ -55,7 +60,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|mode-set|connect|validate|list|list-remote|snapshot|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|mode-set|connect|validate|list|list-remote|snapshot|create|migrate-to-remote|migrate-to-local|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -117,22 +122,6 @@ if [ "$command" = mode-set ] || [ "$command" = connect ]; then
   echo 'Remote Todo configuration updated.'
   exit 0
 fi
-if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) HERE="$(cd "$(dirname "$0")" && pwd)"; exec bash "$HERE/remote-todo-local-list" "$root" </dev/null ;; list-remote|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
-  exit 0
-fi
-[ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
-# The file has a mode line followed by tab-separated alias, platform, host and path.
-# Never print rejected data: it might contain accidentally pasted credentials.
-result="$(validate_config "$config" "$command")"
-if [ "$command" = mode ] || [ "$command" = validate ]; then
-  printf '%s\n' "$result"
-  exit 0
-fi
-if [ "$command" = migrate-to-remote ]; then
-  HERE="$(cd "$(dirname "$0")" && pwd)"
-  exec bash "$HERE/remote-todo-migrate" "$local_id" "$selected" "$root"
-fi
 if [ "$command" = stage-task ]; then
   HERE="$(cd "$(dirname "$0")" && pwd)"
   bash "$HERE/task-id" "$task_id" || exit 2
@@ -145,8 +134,39 @@ if [ "$command" = stage-task ]; then
   awk -F '\t' 'NR == 1 { valid = NF == 4 && ($1 == "github" || $1 == "gitlab") && $4 ~ /^[1-9][0-9]*$/ } END { if (NR != 1 || !valid) exit 1 }' "$ref" || { echo 'Invalid remote task association.' >&2; exit 2; }
   tab="$(printf '\t')"
   IFS="$tab" read -r platform host project issue_number < "$ref"
+  detached="$root/TaskFlowDocs/remote-todo-links/task-$task_id.detached"
+  if [ -e "$detached" ] || [ -L "$detached" ]; then
+    [ -f "$detached" ] && [ ! -L "$detached" ] || { echo 'Invalid task detach record.' >&2; exit 2; }
+    awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$issue_number" '
+      NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n }
+      END { if (NR != 1 || !valid) exit 1 }
+    ' "$detached" || { echo 'Task detach record does not match the association.' >&2; exit 2; }
+    echo 'Task association is detached; no remote update.'
+    exit 0
+  fi
+  [ -f "$config" ] && [ ! -L "$config" ] && validate_config "$config" validate >/dev/null || { echo 'Associated remote source is not configured.' >&2; exit 2; }
   selected="$(awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR > 1 && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) { print $1; found = 1; exit } END { if (!found) exit 1 }' "$config")" || { echo 'Associated remote source is not configured.' >&2; exit 2; }
   exec bash "$0" stage "$selected" "$issue_number" "$stage" --root "$root"
+fi
+if [ ! -e "$config" ] && [ ! -L "$config" ]; then
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list) HERE="$(cd "$(dirname "$0")" && pwd)"; exec bash "$HERE/remote-todo-local-list" "$root" </dev/null ;; list-remote|create|migrate-to-remote|migrate-to-local|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  exit 0
+fi
+[ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
+# The file has a mode line followed by tab-separated alias, platform, host and path.
+# Never print rejected data: it might contain accidentally pasted credentials.
+result="$(validate_config "$config" "$command")"
+if [ "$command" = mode ] || [ "$command" = validate ]; then
+  printf '%s\n' "$result"
+  exit 0
+fi
+if [ "$command" = migrate-to-local ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  exec bash "$HERE/remote-todo-to-local" "$selected" "$issue_number" "$root" "$detach"
+fi
+if [ "$command" = migrate-to-remote ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  exec bash "$HERE/remote-todo-migrate" "$local_id" "$selected" "$root"
 fi
 private_store() {
   relative="$1"
@@ -188,7 +208,20 @@ EOF
     if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$issue_number" '
       NR == 1 { same = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n }
       END { if (same) exit 0; exit 1 }
-    ' "$existing"; then echo 'Remote Issue already has a TaskFlow association.' >&2; exit 2; fi
+    ' "$existing"; then
+      existing_task="${existing%/remote-issue}"; existing_task="${existing_task##*/}"
+      bash "$HERE/task-id" "$existing_task" >/dev/null 2>&1 || { echo 'Invalid existing task association.' >&2; exit 2; }
+      detached="$root/TaskFlowDocs/remote-todo-links/task-$existing_task.detached"
+      if [ -e "$detached" ] || [ -L "$detached" ]; then
+        [ -f "$detached" ] && [ ! -L "$detached" ] || { echo 'Invalid task detach record.' >&2; exit 2; }
+        awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$issue_number" '
+          NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n }
+          END { if (NR != 1 || !valid) exit 1 }
+        ' "$detached" || { echo 'Task detach record does not match the association.' >&2; exit 2; }
+        continue
+      fi
+      echo 'Remote Issue already has a TaskFlow association.' >&2; exit 2
+    fi
   done
   (set -o noclobber; printf '%s\t%s\t%s\t%s\n' "$platform" "$host" "$project" "$issue_number" > "$target") || { echo 'Cannot create association.' >&2; exit 2; }
   printf 'Linked %s #%s to %s.\n' "$selected" "$issue_number" "$task_id"
