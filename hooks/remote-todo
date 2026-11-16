@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Explicit remote Todo operations; a missing configuration keeps local mode.
+set -euo pipefail
+usage() { echo 'usage: remote-todo mode|validate [--root <path>]' >&2; exit 2; }
+[ "$#" -ge 1 ] || usage
+command="$1"; shift
+root=.
+if [ "$#" -gt 0 ]; then
+  [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
+  root="$2"
+fi
+case "$command" in mode|validate) ;; *) usage ;; esac
+config="$root/TaskFlowDocs/remote-todos.conf"
+if [ ! -e "$config" ] && [ ! -L "$config" ]; then
+  [ "$command" = mode ] && echo local || echo 'OK local'
+  exit 0
+fi
+[ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
+# The file has a mode line followed by tab-separated alias, platform, host and path.
+# Never print rejected data: it might contain accidentally pasted credentials.
+awk -F '\t' -v action="$command" '
+  function invalid() { bad = 1 }
+  NR == 1 {
+    if (NF != 1 || ($1 != "local" && $1 != "remote")) invalid()
+    mode = $1
+    next
+  }
+  {
+    if (NF != 4 || $1 !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/ || ($2 != "github" && $2 != "gitlab")) invalid()
+    if ($3 !~ /^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$/ || $3 ~ /\.\./) invalid()
+    if ($4 !~ /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)+$/ || $4 ~ /(^|\/)\.\.?($|\/)/) invalid()
+    if ($2 == "github" && split($4, parts, "/") != 2) invalid()
+    if (seen[$1]++) invalid()
+  }
+  END {
+    if (NR == 0 || bad) { print "Invalid remote Todo configuration." > "/dev/stderr"; exit 2 }
+    if (action == "mode") print mode
+    else print "OK " mode
+  }
+' "$config"
