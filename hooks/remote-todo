@@ -304,7 +304,10 @@ EOF
     LC_ALL=C
     for ((i=0; i<${#label}; i++)); do
       c="${label:i:1}"
-      case "$c" in [A-Za-z0-9._~-]) encoded_label="$encoded_label$c" ;; *) printf -v hex '%%%02X' "'$c"; encoded_label="$encoded_label$hex" ;; esac
+      case "$c" in
+        [A-Za-z0-9._~-]) encoded_label="$encoded_label$c" ;;
+        *) printf -v byte '%d' "'$c"; printf -v hex '%%%02X' "$((byte & 255))"; encoded_label="$encoded_label$hex" ;;
+      esac
     done
     gh api "$endpoint/labels/$encoded_label" --hostname "$host" --method DELETE >/dev/null 2>&1 || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
   else

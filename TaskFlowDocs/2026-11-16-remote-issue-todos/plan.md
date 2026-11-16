@@ -130,6 +130,8 @@
 
 - PR #143 的首轮 Hooks CI：Ubuntu 在 hooks 清单检查失败，原因是两份清单遗漏新增脚本；已在 `hooks/README.md` 和 `runtime.md` 列出实际脚本，并修正网络命令说明。与 CI 相同的清单检查和 `git diff --check` 在项目内通过；修复后的完整 CI 待重跑。
 
+- PR #143 第二轮 macOS 回归在中文标签 URL 编码失败；怀疑 Bash 3.2 的字节符号扩展。编码时显式限制为无符号 8 位，Windows Git Bash 的中文标签回归通过；macOS 结果以重跑 CI 为准。
+
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
