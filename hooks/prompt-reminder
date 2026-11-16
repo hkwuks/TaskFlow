@@ -129,6 +129,12 @@ If this instruction asks you to change this repository or deliver a development 
   bash hooks/task intake "<the goal in one sentence>"
   git worktree add .worktrees/<slug> -b <type>/<slug> <base>
 Read-only work — explanation, translation, status, research, review, diagnosis — needs neither. If the work is already recorded elsewhere, say where and continue.'
+  case "$summary" in
+    *'- Todo backend: remote'*)
+      ctx='This repository uses remote Issues as its Todo backend. For development work, select a configured remote repository and record the request there before task selection; retain existing local records and create a task worktree before planning. Remote access is explicit, not automatic.' ;;
+    *'- Todo backend: invalid'*)
+      ctx='This repository has an invalid remote Todo configuration. Repair it before selecting an intake location; do not silently switch to a different backend.' ;;
+  esac
   ctx="$ctx
 For development tasks: $capability_guidance"
   printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "UserPromptSubmit",\n    "additionalContext": "%s"\n  }\n}\n' "$(escape_for_json "$ctx")"

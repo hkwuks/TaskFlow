@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-reminders <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+git -C "$fixture" init -q
+printf '# Todo\n' > "$fixture/TaskFlowDocs/todo.md"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf called > "$TEST_FIXTURE/network-called"
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TASKFLOW_REPO_ROOT="$fixture" bash "$HERE/summarize-state" > "$fixture/summary"
+grep -q 'Todo backend: remote' "$fixture/summary" || { echo 'FAIL remote backend missing'; exit 1; }
+if grep -q 'recorded first in TaskFlowDocs/todo.md' "$fixture/summary"; then echo 'FAIL remote mode forced local intake'; exit 1; fi
+printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s"}\n' "$fixture" | PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/prompt-reminder" > "$fixture/reminder"
+grep -q 'remote' "$fixture/reminder" || { echo 'FAIL remote prompt guidance missing'; exit 1; }
+if grep -q 'hooks/task intake' "$fixture/reminder"; then echo 'FAIL remote prompt forced local intake'; exit 1; fi
+[ ! -e "$fixture/network-called" ] || { echo 'FAIL reminder accessed remote'; exit 1; }
+printf 'local\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+TASKFLOW_REPO_ROOT="$fixture" bash "$HERE/summarize-state" > "$fixture/local"
+grep -q 'recorded first in TaskFlowDocs/todo.md' "$fixture/local" || { echo 'FAIL local intake guidance changed'; exit 1; }
+printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s"}\n' "$fixture" | bash "$HERE/prompt-reminder" > "$fixture/local-reminder"
+grep -q 'hooks/task intake' "$fixture/local-reminder" || { echo 'FAIL local prompt guidance changed'; exit 1; }
+printf 'broken\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+TASKFLOW_REPO_ROOT="$fixture" bash "$HERE/summarize-state" > "$fixture/invalid"
+grep -q 'Todo backend: invalid' "$fixture/invalid" || { echo 'FAIL invalid config silently defaulted'; exit 1; }
+echo 'PASS remote todo reminders'
