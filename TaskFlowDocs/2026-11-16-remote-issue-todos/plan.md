@@ -128,6 +128,8 @@
 - Linux/macOS 完整回归未在本机运行：Git Bash 执行 Bash 全量测试时，仓库原有的隔离 Bash 夹具缺少 Windows DLL 而中止；不可把它当作 Linux/macOS 通过。真实 GitHub 写入、自托管服务和真实 GitLab 仍未验证。
 - 验收前需用户实际使用或另行提供测试服务；任务未归档或发布。测试夹具留在任务参考目录，另一条独立 Todo 保留在未提交工作区。
 
+- PR #143 的首轮 Hooks CI：Ubuntu 在 hooks 清单检查失败，原因是两份清单遗漏新增脚本；已在 `hooks/README.md` 和 `runtime.md` 列出实际脚本，并修正网络命令说明。与 CI 相同的清单检查和 `git diff --check` 在项目内通过；修复后的完整 CI 待重跑。
+
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。

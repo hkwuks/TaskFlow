@@ -47,6 +47,40 @@ taskflow/hooks/
 ├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 ├── test-version-baseline        # real Git lifecycle regression fixture
+├── remote-todo                      # explicit remote Issue Todo commands
+├── remote-todo-local-list           # list and deduplicate retained local Todos
+├── remote-todo-migrate              # migrate one local Todo to an Issue
+├── remote-todo-promote              # promote an Issue into a TaskFlow task
+├── remote-todo-reattach             # reconnect a detached task after checking phases
+├── remote-todo-reattach-todo        # reconnect an unpromoted local Issue copy
+├── remote-todo-to-local             # copy an Issue locally and optionally detach
+├── test-json-field-arrays           # JSON string array membership regression
+├── test-json-field-numbers          # JSON number parsing regression
+├── test-remote-todo                 # remote Todo  regression
+├── test-remote-todo-archive         # remote Todo archive regression
+├── test-remote-todo-concurrency     # remote Todo concurrency regression
+├── test-remote-todo-configure       # remote Todo configure regression
+├── test-remote-todo-create          # remote Todo create regression
+├── test-remote-todo-detach          # remote Todo detach regression
+├── test-remote-todo-detach-archived # remote Todo detach archived regression
+├── test-remote-todo-detach-task     # remote Todo detach task regression
+├── test-remote-todo-edit            # remote Todo edit regression
+├── test-remote-todo-intake          # remote Todo intake regression
+├── test-remote-todo-label           # remote Todo label regression
+├── test-remote-todo-link            # remote Todo link regression
+├── test-remote-todo-list            # remote Todo list regression
+├── test-remote-todo-migrate         # remote Todo migrate regression
+├── test-remote-todo-migrate-dedup   # remote Todo migrate dedup regression
+├── test-remote-todo-migrate-stage   # remote Todo migrate stage regression
+├── test-remote-todo-mixed-list      # remote Todo mixed list regression
+├── test-remote-todo-private         # remote Todo private regression
+├── test-remote-todo-promote         # remote Todo promote regression
+├── test-remote-todo-recover         # remote Todo recover regression
+├── test-remote-todo-reminders       # remote Todo reminders regression
+├── test-remote-todo-snapshot        # remote Todo snapshot regression
+├── test-remote-todo-stage           # remote Todo stage regression
+├── test-remote-todo-task-state      # remote Todo task state regression
+├── test-remote-todo-to-local        # remote Todo to local regression
 └── smoke-test          # assert-style smoke tests
 ```
 

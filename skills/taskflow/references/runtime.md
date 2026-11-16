@@ -410,6 +410,40 @@ repo-root/
         ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         ├── test-version-baseline        # real Git lifecycle regression fixture
+        ├── remote-todo                      # explicit remote Issue Todo commands
+        ├── remote-todo-local-list           # list and deduplicate retained local Todos
+        ├── remote-todo-migrate              # migrate one local Todo to an Issue
+        ├── remote-todo-promote              # promote an Issue into a TaskFlow task
+        ├── remote-todo-reattach             # reconnect a detached task after checking phases
+        ├── remote-todo-reattach-todo        # reconnect an unpromoted local Issue copy
+        ├── remote-todo-to-local             # copy an Issue locally and optionally detach
+        ├── test-json-field-arrays           # JSON string array membership regression
+        ├── test-json-field-numbers          # JSON number parsing regression
+        ├── test-remote-todo                 # remote Todo  regression
+        ├── test-remote-todo-archive         # remote Todo archive regression
+        ├── test-remote-todo-concurrency     # remote Todo concurrency regression
+        ├── test-remote-todo-configure       # remote Todo configure regression
+        ├── test-remote-todo-create          # remote Todo create regression
+        ├── test-remote-todo-detach          # remote Todo detach regression
+        ├── test-remote-todo-detach-archived # remote Todo detach archived regression
+        ├── test-remote-todo-detach-task     # remote Todo detach task regression
+        ├── test-remote-todo-edit            # remote Todo edit regression
+        ├── test-remote-todo-intake          # remote Todo intake regression
+        ├── test-remote-todo-label           # remote Todo label regression
+        ├── test-remote-todo-link            # remote Todo link regression
+        ├── test-remote-todo-list            # remote Todo list regression
+        ├── test-remote-todo-migrate         # remote Todo migrate regression
+        ├── test-remote-todo-migrate-dedup   # remote Todo migrate dedup regression
+        ├── test-remote-todo-migrate-stage   # remote Todo migrate stage regression
+        ├── test-remote-todo-mixed-list      # remote Todo mixed list regression
+        ├── test-remote-todo-private         # remote Todo private regression
+        ├── test-remote-todo-promote         # remote Todo promote regression
+        ├── test-remote-todo-recover         # remote Todo recover regression
+        ├── test-remote-todo-reminders       # remote Todo reminders regression
+        ├── test-remote-todo-snapshot        # remote Todo snapshot regression
+        ├── test-remote-todo-stage           # remote Todo stage regression
+        ├── test-remote-todo-task-state      # remote Todo task state regression
+        ├── test-remote-todo-to-local        # remote Todo to local regression
         └── smoke-test                   # assert-style smoke tests
 ```
 
@@ -419,7 +453,7 @@ The tree is the inventory, and `hooks/smoke-test` asserts it against the directo
 
 Not every script in the tree is a lifecycle command, and the two are documented in different places. `hooks/task` and the four it drives (`task-id`, `completion-gate`, `archive`, `version`, `reopen`) are the lifecycle, and their rows are above. `hooks/release-version` and `hooks/repository-check` belong to the release procedure instead — `release-version` writes the mechanical version literals across the eight files that carry them, and `repository-check` performs a read-only governance and fork-readiness check that also names every worktree whose branch is already merged. Both are documented in `RELEASE.md`, which is where their ordering and preconditions live; they are listed here so that a reader routed to the hooks layout knows they exist, not so that a second copy of the procedure lives here.
 
-**`hooks/remote-topology` is the one script here that uses the network, and the only one that is deliberately not wired to any event.** It answers what `git remote -v` cannot: which repository each remote names, whether this clone can push to it, and which base a pull request should target. `CONTRIBUTING.md` requires the receiving repository be established rather than inferred from a remote named `origin` or `upstream`, and remote names carry no role — a fork's `origin` may be the author's own fork or the upstream. Every fact it prints is read from `GET /repos/{owner}/{repo}`: `fork`, `parent.full_name`, `source.full_name`, `default_branch`, and `permissions.push`. The base is not inferred — a fork targets the repository it was forked from and a non-fork targets itself, both read from `parent`.
+**`hooks/remote-topology` is a read-only network command and is not wired to an event.** The explicit `remote-todo` commands also use the network when invoked. It answers what `git remote -v` cannot: which repository each remote names, whether this clone can push to it, and which base a pull request should target. `CONTRIBUTING.md` requires the receiving repository be established rather than inferred from a remote named `origin` or `upstream`, and remote names carry no role — a fork's `origin` may be the author's own fork or the upstream. Every fact it prints is read from `GET /repos/{owner}/{repo}`: `fork`, `parent.full_name`, `source.full_name`, `default_branch`, and `permissions.push`. The base is not inferred — a fork targets the repository it was forked from and a non-fork targets itself, both read from `parent`.
 
 Three boundaries keep it from changing what the rest of the runtime is. It is **never** added to any `hooks-*.json`: a network round trip in `SessionStart` would make every session wait on GitHub, and the smoke suite asserts the absence rather than trusting it. It writes no file and issues no request other than `GET /repos/*`. And it **always exits 0** — `repository-check`'s `2` and `3` are verdicts about the repository, and "`gh` is not installed" is not one.
 
