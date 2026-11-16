@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-snapshot <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\ntest\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":1,"title":"snapshot item"}'
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" snapshot "$fixture/snapshot" --root "$fixture"
+grep -q 'snapshot item' "$fixture/snapshot" || { echo 'FAIL missing item'; exit 1; }
+grep -q 'UTC' "$fixture/snapshot" || { echo 'FAIL missing timestamp'; exit 1; }
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" snapshot "$fixture/snapshot" --root "$fixture"; then echo 'FAIL overwrote existing file'; exit 1; fi
+grep -q 'snapshot item' "$fixture/snapshot" || { echo 'FAIL changed existing file'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" snapshot "$fixture/incomplete" --root "$fixture"; then echo 'FAIL saved incomplete snapshot'; exit 1; fi
+[ ! -e "$fixture/incomplete" ] || { echo 'FAIL published incomplete snapshot'; exit 1; }
+echo 'PASS remote todo snapshot'
