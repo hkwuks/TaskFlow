@@ -16,6 +16,9 @@ git -C "$fixture/base" commit -qm baseline
 git -C "$fixture/base" worktree add -q -b feature/demo "$fixture/work"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 case " $* " in
   *' --method DELETE '*) : ;;
   *' --method POST '*) printf yes > "$TEST_FIXTURE/label" ;;

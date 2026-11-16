@@ -40,6 +40,9 @@ mkdir "$lock" 2>/dev/null || { echo 'Todo migration is already in progress or ne
 trap 'rmdir "$lock" 2>/dev/null || true' EXIT
 link="$links/$local_id"
 [ ! -L "$link" ] || { echo 'Invalid Todo migration link.' >&2; exit 2; }
+if [ -e "$link.detached" ] || [ -L "$link.detached" ]; then
+  echo 'This Todo was detached from its previous Issue; inspect both records before migrating it again.' >&2; exit 2
+fi
 new_id() { od -An -N16 -tx1 /dev/urandom | tr -d ' \n'; }
 if [ ! -e "$link" ]; then
   id="$(new_id)"

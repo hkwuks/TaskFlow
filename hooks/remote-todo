@@ -363,6 +363,19 @@ EOF
   (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\tstage\t%s\n' "$platform" "$host" "$project" "$issue_number" "$id" > "$record") || { echo 'Cannot save operation intent.' >&2; exit 2; }
   echo 'Updating TaskFlow labels and Issue state; existing non-TaskFlow labels are retained. Missing labels may need creation or permissions; concurrent edits may race.' >&2
   if [ "$platform" = github ]; then
+    has="$(printf '%s' "$before" | bash "$HERE/json-field" --array-has labels "$desired")" || { echo "Result unknown for operation $id: invalid labels." >&2; exit 2; }
+    if [ "$has" != yes ]; then
+      label_endpoint="repos/$project/labels"
+      label_get() { gh api "$label_endpoint?per_page=100" --hostname "$host" --paginate --jq ".[] | select(.name == \"$desired\") | .name" 2>/dev/null; }
+      available="$(label_get)" || { echo "Cannot read repository labels; operation $id needs inspection." >&2; exit 2; }
+      if [ "$available" != "$desired" ]; then
+        echo "Creating repository label $desired if missing." >&2
+        if ! gh api "$label_endpoint" --hostname "$host" --method POST --raw-field "name=$desired" --raw-field 'color=ededed' >/dev/null 2>&1; then
+          available="$(label_get)" || available=''
+          [ "$available" = "$desired" ] || { echo "Result unknown for operation $id: label creation failed; inspect before retrying." >&2; exit 2; }
+        fi
+      fi
+    fi
     for item in $present; do
       gh api "$endpoint/labels/taskflow%3A$item" --hostname "$host" --method DELETE >/dev/null 2>&1 || { echo "Result unknown for operation $id; inspect the Issue before retrying." >&2; exit 2; }
     done

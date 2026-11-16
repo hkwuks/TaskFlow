@@ -2191,7 +2191,7 @@ STAGE_LINES
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     archive_out=""
-    if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" 2>&1)"; then
+    if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" "$root" 2>&1)"; then
       # Best-effort rollback: each docstatus independently; report archive last.
       run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$plan_prev" || true
       run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$prd_prev" || true

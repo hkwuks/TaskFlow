@@ -10,6 +10,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 printf '%s\n' "$@" >> "$TEST_FIXTURE/gh-args"
 case " $* " in
   *' --method DELETE '*) : ;;
@@ -36,6 +39,9 @@ grep -q 'state_event=close' "$fixture/glab-args" || { echo 'FAIL GitLab not clos
 if grep -q 'user-label' "$fixture/gh-args" || grep -q 'user-label' "$fixture/glab-args"; then echo 'FAIL unrelated label sent for removal'; exit 1; fi
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 case " $* " in
   *' --method POST '*) exit 1 ;;
   *' --method DELETE '*|*' --method PATCH '*) : ;;
@@ -47,4 +53,17 @@ if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" st
 grep -qi 'unknown' "$fixture/partial" || { echo 'FAIL partial write not marked unknown'; exit 1; }
 if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" stage main 17 inbox --root "$fixture" > "$fixture/retry" 2>&1; then echo 'FAIL unresolved stage retry accepted'; exit 1; fi
 grep -qi 'unresolved' "$fixture/retry" || { echo 'FAIL unresolved stage not reported'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') [ ! -f "$TEST_FIXTURE/repo-label" ] || printf 'taskflow:ready\n' ;;
+  repos/owner/repo/labels) printf yes > "$TEST_FIXTURE/repo-label" ;;
+  */issues/18/labels) [ -f "$TEST_FIXTURE/repo-label" ] || exit 1; printf yes > "$TEST_FIXTURE/issue-label" ;;
+  */issues/18) case " $* " in *' --method PATCH '*) : ;; *) if [ -f "$TEST_FIXTURE/issue-label" ]; then printf '%s\n' '{"number":18,"state":"open","labels":["taskflow:ready"]}'; else printf '%s\n' '{"number":18,"state":"open","labels":[]}'; fi ;; esac ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" stage main 18 ready --root "$fixture" > "$fixture/create-label-out"
+[ -f "$fixture/repo-label" ] && [ -f "$fixture/issue-label" ] || { echo 'FAIL missing repository label was not created and applied'; exit 1; }
 echo 'PASS remote todo stage'

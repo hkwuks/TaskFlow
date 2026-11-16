@@ -26,6 +26,9 @@ cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
 EOF
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 endpoint="$2"
 case "$endpoint" in
   repos/owner/repo/issues) printf 'call\n' >> "$TEST_FIXTURE/calls"; cat > "$TEST_FIXTURE/sent"; printf '%s\n' '{"number":17,"title":"Move this task"}' ;;
@@ -43,6 +46,9 @@ if grep -q 'Keep this private' "$fixture/sent"; then echo 'FAIL sent another ite
 grep -q '17' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef" || { echo 'FAIL missing durable link'; exit 1; }
 PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/retry"
 [ "$(wc -l < "$fixture/calls" | tr -d ' ')" = 1 ] || { echo 'FAIL duplicate migration'; exit 1; }
+printf 'detached\tTF-20260102-123456\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef.detached"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/detached-retry" 2>&1; then echo 'FAIL detached migration falsely reported linked'; exit 1; fi
+grep -qi 'detached' "$fixture/detached-retry" || { echo 'FAIL missing detached guidance'; exit 1; }
 id=0123456789abcdef0123456789abcdef
 printf 'pending\t%s\tgithub\tgithub.com\towner/repo\n' "$id" > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-111111"
 printf 'pending\tgithub\tgithub.com\tother/repo\t%s\nconfirmed\t22\n' "$id" > "$fixture/TaskFlowDocs/.remote-todo-operations/$id"
@@ -62,6 +68,9 @@ cat >> "$fixture/TaskFlowDocs/todo.md" <<'EOF'
 EOF
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 printf 'uncertain\n' >> "$TEST_FIXTURE/uncertain-calls"
 cat >/dev/null
 exit 1
@@ -73,6 +82,9 @@ if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" mi
 id="$(awk -F '\t' 'NR == 1 { print $2 }' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222")"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 endpoint="$2"
 case "$endpoint" in
   */labels) printf yes > "$TEST_FIXTURE/stage-31" ;;

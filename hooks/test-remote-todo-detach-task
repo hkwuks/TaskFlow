@@ -14,6 +14,9 @@ printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDo
 printf '## Task\n- ID: TF-20261116-abcdef\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: Original goal\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n' > "$fixture/TaskFlowDocs/todo.md"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 case " $* " in *' --method '*) echo 'unexpected remote mutation' >&2; exit 1 ;; esac
 printf '%s\n' '{"number":17,"title":"Latest remote title","body":"Latest remote description","state":"open","created_at":"2026-01-02T00:00:00Z","labels":["taskflow:planning"]}'
 EOF
@@ -32,6 +35,9 @@ printf '# Plan\n' > "$fixture/TaskFlowDocs/2026-11-16-other/plan.md"
 PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" link main 17 2026-11-16-other --root "$fixture" > "$fixture/relink" || { echo 'FAIL detached issue could not link to another task'; exit 1; }
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 exit 1
 EOF
 chmod +x "$fixture/bin/gh"

@@ -14,6 +14,9 @@ printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDo
 printf '## Test\n\n- ID: TF-20261116-abcdef\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: demo\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n' > "$fixture/TaskFlowDocs/todo.md"
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 printf '%s\n' "$@" >> "$TEST_FIXTURE/args"
 case " $* " in
   *' --method DELETE '*) : ;;
@@ -28,6 +31,9 @@ grep -q 'taskflow:planning' "$fixture/args" || { echo 'FAIL remote stage was not
 grep -q '^> Status: planning' "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL local state'; exit 1; }
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 exit 1
 EOF
 chmod +x "$fixture/bin/gh"

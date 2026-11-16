@@ -33,6 +33,9 @@ printf '## Test\n\n- ID: TF-20261116-abcdef\n- Status: in_progress\n- Updated: 2
 bash "$HERE/version-baseline" init "$fixture" 2026-11-16-demo v1
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 printf '%s\n' "$@" >> "$TEST_FIXTURE/args"
 case " $* " in
   *' --method DELETE '*) : ;;
@@ -52,6 +55,9 @@ PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$H
 [ -f "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue" ] || { echo 'FAIL missing active association'; exit 1; }
 cat > "$fixture/bin/gh" <<'EOF'
 #!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
 exit 1
 EOF
 chmod +x "$fixture/bin/gh"
