@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -17,6 +17,10 @@ fi
 if [ "$command" = resolve ]; then
   [ "$#" -ge 2 ] || usage
   resolve_id="$1"; resolve_number="$2"; shift 2
+fi
+if [ "$command" = link ]; then
+  [ "$#" -ge 3 ] || usage
+  selected="$1"; issue_number="$2"; task_id="$3"; shift 3
 fi
 if [ "$command" = label ]; then
   [ "$#" -ge 4 ] || usage
@@ -39,7 +43,7 @@ if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|validate|list|snapshot|create|edit|stage|label|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|validate|list|snapshot|create|edit|stage|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -50,7 +54,7 @@ if [ "$command" = snapshot ]; then
 fi
 config="$root/TaskFlowDocs/remote-todos.conf"
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|label|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -78,6 +82,44 @@ result=$(awk -F '\t' -v action="$command" '
 ' "$config")
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
+  exit 0
+fi
+if [ "$command" = link ]; then
+  [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$issue_number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  bash "$HERE/task-id" "$task_id" || exit 2
+  task_dir="$root/TaskFlowDocs/$task_id"
+  [ -d "$task_dir" ] && [ ! -L "$task_dir" ] && [ -f "$task_dir/prd.md" ] && [ -f "$task_dir/plan.md" ] || { echo 'Active task documents not found.' >&2; exit 2; }
+  target="$task_dir/remote-issue"
+  [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Task already has a remote association.' >&2; exit 2; }
+  connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+  tab="$(printf '\t')"
+  IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+  if [ "$platform" = github ]; then
+    response="$(gh api "repos/$project/issues/$issue_number" --hostname "$host" --jq 'select(.pull_request == null)' 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+    number_key=number
+  else
+    encoded="${project//\//%2F}"
+    response="$(glab api "projects/$encoded/issues/$issue_number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+    number_key=iid
+  fi
+  actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+  [ "$actual" = "$issue_number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
+  lock="$root/TaskFlowDocs/.remote-todo-link-lock"
+  mkdir "$lock" 2>/dev/null || { echo 'A remote association is already in progress or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  for existing in "$root"/TaskFlowDocs/*/remote-issue "$root"/TaskFlowDocs/achieved/*/remote-issue; do
+    [ -e "$existing" ] || [ -L "$existing" ] || continue
+    [ -f "$existing" ] && [ ! -L "$existing" ] || { echo 'Invalid existing association.' >&2; exit 2; }
+    if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$issue_number" '
+      NR == 1 { same = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n }
+      END { if (same) exit 0; exit 1 }
+    ' "$existing"; then echo 'Remote Issue already has a TaskFlow association.' >&2; exit 2; fi
+  done
+  (set -o noclobber; printf '%s\t%s\t%s\t%s\n' "$platform" "$host" "$project" "$issue_number" > "$target") || { echo 'Cannot create association.' >&2; exit 2; }
+  printf 'Linked %s #%s to %s.\n' "$selected" "$issue_number" "$task_id"
   exit 0
 fi
 if [ "$command" = label ]; then
