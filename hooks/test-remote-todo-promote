@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-promote <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/base/TaskFlowDocs" "$fixture/bin" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+git -C "$fixture/base" init -q
+git -C "$fixture/base" config user.name 'Fixture Test'
+git -C "$fixture/base" config user.email 'fixture@example.invalid'
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/base/TaskFlowDocs/remote-todos.conf"
+printf 'TaskFlowDocs/.remote-todo-operations/\nTaskFlowDocs/.remote-todo-updates/\n' > "$fixture/base/.gitignore"
+git -C "$fixture/base" add .gitignore TaskFlowDocs/remote-todos.conf
+git -C "$fixture/base" commit -qm baseline
+git -C "$fixture/base" worktree add -q -b feature/demo "$fixture/work"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *' --method DELETE '*) : ;;
+  *' --method POST '*) printf yes > "$TEST_FIXTURE/label" ;;
+  *' --method PATCH '*) : ;;
+  *) if [ -f "$TEST_FIXTURE/label" ]; then printf '%s\n' '{"number":17,"title":"Remote task","body":"body","state":"open","created_at":"2026-01-02T00:00:00Z","labels":["taskflow:planning"]}'; else printf '%s\n' '{"number":17,"title":"Remote task","body":"body","state":"open","created_at":"2026-01-02T00:00:00Z","labels":[]}'; fi ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/remote-todo" promote main 17 2026-11-16-demo small --kind capability --root "$fixture/work" > "$fixture/out"
+[ -f "$fixture/work/TaskFlowDocs/2026-11-16-demo/prd.md" ] || { echo 'FAIL missing task PRD'; exit 1; }
+[ -f "$fixture/work/TaskFlowDocs/2026-11-16-demo/remote-issue" ] || { echo 'FAIL missing association'; exit 1; }
+grep -q 'Remote task' "$fixture/work/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL task goal'; exit 1; }
+[ -f "$fixture/label" ] || { echo 'FAIL remote stage not synchronized'; exit 1; }
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/remote-todo" promote main 17 2026-11-16-demo small --kind capability --root "$fixture/work" > "$fixture/retry"
+[ "$(grep -c '^## Remote Issue ' "$fixture/work/TaskFlowDocs/todo.md")" = 1 ] || { echo 'FAIL duplicate local association'; exit 1; }
+echo 'PASS remote todo promote'
