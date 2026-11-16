@@ -1,6 +1,6 @@
 # Spec — 远程 Issues 待办
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## 目标与成功标准
 实现 PRD 所列 GitHub、GitLab 多仓库 Issue 待办及 TaskFlow 生命周期；远端是待办主记录，本地保存执行关联和用户选择的只读快照。

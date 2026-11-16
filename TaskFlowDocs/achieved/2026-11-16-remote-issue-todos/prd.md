@@ -1,6 +1,6 @@
 # 远程 Issues 待办
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## 目标
 让项目可选择使用 GitHub 或 GitLab Issues 作为待办主记录，并保留 TaskFlow 任务的本地执行关联。

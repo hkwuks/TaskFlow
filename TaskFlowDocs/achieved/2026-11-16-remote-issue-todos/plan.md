@@ -1,6 +1,6 @@
 # Plan — 远程 Issues 待办
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Reference Pointers
 - `TaskFlowDocs/repository-docs/index.md`、`LICENSE`：文档路由和所有阶段规则。
@@ -40,7 +40,7 @@
 - Verdict: sound
 - v2 审阅：新增 Step 6 逐项覆盖快照字段、泄漏、格式校验和失败不落盘；其余 v1 验收及范围保留。测试观察最终快照内容而非仅检查流程标记。
 - Coverage: PRD 验收 1（本地默认/配置）→ Step 2；2（汇总/分页）→ Step 2；3（创建/编辑/标签）→ Step 3；4（生命周期）→ Step 4；5（故障、恢复和已接受的竞态）→ Steps 1、3、4；6（迁移）→ Step 3；7（归属/去重）→ Steps 2–3；8（快照）→ Steps 2、6；9（平台及回归测试）→ Steps 2–5。
-- Verifiability: Step 1 比对官方文档和记录；Step 2 测试完整、部分失败与只读快照；Step 6 以含伪凭据的真实输出检查允许字段及失败不落盘；Step 3 的服务端状态断言覆盖创建、编辑、迁移及失败；Step 4 检查远端标签和本地目录的最终状态；Step 5 逐条复核 PRD 并运行相应宿主测试。
+- Verifiability: Step 1 比对官方文档和记录；Step 2 测试完整、部分失败与只读快照；Step 6 以含伪凭据的真实输出检查允许字段及失败不落盘；Step 3 的可控 CLI 夹具覆盖创建、编辑、迁移及失败，真实服务测试边界单列；Step 4 检查远端标签和本地目录的最终状态；Step 5 逐条复核 PRD 并运行相应宿主测试。
 - Layer ownership: 远端适配器负责协议和结果；本地任务层负责关联及恢复；展示层负责选择、告知及过期状态。测试断言远端实际结果和本地状态；修改已有测试仅在接口契约确有变化时记录，不以改中间值掩盖错误。
 
 ## Approval
@@ -84,7 +84,7 @@
   - [x] 验证目标与输入，执行新建、编辑及保留无关标签的更新。
   - [x] 执行选择式迁移、关联去重及结果不明的核对恢复；保留原始记录。
 - Acceptance: 同号、重复操作、部分成功、权限不足和并发更改都有明确结果，不静默删除或覆盖。
-- Verification: 对两平台使用模拟服务器注入超时、丢响应、冲突和部分写入；校验服务端实际状态。
+- Verification: 对两平台使用可控 CLI 夹具注入超时、丢响应、冲突和部分写入；核对夹具记录与本地状态，不把夹具结果称为真实服务状态。
 - Rollback: 回退代码提交；已创建远端 Issue 保留，由用户决定后续处理。
 - Status: done
 
@@ -106,12 +106,12 @@
 - Files: `skills/taskflow/SKILL.md`、`skills/taskflow/references/runtime.md`、`README.md`、`README.zh-CN.md`、`.github/workflows/hooks.yml`。
 - Implementation checklist:
   - [x] 更新双语文档和主机入口，说明权限、快照隐私、恢复和并发限制。
-  - [ ] 覆盖 PRD 每项验收，审阅安全边界及改动，记录真实服务未验证之处。
+  - [x] 覆盖 PRD 每项验收，审阅安全边界及改动，记录真实服务未验证之处。
   - [x] 运行必要的本地检查和 CI 相关测试，提交代码回退点。
 - Acceptance: 文档与实现一致，两平台和本地模式回归通过，未验证内容准确披露。
 - Verification: 针对性测试、`git diff --check`、skill 校验及适用的跨平台 CI。
 - Rollback: 按切片提交回退代码；不自动删除用户数据或远端 Issue。
-- Status: in_progress
+- Status: done
 
 ### Step 6 — 限定快照内容并验证隐私
 - Goal: 实施用户选择的仅编号、状态和更新时间的快照；保留所有其他 v1 功能和批准的边界。
@@ -120,17 +120,21 @@
 - Implementation checklist:
   - [x] 先以伪凭据、标题、正文和标签构造失败测试，覆盖两平台和无效字段。
   - [x] 仅输出校验过的来源序号、编号、状态和更新时间；失败不创建快照。
-  - [ ] 更新双语说明，运行定向和跨平台测试并提交 v2 Git 回退点。
+  - [x] 更新双语说明，运行定向和跨平台测试并提交 v2 Git 回退点。
 - Acceptance: 快照不包含远端自由文本或原始 JSON；多源可按来源顺序识别；无效状态、时间或来源失败时不落盘；原有列表、迁移和写入行为不变。
 - Verification: 先观察原实现泄漏测试失败，再验证两平台、伪凭据、无效字段、部分失败、已有文件保护及 PR CI。
 - Rollback: 回退 v2 代码提交；不删除或覆盖用户现有快照。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 - Steps 1–2 后检查身份、平台差异和读取端到端结果。
 - Steps 3–4 后检查失败恢复、去重和完整生命周期。
 
 ## Verification / Review
+
+- 2026-11-16 Step 5: PRD acceptance reviewed; privacy fix and platform limitations recorded
+
+- 2026-11-16 Step 6: v2 snapshot privacy regression and three-platform Hooks CI passed
 - 已比较活动任务、已有 Todo 和历史成果；无覆盖本任务的活动任务。
 - 仓库无 `.codegraph/`；现有本地 Todo 调用路径直接写在任务和归档脚本中。
 - 工作区 `.worktrees/capability-outcomes`，分支 `feature/remote-issue-todos`，v1 基线为分支创建时 HEAD。
@@ -157,16 +161,18 @@
 
 - 用户于 2026-11-16 批准本任务验收；此批准不表示已运行真实 GitLab、自托管或远端写入测试。PRD 逐项审阅：配置/本地默认对应配置与 intake 夹具；多源分页和 PR 过滤对应列表夹具及 GitHub 只读验证；创建、编辑、标签、阶段和恢复对应两平台 CLI 夹具；迁移、去重、快照和任务生命周期对应各自回归及三平台 Hooks CI。真实平台验证边界列为后续工作，不伪称通过。
 
-- 归档前复核发现 `snapshot` 原样写入远端 Issue 内容，若内容含凭据则违反 PRD 的快照凭据要求。先撤回未提交的归档；用户批准验收基于此前披露的限制，不应误认为已接受该新发现。需确定快照隐私方案并修复后再完成验收。
+- 归档前复核发现 `snapshot` 原样写入远端 Issue 内容，若内容含凭据则违反 PRD 的快照凭据要求。先撤回未提交的归档；用户批准验收基于此前披露的限制，不应误认为已接受该新发现。用户随后选择仅保存编号、状态及更新时间；v2 已实施并通过回归。
 
 - v2 快照回归先在旧实现复现伪凭据和自由文本泄漏，再以 GitHub/GitLab 夹具验证允许列表、来源顺序、状态归一、时间格式、目标已存在和来源不完整；Windows 启动器定向测试通过。v2 的跨平台 CI 尚待运行。
+
+- v2 代码提交 `d633a3ea17d52cb0200466e67c93befda94dafb7` 的 [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/43853794108) 在 Ubuntu、macOS、Windows 全部通过；快照泄漏测试先复现失败，修复后严格比较完整输出并覆盖无效数据、部分失败和两平台。用户选择仅保存编号、状态及更新时间，保留来源顺序编号，不保存远端自由文本。
 
 ## PR Template Mapping
 - Summary：GitHub / GitLab Issues 作为可选 Todo 主记录，覆盖多仓库、状态标签、迁移和恢复。
 - TaskFlow traceability：本任务 `TaskFlowDocs/2026-11-16-remote-issue-todos/`；范围为远端适配器、任务生命周期、双语文档及回归测试；目标 `hkwuks/TaskFlow:main`。
 - Verification：`git diff --check origin/main...HEAD` 和 skill 校验通过；Windows 完整测试通过后有额外代码提交；PR Hooks CI 已在代码提交 `4e1b09f` 通过 Ubuntu、macOS、Windows。Git Bash 本机测试不单独构成 Linux/macOS 验收。
 - Review boundaries：不提交恢复数据、测试夹具或其他 Todo；不含凭据；真实 GitLab、自托管与远程写入未验证，远程创建及并发编辑存在已披露竞态。
-- PR 状态：用户选择仅保存编号、状态和更新时间；v2 修复、验证及重新验收前保持草稿。
+- PR 状态：用户已批准任务并选择 v2 快照隐私方案；三平台 CI 通过后归档并转为 Ready，合并仍需用户指示。
 
 ## Change Log
 - 2026-11-16：用户选择快照只保留编号、状态和更新时间；v2 明确字段允许列表并保留 v1 其他要求。
