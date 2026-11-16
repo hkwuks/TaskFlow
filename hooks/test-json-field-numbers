@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+reader="$HERE/json-field"
+[ "$(printf '%s' '{"iid":17,"body":"number:99"}' | bash "$reader" iid)" = '' ] || { echo 'FAIL default changed'; exit 1; }
+[ "$(printf '%s' '{"iid":17,"body":"number:99"}' | bash "$reader" --numbers iid)" = 17 ] || { echo 'FAIL number not read'; exit 1; }
+[ "$(printf '%s' '{"iid":null,"body":"\"iid\":99"}' | bash "$reader" --numbers iid)" = '' ] || { echo 'FAIL string spoof'; exit 1; }
+[ "$(printf '%s' '{"iid":true}' | bash "$reader" --numbers iid)" = '' ] || { echo 'FAIL boolean read as number'; exit 1; }
+echo 'PASS optional number parsing'
