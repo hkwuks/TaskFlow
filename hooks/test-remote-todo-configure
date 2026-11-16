@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-configure <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cmd="$HERE/remote-todo"
+bash "$cmd" connect main github github.com owner/repo --root "$fixture" >/dev/null
+[ "$(bash "$cmd" mode --root "$fixture")" = local ] || { echo 'FAIL default mode changed'; exit 1; }
+bash "$cmd" connect lab gitlab git.example.org group/sub/repo --root "$fixture" >/dev/null
+bash "$cmd" mode-set remote --root "$fixture" >/dev/null
+[ "$(bash "$cmd" mode --root "$fixture")" = remote ] || { echo 'FAIL mode change'; exit 1; }
+grep -q 'owner/repo' "$fixture/TaskFlowDocs/remote-todos.conf" || { echo 'FAIL lost GitHub source'; exit 1; }
+grep -q 'group/sub/repo' "$fixture/TaskFlowDocs/remote-todos.conf" || { echo 'FAIL lost GitLab source'; exit 1; }
+before="$(cksum < "$fixture/TaskFlowDocs/remote-todos.conf")"
+if bash "$cmd" connect main github github.com other/repo --root "$fixture" >/dev/null 2>&1; then echo 'FAIL duplicate accepted'; exit 1; fi
+[ "$(cksum < "$fixture/TaskFlowDocs/remote-todos.conf")" = "$before" ] || { echo 'FAIL modified config on duplicate'; exit 1; }
+if bash "$cmd" connect evil github 'user:secret@github.com' owner/repo --root "$fixture" >/dev/null 2>&1; then echo 'FAIL credentials accepted'; exit 1; fi
+[ "$(cksum < "$fixture/TaskFlowDocs/remote-todos.conf")" = "$before" ] || { echo 'FAIL modified config on invalid input'; exit 1; }
+malicious="$(printf 'owner/repo\ninjected\tgithub\tgithub.com\tother/repo')"
+if bash "$cmd" connect evil github github.com "$malicious" --root "$fixture" >/dev/null 2>&1; then echo 'FAIL newline injected extra source'; exit 1; fi
+[ "$(cksum < "$fixture/TaskFlowDocs/remote-todos.conf")" = "$before" ] || { echo 'FAIL config changed after newline injection'; exit 1; }
+echo 'PASS remote todo configure'

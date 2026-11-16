@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # json-field — print selected fields from a JSON object on stdin, one per line.
 #
-# Usage: json-field <spec> [<spec>...]      spec: `key` or `key.sub` (one level)
+# Usage: json-field [--numbers] <spec> [<spec>...]   spec: `key` or `key.sub` (one level)
 #
-# Prints one line per spec, in the order given; a missing field, a null, or a
-# non-string scalar prints an empty line so callers can read by position.
+# Prints one line per spec; missing fields and non-string scalars print empty.
+# --numbers also returns JSON numbers without changing the default behavior.
 # Exit 0 on success, 2 on invalid JSON.
 #
 # The parser is the one `session-start` uses, extended to descend one level.
@@ -20,10 +20,17 @@ set -euo pipefail
 LC_ALL=C
 export LC_ALL
 
+numbers=0
+array_mode=0
+if [ "${1:-}" = --numbers ]; then numbers=1; shift; fi
+if [ "${1:-}" = --array-has ]; then
+  [ "$#" -eq 3 ] || { echo 'usage: json-field --array-has <key> <value>' >&2; exit 2; }
+  array_mode=1; TASKFLOW_ARRAY_EXPECTED="$3"; export TASKFLOW_ARRAY_EXPECTED; set -- "$2"
+fi
 KEYS="${*:-}"
 [ -n "$KEYS" ] || exit 0
 
-awk -v KEYS="$KEYS" '
+awk -v KEYS="$KEYS" -v NUMBERS="$numbers" -v ARRAY_MODE="$array_mode" '
   function die(msg) {
     printf "TaskFlow json-field error: invalid event JSON: %s\n", msg > "/dev/stderr"
     exit 2
@@ -85,18 +92,20 @@ awk -v KEYS="$KEYS" '
       die("bad escape")
     }
   }
-  # A string is returned unescaped; null, a number, true and false all consume
-  # their token and return empty, so a caller never sees a raw JSON token.
-  function scalar(   c) {
+  # Return strings and opt-in numeric tokens; null and booleans remain empty.
+  function scalar(   c, start, token) {
     ws()
     c = peek()
     if (c == "\"") return str()
     if (substr(S, P, 4) == "null") { P += 4; return "" }
+    start = P
     while (P <= L) {
       c = peek()
       if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") break
       P++
     }
+    token = substr(S, start, P - start)
+    if (NUMBERS && token ~ /^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$/) return token
     return ""
   }
   function skipval(   c, depth) {
@@ -119,6 +128,23 @@ awk -v KEYS="$KEYS" '
       if (c == "," || c == "}" || c == "]" || c == " " || c == "\t" || c == "\n" || c == "\r") return
       P++
     }
+  }
+  function array_has(   item, found) {
+    if (peek() != "[") die("expected a string array")
+    array_seen = 1
+    P++; ws()
+    if (peek() == "]") { P++; return "no" }
+    while (1) {
+      ws()
+      if (peek() != "\"") die("expected an array string")
+      item = str()
+      if (item == ENVIRON["TASKFLOW_ARRAY_EXPECTED"]) found = 1
+      ws()
+      if (peek() == ",") { P++; continue }
+      if (peek() == "]") { P++; break }
+      die("expected an array comma or closing bracket")
+    }
+    return found ? "yes" : "no"
   }
   # Descend into the object whose opening brace is next, capturing `parent.sub`
   # specs. A null or a non-object value leaves every nested spec empty.
@@ -177,7 +203,7 @@ awk -v KEYS="$KEYS" '
         if (peek() != ":") die("expected a colon")
         P++
         ws()
-        if (k in want) out[want[k]] = scalar()
+        if (k in want) out[want[k]] = ARRAY_MODE ? array_has() : scalar()
         else if (k in nested) nested_obj(k)
         else skipval()
         ws()
@@ -188,6 +214,7 @@ awk -v KEYS="$KEYS" '
     }
     ws()
     if (P <= L) die("unexpected trailing content")
+    if (ARRAY_MODE && !array_seen) die("missing string array")
     for (i = 1; i <= NS; i++) print (i in out) ? out[i] : ""
   }
 '

@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-snapshot <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\ntest\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf '## Local\n- ID: TF-20261116-aaaaaa\n- Status: inbox\n- Goal: Local secret\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${TEST_CASE:-good}" in
+  bad-state) printf '%s\n' '{"number":1,"state":"secret-state","updated_at":"2026-11-16T12:30:45Z"}' ;;
+  bad-time) printf '%s\n' '{"number":1,"state":"open","updated_at":"secret-time"}' ;;
+  *) printf '%s%s%s\n' '{"number":1,"state":"open","updated_at":"2026-11-16T12:30:45Z","title":"SECRET_TITLE","body":"SECRET_BODY ghp_' 'FAKECREDENTIAL1234567890' '","labels":["SECRET_LABEL"],"token":"SECRET_TOKEN"}'; printf '%s\n' '{"number":2,"state":"closed","updated_at":"2026-11-16T12:32:45+00:00"}' ;;
+esac
+EOF
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+[ "${TEST_CASE:-good}" != partial ] || exit 1
+printf '%s\n' '{"iid":19,"state":"opened","updated_at":"2026-11-16T13:31:46.123Z","title":"SECRET_GITLAB_TITLE","description":"SECRET_GITLAB_BODY","labels":["SECRET_GITLAB_LABEL"]}'
+EOF
+chmod +x "$fixture/bin/gh" "$fixture/bin/glab"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" snapshot "$fixture/snapshot" --root "$fixture"
+grep -q '2026-11-16T12:30:45Z' "$fixture/snapshot" || { echo 'FAIL missing GitHub update time'; exit 1; }
+grep -q '2026-11-16T13:31:46.123Z' "$fixture/snapshot" || { echo 'FAIL missing GitLab update time'; exit 1; }
+grep -q 'UTC' "$fixture/snapshot" || { echo 'FAIL missing timestamp'; exit 1; }
+grep -Fxq 'Source 1 (configuration order)' "$fixture/snapshot" && grep -Fxq 'Source 2 (configuration order)' "$fixture/snapshot" || { echo 'FAIL missing source order'; exit 1; }
+grep -Eq '^2[[:space:]]+closed[[:space:]]+2026-11-16T12:32:45[+]00:00$' "$fixture/snapshot" || { echo 'FAIL closed Issue metadata'; exit 1; }
+if grep -Eqi 'SECRET_|ghp_|Local secret|owner/repo|group/repo|"(title|body|labels|token)"' "$fixture/snapshot"; then echo 'FAIL snapshot exposed free text or credentials'; exit 1; fi
+grep -Eq '^1[[:space:]]+open[[:space:]]+2026-11-16T12:30:45Z$' "$fixture/snapshot" || { echo 'FAIL GitHub snapshot fields'; exit 1; }
+grep -Eq '^19[[:space:]]+open[[:space:]]+2026-11-16T13:31:46.123Z$' "$fixture/snapshot" || { echo 'FAIL GitLab snapshot fields'; exit 1; }
+expected="$(printf 'Source 1 (configuration order)\n1\topen\t2026-11-16T12:30:45Z\n2\tclosed\t2026-11-16T12:32:45+00:00\nSource 2 (configuration order)\n19\topen\t2026-11-16T13:31:46.123Z\n')"
+actual="$(tail -n +2 "$fixture/snapshot")"
+[ "$actual" = "$expected" ] || { echo 'FAIL snapshot contains unexpected fields or values'; exit 1; }
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" snapshot "$fixture/snapshot" --root "$fixture"; then echo 'FAIL overwrote existing file'; exit 1; fi
+for scenario in bad-state bad-time partial; do
+  if PATH="$fixture/bin:$PATH" TEST_CASE="$scenario" bash "$HERE/remote-todo" snapshot "$fixture/$scenario" --root "$fixture" > "$fixture/$scenario.out" 2>&1; then echo "FAIL $scenario snapshot accepted"; exit 1; fi
+  [ ! -e "$fixture/$scenario" ] || { echo "FAIL $scenario snapshot created"; exit 1; }
+done
+echo 'PASS remote todo snapshot privacy'

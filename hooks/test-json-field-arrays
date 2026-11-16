@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+reader="$HERE/json-field"
+[ "$(printf '%s' '{"labels":["taskflow:inbox","user"]}' | bash "$reader" --array-has labels 'taskflow:inbox')" = yes ] || { echo 'FAIL missing label'; exit 1; }
+[ "$(printf '%s' '{"labels":["user\ntaskflow:inbox"]}' | bash "$reader" --array-has labels 'taskflow:inbox')" = no ] || { echo 'FAIL newline spoof'; exit 1; }
+[ "$(printf '%s' '{"body":"labels taskflow:inbox","labels":[]}' | bash "$reader" --array-has labels 'taskflow:inbox')" = no ] || { echo 'FAIL body spoof'; exit 1; }
+[ "$(printf '%s' '{"labels":["测试"]}' | bash "$reader" --array-has labels '测试')" = yes ] || { echo 'FAIL unicode'; exit 1; }
+if printf '%s' '{"labels":{"bad":"taskflow:inbox"}}' | bash "$reader" --array-has labels 'taskflow:inbox' >/dev/null 2>&1; then echo 'FAIL non-array accepted'; exit 1; fi
+echo 'PASS json string array membership'

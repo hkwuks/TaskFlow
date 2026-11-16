@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Migrate one local Todo without changing or removing the original entry.
+set -euo pipefail
+[ "$#" -eq 3 ] || { echo 'usage: remote-todo-migrate <todo-id> <alias> <root>' >&2; exit 2; }
+local_id="$1"; selected="$2"; root="$3"
+[[ "$local_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] && [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || { echo 'Invalid Todo ID or source alias.' >&2; exit 2; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+todo="$root/TaskFlowDocs/todo.md"
+config="$root/TaskFlowDocs/remote-todos.conf"
+[ -f "$todo" ] && [ ! -L "$todo" ] || { echo 'Local Todo file not found.' >&2; exit 2; }
+entry="$(awk -v wanted="$local_id" '
+  function finish() { if (matched) { count++; selected = block } }
+  /^## / { finish(); block = $0 "\n"; matched = 0; next }
+  { block = block $0 "\n"; if ($0 == "- ID: " wanted) matched = 1 }
+  END { finish(); if (count != 1) exit 2; printf "%s", selected }
+' "$todo")" || { echo 'Todo ID missing or ambiguous.' >&2; exit 2; }
+title="$(printf '%s\n' "$entry" | awk '/^- Goal: / { count++; value = substr($0, 9) } END { if (count != 1 || value == "") exit 2; print value }')" || { echo 'Todo goal missing or ambiguous.' >&2; exit 2; }
+[[ "$title" != *[[:cntrl:]]* ]] || { echo 'Todo goal contains control characters.' >&2; exit 2; }
+local_status="$(printf '%s\n' "$entry" | awk '/^- Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }')" || { echo 'Todo status missing or ambiguous.' >&2; exit 2; }
+task_id="$(printf '%s\n' "$entry" | sed -n 's/^- Task: `TaskFlowDocs\/\([^`/]*\)\/`$/\1/p')"
+stage="$local_status"
+if [ -n "$task_id" ]; then
+  bash "$HERE/task-id" "$task_id" || exit 2
+  [ -f "$root/TaskFlowDocs/$task_id/prd.md" ] || { echo 'Active task PRD not found.' >&2; exit 2; }
+  stage="$(awk '/^> Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }' "$root/TaskFlowDocs/$task_id/prd.md")" || { echo 'Task phase missing or ambiguous.' >&2; exit 2; }
+  [ "$stage" != completed ] || stage=done
+fi
+case "$stage" in inbox|clarified|promoted|planning|ready|in_progress|checking|blocked|done|cancelled) ;; *) echo 'Unsupported local Todo or task status.' >&2; exit 2 ;; esac
+connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+tab="$(printf '\t')"
+IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+external="$(printf '%s\n' "$entry" | sed -n 's/^- External: //p')"
+normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"; normalized_project="$project"
+if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; prefix="https://$normalized_host/$normalized_project/issues/"
+else prefix="https://$normalized_host/$project/-/issues/"; fi
+case "$external" in
+  "$prefix"*)
+    source_number="${external#"$prefix"}"
+    if [[ "$source_number" =~ ^[1-9][0-9]*$ ]] && printf '%s\n' "$entry" | grep -Fx -- "    <!-- taskflow-copy-complete:$local_id -->" >/dev/null; then
+      echo 'This Todo is a remote copy; use reattach-todo with --remote-authoritative after reconciling it instead of creating a duplicate.' >&2; exit 2
+    fi ;;
+esac
+links="$root/TaskFlowDocs/remote-todo-links"
+[ ! -L "$links" ] || { echo 'Invalid Todo links directory.' >&2; exit 2; }
+mkdir -p "$links"
+[ -d "$links" ] && [ ! -L "$links" ] || { echo 'Invalid Todo links directory.' >&2; exit 2; }
+lock="$links/.lock-$local_id"
+mkdir "$lock" 2>/dev/null || { echo 'Todo migration is already in progress or needs inspection.' >&2; exit 2; }
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+link="$links/$local_id"
+[ ! -L "$link" ] || { echo 'Invalid Todo migration link.' >&2; exit 2; }
+if [ -e "$link.detached" ] || [ -L "$link.detached" ]; then
+  [ -f "$link" ] && [ ! -L "$link" ] && [ -f "$link.detached" ] && [ ! -L "$link.detached" ] && [ "$(cat "$link.detached")" = "$(printf 'detached\t%s' "$local_id")" ] || { echo 'This Todo was detached from its previous Issue; inspect both records before migrating it again.' >&2; exit 2; }
+  awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" 'NR == 1 { valid = NF == 5 && $1 == "pending"; same = $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/ { confirmed = 1 } END { if (!valid || !confirmed || same) exit 1 }' "$link" || { echo 'Previous association is invalid or belongs to the selected source; inspect before migrating.' >&2; exit 2; }
+  history_id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$history_id" =~ ^[0-9a-f]{32}$ ]] || exit 2
+  [ ! -e "$link.history-$history_id" ] && [ ! -e "$link.detached.history-$history_id" ] || exit 2
+  mv -n "$link" "$link.history-$history_id" || exit 2
+  [ ! -e "$link" ] && [ -f "$link.history-$history_id" ] || { echo 'Association history collision.' >&2; exit 2; }
+  if ! mv -n "$link.detached" "$link.detached.history-$history_id" || [ -e "$link.detached" ]; then
+    mv -n "$link.history-$history_id" "$link" || true
+    echo 'Cannot preserve previous detach record; inspect associations.' >&2; exit 2
+  fi
+fi
+new_id() { od -An -N16 -tx1 /dev/urandom | tr -d ' \n'; }
+if [ ! -e "$link" ]; then
+  id="$(new_id)"
+  [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\n' "$id" "$platform" "$host" "$project" > "$link") || { echo 'Cannot save migration intent.' >&2; exit 2; }
+else
+  [ -f "$link" ] || { echo 'Invalid Todo migration link.' >&2; exit 2; }
+  if ! awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" '
+    NR == 1 { valid = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) }
+    END { if (!valid) exit 1 }
+  ' "$link"; then echo 'Todo is linked to another source or the link is invalid.' >&2; exit 2; fi
+fi
+confirmed="$(awk -F '\t' '$1 == "confirmed" && NF == 2 && $2 ~ /^[1-9][0-9]*$/ { number = $2 } END { print number }' "$link")"
+id="$(awk -F '\t' 'NR == 1 { id = $2 } $1 == "retry" && NF == 2 { id = $2 } END { print id }' "$link")"
+[[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Invalid migration operation ID.' >&2; exit 2; }
+if [ -z "$confirmed" ]; then
+  record="$root/TaskFlowDocs/.remote-todo-operations/$id"
+  if [ -e "$record" ] || [ -L "$record" ]; then
+    [ -f "$record" ] && [ ! -L "$record" ] || { echo 'Invalid creation operation.' >&2; exit 2; }
+    awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v id="$id" '
+      NR == 1 { valid = NF == 5 && $1 == "pending" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == id }
+      NR == 2 { valid = valid && NF == 2 && (($1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/) || ($1 == "absent" && $2 == "user-checked")) }
+      NR > 2 { valid = 0 }
+      END { if (!valid) exit 1 }
+    ' "$record" || { echo 'Migration operation identity is invalid.' >&2; exit 2; }
+    status="$(awk -F '\t' 'NR == 2 && $1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/ { print "confirmed " $2 } NR == 2 && $1 == "absent" && $2 == "user-checked" { print "absent" }' "$record")"
+    case "$status" in
+      'confirmed '*) confirmed="${status#confirmed }" ;;
+      absent)
+        id="$(new_id)"; [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
+        printf 'retry\t%s\n' "$id" >> "$link" || { echo 'Cannot save retry intent.' >&2; exit 2; } ;;
+      *) echo "Migration operation $id is unresolved; verify or resolve it before retrying." >&2; exit 2 ;;
+    esac
+  fi
+  if [ -z "$confirmed" ]; then
+    marker="<!-- taskflow-migration:$local_id -->"
+    echo 'Checking the whole remote Issue source for this migration marker; do not migrate this Todo simultaneously from another worktree or machine.' >&2
+    if [ "$platform" = github ]; then
+      candidates="$(gh api "repos/$project/issues?state=all&per_page=100" --hostname "$host" --paginate --jq '.[] | select(.pull_request == null) | @json' 2>/dev/null)" || { echo 'Cannot check all remote Issues; migration not started.' >&2; exit 2; }
+      number_key=number; body_key=body
+    else
+      encoded="${project//\//%2F}"
+      candidates="$(glab api "projects/$encoded/issues?scope=all&state=all&per_page=100" --hostname "$host" --paginate --output ndjson 2>/dev/null)" || { echo 'Cannot check all remote Issues; migration not started.' >&2; exit 2; }
+      number_key=iid; body_key=description
+    fi
+    if [ -n "$candidates" ]; then
+      while IFS= read -r candidate; do
+        number="$(printf '%s' "$candidate" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Invalid remote Issue list; migration not started.' >&2; exit 2; }
+        [[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid remote Issue identity; migration not started.' >&2; exit 2; }
+        remote_body="$(printf '%s' "$candidate" | bash "$HERE/json-field" "$body_key")" || { echo 'Invalid remote Issue body; migration not started.' >&2; exit 2; }
+        case "$remote_body" in *"$marker"*) echo "An Issue with this migration marker already exists (#$number); inspect it before proceeding." >&2; exit 2 ;; esac
+      done <<EOF
+$candidates
+EOF
+    fi
+    echo 'Migrating the selected Todo content to the selected remote repository; concurrent migrations can still race.' >&2
+    if ! { printf '%s\n\n%s\n' "$entry" "$marker"; } | bash "$HERE/remote-todo" create "$selected" "$title" - --operation-id "$id" --root "$root"; then
+      echo "Migration operation $id needs inspection before retrying." >&2; exit 2
+    fi
+    record="$root/TaskFlowDocs/.remote-todo-operations/$id"
+    confirmed="$(awk -F '\t' 'NR == 2 && $1 == "confirmed" && $2 ~ /^[1-9][0-9]*$/ { print $2 }' "$record")"
+    [[ "$confirmed" =~ ^[1-9][0-9]*$ ]] || { echo 'Migration result cannot be confirmed.' >&2; exit 2; }
+  fi
+  printf 'confirmed\t%s\n' "$confirmed" >> "$link" || { echo 'Cannot save migration link; retry after inspecting the operation.' >&2; exit 2; }
+fi
+if ! awk -F '\t' '$1 == "stage-synced" && NF == 2 { found = 1 } END { if (!found) exit 1 }' "$link"; then
+  bash "$HERE/remote-todo" stage "$selected" "$confirmed" "$stage" --root "$root" || { echo 'Migration created the Issue but its initial stage needs recovery.' >&2; exit 2; }
+  printf 'stage-synced\t%s\n' "$stage" >> "$link" || { echo 'Cannot save migration stage; inspect both sides before retrying.' >&2; exit 2; }
+fi
+if [ -n "$task_id" ]; then
+  bash "$HERE/task-id" "$task_id" || exit 2
+  ref="$root/TaskFlowDocs/$task_id/remote-issue"
+  if [ -e "$ref" ] || [ -L "$ref" ]; then
+    [ -f "$ref" ] && [ ! -L "$ref" ] || { echo 'Invalid task association.' >&2; exit 2; }
+    awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$confirmed" 'NR == 1 { ok = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n } END { if (NR != 1 || !ok) exit 1 }' "$ref" || { echo 'Task has a different remote association.' >&2; exit 2; }
+  else
+    bash "$HERE/remote-todo" link "$selected" "$confirmed" "$task_id" --root "$root" || { echo 'Migration succeeded; task association needs recovery.' >&2; exit 2; }
+  fi
+fi
+printf 'Todo %s linked to %s #%s. Original retained.\n' "$local_id" "$selected" "$confirmed"

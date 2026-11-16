@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-edit <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\nlab\tgitlab\tgit.example.org\tgroup/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/args"
+case " $* " in
+  *' --method PATCH '*) printf '%s\n' updated > "$TEST_FIXTURE/written" ;;
+esac
+if [ -f "$TEST_FIXTURE/written" ]; then printf '%s\n' '{"number":17,"title":"New title"}'; else printf '%s\n' '{"number":17,"title":"Old title"}'; fi
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit main 17 title 'New title' --root "$fixture" > "$fixture/out"
+grep -q '17' "$fixture/out" || { echo 'FAIL missing identity'; exit 1; }
+grep -q 'title=New title' "$fixture/args" || { echo 'FAIL missing requested field'; exit 1; }
+if grep -q '^labels=' "$fixture/args"; then echo 'FAIL unrelated labels sent'; exit 1; fi
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in *' --method PATCH '*) exit 1 ;; esac
+printf '%s\n' '{"number":17,"title":"Old title"}'
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit main 17 title 'Other title' --root "$fixture" > "$fixture/failed" 2>&1; then echo 'FAIL write failure reported success'; exit 1; fi
+grep -qi 'unknown' "$fixture/failed" || { echo 'FAIL missing unknown result'; exit 1; }
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit main 17 title 'Other title' --root "$fixture" > "$fixture/retry" 2>&1; then echo 'FAIL unresolved update allowed'; exit 1; fi
+grep -qi 'unresolved' "$fixture/retry" || { echo 'FAIL unresolved update not reported'; exit 1; }
+id="$(sed -n 's/.*operation \([0-9a-f]*\);.*/\1/p' "$fixture/failed" | head -1)"
+[ -n "$id" ] || { echo 'FAIL missing operation ID'; exit 1; }
+if bash "$HERE/remote-todo" ack-update "$id" --root "$fixture" >/dev/null 2>&1; then echo 'FAIL missing explicit confirmation'; exit 1; fi
+bash "$HERE/remote-todo" ack-update "$id" --checked --root "$fixture" >/dev/null
+grep -q 'reviewed' "$fixture/TaskFlowDocs/.remote-todo-updates/$id" || { echo 'FAIL update not acknowledged'; exit 1; }
+cat > "$fixture/bin/glab" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >> "$TEST_FIXTURE/glab-args"
+case " $* " in
+  *' --method PUT '*) cat > "$TEST_FIXTURE/glab-body"; printf '%s\n' updated > "$TEST_FIXTURE/glab-written" ;;
+esac
+if [ -f "$TEST_FIXTURE/glab-written" ]; then printf '%s\n' '{"iid":19,"description":"New body"}'; else printf '%s\n' '{"iid":19,"description":"Old body"}'; fi
+EOF
+chmod +x "$fixture/bin/glab"
+printf 'New body' > "$fixture/new-body"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit lab 19 body "$fixture/new-body" --root "$fixture" > "$fixture/out-lab"
+grep -q 'group%2Frepo' "$fixture/glab-args" || { echo 'FAIL GitLab path encoding'; exit 1; }
+[ "$(cat "$fixture/glab-body")" = 'New body' ] || { echo 'FAIL GitLab body'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in *' --method PATCH '*) cat > "$TEST_FIXTURE/github-body"; printf yes > "$TEST_FIXTURE/github-body-written" ;; esac
+if [ -f "$TEST_FIXTURE/github-body-written" ]; then printf '%s\n' '{"number":20,"body":"New body\n\n<!-- taskflow-migration:TF-20261116-aabbcc -->\n"}'; else printf '%s\n' '{"number":20,"body":"Old body\n\n<!-- taskflow-migration:TF-20261116-aabbcc -->"}'; fi
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" edit main 20 body "$fixture/new-body" --root "$fixture" > "$fixture/out-migration"
+grep -Fq '<!-- taskflow-migration:TF-20261116-aabbcc -->' "$fixture/github-body" || { echo 'FAIL body edit lost migration identity'; exit 1; }
+echo 'PASS remote todo edit'

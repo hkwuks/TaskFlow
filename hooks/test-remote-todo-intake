@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-intake <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+if TMPDIR="$fixture/tmp" bash "$HERE/task" intake 'New work' --root "$fixture" > "$fixture/remote" 2>&1; then echo 'FAIL remote mode silently created local entry'; exit 1; fi
+[ ! -e "$fixture/TaskFlowDocs/todo.md" ] || { echo 'FAIL local Todo created in remote mode'; exit 1; }
+grep -qi remote "$fixture/remote" || { echo 'FAIL remote guidance missing'; exit 1; }
+TMPDIR="$fixture/tmp" bash "$HERE/task" intake 'Explicit local work' --local --root "$fixture" > "$fixture/explicit-local"
+grep -q 'Explicit local work' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL explicit local override'; exit 1; }
+printf 'broken\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+if TMPDIR="$fixture/tmp" bash "$HERE/task" intake 'New work' --root "$fixture" > "$fixture/invalid" 2>&1; then echo 'FAIL invalid config silently defaulted'; exit 1; fi
+if grep -q 'New work' "$fixture/TaskFlowDocs/todo.md"; then echo 'FAIL local Todo created on invalid config'; exit 1; fi
+printf 'local\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+TMPDIR="$fixture/tmp" bash "$HERE/task" intake 'New work' --root "$fixture" > "$fixture/local"
+grep -q 'New work' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL local mode intake'; exit 1; }
+echo 'PASS remote todo intake'

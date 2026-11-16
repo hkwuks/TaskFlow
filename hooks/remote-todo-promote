@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Promote an explicitly selected remote Issue through TaskFlow's existing task scaffold.
+set -euo pipefail
+[ "$#" -eq 6 ] || { echo 'usage: remote-todo-promote <alias> <number> <task-id> <small|large> <kind> <root>' >&2; exit 2; }
+selected="$1"; number="$2"; task="$3"; size="$4"; kind="$5"; root="$6"
+[[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
+case "$size" in small|large) ;; *) echo 'Invalid task size.' >&2; exit 2 ;; esac
+case "$kind" in defect|capability|internal) ;; *) echo 'Invalid task kind.' >&2; exit 2 ;; esac
+HERE="$(cd "$(dirname "$0")" && pwd)"
+bash "$HERE/task-id" "$task" || exit 2
+git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || { echo 'A task worktree is required.' >&2; exit 2; }
+[ -f "$git_dir/commondir" ] || { echo 'A task worktree is required.' >&2; exit 2; }
+config="$root/TaskFlowDocs/remote-todos.conf"
+connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+tab="$(printf '\t')"
+IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+if [ "$platform" = github ]; then
+  response="$(gh api "repos/$project/issues/$number" --hostname "$host" --jq 'select(.pull_request == null)' 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+  number_key=number
+else
+  encoded="${project//\//%2F}"
+  response="$(glab api "projects/$encoded/issues/$number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+  number_key=iid
+fi
+actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+[ "$actual" = "$number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
+title="$(printf '%s' "$response" | bash "$HERE/json-field" title)" || { echo 'Cannot parse remote title.' >&2; exit 2; }
+created="$(printf '%s' "$response" | bash "$HERE/json-field" created_at)" || { echo 'Cannot parse remote creation time.' >&2; exit 2; }
+[[ "${created:0:10}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo 'Invalid remote creation time.' >&2; exit 2; }
+title="$(printf '%s' "$title" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177')"
+[ -n "$title" ] || { echo 'Remote title is empty.' >&2; exit 2; }
+normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+normalized_project="$project"
+if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; url="https://$normalized_host/$normalized_project/issues/$number"
+else url="https://$normalized_host/$normalized_project/-/issues/$number"; fi
+digest="$(printf 'remote-reference\n%s\n%s\n%s\n%s\n' "$platform" "$normalized_host" "$normalized_project" "$number" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
+day="${created:0:10}"; day="${day//-/}"
+id="TF-$day-$digest"
+docs="$root/TaskFlowDocs"
+todo="$docs/todo.md"
+[ ! -L "$todo" ] || { echo 'Invalid local Todo file.' >&2; exit 2; }
+mkdir -p "$docs"
+lock="$docs/.remote-todo-promote-lock"
+mkdir "$lock" 2>/dev/null || { echo 'Remote promotion is busy or needs inspection.' >&2; exit 2; }
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+if [ ! -e "$docs/$task" ]; then bash "$HERE/version-baseline" init "$root" "$task" v1 || { echo 'Task baseline could not be recorded.' >&2; exit 2; }; fi
+if [ ! -e "$todo" ]; then (set -o noclobber; printf '# Todo\n' > "$todo") || { echo 'Cannot create local Todo.' >&2; exit 2; }; fi
+[ -f "$todo" ] && [ ! -L "$todo" ] || { echo 'Invalid local Todo file.' >&2; exit 2; }
+existing="$(TASKFLOW_REMOTE_ID="$id" TASKFLOW_REMOTE_URL="$url" awk '
+  function flush() { if (inside && found_id) { matches++; if (found_url && found_end) target = task } }
+  /^## / { flush(); inside = 1; found_id = found_url = found_end = 0; task = "" }
+  inside && $0 == "- ID: " ENVIRON["TASKFLOW_REMOTE_ID"] { found_id = 1 }
+  inside && $0 == "- External: " ENVIRON["TASKFLOW_REMOTE_URL"] { found_url = 1 }
+  inside && $0 == "    <!-- taskflow-remote-ref:" ENVIRON["TASKFLOW_REMOTE_ID"] " -->" { found_end = 1 }
+  inside && /^- Task: / { task = substr($0, 9) }
+  END { flush(); if (matches == 0) print "missing"; else if (matches == 1 && target != "") print target; else print "invalid" }
+' "$todo")"
+case "$existing" in
+  missing)
+    [ ! -e "$docs/$task" ] || { echo 'Task directory already exists without an association.' >&2; exit 2; }
+    today="$(date +%Y-%m-%d)"
+    printf '\n## Remote Issue %s\n\n- ID: %s\n- Status: clarified\n- Priority: normal\n- Owner: Unknown\n- Source: remote reference\n- Kind: %s\n- Added: %s\n- Updated: %s\n- Goal: %s\n- External: %s\n- Task: Not promoted.\n- Next action: Prepare task documents.\n    <!-- taskflow-remote-ref:%s -->\n' "$number" "$id" "$kind" "$today" "$today" "$title" "$url" "$id" >> "$todo" || { echo 'Local association may be incomplete; inspect before retrying.' >&2; exit 2; }
+    existing='Not promoted.' ;;
+  invalid) echo 'Local association is incomplete or collides with another Todo.' >&2; exit 2 ;;
+esac
+if [ "$existing" = 'Not promoted.' ]; then
+  [ ! -e "$docs/$task" ] || { echo 'Task directory exists but the Todo was not promoted; inspect before retrying.' >&2; exit 2; }
+  bash "$HERE/task" promote "$id" "$task" "$size" --kind "$kind" --root "$root" || { echo 'Remote association retained; task promotion needs inspection.' >&2; exit 2; }
+elif [ "$existing" != "\`TaskFlowDocs/$task/\`" ]; then
+  echo 'This Issue already points to another local task.' >&2; exit 2
+fi
+detached="$docs/remote-todo-links/task-$task.detached"
+if [ -e "$detached" ] || [ -L "$detached" ]; then
+  echo 'This task was detached from its Issue; inspect both records before reconnecting.' >&2; exit 2
+fi
+ref="$docs/$task/remote-issue"
+if [ -e "$ref" ] || [ -L "$ref" ]; then
+  [ -f "$ref" ] && [ ! -L "$ref" ] || { echo 'Invalid task association.' >&2; exit 2; }
+  awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { ok = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n } END { if (NR != 1 || !ok) exit 1 }' "$ref" || { echo 'Task has a different remote association.' >&2; exit 2; }
+else
+  bash "$HERE/remote-todo" link "$selected" "$number" "$task" --root "$root" || { echo 'Task created; association needs recovery.' >&2; exit 2; }
+fi
+phase="$(awk '/^> Status: / { count++; value = substr($0, 11) } END { if (count != 1) exit 2; print value }' "$docs/$task/prd.md")" || { echo 'Task phase missing or ambiguous.' >&2; exit 2; }
+[ "$phase" != completed ] || phase=done
+case "$phase" in planning|ready|in_progress|checking|blocked|done) ;; *) echo 'Unsupported task phase.' >&2; exit 2 ;; esac
+bash "$HERE/remote-todo" stage-task "$task" "$phase" --root "$root" || { echo 'Task associated; remote stage needs recovery.' >&2; exit 2; }
+printf 'Remote Issue %s #%s promoted as task %s.\n' "$selected" "$number" "$task"

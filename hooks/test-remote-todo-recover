@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-recover <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/.remote-todo-operations" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+id=0123456789abcdef0123456789abcdef
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'pending\tgithub\tgithub.com\towner/repo\t%s\n' "$id" > "$fixture/TaskFlowDocs/.remote-todo-operations/$id"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"number":17,"body":"<!-- taskflow-operation:0123456789abcdef0123456789abcdef -->"}'
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" resolve "$id" 17 --root "$fixture" > "$fixture/out"
+grep -q 'confirmed' "$fixture/out" || { echo 'FAIL no confirmation'; exit 1; }
+grep -q "$(printf 'confirmed\t17')" "$fixture/TaskFlowDocs/.remote-todo-operations/$id" || { echo 'FAIL missing durable confirmation'; exit 1; }
+id2=ffffffffffffffffffffffffffffffff
+printf 'pending\tgithub\tgithub.com\towner/repo\t%s\n' "$id2" > "$fixture/TaskFlowDocs/.remote-todo-operations/$id2"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" resolve "$id2" 17 --root "$fixture" > /dev/null 2>&1; then echo 'FAIL unrelated issue accepted'; exit 1; fi
+grep -q 'confirmed' "$fixture/TaskFlowDocs/.remote-todo-operations/$id2" && { echo 'FAIL unrelated issue recorded'; exit 1; }
+if bash "$HERE/remote-todo" resolve-absent "$id2" --root "$fixture" >/dev/null 2>&1; then echo 'FAIL absence accepted without explicit confirmation'; exit 1; fi
+bash "$HERE/remote-todo" resolve-absent "$id2" --checked --root "$fixture" > "$fixture/absent"
+grep -q 'absent' "$fixture/TaskFlowDocs/.remote-todo-operations/$id2" || { echo 'FAIL missing absent decision'; exit 1; }
+echo 'PASS remote todo recover'

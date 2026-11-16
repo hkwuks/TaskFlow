@@ -342,6 +342,14 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Diagnostic log test failed' }
         & "$here\run-hook.cmd" test-host-parity $parityRoot
         if ($LASTEXITCODE -ne 0) { throw 'host parity fixture failed' }
+        foreach ($jsonTest in @('test-json-field-numbers', 'test-json-field-arrays')) {
+            & "$here\run-hook.cmd" $jsonTest
+            if ($LASTEXITCODE -ne 0) { throw "$jsonTest failed" }
+        }
+        foreach ($remoteTest in @('todo', 'todo-configure', 'todo-list', 'todo-mixed-list', 'todo-snapshot', 'todo-create', 'todo-recover', 'todo-concurrency', 'todo-edit', 'todo-stage', 'todo-label', 'todo-migrate', 'todo-migrate-dedup', 'todo-migrate-stage', 'todo-to-local', 'todo-detach', 'todo-detach-task', 'todo-detach-archived', 'todo-promote', 'todo-link', 'todo-task-state', 'todo-intake', 'todo-reminders', 'todo-archive', 'todo-private')) {
+            & "$here\run-hook.cmd" "test-remote-$remoteTest" (Join-Path $Root "remote-$remoteTest")
+            if ($LASTEXITCODE -ne 0) { throw "test-remote-$remoteTest failed" }
+        }
     }
     # `TASKFLOW_STDIN_SELFCHECK` stops the recursion: the child is this same
     # script and must not spawn a third.

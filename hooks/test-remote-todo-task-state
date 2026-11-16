@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-task-state <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/2026-11-16-demo" "$fixture/bin" "$fixture/tmp"
+fixture="$(cd "$fixture" && pwd -P)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'github\tgithub.com\towner/repo\t17\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/remote-issue"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-demo/plan.md"
+printf '## Test\n\n- ID: TF-20261116-abcdef\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: demo\n- Task: `TaskFlowDocs/2026-11-16-demo/`\n' > "$fixture/TaskFlowDocs/todo.md"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
+printf '%s\n' "$@" >> "$TEST_FIXTURE/args"
+case " $* " in
+  *' --method DELETE '*) : ;;
+  *' --method POST '*) : ;;
+  *' --method PATCH '*) printf yes > "$TEST_FIXTURE/done" ;;
+  *) if [ -f "$TEST_FIXTURE/done" ]; then printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:planning","user-label"]}'; else printf '%s\n' '{"number":17,"state":"open","labels":["taskflow:inbox","user-label"]}'; fi ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/task" state 2026-11-16-demo planning --root "$fixture" > "$fixture/out"
+grep -q 'taskflow:planning' "$fixture/args" || { echo 'FAIL remote stage was not updated'; exit 1; }
+grep -q '^> Status: planning' "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL local state'; exit 1; }
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/task" state 2026-11-16-demo ready --root "$fixture" > "$fixture/failure" 2>&1; then echo 'FAIL remote failure reported success'; exit 1; fi
+grep -q '^> Status: planning' "$fixture/TaskFlowDocs/2026-11-16-demo/prd.md" || { echo 'FAIL local state changed after remote failure'; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/2026-11-16-local"
+printf '# PRD\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-local/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-11-16-local/plan.md"
+printf '\n## Local\n\n- ID: TF-20261116-111111\n- Status: promoted\n- Updated: 2026-11-16\n- Goal: local\n- Task: `TaskFlowDocs/2026-11-16-local/`\n' >> "$fixture/TaskFlowDocs/todo.md"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TMPDIR="$fixture/tmp" bash "$HERE/task" state 2026-11-16-local planning --root "$fixture" >/dev/null || { echo 'FAIL local task required remote access'; exit 1; }
+echo 'PASS remote todo task state'

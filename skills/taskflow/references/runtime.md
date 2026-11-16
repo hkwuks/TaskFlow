@@ -310,7 +310,7 @@ Anything else is refused with exit `2` — needs-user-input, per `CODE_STYLE.md`
 
 | Command | Action | Verify after |
 | --- | --- | --- |
-| `hooks/task intake <goal> [source] [--kind <defect\|capability\|internal>] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. `--kind` defaults to `capability` here and is written to the entry as `- Kind:`; `promote` requires it explicitly, because that is where it starts deciding anything. In the base working tree it additionally notes that `todo.md` is now uncommitted there (exit code unchanged). |
+| `hooks/task intake <goal> [source] [--local] [--kind <defect\|capability\|internal>] [--root <path>]` | Add one deduplicated Todo entry and allocate its ID. | Prints the Todo ID; duplicate goals fail before mutation. `--kind` defaults to `capability` here and is written to the entry as `- Kind:`; `promote` requires it explicitly, because that is where it starts deciding anything. In the base working tree it additionally notes that `todo.md` is now uncommitted there (exit code unchanged). |
 | `hooks/task promote <todo-id> <task-id> <small\|large> --kind <defect\|capability\|internal> [--root <path>]` | Create minimal PRD/Plan and optional Spec scaffolds, then link the Todo. | Existing destinations and already-promoted items fail before mutation. `--kind` is required here and optional at intake: it is written into the PRD's `## Task Kind`, and `approve` reads it to decide whether this task's `[PRD]` line must name something that investigates a cause. Refuses with `STATUS: blocked` (exit `3`) outside a task worktree — the first task documents are written in Phase 1, so they would otherwise land in the base tree on whatever branch is checked out. The message prints the `git worktree add` command with everything but `<type>` filled in. |
 | `hooks/task state <task-id> <state> [--root <path>]` | Update PRD/Plan state and Todo triage state. | `in_progress` requires approval for the current Task version. |
 | `hooks/task progress <task-id> <step> <status> [verification] [--root <path>]` | Update one Plan Step and optionally append a verification line. | `done` rejects unchecked checklist items. |
@@ -325,14 +325,14 @@ Anything else is refused with exit `2` — needs-user-input, per `CODE_STYLE.md`
 
 ## Parallel branches and the Todo merge driver
 
-`TaskFlowDocs/todo.md` is one file every task appends to, so two task branches merge-conflict there even when they touched nothing in common. TaskFlow ships a Git merge driver for it, so the two ordinary cases resolve without a human:
+Local Todo entries and promoted remote task references share `TaskFlowDocs/todo.md`, so two task branches can merge-conflict there even when they touched nothing in common. TaskFlow ships a Git merge driver for it, so the two ordinary cases resolve without a human:
 
 - two branches each added an entry — both entries survive;
 - two branches changed different entries — both changes survive.
 
 Two branches changing *the same* entry differently is still a real conflict and is left for review with ordinary conflict markers.
 
-The wiring is per-clone and untracked: `merge.taskflow-todo.driver` in the repository's own Git config, a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`, and two exclude rules in `.git/info/exclude` (`TaskFlowDocs/repository-docs/personal.md` and `TaskFlowDocs/**/sessions.md`). `hooks/install-git-hygiene` writes all three, `hooks/session-start` calls it on every session start, and it is idempotent, `--local`-only, silent on success, and best-effort. Nothing tracked is edited, so a repository that has not adopted TaskFlow is unaffected; `hooks/merge-todo` is the driver itself.
+The wiring is per-clone and untracked: `merge.taskflow-todo.driver` in the repository's own Git config, a `TaskFlowDocs/todo.md merge=taskflow-todo` line in `.git/info/attributes`, and local-only exclude rules in `.git/info/exclude` (`TaskFlowDocs/repository-docs/personal.md`, `TaskFlowDocs/**/sessions.md`, and the remote Todo recovery directories). `hooks/install-git-hygiene` writes all three, `hooks/session-start` calls it on every session start, and it is idempotent, `--local`-only, silent on success, and best-effort. Nothing tracked is edited, so a repository that has not adopted TaskFlow is unaffected; `hooks/merge-todo` is the driver itself.
 
 The two exclude rules are there because those files belong to one clone rather than to the repository — a personal rule is not team policy, and `sessions.md` carries a session id, a working directory and `Session availability: local-only`. They are written per clone for exactly that reason: a `.gitignore` line would be a tracked file, which changes the view of every clone including the ones that want to commit the same paths. Two limits follow. Git applies no ignore rule to a **tracked** path, so a copy that was forced in once keeps appearing in `git status` — deliberately, because a rule that hid real changes to a tracked file would be worse than the stale file; clearing those copies is a decision about tracked history, not a configuration change. And the installation is done by SessionStart, so a host that does not run the hooks leaves the repository unconfigured until someone runs `bash hooks/install-git-hygiene` there.
 
@@ -410,6 +410,40 @@ repo-root/
         ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         ├── test-version-baseline        # real Git lifecycle regression fixture
+        ├── remote-todo                      # explicit remote Issue Todo commands
+        ├── remote-todo-local-list           # list and deduplicate retained local Todos
+        ├── remote-todo-migrate              # migrate one local Todo to an Issue
+        ├── remote-todo-promote              # promote an Issue into a TaskFlow task
+        ├── remote-todo-reattach             # reconnect a detached task after checking phases
+        ├── remote-todo-reattach-todo        # reconnect an unpromoted local Issue copy
+        ├── remote-todo-to-local             # copy an Issue locally and optionally detach
+        ├── test-json-field-arrays           # JSON string array membership regression
+        ├── test-json-field-numbers          # JSON number parsing regression
+        ├── test-remote-todo                 # remote Todo  regression
+        ├── test-remote-todo-archive         # remote Todo archive regression
+        ├── test-remote-todo-concurrency     # remote Todo concurrency regression
+        ├── test-remote-todo-configure       # remote Todo configure regression
+        ├── test-remote-todo-create          # remote Todo create regression
+        ├── test-remote-todo-detach          # remote Todo detach regression
+        ├── test-remote-todo-detach-archived # remote Todo detach archived regression
+        ├── test-remote-todo-detach-task     # remote Todo detach task regression
+        ├── test-remote-todo-edit            # remote Todo edit regression
+        ├── test-remote-todo-intake          # remote Todo intake regression
+        ├── test-remote-todo-label           # remote Todo label regression
+        ├── test-remote-todo-link            # remote Todo link regression
+        ├── test-remote-todo-list            # remote Todo list regression
+        ├── test-remote-todo-migrate         # remote Todo migrate regression
+        ├── test-remote-todo-migrate-dedup   # remote Todo migrate dedup regression
+        ├── test-remote-todo-migrate-stage   # remote Todo migrate stage regression
+        ├── test-remote-todo-mixed-list      # remote Todo mixed list regression
+        ├── test-remote-todo-private         # remote Todo private regression
+        ├── test-remote-todo-promote         # remote Todo promote regression
+        ├── test-remote-todo-recover         # remote Todo recover regression
+        ├── test-remote-todo-reminders       # remote Todo reminders regression
+        ├── test-remote-todo-snapshot        # remote Todo snapshot regression
+        ├── test-remote-todo-stage           # remote Todo stage regression
+        ├── test-remote-todo-task-state      # remote Todo task state regression
+        ├── test-remote-todo-to-local        # remote Todo to local regression
         └── smoke-test                   # assert-style smoke tests
 ```
 
@@ -419,10 +453,20 @@ The tree is the inventory, and `hooks/smoke-test` asserts it against the directo
 
 Not every script in the tree is a lifecycle command, and the two are documented in different places. `hooks/task` and the four it drives (`task-id`, `completion-gate`, `archive`, `version`, `reopen`) are the lifecycle, and their rows are above. `hooks/release-version` and `hooks/repository-check` belong to the release procedure instead — `release-version` writes the mechanical version literals across the eight files that carry them, and `repository-check` performs a read-only governance and fork-readiness check that also names every worktree whose branch is already merged. Both are documented in `RELEASE.md`, which is where their ordering and preconditions live; they are listed here so that a reader routed to the hooks layout knows they exist, not so that a second copy of the procedure lives here.
 
-**`hooks/remote-topology` is the one script here that uses the network, and the only one that is deliberately not wired to any event.** It answers what `git remote -v` cannot: which repository each remote names, whether this clone can push to it, and which base a pull request should target. `CONTRIBUTING.md` requires the receiving repository be established rather than inferred from a remote named `origin` or `upstream`, and remote names carry no role — a fork's `origin` may be the author's own fork or the upstream. Every fact it prints is read from `GET /repos/{owner}/{repo}`: `fork`, `parent.full_name`, `source.full_name`, `default_branch`, and `permissions.push`. The base is not inferred — a fork targets the repository it was forked from and a non-fork targets itself, both read from `parent`.
+**`hooks/remote-topology` is a read-only network command and is not wired to an event.** The explicit `remote-todo` commands also use the network when invoked. It answers what `git remote -v` cannot: which repository each remote names, whether this clone can push to it, and which base a pull request should target. `CONTRIBUTING.md` requires the receiving repository be established rather than inferred from a remote named `origin` or `upstream`, and remote names carry no role — a fork's `origin` may be the author's own fork or the upstream. Every fact it prints is read from `GET /repos/{owner}/{repo}`: `fork`, `parent.full_name`, `source.full_name`, `default_branch`, and `permissions.push`. The base is not inferred — a fork targets the repository it was forked from and a non-fork targets itself, both read from `parent`.
 
 Three boundaries keep it from changing what the rest of the runtime is. It is **never** added to any `hooks-*.json`: a network round trip in `SessionStart` would make every session wait on GitHub, and the smoke suite asserts the absence rather than trusting it. It writes no file and issues no request other than `GET /repos/*`. And it **always exits 0** — `repository-check`'s `2` and `3` are verdicts about the repository, and "`gh` is not installed" is not one.
 
 The four ways the lookup can fail are reported apart because each calls for a different action: `gh not found` (install it), `gh not logged in` (authenticate it), `cannot reach the GitHub API` (wait for the network), `API rate limit` (wait for the window to reset). They cannot be told apart by exit code — an unauthenticated `gh` and an unreachable network both exit `1`, measured 2026-11-02 — so the authentication question is asked first and the response body distinguishes the rest. The timeout budget is for the whole run rather than each request, so the command is bounded at ten seconds however many remotes a clone has; without `timeout` or `gtimeout` on `PATH` the script says so instead of leaving the absence silent.
 
 `hooks.json` is named without a host suffix because Claude Code auto-loads that exact filename at the plugin root. Every other host points at its file some other way — a manifest `hooks` entry for Codex and CodeBuddy, `dsh/index.js` for dsh, a copy to `.trae/hooks.json` for Trae — so only Claude Code depends on the name.
+
+## Remote Todo backend
+
+`hooks/remote-todo mode-set local|remote` selects the project default; `connect <alias> github|gitlab <host> <project>` adds a source without changing the mode. `mode` and `validate` are local, and `list` explicitly reads remote sources alongside retained local entries. GitHub's issue endpoint can include pull requests; those are filtered. Source failures make the result incomplete. A user's explicit `hooks/task intake ... --local` can still make one local entry in remote mode.
+
+`promote`, `stage`, `edit`, `label`, `create`, `migrate-to-remote`, and `migrate-to-local` require explicit invocation. A remote task keeps `remote-issue` as an execution association; `task state`, `archive`, and `reopen` synchronize its phase before the local transition. The two sides cannot be committed atomically. Existing remote labels outside `taskflow:` are preserved by targeted additions/removals. Missing TaskFlow stage labels are created as needed; repository label creation requires permission. `migrate-to-local ... --detach` keeps the original local record and remote Issue; for a task it retains the approved task documents and saves an untrusted local reference copy. Local detached tasks no longer contact the remote source. `reattach-todo <todo-id> <alias> --remote-authoritative` reconnects an unpromoted remote copy without writing the Issue; retain the local content. `reattach-task <task-id>` reads the original Issue, refuses if the phase differs or another task is linked, and preserves detach history without changing remote content. A later detachment retains the earlier local copy and fetches a fresh one. Migration checks all Issues for a stable Todo marker before creation; never migrate the same Todo concurrently from multiple worktrees or machines. Editing or removing the marker outside TaskFlow can defeat later checks.
+
+`gh` and `glab` use the host's existing authentication for the selected hostname; missing tools or permissions fail visibly. No credential is saved in project config or recovery records. Before a remote write, the local recovery directories must be excluded from Git and must contain no tracked files; `hooks/install-git-hygiene` installs the per-clone exclusions. Explicit snapshots contain only source order and validated Issue numbers, states and update times; titles, bodies and labels are excluded. Metadata can still reveal activity; source numbers refer to configuration order at export time. The user selects a new path, and the snapshot is historical, not an editing source. No automatic network polling occurs.
+
+A write timeout can mean success or failure. Inspect the recorded operation before retrying: use `resolve <id> <number>` to verify a creation marker, `resolve-absent <id> --checked` only after confirming no Issue was created, and `ack-update <id> --checked` only after reviewing an uncertain update. A stale lock may require user inspection. Local locks do not coordinate independent worktrees or machines. Platforms without conditional writes leave an accepted concurrent-update window; a read-before/write/read-after sequence cannot prove no overwrite occurred.

@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Explicitly make the original remote Issue authoritative for a local copy.
+set -euo pipefail
+[ "$#" -eq 3 ] || exit 2
+id="$1"; selected="$2"; root="$3"; HERE="$(cd "$(dirname "$0")" && pwd)"
+[[ "$id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] && [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || exit 2
+docs="$root/TaskFlowDocs"; todo="$docs/todo.md"; config="$docs/remote-todos.conf"; links="$docs/remote-todo-links"
+[ -f "$todo" ] && [ ! -L "$todo" ] || { echo 'Local Todo file not found.' >&2; exit 2; }
+entry="$(awk -v wanted="$id" 'function finish() { if (matched) { count++; selected = block } } /^## / { finish(); block = $0 "\n"; matched = 0; next } { block = block $0 "\n"; if ($0 == "- ID: " wanted) matched = 1 } END { finish(); if (count != 1) exit 2; printf "%s", selected }' "$todo")" || { echo 'Todo ID missing or ambiguous.' >&2; exit 2; }
+printf '%s\n' "$entry" | grep -Fx -- "    <!-- taskflow-copy-complete:$id -->" >/dev/null || { echo 'Todo is not a complete remote copy.' >&2; exit 2; }
+printf '%s\n' "$entry" | grep -Fx -- '- Task: Not promoted.' >/dev/null || { echo 'Use reattach-task for an active task.' >&2; exit 2; }
+external="$(printf '%s\n' "$entry" | awk '/^- External: / { count++; value = substr($0, 13) } END { if (count != 1) exit 2; print value }')" || { echo 'Remote origin missing or ambiguous.' >&2; exit 2; }
+connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+tab="$(printf '\t')"; IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"; normalized_project="$project"
+if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; prefix="https://$normalized_host/$normalized_project/issues/"
+else prefix="https://$normalized_host/$project/-/issues/"; fi
+case "$external" in "$prefix"*) number="${external#"$prefix"}" ;; *) echo 'Local copy belongs to a different source.' >&2; exit 2 ;; esac
+[[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid remote Issue identity.' >&2; exit 2; }
+[ ! -L "$links" ] || exit 2; mkdir -p "$links"; [ -d "$links" ] && [ ! -L "$links" ] || exit 2
+link_lock="$docs/.remote-todo-link-lock"; local_lock="$links/.lock-$id"
+mkdir "$link_lock" 2>/dev/null || { echo 'Remote association is busy.' >&2; exit 2; }
+mkdir "$local_lock" 2>/dev/null || { rmdir "$link_lock" 2>/dev/null || true; echo 'Todo association is busy.' >&2; exit 2; }
+trap 'rmdir "$local_lock" 2>/dev/null || true; rmdir "$link_lock" 2>/dev/null || true' EXIT
+mapping="$links/$id"; marker="$mapping.detached"
+[ ! -L "$mapping" ] && [ ! -L "$marker" ] || { echo 'Invalid Todo association.' >&2; exit 2; }
+for other in "$links"/*; do
+  [ -e "$other" ] || [ -L "$other" ] || continue
+  other_id="${other##*/}"
+  [[ "$other_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || continue
+  [ "$other" != "$mapping" ] || continue
+  [ -f "$other" ] && [ ! -L "$other" ] || { echo 'Invalid Todo association.' >&2; exit 2; }
+  if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { confirmed = 1 } END { if (!(same && confirmed)) exit 1 }' "$other"; then
+    [ -f "$other.detached" ] && [ ! -L "$other.detached" ] || { echo 'Remote Issue already has a local Todo association.' >&2; exit 2; }
+    awk -F '\t' 'NR == 1 { valid = NF == 2 && (($1 == "detached" && $2 ~ /^(TF|T)-[0-9]{8}-[a-z0-9]+$/) || ($1 == "detached-task" && $2 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+$/)) } END { if (NR != 1 || !valid) exit 1 }' "$other.detached" || { echo 'Invalid Todo detach record.' >&2; exit 2; }
+  fi
+done
+for ref in "$docs"/*/remote-issue "$docs"/achieved/*/remote-issue; do
+  [ -e "$ref" ] || [ -L "$ref" ] || continue
+  [ -f "$ref" ] && [ ! -L "$ref" ] || exit 2
+  if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n } END { if (!same) exit 1 }' "$ref"; then
+    task="${ref%/remote-issue}"; task="${task##*/}"; detached="$links/task-$task.detached"
+    [ -f "$detached" ] && [ ! -L "$detached" ] || { echo 'Remote Issue already has a task association.' >&2; exit 2; }
+    awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n } END { if (NR != 1 || !valid) exit 1 }' "$detached" || { echo 'Invalid task detach record.' >&2; exit 2; }
+  fi
+done
+if [ "$platform" = github ]; then
+  response="$(gh api "repos/$project/issues/$number" --hostname "$host" --jq 'select(.pull_request == null)' 2>/dev/null)" || { echo 'Cannot read remote Issue; local copy unchanged.' >&2; exit 2; }; key=number
+else
+  encoded="${project//\//%2F}"; response="$(glab api "projects/$encoded/issues/$number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot read remote Issue; local copy unchanged.' >&2; exit 2; }; key=iid
+fi
+actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$key")" || exit 2
+state="$(printf '%s' "$response" | bash "$HERE/json-field" state)" || exit 2
+[ "$actual" = "$number" ] && { [ "$state" = open ] || [ "$state" = opened ] || [ "$state" = closed ]; } || { echo 'Remote Issue identity or state invalid.' >&2; exit 2; }
+op="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$op" =~ ^[0-9a-f]{32}$ ]] || exit 2
+if [ ! -e "$mapping" ]; then
+  [ ! -e "$marker" ] || { echo 'Orphaned detach record; inspect before reattaching.' >&2; exit 2; }
+  (set -o noclobber; printf 'pending\t%s\t%s\t%s\t%s\nconfirmed\t%s\nremote-authoritative\tconfirmed\n' "$op" "$platform" "$host" "$project" "$number" > "$mapping") || { echo 'Cannot save association; inspect before retrying.' >&2; exit 2; }
+else
+  [ -f "$mapping" ] && awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { found = 1 } ($1 == "stage-synced" || $1 == "remote-authoritative") && NF == 2 { synced = 1 } END { if (!(valid && found && synced)) exit 1 }' "$mapping" || { echo 'Existing Todo association differs.' >&2; exit 2; }
+  if [ -e "$marker" ]; then
+    [ -f "$marker" ] && [ "$(cat "$marker")" = "$(printf 'detached\t%s' "$id")" ] || { echo 'Invalid detach record.' >&2; exit 2; }
+    history="$marker.history-$op"; [ ! -e "$history" ] && [ ! -L "$history" ] || exit 2
+    mv -n "$marker" "$history" || exit 2
+    [ ! -e "$marker" ] && [ -f "$history" ] || { echo 'Detach history collision.' >&2; exit 2; }
+  fi
+fi
+printf 'Reattached Todo %s to %s #%s; remote Issue is authoritative and the local copy was retained.\n' "$id" "$selected" "$number"

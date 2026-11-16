@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-migrate <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+## First
+
+- ID: TF-20261116-abcdef
+- Status: inbox
+- Goal: Move this task
+- Task: Not promoted.
+- Next action: clarify
+
+## Second
+
+- ID: TF-20261116-111111
+- Status: inbox
+- Goal: Keep this private
+- Task: Not promoted.
+EOF
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'issues?'*) exit 0 ;;
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
+endpoint="$2"
+case "$endpoint" in
+  repos/owner/repo/issues) printf 'call\n' >> "$TEST_FIXTURE/calls"; cat > "$TEST_FIXTURE/sent"; printf '%s\n' '{"number":17,"title":"Move this task"}' ;;
+  */labels) number="${endpoint%/labels}"; number="${number##*/}"; printf yes > "$TEST_FIXTURE/stage-$number" ;;
+  */labels/*) : ;;
+  *) number="${endpoint##*/}"; case " $* " in *' --method PATCH '*) : ;; *) if [ -f "$TEST_FIXTURE/stage-$number" ]; then printf '{"number":%s,"state":"open","labels":["taskflow:inbox"]}\n' "$number"; else printf '{"number":%s,"state":"open","labels":[]}\n' "$number"; fi ;; esac ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+before="$(cksum < "$fixture/TaskFlowDocs/todo.md")"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/out"
+[ "$(cksum < "$fixture/TaskFlowDocs/todo.md")" = "$before" ] || { echo 'FAIL original Todo changed'; exit 1; }
+grep -q 'Move this task' "$fixture/sent" || { echo 'FAIL missing selected item'; exit 1; }
+grep -Fq '<!-- taskflow-migration:TF-20261116-abcdef -->' "$fixture/sent" || { echo 'FAIL missing stable migration marker'; exit 1; }
+if grep -q 'Keep this private' "$fixture/sent"; then echo 'FAIL sent another item'; exit 1; fi
+grep -q '17' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef" || { echo 'FAIL missing durable link'; exit 1; }
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/retry"
+[ "$(wc -l < "$fixture/calls" | tr -d ' ')" = 1 ] || { echo 'FAIL duplicate migration'; exit 1; }
+printf 'detached\tTF-20260102-123456\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef.detached"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-abcdef main --root "$fixture" > "$fixture/detached-retry" 2>&1; then echo 'FAIL detached migration falsely reported linked'; exit 1; fi
+grep -qi 'detached' "$fixture/detached-retry" || { echo 'FAIL missing detached guidance'; exit 1; }
+id=0123456789abcdef0123456789abcdef
+printf 'pending\t%s\tgithub\tgithub.com\towner/repo\n' "$id" > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-111111"
+printf 'pending\tgithub\tgithub.com\tother/repo\t%s\nconfirmed\t22\n' "$id" > "$fixture/TaskFlowDocs/.remote-todo-operations/$id"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-111111 main --root "$fixture" > "$fixture/mismatch" 2>&1; then echo 'FAIL accepted mismatched operation source'; exit 1; fi
+printf 'pending\tgithub\tgithub.com\towner/repo\t%s\nconfirmed\t22\n' "$id" > "$fixture/TaskFlowDocs/.remote-todo-operations/$id"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-111111 main --root "$fixture" > "$fixture/recovered"
+grep -q '22' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-111111" || { echo 'FAIL recovery link'; exit 1; }
+[ "$(wc -l < "$fixture/calls" | tr -d ' ')" = 1 ] || { echo 'FAIL recovery created another Issue'; exit 1; }
+cat >> "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+
+## Third
+
+- ID: TF-20261116-222222
+- Status: inbox
+- Goal: Uncertain create
+- Task: Not promoted.
+EOF
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'issues?'*) exit 0 ;;
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
+printf 'uncertain\n' >> "$TEST_FIXTURE/uncertain-calls"
+cat >/dev/null
+exit 1
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-222222 main --root "$fixture" > "$fixture/uncertain" 2>&1; then echo 'FAIL uncertain migration succeeded'; exit 1; fi
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-222222 main --root "$fixture" > "$fixture/uncertain-retry" 2>&1; then echo 'FAIL uncertain migration retried'; exit 1; fi
+[ "$(wc -l < "$fixture/uncertain-calls" | tr -d ' ')" = 1 ] || { echo 'FAIL repeated uncertain create'; exit 1; }
+id="$(awk -F '\t' 'NR == 1 { print $2 }' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222")"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "${2:-}" in
+  *'issues?'*) exit 0 ;;
+  *'/labels?per_page=100') printf '%s\n' "$*" | sed -n 's/.*\.name == "\([^"]*\)".*/\1/p'; exit 0 ;;
+esac
+endpoint="$2"
+case "$endpoint" in
+  */labels) printf yes > "$TEST_FIXTURE/stage-31" ;;
+  */labels/*) : ;;
+  *) case " $* " in *' --method PATCH '*) : ;; *) if [ -f "$TEST_FIXTURE/stage-31" ]; then printf '{"number":31,"state":"open","labels":["taskflow:inbox"],"body":"<!-- taskflow-operation:%s -->"}\n' "${TEST_OPERATION:-}"; else printf '{"number":31,"state":"open","labels":[],"body":"<!-- taskflow-operation:%s -->"}\n' "${TEST_OPERATION:-}"; fi ;; esac ;;
+esac
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" TEST_OPERATION="$id" bash "$HERE/remote-todo" resolve "$id" 31 --root "$fixture" > "$fixture/resolved"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" migrate-to-remote TF-20261116-222222 main --root "$fixture" > "$fixture/finished"
+grep -q '31' "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-222222" || { echo 'FAIL uncertain recovery did not link'; exit 1; }
+[ "$(wc -l < "$fixture/uncertain-calls" | tr -d ' ')" = 1 ] || { echo 'FAIL recovery created a duplicate'; exit 1; }
+echo 'PASS remote todo migrate'

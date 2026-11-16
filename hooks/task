@@ -866,7 +866,12 @@ case "$command" in
   intake)
     split_root "$@"
     split_kind "${rest[@]+"${rest[@]}"}"
-    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--kind <defect|capability|internal>] [--root <path>]'
+    intake_local=0; intake_args=()
+    for arg in "${rest[@]+"${rest[@]}"}"; do
+      if [ "$arg" = --local ]; then intake_local=1; else intake_args+=("$arg"); fi
+    done
+    rest=("${intake_args[@]+"${intake_args[@]}"}")
+    [ "${#rest[@]}" -ge 1 ] && [ "${#rest[@]}" -le 2 ] || fail 'usage: task intake <goal> [source] [--local] [--kind <defect|capability|internal>] [--root <path>]'
     # Only `promote` makes this binding, so `intake` may leave it out. The
     # default is the majority case rather than a judgement about this request:
     # an inbox item may never be planned, and demanding a classification at the
@@ -875,6 +880,10 @@ case "$command" in
     goal="${rest[0]}"
     if [ "${#rest[@]}" -eq 2 ]; then source="${rest[1]}"; else source="direct user request"; fi
     [ -n "$goal" ] || fail "goal must not be empty"
+    if [ "$intake_local" -eq 0 ] && { [ -e "$root/TaskFlowDocs/remote-todos.conf" ] || [ -L "$root/TaskFlowDocs/remote-todos.conf" ]; }; then
+      backend="$(bash "$SCRIPT_DIR/remote-todo" mode --root "$root")" || fail 'Invalid Todo backend configuration; intake was not started.'
+      [ "$backend" != remote ] || fail 'Remote Todo mode is selected; choose a configured source and create the Issue with remote-todo instead.'
+    fi
     # Who wrote the entry is the host that ran the command, and only the host can
     # answer that. The detection is the one `hooks/session-record` already uses, so
     # the Todo entry and the sessions index name the same agent. An unrecognized
@@ -1234,6 +1243,10 @@ case "$command" in
       planning|ready) todo_status=promoted ;;
       *) todo_status=in_progress ;;
     esac
+    if [ -e "$base/remote-issue" ] || [ -L "$base/remote-issue" ]; then
+      bash "$SCRIPT_DIR/remote-todo" stage-task "$task" "$new_state" --root "$root" || fail 'Remote stage update failed; local state was not changed.'
+      echo 'If a remote stage changed and a later local write fails, inspect both sides before retrying.' >&2
+    fi
     {
       printf 'Status\t%s\n' "$todo_status"
       printf 'Updated\t%s\n' "$today"
@@ -2178,7 +2191,7 @@ STAGE_LINES
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
     archive_out=""
-    if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" 2>&1)"; then
+    if ! archive_out="$(cd "$root" && "$bash_cmd" "$SCRIPT_DIR/archive" "$task" "$root" 2>&1)"; then
       # Best-effort rollback: each docstatus independently; report archive last.
       run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$plan_prev" || true
       run_awk_to "$prd" "$prd" TASKFLOW_CMD=docstatus TASKFLOW_VALUE="$prd_prev" || true

@@ -82,6 +82,7 @@ done
 if [ "${#active[@]}" -eq 0 ]; then
   recorded=0
   [ -f "$todo" ] && recorded=1
+  [ ! -e "$docs/remote-todos.conf" ] || recorded=1
   if [ "$recorded" -eq 0 ]; then
     for dir in "$docs"/*/; do
       name="${dir%/}"
@@ -91,20 +92,28 @@ if [ "${#active[@]}" -eq 0 ]; then
       break
     done
   fi
-  if [ "$recorded" -eq 1 ]; then
-    echo "# TaskFlow (no active task)"
-    echo "- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md."
-  else
-    echo "# TaskFlow (not started in this repository)"
-    echo "- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md."
+  if [ "$recorded" -eq 1 ]; then echo "# TaskFlow (no active task)"
+  else echo "# TaskFlow (not started in this repository)"; fi
+  backend=local
+  if [ -e "$docs/remote-todos.conf" ] || [ -L "$docs/remote-todos.conf" ]; then
+    backend="$(bash "$SCRIPT_DIR/remote-todo" mode --root "$repo_root" 2>/dev/null)" || backend=invalid
   fi
+  case "$backend" in
+    remote)
+      echo '- Todo backend: remote'
+      echo '- Applicable work enters TaskFlow: record the request in the selected configured remote Issue repository before task selection; retained local entries remain available.' ;;
+    invalid)
+      echo '- Todo backend: invalid'
+      echo '- Applicable work enters TaskFlow: repair the remote Todo configuration before choosing an intake location; do not silently switch backends.' ;;
+    *) echo "- Applicable work enters TaskFlow: a request to modify this repository or deliver a development artifact — a feature, fix, refactor, test, or configuration/build/CI change — is recorded first in TaskFlowDocs/todo.md." ;;
+  esac
   echo "- Read-only work (explanation, translation, status, research, review, diagnosis) does not, and an explicit \$taskflow request opts it in."
 fi
 
 # The Todo inbox is only worth printing when there is no active task to report,
 # or on request: the active-task list is the more useful default.
 if [ -f "$todo" ] && { [ "$verbose" = "1" ] || [ "${#active[@]}" -eq 0 ]; }; then
-  echo "# TaskFlow inbox (not done)"
+  if [ "${backend:-local}" = remote ]; then echo "# Retained local TaskFlow inbox (remote not fetched)"; else echo "# TaskFlow inbox (not done)"; fi
   awk '
     function ltrim(s) { sub(/^[[:space:]]+/, "", s); return s }
     function rtrim(s) { sub(/[[:space:]]+$/, "", s); return s }

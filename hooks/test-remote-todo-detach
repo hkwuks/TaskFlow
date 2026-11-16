@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-detach <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs/remote-todo-links" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf '## Existing\n- ID: TF-20261116-abcdef\n- Status: inbox\n- Goal: Old local title\n- Task: Not promoted.\n' > "$fixture/TaskFlowDocs/todo.md"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-deadbe.history-0123456789abcdef0123456789abcdef"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in *' --method '*) echo 'unexpected remote mutation' >&2; exit 1 ;; esac
+printf '%s\n' '{"number":17,"title":"Updated remote title","body":"Remote body","state":"open","created_at":"2026-01-02T00:00:00Z","labels":["taskflow:inbox"]}'
+EOF
+chmod +x "$fixture/bin/gh"
+if PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$fixture" > "$fixture/refused" 2>&1; then echo 'FAIL implicit detach'; exit 1; fi
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$fixture" > "$fixture/out"
+grep -q 'Old local title' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL original lost'; exit 1; }
+grep -q 'Updated remote title' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL remote copy missing'; exit 1; }
+[ -f "$fixture/TaskFlowDocs/remote-todo-links/TF-20261116-abcdef.detached" ] || { echo 'FAIL missing detach record'; exit 1; }
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" list --root "$fixture" > "$fixture/list"
+if grep -q 'Old local title' "$fixture/list"; then echo 'FAIL duplicate previous local entry'; exit 1; fi
+grep -q 'Updated remote title' "$fixture/list" || { echo 'FAIL new local entry hidden'; exit 1; }
+second="$fixture/retry-case"
+mkdir -p "$second/TaskFlowDocs/remote-todo-links"
+printf 'remote\nmain\tgithub\tgithub.com\towner/repo\n' > "$second/TaskFlowDocs/remote-todos.conf"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --root "$second" > "$fixture/copied-first"
+printf '\n## Original\n- ID: TF-20261116-fedcba\n- Status: inbox\n- Goal: Old local title\n- Task: Not promoted.\n' >> "$second/TaskFlowDocs/todo.md"
+printf 'pending\t0123456789abcdef0123456789abcdef\tgithub\tgithub.com\towner/repo\nconfirmed\t17\nstage-synced\tinbox\n' > "$second/TaskFlowDocs/remote-todo-links/TF-20261116-fedcba"
+PATH="$fixture/bin:$PATH" bash "$HERE/remote-todo" migrate-to-local main 17 --detach --root "$second" > "$fixture/resumed"
+[ -f "$second/TaskFlowDocs/remote-todo-links/TF-20261116-fedcba.detached" ] || { echo 'FAIL did not finish interrupted detach'; exit 1; }
+echo 'PASS remote todo detach'

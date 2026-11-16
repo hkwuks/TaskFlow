@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || { echo 'usage: test-remote-todo-concurrency <new-fixture-directory>' >&2; exit 1; }
+fixture="$1"
+[ ! -e "$fixture" ] || { echo 'fixture already exists' >&2; exit 1; }
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/bin"
+fixture="$(cd "$fixture" && pwd -P)"
+printf '.remote-todo-operations/\n.remote-todo-updates/\n' > "$fixture/TaskFlowDocs/.gitignore"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+printf 'remote\na\tgithub\tgithub.com\towner/repo\nb\tgithub\tgithub.com\towner/repo\n' > "$fixture/TaskFlowDocs/remote-todos.conf"
+printf 'content\n' > "$fixture/body"
+cat > "$fixture/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'call\n' >> "$TEST_FIXTURE/calls"
+cat >/dev/null
+sleep 2
+printf '%s\n' '{"number":17}'
+EOF
+chmod +x "$fixture/bin/gh"
+PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create a 'Example' "$fixture/body" --root "$fixture" > "$fixture/out1" 2>&1 &
+first=$!
+for attempt in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$fixture/calls" ] || break; sleep 1; done
+[ -f "$fixture/calls" ] || { echo 'FAIL first create did not reach server'; wait "$first" || true; exit 1; }
+if PATH="$fixture/bin:$PATH" TEST_FIXTURE="$fixture" bash "$HERE/remote-todo" create b 'Example' "$fixture/body" --root "$fixture" > "$fixture/out2" 2>&1; then
+  echo 'FAIL concurrent create accepted'; wait "$first" || true; exit 1
+fi
+wait "$first"
+[ "$(wc -l < "$fixture/calls" | tr -d ' ')" = 1 ] || { echo 'FAIL duplicate request'; exit 1; }
+echo 'PASS remote todo concurrent create'

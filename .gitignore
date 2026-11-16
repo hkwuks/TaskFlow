@@ -22,3 +22,7 @@ TaskFlowDocs/**/sessions.md
 # and re-include the routing record itself.
 TaskFlowDocs/repository-docs/*
 !TaskFlowDocs/repository-docs/index.md
+
+# Remote Todo recovery records are clone-local and may identify private repositories.
+TaskFlowDocs/.remote-todo-operations/
+TaskFlowDocs/.remote-todo-updates/

@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+# Copy one remote Issue into local Todo without closing or deleting it.
+set -euo pipefail
+[ "$#" -eq 4 ] || { echo 'usage: remote-todo-to-local <alias> <number> <root> <detach>' >&2; exit 2; }
+selected="$1"; number="$2"; root="$3"; detach="$4"
+[[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] && [[ "$number" =~ ^[1-9][0-9]*$ ]] || { echo 'Invalid source or Issue number.' >&2; exit 2; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+config="$root/TaskFlowDocs/remote-todos.conf"
+connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
+tab="$(printf '\t')"
+IFS="$tab" read -r alias platform host project <<EOF
+$connection
+EOF
+if [ "$platform" = github ]; then
+  response="$(gh api "repos/$project/issues/$number" --hostname "$host" --jq 'select(.pull_request == null) | .labels |= map(.name)' 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+  number_key=number; body_key=body
+  url="https://$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')/$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')/issues/$number"
+else
+  encoded="${project//\//%2F}"
+  response="$(glab api "projects/$encoded/issues/$number" --hostname "$host" 2>/dev/null)" || { echo 'Cannot read remote Issue.' >&2; exit 2; }
+  number_key=iid; body_key=description; url="https://$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')/$project/-/issues/$number"
+fi
+actual="$(printf '%s' "$response" | bash "$HERE/json-field" --numbers "$number_key")" || { echo 'Cannot parse remote Issue.' >&2; exit 2; }
+[ "$actual" = "$number" ] || { echo 'Remote Issue identity mismatch.' >&2; exit 2; }
+title="$(printf '%s' "$response" | bash "$HERE/json-field" title)" || { echo 'Cannot parse remote title.' >&2; exit 2; }
+body="$(printf '%s' "$response" | bash "$HERE/json-field" "$body_key")" || { echo 'Cannot parse remote description.' >&2; exit 2; }
+created="$(printf '%s' "$response" | bash "$HERE/json-field" created_at)" || { echo 'Cannot parse remote creation time.' >&2; exit 2; }
+state="$(printf '%s' "$response" | bash "$HERE/json-field" state)" || { echo 'Cannot parse remote state.' >&2; exit 2; }
+case "$state" in open|opened|closed) ;; *) echo 'Invalid remote state.' >&2; exit 2 ;; esac
+[[ "${created:0:10}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo 'Invalid remote creation time.' >&2; exit 2; }
+title="$(printf '%s' "$title" | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177')"
+[ -n "$title" ] || { echo 'Remote title is empty.' >&2; exit 2; }
+body="$(printf '%s' "$body" | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177')"
+stage=''; count=0
+for item in inbox clarified promoted planning ready in_progress checking blocked done cancelled; do
+  has="$(printf '%s' "$response" | bash "$HERE/json-field" --array-has labels "taskflow:$item")" || { echo 'Cannot parse remote labels.' >&2; exit 2; }
+  if [ "$has" = yes ]; then stage="$item"; count=$((count + 1)); fi
+done
+[ "$count" -le 1 ] || { echo 'Remote Issue has conflicting TaskFlow stages.' >&2; exit 2; }
+if [ -z "$stage" ]; then if [ "$state" = closed ]; then stage=done; else stage=inbox; fi; fi
+case "$stage" in planning|ready) local_status=promoted ;; checking|blocked) local_status=in_progress ;; *) local_status="$stage" ;; esac
+case "$stage:$state" in done:closed|cancelled:closed|inbox:open|inbox:opened|clarified:open|clarified:opened|promoted:open|promoted:opened|planning:open|planning:opened|ready:open|ready:opened|in_progress:open|in_progress:opened|checking:open|checking:opened|blocked:open|blocked:opened) ;; *) echo 'Remote state and TaskFlow stage conflict.' >&2; exit 2 ;; esac
+# Do not detach an active association implicitly; that transition needs its own recovery path.
+origin_task=; detached_task=; detached_count=0
+for ref in "$root"/TaskFlowDocs/*/remote-issue "$root"/TaskFlowDocs/achieved/*/remote-issue; do
+  [ -e "$ref" ] || [ -L "$ref" ] || continue
+  [ -f "$ref" ] && [ ! -L "$ref" ] || { echo 'Invalid existing task association.' >&2; exit 2; }
+  if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 4 && $1 == p && tolower($2) == tolower(h) && (p == "github" ? tolower($3) == tolower(r) : $3 == r) && $4 == n } END { if (same) exit 0; exit 1 }' "$ref"; then
+    [ "$detach" = 1 ] || { echo 'This Issue is associated with a task; use --detach to copy and disconnect it.' >&2; exit 2; }
+    candidate="${ref%/remote-issue}"; candidate="${candidate##*/}"
+    bash "$HERE/task-id" "$candidate" || exit 2
+    detached="$root/TaskFlowDocs/remote-todo-links/task-$candidate.detached"
+    if [ -e "$detached" ] || [ -L "$detached" ]; then
+      [ -f "$detached" ] && [ ! -L "$detached" ] || { echo 'Invalid task detach record.' >&2; exit 2; }
+      awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n } END { if (NR != 1 || !valid) exit 1 }' "$detached" || { echo 'Invalid task detach record.' >&2; exit 2; }
+      detached_task="$candidate"; detached_count=$((detached_count + 1)); continue
+    fi
+    [ -z "$origin_task" ] || { echo 'Multiple task associations need inspection.' >&2; exit 2; }
+    origin_task="$candidate"
+  fi
+done
+if [ -z "$origin_task" ] && [ "$detached_count" -eq 1 ]; then origin_task="$detached_task"; fi
+[ -n "$origin_task" ] || [ "$detached_count" -le 1 ] || { echo 'Multiple detached task associations need inspection.' >&2; exit 2; }
+origin_link=
+for link in "$root"/TaskFlowDocs/remote-todo-links/*; do
+  [ -e "$link" ] || [ -L "$link" ] || continue
+  link_id="${link##*/}"
+  [[ "$link_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || continue
+  [ -f "$link" ] && [ ! -L "$link" ] || { echo 'Invalid existing Todo association.' >&2; exit 2; }
+  if [ -e "$link.detached" ] || [ -L "$link.detached" ]; then
+    [ -f "$link.detached" ] && [ ! -L "$link.detached" ] || { echo 'Invalid Todo detach record.' >&2; exit 2; }
+    [ -n "$origin_task" ] && [ "$(cat "$link.detached")" = "$(printf 'detached-task\t%s' "$origin_task")" ] || continue
+  fi
+  if awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { same = NF == 5 && $1 == "pending" && $3 == p && tolower($4) == tolower(h) && (p == "github" ? tolower($5) == tolower(r) : $5 == r) } $1 == "confirmed" && $2 == n { confirmed = 1 } END { if (same && confirmed) exit 0; exit 1 }' "$link"; then
+    [ "$detach" = 1 ] || { echo 'This Issue is associated with a local Todo; use --detach to copy and disconnect it.' >&2; exit 2; }
+    [ -z "$origin_link" ] || { echo 'Multiple local Todo associations need inspection.' >&2; exit 2; }
+    origin_link="$link"
+  fi
+done
+if [ -n "$origin_task" ]; then
+  links="$root/TaskFlowDocs/remote-todo-links"
+  [ ! -L "$links" ] || { echo 'Invalid Todo links directory.' >&2; exit 2; }
+  mkdir -p "$links"
+  [ -d "$links" ] && [ ! -L "$links" ] || { echo 'Invalid Todo links directory.' >&2; exit 2; }
+  lock="$links/.lock-task-$origin_task"
+  mkdir "$lock" 2>/dev/null || { echo 'Task detachment is busy or needs inspection.' >&2; exit 2; }
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  copy="$links/task-$origin_task-copy.md"
+  marker="$links/task-$origin_task.detached"
+  [ ! -L "$copy" ] && [ ! -L "$marker" ] || { echo 'Invalid task copy or detach record.' >&2; exit 2; }
+  for prior in "$links/task-$origin_task.detached.history-"*; do
+    [ -e "$prior" ] || [ -L "$prior" ] || continue
+    if [ -e "$copy" ] && [ ! -e "$marker" ]; then
+      [ -f "$copy" ] && [ ! -L "$copy" ] || { echo 'Invalid previous task copy.' >&2; exit 2; }
+      copy_id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; [[ "$copy_id" =~ ^[0-9a-f]{32}$ ]] || exit 2
+      [ ! -e "$copy.history-$copy_id" ] && [ ! -L "$copy.history-$copy_id" ] || exit 2
+      mv -n "$copy" "$copy.history-$copy_id" || { echo 'Cannot preserve previous task copy.' >&2; exit 2; }
+      [ ! -e "$copy" ] && [ -f "$copy.history-$copy_id" ] || { echo 'Task copy history collision; inspect before retrying.' >&2; exit 2; }
+    fi
+    break
+  done
+  if [ -e "$copy" ]; then
+    [ -f "$copy" ] && grep -Fx -- "- Source: $url" "$copy" >/dev/null && grep -Fx -- "    <!-- taskflow-copy-complete:task-$origin_task -->" "$copy" >/dev/null || { echo 'Existing task copy is incomplete or belongs to another source.' >&2; exit 2; }
+  else
+    echo 'Copying the remote Issue into a local task reference; the remote Issue remains unchanged.' >&2
+    (set -o noclobber; {
+      printf '# Remote Issue copy\n\n- Source: %s\n- Retrieved: %s\n- Title: %s\n\n## Untrusted remote description\n\n' "$url" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$title"
+      printf '%s\n' "$body" | sed 's/^/    /' || exit 2
+      printf '    <!-- taskflow-copy-complete:task-%s -->\n' "$origin_task"
+    } > "$copy") || { echo 'Task copy may be incomplete; inspect it before retrying.' >&2; exit 2; }
+  fi
+  expected="$(printf 'detached\t%s\t%s\t%s\t%s' "$platform" "$host" "$project" "$number")"
+  if [ -e "$marker" ]; then
+    [ -f "$marker" ] && awk -F '\t' -v p="$platform" -v h="$host" -v r="$project" -v n="$number" 'NR == 1 { valid = NF == 5 && $1 == "detached" && $2 == p && tolower($3) == tolower(h) && (p == "github" ? tolower($4) == tolower(r) : $4 == r) && $5 == n } END { if (NR != 1 || !valid) exit 1 }' "$marker" || { echo 'Conflicting task detach record.' >&2; exit 2; }
+  else (set -o noclobber; printf '%s\n' "$expected" > "$marker") || { echo 'Task copy saved; detachment needs recovery.' >&2; exit 2; }; fi
+  if [ -n "$origin_link" ]; then
+    local_marker="$origin_link.detached"
+    [ ! -L "$local_marker" ] || { echo 'Invalid Todo detach record.' >&2; exit 2; }
+    expected_local="$(printf 'detached-task\t%s' "$origin_task")"
+    if [ -e "$local_marker" ]; then [ -f "$local_marker" ] && [ "$(cat "$local_marker")" = "$expected_local" ] || { echo 'Conflicting Todo detach record.' >&2; exit 2; }
+    else (set -o noclobber; printf '%s\n' "$expected_local" > "$local_marker") || { echo 'Task detached; local Todo association needs recovery.' >&2; exit 2; }; fi
+  fi
+  printf 'Copied remote Issue and detached task %s; remote Issue unchanged.\n' "$origin_task"
+  exit 0
+fi
+normalized_host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+normalized_project="$project"
+if [ "$platform" = github ]; then normalized_project="$(printf '%s' "$project" | tr '[:upper:]' '[:lower:]')"; fi
+if [ "$platform" = github ]; then url="https://$normalized_host/$normalized_project/issues/$number"
+else url="https://$normalized_host/$normalized_project/-/issues/$number"; fi
+digest="$(printf '%s\n%s\n%s\n%s\n' "$platform" "$normalized_host" "$normalized_project" "$number" | cksum | awk '{ printf "%06x", $1 % 16777216 }')"
+day="${created:0:10}"; day="${day//-/}"
+id="TF-$day-$digest"
+todo="$root/TaskFlowDocs/todo.md"
+[ ! -L "$todo" ] || { echo 'Invalid local Todo file.' >&2; exit 2; }
+mkdir -p "$root/TaskFlowDocs"
+lock="$root/TaskFlowDocs/.remote-todo-local-lock"
+mkdir "$lock" 2>/dev/null || { echo 'Local Todo copy is busy or needs inspection.' >&2; exit 2; }
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+already=0
+if [ -f "$todo" ]; then
+  if awk -v id="$id" 'index($0, "- ID: " id) == 1 && $0 == "- ID: " id { found = 1 } END { if (!found) exit 1 }' "$todo"; then
+    copy_state="$(TASKFLOW_COPY_ID="$id" TASKFLOW_COPY_URL="$url" awk '
+      function flush() { if (inside && found_id) { matches++; if (found_url && found_end) complete++; else if (found_url) incomplete++ } }
+      /^## / { flush(); inside = 1; found_id = found_url = found_end = 0 }
+      inside && $0 == "- ID: " ENVIRON["TASKFLOW_COPY_ID"] { found_id = 1 }
+      inside && $0 == "- External: " ENVIRON["TASKFLOW_COPY_URL"] { found_url = 1 }
+      inside && $0 == "    <!-- taskflow-copy-complete:" ENVIRON["TASKFLOW_COPY_ID"] " -->" { found_end = 1 }
+      END { flush(); if (matches == 1 && complete == 1) print "complete"; else if (matches == 1 && incomplete == 1) print "incomplete"; else print "collision" }
+    ' "$todo")"
+    case "$copy_state" in
+      complete) echo 'Local copy already exists; remote Issue unchanged.'; already=1 ;;
+      incomplete) echo 'Local copy is incomplete; inspect the Todo before retrying.' >&2; exit 2 ;;
+      *) echo 'Local Todo ID collision; copy not started.' >&2; exit 2 ;;
+    esac
+  fi
+else
+  [ ! -e "$todo" ] || { echo 'Invalid local Todo file.' >&2; exit 2; }
+  (set -o noclobber; printf '# Todo\n' > "$todo") || { echo 'Cannot create local Todo.' >&2; exit 2; }
+fi
+if [ "$already" -eq 0 ]; then
+today="$(date +%Y-%m-%d)"
+echo 'Copying remote Issue content into the local Todo; the remote Issue will remain unchanged.' >&2
+{
+  printf '\n## Remote Issue copy\n\n- ID: %s\n- Status: %s\n- Priority: normal\n- Owner: Unknown\n- Source: remote copy (not synchronized)\n- Kind: capability\n- Added: %s\n- Updated: %s\n- Goal: %s\n- External: %s\n- Task: Not promoted.\n- Next action: Clarify and promote when ready.\n- Notes: Remote description copied below; this local entry is independent.\n' "$id" "$local_status" "$today" "$today" "$title" "$url"
+  printf '%s\n' "$body" | sed 's/^/    /' || exit 2
+  printf '    <!-- taskflow-copy-complete:%s -->\n' "$id"
+} >> "$todo" || { echo 'Local copy may be incomplete; inspect the Todo before retrying.' >&2; exit 2; }
+fi
+if [ -n "$origin_link" ]; then
+  marker="$origin_link.detached"
+  [ ! -L "$marker" ] || { echo 'Invalid detach record.' >&2; exit 2; }
+  if [ -e "$marker" ]; then
+    [ -f "$marker" ] && [ "$(cat "$marker")" = "$(printf 'detached\t%s' "$id")" ] || { echo 'Conflicting detach record.' >&2; exit 2; }
+  else
+    (set -o noclobber; printf 'detached\t%s\n' "$id" > "$marker") || { echo 'Local copy saved; detachment needs recovery.' >&2; exit 2; }
+  fi
+fi
+printf 'Copied remote Issue to local Todo %s; remote Issue unchanged.\n' "$id"
