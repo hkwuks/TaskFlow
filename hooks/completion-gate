@@ -99,6 +99,25 @@ result="$(awk -v approval_only="$approval_only" '
     instep = 0; closed = 0; nstat = 0
   }
   BEGIN { bad = 0 }
+  # Fenced Markdown is illustrative text, never task structure.
+  {
+    fence_line = $0
+    sub(/\r$/, "", fence_line)
+    for (indent = 0; indent < 3 && substr(fence_line, 1, 1) == " "; indent++) fence_line = substr(fence_line, 2)
+    marker = substr(fence_line, 1, 1)
+    run = 0
+    if (marker == "`" || marker == "~") {
+      while (substr(fence_line, run + 1, 1) == marker) run++
+    }
+    if (fence != "") {
+      if (marker == fence && run >= fence_len && substr(fence_line, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      next
+    }
+    if (run >= 3 && (marker != "`" || index(substr(fence_line, run + 1), "`") == 0)) {
+      fence = marker; fence_len = run
+      next
+    }
+  }
   /^## / { flush() }
   /^### Step / {
     flush()
@@ -133,6 +152,7 @@ result="$(awk -v approval_only="$approval_only" '
     closed = ($0 ~ /^- Status:[[:space:]]*done[[:space:]]*$/)
   }
   END {
+    if (fence != "") { print "unclosed Markdown fence"; exit 1 }
     flush()
     if (approval_only) { exit 0 }
     # Checked before `unchecked` and `unfinished`, because it is the one failure

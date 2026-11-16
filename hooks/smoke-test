@@ -69,6 +69,27 @@ cg_case clean 0 '' "$cg_approved### Step 1 — a
   - [x] done
 - Status: done
 "
+# Markdown examples are data: they cannot grant approval or leave work open.
+cg_case fenced-example 0 '' "${cg_approved}"'### Step 1 — real
+- Status: done
+## Example
+````markdown
+### Step 99 — example
+- Status: pending
+- [ ] example only
+````
+'
+cg_case fenced-fake-approval 1 'not approved' '> Task version: v1
+## Approval
+- Status: requested
+## Example
+```markdown
+## Approval
+- Status: approved
+- Approved by: user
+- Approved version: v1
+```
+'
 cg_case unapproved 1 'not approved' '> Task version: v1
 ## Approval
 - Status: requested

@@ -85,6 +85,25 @@ plan="$1"
 # becomes a failed pipeline. Measured there on a 39 KB approval block, 16 times
 # out of 200. Reading the file once has no such failure mode at any size.
 result="$(awk -v stale_only="$stale_only" '
+  # Fenced Markdown is illustrative text, never task structure.
+  {
+    fence_line = $0
+    sub(/\r$/, "", fence_line)
+    for (indent = 0; indent < 3 && substr(fence_line, 1, 1) == " "; indent++) fence_line = substr(fence_line, 2)
+    marker = substr(fence_line, 1, 1)
+    run = 0
+    if (marker == "`" || marker == "~") {
+      while (substr(fence_line, run + 1, 1) == marker) run++
+    }
+    if (fence != "") {
+      if (marker == fence && run >= fence_len && substr(fence_line, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      next
+    }
+    if (run >= 3 && (marker != "`" || index(substr(fence_line, run + 1), "`") == 0)) {
+      fence = marker; fence_len = run
+      next
+    }
+  }
   /^## / { inap = 0 }
   /^> Task version: v[0-9][0-9]*$/ {
     if (ver == "") { ver = $0; sub(/^> Task version: /, "", ver) }
@@ -95,6 +114,7 @@ result="$(awk -v stale_only="$stale_only" '
   inap && $0 == "- Approved by: pending" { pend = 1 }
   inap && index($0, "- Approved version: ") == 1 { av = substr($0, 21) }
   END {
+    if (fence != "") { print "unclosed Markdown fence"; exit 1 }
     if (ver == "") { print "missing Plan Task version"; exit 1 }
     if (stale_only) {
       # Only a superseded approval blocks a write. `pending` and an absent field
