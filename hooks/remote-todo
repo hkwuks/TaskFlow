@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit remote Todo operations; a missing configuration keeps local mode.
 set -euo pipefail
-usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
+usage() { echo 'usage: remote-todo mode|validate|list [--root <path>] | mode-set local|remote [--root <path>] | connect <alias> github|gitlab <host> <project> [--root <path>] | snapshot <new-file> [--root <path>] | create <alias> <title> <body-file> [--root <path>] | migrate-to-remote <todo-id> <alias> [--root <path>] | edit <alias> <number> title|body <value> [--root <path>] | stage <alias> <number> <stage> [--root <path>] | stage-task <task-id> <stage> [--root <path>] | label <alias> <number> add|remove <label> [--root <path>] | link <alias> <number> <task-id> [--root <path>] | resolve <operation-id> <number> [--root <path>] | resolve-absent <operation-id> --checked [--root <path>] | ack-update <operation-id> --checked [--root <path>]' >&2; exit 2; }
 [ "$#" -ge 1 ] || usage
 command="$1"; shift
 target=
@@ -40,16 +40,22 @@ if [ "$command" = edit ]; then
   [ "$#" -ge 4 ] || usage
   selected="$1"; issue_number="$2"; field="$3"; value="$4"; shift 4
 fi
+if [ "$command" = migrate-to-remote ]; then
+  [ "$#" -ge 2 ] || usage
+  local_id="$1"; selected="$2"; shift 2
+fi
 if [ "$command" = create ]; then
   [ "$#" -ge 3 ] || usage
   selected="$1"; title="$2"; body="$3"; shift 3
+  supplied_id=
+  if [ "${1:-}" = --operation-id ]; then [ "$#" -ge 2 ] || usage; supplied_id="$2"; shift 2; fi
 fi
 root=.
 if [ "$#" -gt 0 ]; then
   [ "$#" -eq 2 ] && [ "$1" = --root ] || usage
   root="$2"
 fi
-case "$command" in mode|mode-set|connect|validate|list|snapshot|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
+case "$command" in mode|mode-set|connect|validate|list|snapshot|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) ;; *) usage ;; esac
 if [ "$command" = snapshot ]; then
   [ -n "$target" ] && [ ! -e "$target" ] && [ ! -L "$target" ] || { echo 'Snapshot target must be a new file.' >&2; exit 2; }
   echo 'Snapshot may contain private issue data; protect the selected file.' >&2
@@ -112,7 +118,7 @@ if [ "$command" = mode-set ] || [ "$command" = connect ]; then
   exit 0
 fi
 if [ ! -e "$config" ] && [ ! -L "$config" ]; then
-  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
+  case "$command" in mode) echo local ;; validate) echo 'OK local' ;; list|create|migrate-to-remote|edit|stage|stage-task|label|link|resolve|resolve-absent|ack-update) echo 'No remote Todo repositories configured.' >&2; exit 2 ;; esac
   exit 0
 fi
 [ -f "$config" ] && [ ! -L "$config" ] || { echo 'Invalid remote Todo configuration.' >&2; exit 2; }
@@ -122,6 +128,10 @@ result="$(validate_config "$config" "$command")"
 if [ "$command" = mode ] || [ "$command" = validate ]; then
   printf '%s\n' "$result"
   exit 0
+fi
+if [ "$command" = migrate-to-remote ]; then
+  HERE="$(cd "$(dirname "$0")" && pwd)"
+  exec bash "$HERE/remote-todo-migrate" "$local_id" "$selected" "$root"
 fi
 if [ "$command" = stage-task ]; then
   HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -452,13 +462,14 @@ if [ "$command" = resolve ]; then
 fi
 if [ "$command" = create ]; then
   [[ "$selected" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]] || { echo 'Invalid source alias.' >&2; exit 2; }
-  [ -n "$title" ] && [ -f "$body" ] && [ -r "$body" ] || { echo 'A title and readable body file are required.' >&2; exit 2; }
+  [ -n "$title" ] && { [ "$body" = - ] || { [ -f "$body" ] && [ -r "$body" ]; }; } || { echo 'A title and readable body file are required.' >&2; exit 2; }
   connection="$(awk -F '\t' -v name="$selected" 'NR > 1 && $1 == name { print; found = 1 } END { if (!found) exit 2 }' "$config")" || { echo 'Unknown source alias.' >&2; exit 2; }
   tab="$(printf '\t')"
   IFS="$tab" read -r alias platform host project <<EOF
 $connection
 EOF
-  id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+  id="$supplied_id"
+  if [ -z "$id" ]; then id="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"; fi
   [[ "$id" =~ ^[0-9a-f]{32}$ ]] || { echo 'Cannot allocate operation ID.' >&2; exit 2; }
   private_store TaskFlowDocs/.remote-todo-operations || exit 2
   store="$root/TaskFlowDocs/.remote-todo-operations"
