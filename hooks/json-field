@@ -21,11 +21,16 @@ LC_ALL=C
 export LC_ALL
 
 numbers=0
+array_mode=0
 if [ "${1:-}" = --numbers ]; then numbers=1; shift; fi
+if [ "${1:-}" = --array-has ]; then
+  [ "$#" -eq 3 ] || { echo 'usage: json-field --array-has <key> <value>' >&2; exit 2; }
+  array_mode=1; TASKFLOW_ARRAY_EXPECTED="$3"; export TASKFLOW_ARRAY_EXPECTED; set -- "$2"
+fi
 KEYS="${*:-}"
 [ -n "$KEYS" ] || exit 0
 
-awk -v KEYS="$KEYS" -v NUMBERS="$numbers" '
+awk -v KEYS="$KEYS" -v NUMBERS="$numbers" -v ARRAY_MODE="$array_mode" '
   function die(msg) {
     printf "TaskFlow json-field error: invalid event JSON: %s\n", msg > "/dev/stderr"
     exit 2
@@ -124,6 +129,23 @@ awk -v KEYS="$KEYS" -v NUMBERS="$numbers" '
       P++
     }
   }
+  function array_has(   item, found) {
+    if (peek() != "[") die("expected a string array")
+    array_seen = 1
+    P++; ws()
+    if (peek() == "]") { P++; return "no" }
+    while (1) {
+      ws()
+      if (peek() != "\"") die("expected an array string")
+      item = str()
+      if (item == ENVIRON["TASKFLOW_ARRAY_EXPECTED"]) found = 1
+      ws()
+      if (peek() == ",") { P++; continue }
+      if (peek() == "]") { P++; break }
+      die("expected an array comma or closing bracket")
+    }
+    return found ? "yes" : "no"
+  }
   # Descend into the object whose opening brace is next, capturing `parent.sub`
   # specs. A null or a non-object value leaves every nested spec empty.
   function nested_obj(parent,   k, sp) {
@@ -181,7 +203,7 @@ awk -v KEYS="$KEYS" -v NUMBERS="$numbers" '
         if (peek() != ":") die("expected a colon")
         P++
         ws()
-        if (k in want) out[want[k]] = scalar()
+        if (k in want) out[want[k]] = ARRAY_MODE ? array_has() : scalar()
         else if (k in nested) nested_obj(k)
         else skipval()
         ws()
@@ -192,6 +214,7 @@ awk -v KEYS="$KEYS" -v NUMBERS="$numbers" '
     }
     ws()
     if (P <= L) die("unexpected trailing content")
+    if (ARRAY_MODE && !array_seen) die("missing string array")
     for (i = 1; i <= NS; i++) print (i in out) ? out[i] : ""
   }
 '
