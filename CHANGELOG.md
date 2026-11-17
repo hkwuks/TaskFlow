@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [1.2.5] — 2026-11-17
+
+### Added
+
+- Optional GitHub and GitLab Issues as a project's Todo source, including multiple repositories, self-hosted instances, explicit migration, TaskFlow stage labels, and recovery for uncertain writes. Local mode remains the default. [#143](https://github.com/hkwuks/TaskFlow/pull/143)
+- Optional read-only Issue snapshots containing only source order, Issue number, state and update time; titles, bodies and labels are excluded.
+
+### Changed
+
+- Treat TaskFlow document outlines as required minimum content and allow useful sections and examples from tools and skills, with detail proportional to task complexity. [#144](https://github.com/hkwuks/TaskFlow/pull/144)
+- Preserve fenced examples during task approval, progress, versioning and archive operations, and reject ambiguous lifecycle records rather than treating examples as real approvals or steps. [#144](https://github.com/hkwuks/TaskFlow/pull/144)
+
+### Installation and known limitations
+
+- Remote mode requires the appropriate authenticated `gh` or `glab` CLI and repository permissions; existing local Todo files are retained and migration is explicit.
+- Issue writes are not atomic across clients; do not migrate the same Todo concurrently from multiple worktrees or machines. User or external edits can remove migration markers. Real GitLab, self-hosted instances and remote writes were not exercised against live services.
+- Real-host end-to-end behavior using external skills to produce task documents remains unverified. Metadata-only snapshots remain subject to activity-metadata exposure.
+
+### Verification
+
+- Merged main commit `50441852de1946fc22db067fb3c224db41e4b15c` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/44005551672), including Ubuntu, macOS and Windows smoke, evals, release and Todo audit.
+- The release commit changes only this section, version literals and README version samples; the smoke suite is not repeated locally because three-platform CI covers the implementation.
+- `hooks/release-check .`, Skill quick validation and `git diff --check` passed during preparation. `hooks/repository-check .` returned `needs-user-input` because this release checkout is detached and has no upstream after avoiding a new release branch; it also reported an unrelated dirty worktree, which was preserved. Marketplace pins must be checked again after the new tag and pin are prepared.
+
+### Release
+
+- Planned tag: `v1.2.5`; the tag and marketplace pins will be pushed atomically after the release commit is approved.
+
 ## [1.2.4] — 2026-11-13
 
 ### Added
