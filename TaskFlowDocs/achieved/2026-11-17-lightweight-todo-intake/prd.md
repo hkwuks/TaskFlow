@@ -1,6 +1,6 @@
 # 简化 Todo 录入
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Goal
 只要求添加 Todo 时记录后结束，不提前调研待办内容；保留相似目标提示。

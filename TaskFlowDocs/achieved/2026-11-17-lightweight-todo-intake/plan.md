@@ -1,6 +1,6 @@
 # Plan — 轻量 Todo 录入
 > Task version: v2
-> Status: in_progress
+> Status: completed
 
 ## Spec Pointers
 - spec.md
@@ -64,7 +64,7 @@
 实施完成后记录 Git 检查点。
 
 ## Verification / Review
-Windows Git Bash：中英文相似目标均产生候选提示；中文精确重复拒绝且文件不变；v1 夹具确认确定性 ID；hooks/task 与基线 5bf7551 字节相同。Skill 录入及任务选择边界检查、bash -n 和 git diff --check 通过。新增 smoke 断言针对规则本身；完整 smoke 含文件删除，遵照用户要求未运行。v1 首次 smoke 因默认临时目录权限失败，不能视为通过。保留夹具在 .worktrees/todo-intake-verification-20261117。
+Windows Git Bash：中英文相似目标均产生候选提示；中文精确重复拒绝且文件不变；v1 夹具确认确定性 ID；hooks/task 与基线 5bf7551 字节相同。Skill 录入及任务选择边界检查、bash -n 和 git diff --check 通过。新增 smoke 断言针对规则本身；用户允许清理项目内临时测试文件后重跑完整 smoke：第一次因临时目录位于工作树内而误识别无仓库夹具；设置 Git 搜索上限后该场景通过，随后 Windows Git Bash 的无解释器夹具因复制的 bash 无法加载共享库而失败，故完整 smoke 未通过，未覆盖新增断言。新增断言内容已单独执行。
 
 ## Change Log
 - 2026-11-17：用户选择独立修复、移除相似检查并保留精确重复拒绝；已实现并完成针对性验证。

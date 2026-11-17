@@ -38,16 +38,10 @@ has an issue number or URL.
 ## 简化只要求添加 Todo 的处理：记录后结束，避免额外检查和
 
 - ID: TF-20261117-0803fd
-- Status: in_progress
-- Priority: normal
-- Owner: Unknown
-- Source: user request
-- Kind: internal
-- Added: 2026-11-17
-- Updated: 2026-11-17
+- Status: done
 - Goal: 简化只要求添加 Todo 的处理：记录后结束，避免额外检查和过度分析
-- Task: `TaskFlowDocs/2026-11-17-lightweight-todo-intake/`
-- Next action: Complete PRD / Spec / Plan and request approval.
+- Task: `TaskFlowDocs/achieved/2026-11-17-lightweight-todo-intake/`
+- Next action: None — completed and archived.
 
 ## 放宽 TaskFlow 文档内容约束，允许工具补充内容
 
