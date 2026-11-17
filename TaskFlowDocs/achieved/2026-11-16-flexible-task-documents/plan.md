@@ -1,6 +1,6 @@
 # Plan — 放宽 TaskFlow 文档内容约束
 > Task version: v1
-> Status: checking
+> Status: completed
 
 ## Spec Pointers
 
@@ -106,23 +106,31 @@
 - 完整 Bash smoke 在本机精简 PATH 环境中因 Git Bash 的模拟链接缺少运行库而失败；已确认本机无权限建立原生符号链接，因此该项未通过，不计为产品失败或全套通过。
 - `bash -n` 检查修改过的 hooks 通过；`git diff --check` 通过。未在 Linux / macOS 实机运行；未执行真实外部工具生成文档的宿主端到端验证，工具输出能力不能由格式测试证明。
 - 层归属：修改 `approval-check`、`completion-gate`、`task`、`version`、`archive` 的实际读写逻辑并新增元数据读取器；未通过篡改旧期望伪造通过。新例测试示例内容和真实未完成事项的不同结果。
-- PR 模板 `.github/pull_request_template.md`：Summary 说明补充内容与解析修复；TaskFlow traceability 记录任务、范围、目标仓库及 base；Verification 记录 CI、diff 和技能校验；Review boundaries 记录范围、隐私和剩余限制。CI 尚待 PR 创建后运行。
+- PR 模板 `.github/pull_request_template.md`：Summary 说明补充内容与解析修复；TaskFlow traceability 记录任务、范围、目标仓库及 base；Verification 记录 CI、diff 和技能校验；Review boundaries 记录范围、隐私和剩余限制。CI 已运行，结果见下。
 - 2026-11-17 PR #144 首次 CI：Ubuntu 大文档门禁测试因旧夹具包含重复审批状态而失败；将非结构性尾行改为普通说明，并新增明确的 `unchecked items` 拒绝原因断言，保留原大文件与管道边界覆盖。macOS Bash 3.2 无法解析 Task AWK heredoc 中不成对的反引号，改为等价字符编码；Windows CI 通过。上述是本任务实现及测试的工作修订，不改变批准范围。
-- 2026-11-17 当前工作树完成门专项（含 >64KB 未勾选反例及 50 次大批准块）通过；修改后的 macOS Bash 3.2 行为等待 CI 实证。
+- 2026-11-17 当前工作树完成门专项（含 >64KB 未勾选反例及 50 次大批准块）通过；修改后的 macOS Bash 3.2 行为已由下方 CI 复验。
 - 2026-11-17 CI：代码提交 `90c9fee` 的 Hooks 工作流 https://github.com/hkwuks/TaskFlow/actions/runs/43999790222 通过 Ubuntu、macOS 和 Windows smoke、evals、Todo 合并审计及 CI 复用检查；release 为按条件跳过。macOS Bash 3.2 与大文档门禁均得到 CI 复验。
 ## Change Log
 
-- v1 工作修订：按已批准验收补充围栏示例和审批歧义的实际根因与回归；PR CI 暴露的本任务夹具及 Bash 3.2 问题已修复，等待复验；不改变任务范围。
+- v1 工作修订：按已批准验收补充围栏示例和审批歧义的实际根因与回归；PR CI 暴露的本任务夹具及 Bash 3.2 问题已修复并复验；不改变任务范围。
 
 - v1：建立初始规格与计划；按用户补充加入文档内容充分性与防止过度压缩的引导和验收（批准前修订）。
 
 ## Follow-ups
 
 - 本机完整 Bash smoke 因 Git Bash 符号链接限制未通过；Linux 和 macOS 已由 CI 验证，真实宿主工具输出仍待验证。
-- 本次测试自建夹具已按用户授权清理；任务文档已提交，等待验收。
+- 本次测试自建夹具已按用户授权清理；用户于 2026-11-17 验收任务。
 
 - 若解析范围或安全边界需要偏离批准规格，先更新版本并重新确认。
 
 ## Version History
 
 - v1 — planning。
+
+## Todo Record
+
+Moved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.
+
+### `- Notes:`
+
+- 与 TF-20261110-84d1a9 对流程和文档重复的审视相关，但本条聚焦 TaskFlow 对工具输出内容的约束；不预设修改现有条目。
