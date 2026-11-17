@@ -14,7 +14,8 @@ docs="$root/TaskFlowDocs"
 plan="$docs/$task/plan.md"
 [ -f "$plan" ] || { echo "missing plan.md"; exit 1; }
 [ -f "$docs/$task/prd.md" ] || { echo "missing prd.md"; exit 1; }
-oldv=$(awk -F': ' '/> Task version:/{print $2; exit}' "$plan")
+HERE="$(cd "$(dirname "$0")" && pwd)"
+oldv="$(bash "$HERE/markdown-field" 'Task version' "$plan")"
 [ -n "$oldv" ] || { echo "missing current Task version"; exit 1; }
 [[ "$oldv" =~ ^v([1-9][0-9]*)$ ]] || { echo "invalid current Task version: $oldv"; exit 1; }
 [ "$newv" = "v$((BASH_REMATCH[1] + 1))" ] || { echo "new version must follow $oldv"; exit 1; }
@@ -31,7 +32,7 @@ done
 for f in prd.md spec.md plan.md; do
   fpath="$docs/$task/$f"
   [ -f "$fpath" ] || continue
-  grep -q "^> Task version: $oldv$" "$fpath" || { echo "mixed or missing Task version in $f"; exit 1; }
+  [ "$(bash "$HERE/markdown-field" 'Task version' "$fpath")" = "$oldv" ] || { echo "mixed or missing Task version in $f"; exit 1; }
 done
 # Only the section is required. Individual Approval fields are written below
 # even when absent — a plan that followed the old four-field skill snippet has
@@ -39,6 +40,22 @@ done
 # reset from agreeing on shape.
 grep -q '^## Approval$' "$plan" || { echo "missing Approval section"; exit 1; }
 
+# Preserve fenced examples while updating the document's actual metadata.
+fence_guard='
+  {
+    text = $0; sub(/\r$/, "", text)
+    for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+    marker = substr(text, 1, 1); run = 0
+    if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+    if (fence != "") {
+      if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      if (keep) print; next
+    }
+    if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) {
+      fence = marker; fence_len = run; if (keep) print; next
+    }
+  }
+'
 # The archive must hold the superseded *version*, not the working tree after the
 # new version's edits landed. When v2 was written before the bump was taken, the
 # copy below would carry v2's text and `old/vN/` would silently stop recording
@@ -55,6 +72,17 @@ if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   done
 fi
 
+# Refuse ambiguous Markdown before creating archives or changing any document.
+for f in prd.md spec.md plan.md; do
+  fpath="$docs/$task/$f"; [ -f "$fpath" ] || continue
+  awk "$fence_guard"' END { if (fence != "") exit 1 }' "$fpath" >/dev/null || { echo "unclosed Markdown fence in $f"; exit 1; }
+done
+HERE="$(cd "$(dirname "$0")" && pwd)"
+for f in prd.md plan.md; do
+  bash "$HERE/markdown-field" Status "$docs/$task/$f" >/dev/null || { echo "invalid status in $f"; exit 1; }
+done
+bash "$HERE/approval-check" --stale-only "$plan" || exit 1
+awk "$fence_guard"' /^## Approval$/ { count++ } END { exit count != 1 }' "$plan" >/dev/null || { echo "missing or ambiguous Approval section"; exit 1; }
 archdir="$docs/$task/old/$oldv"
 [ ! -e "$archdir" ] || { echo "archive already exists: $archdir"; exit 1; }
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -90,18 +118,18 @@ for f in "${selected[@]}"; do cp "$docs/$task/$f" "$archdir/$f"; done
 for f in prd.md spec.md plan.md; do
   fpath="$docs/$task/$f"
   [ -f "$fpath" ] || continue
-  sed "s/^> Task version: .*/> Task version: $newv/" "$fpath" > "$fpath.tmp"
+  awk -v keep=1 -v newv="$newv" "$fence_guard"' /^> Task version: / { print "> Task version: " newv; next } { print }' "$fpath" > "$fpath.tmp"
   mv "$fpath.tmp" "$fpath"
 done
 for fpath in "$docs/$task/prd.md" "$plan"; do
-  sed 's/^> Status: .*/> Status: ready/' "$fpath" > "$fpath.tmp"
+  awk -v keep=1 "$fence_guard"' /^> Status: / { print "> Status: ready"; next } { print }' "$fpath" > "$fpath.tmp"
   mv "$fpath.tmp" "$fpath"
 done
 # Reset ## Approval to the same five-field block hooks/task promote writes.
 # Field lines are dropped and re-emitted once, in template order, so a missing
 # Status (or any other) is inserted rather than refused. Non-field lines in
 # the section are left alone.
-awk '
+awk -v keep=1 "$fence_guard"'
   BEGIN {
     t[1] = "- Status: requested"
     t[2] = "- Approved by: pending"
@@ -136,11 +164,11 @@ mv "$plan.tmp" "$plan"
 for f in "${selected[@]}"; do [ -f "$archdir/$f" ] || { echo "archive check failed: $f"; exit 1; }; done
 for f in prd.md spec.md plan.md; do
   fpath="$docs/$task/$f"; [ -f "$fpath" ] || continue
-  grep -q "^> Task version: $newv$" "$fpath" || { echo "root version check failed: $f"; exit 1; }
+  [ "$(bash "$HERE/markdown-field" 'Task version' "$fpath")" = "$newv" ] || { echo "root version check failed: $f"; exit 1; }
 done
-grep -q '^> Status: ready$' "$docs/$task/prd.md" && grep -q '^> Status: ready$' "$plan" || { echo "ready-state check failed"; exit 1; }
+[ "$(bash "$HERE/markdown-field" Status "$docs/$task/prd.md")" = ready ] && [ "$(bash "$HERE/markdown-field" Status "$plan")" = ready ] || { echo "ready-state check failed"; exit 1; }
 # Exact five-line block, in order — not a single-field grep under -A8.
-approval_fields="$(awk '
+approval_fields="$(awk "$fence_guard"'
   /^## Approval$/ { p = 1; next }
   p && /^## / { exit }
   p && /^- Status:/ { print; next }

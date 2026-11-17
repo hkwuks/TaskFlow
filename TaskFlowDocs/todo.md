@@ -35,6 +35,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 放宽 TaskFlow 文档内容约束，允许工具补充内容
+
+- ID: TF-20261116-b893dc
+- Status: done
+- Goal: 调整 TaskFlow 文档要求，使其仅规定必须包含的内容，允许被引用的工具和技能按需写入更多内容，避免不必要的内容限制。
+- Task: `TaskFlowDocs/achieved/2026-11-16-flexible-task-documents/`
+- Next action: None — completed and archived.
+
 ## 支持使用远程仓库 Issues 作为用户的待办列表
 
 - ID: TF-20261116-7e2c41

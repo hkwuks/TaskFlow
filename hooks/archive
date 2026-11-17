@@ -21,8 +21,8 @@ docs="$root/TaskFlowDocs"
 [ ! -e "$docs/achieved/$task" ] || { echo "achieved/$task already exists"; exit 1; }
 
 # 1. authoritative completion must already be recorded by the Agent
-grep -q '> Status: completed' "$docs/$task/prd.md" || { echo "prd.md not completed"; exit 1; }
-grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not completed"; exit 1; }
+[ "$(bash "$HERE/markdown-field" Status "$docs/$task/prd.md")" = completed ] || { echo "prd.md not completed"; exit 1; }
+[ "$(bash "$HERE/markdown-field" Status "$docs/$task/plan.md")" = completed ] || { echo "plan.md not completed"; exit 1; }
 
 # 1b. and the completion has to be real, not just recorded.
 #
@@ -42,7 +42,8 @@ grep -q '> Status: completed' "$docs/$task/plan.md" || { echo "plan.md not compl
 # enters the rollback path — the active directory, the Todo and the absent
 # achieved path are all untouched.
 bash "$HERE/completion-gate" "$docs/$task" || exit 1
-version="$(sed -n 's/^> Task version: //p' "$docs/$task/plan.md" | head -1)"
+todo_record_count="$(bash "$HERE/markdown-field" 'Todo Record' "$docs/$task/plan.md")"
+version="$(bash "$HERE/markdown-field" 'Task version' "$docs/$task/plan.md")"
 bash "$HERE/version-baseline" check "$root" "$task" "$version" || exit 1
 
 todo="$docs/todo.md"
@@ -268,10 +269,41 @@ fi
 # prose has exactly one destination, and the only question is whether the
 # `## Todo Record` heading is already there (a reopened task, archived twice).
 if [ -s "$prose_tmp" ]; then
-  if ! grep -qx '## Todo Record' "$plan"; then
+  if [ "$todo_record_count" = 0 ]; then
     printf '\n## Todo Record\n\nMoved verbatim from the TODO entry by `hooks/archive`, grouped by the field each block followed.\n' >> "$plan"
+    cat "$prose_tmp" >> "$plan"
+  else
+    plan_tmp="$(mktemp "$docs/.taskflow-archive-insert.XXXXXX")"
+    if ! TASKFLOW_PROSE_FILE="$prose_tmp" awk '
+      function append_prose(   line, rc) {
+        while ((rc = getline line < ENVIRON["TASKFLOW_PROSE_FILE"]) > 0) print line
+        if (rc < 0) exit 1
+        close(ENVIRON["TASKFLOW_PROSE_FILE"]); inserted = 1
+      }
+      {
+        text = $0; sub(/\r$/, "", text)
+        for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+        marker = substr(text, 1, 1); run = 0
+        if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+        if (fence != "") {
+          if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+          print; next
+        }
+        if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) {
+          fence = marker; fence_len = run; print; next
+        }
+        if (in_record && /^## /) { append_prose(); in_record = 0 }
+        if ($0 == "## Todo Record") in_record = 1
+        print
+      }
+      END { if (in_record && !inserted) append_prose() }
+    ' "$plan" > "$plan_tmp" || ! mv "$plan_tmp" "$plan"; then
+      rm -f "$plan_tmp" "$todo.tmp" "$prose_tmp"
+      rollback "$moved" "$todo_bak" "$plan_bak"
+      echo "archive FAILED: Todo Record update"
+      exit 1
+    fi
   fi
-  cat "$prose_tmp" >> "$plan"
 fi
 rm -f "$prose_tmp"
 mv "$todo.tmp" "$todo"
@@ -280,8 +312,8 @@ mv "$todo.tmp" "$todo"
 fail=0
 [ ! -d "$docs/$task" ] || { echo "FAIL: active path still present"; fail=1; }
 [ -d "$docs/achieved/$task" ] || { echo "FAIL: achieved path missing"; fail=1; }
-grep -q '> Status: completed' "$docs/achieved/$task/prd.md" || { echo "FAIL: achieved prd not completed"; fail=1; }
-grep -q '> Status: completed' "$docs/achieved/$task/plan.md" || { echo "FAIL: achieved plan not completed"; fail=1; }
+[ "$(bash "$HERE/markdown-field" Status "$docs/achieved/$task/prd.md")" = completed ] || { echo "FAIL: achieved prd not completed"; fail=1; }
+[ "$(bash "$HERE/markdown-field" Status "$docs/achieved/$task/plan.md")" = completed ] || { echo "FAIL: achieved plan not completed"; fail=1; }
 grep -q "achieved/$task/\`" "$todo" || { echo "FAIL: Todo Task: path not updated"; fail=1; }
 grep -q "^- Next action: None — completed and archived\.$" "$todo" || { echo "FAIL: Todo next action not cleared"; fail=1; }
 # The entry's body must now be exactly the five fields, and the moved prose must

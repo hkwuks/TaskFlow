@@ -37,6 +37,11 @@ Field *values* written by a hook are fixed English tokens (`approved`, `done`, `
 
 This applies to documents created from now on. Existing documents are not rewritten for language, in particular not under `TaskFlowDocs/achieved/`, which is read-only history.
 
+## Required content and extensions
+
+The outlines below are a minimum, not a maximum or a requirement to discard another capability's useful material. Add relevant sections, examples, tables and evidence to the current authoritative documents. Keep machine-read headings and fields unambiguous; fenced examples are illustrative, not live approvals or task steps. Do not use an unclosed fence or duplicate a reserved section.
+
+Choose detail by the task's complexity and risk. A small change can be brief when its goal and verification are clear. For a cross-layer change, retain enough information about responsibilities, contracts, edge cases, decisions and verification to let someone implement and review it without guessing. A short summary is not a substitute for the supporting detail a tool actually established. Review whether each requirement is actionable and each acceptance criterion has verifiable coverage; neither a word count nor a complete list of headings proves quality.
 ## Minimal layout
 
 ```text

@@ -394,6 +394,7 @@ repo-root/
         ├── task-id                      # the one rule for a legal task name
         ├── approval-check               # the one rule for whether a Plan's version is approved
         ├── completion-gate              # the one rule for an approved, finished Plan
+        ├── markdown-field      # read task metadata outside fenced examples
         ├── version-baseline             # verify each task version has a Git rollback point
         ├── task                         # explicit intake/promote/state/progress/unaided/complete
         ├── summarize-state              # shared state-summary generator

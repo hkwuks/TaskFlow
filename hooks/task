@@ -423,6 +423,21 @@ function overlap(   w) {
 }
 { n++; line[n] = $0 }
 END {
+  if (cmd == "step" || cmd == "docstatus") {
+    for (i = 1; i <= n; i++) {
+      text = line[i]; sub(/\r$/, "", text)
+      for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+      marker = substr(text, 1, 1); run = 0
+      if (marker == sprintf("%c", 96) || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+      if (fence != "") {
+        fenced[i] = 1
+        if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+      } else if (run >= 3 && (marker != sprintf("%c", 96) || index(substr(text, run + 1), sprintf("%c", 96)) == 0)) {
+        fenced[i] = 1; fence = marker; fence_len = run
+      }
+    }
+    if (fence != "") die("unclosed Markdown fence")
+  }
   scan()
 
   if (cmd == "get") {
@@ -561,31 +576,34 @@ END {
   if (cmd == "step") {
     a = 0; b = 0
     for (i = 1; i <= n; i++) {
-      if (at(line[i], "### Step ")) {
+      if (!fenced[i] && at(line[i], "### Step ")) {
         rest = substr(line[i], 10)
         if (match(rest, /^[0-9]+/)) {
           num = substr(rest, 1, RLENGTH)
           following = substr(rest, RLENGTH + 1, 1)
-          if (num == step && following !~ /[A-Za-z0-9_]/) { a = i; break }
+          if (num == step && following !~ /[A-Za-z0-9_]/) { matches++; if (!a) a = i }
         }
       }
     }
+    if (matches > 1) die("duplicate Step " step)
     if (a == 0) die("Step " step " not found")
     for (i = a + 1; i <= n; i++) {
-      if (at(line[i], "### Step ") || at(line[i], "## ")) break
+      if (!fenced[i] && (at(line[i], "### Step ") || at(line[i], "## "))) break
     }
     b = i - 1
     if (step_status == "done") {
       for (i = a; i <= b; i++) {
-        if (line[i] ~ /^[[:space:]]*- \[ \]/) die("Step " step " has unchecked items")
+        if (!fenced[i] && line[i] ~ /^[[:space:]]*- \[ \]/) die("Step " step " has unchecked items")
       }
     }
-    if (!setr(a, b, "Status", step_status)) die("Step " step " missing Status")
+    status_line = 0; for (i = a; i <= b; i++) if (!fenced[i] && at(line[i], "- Status:")) { status_line = i; break }
+    if (!status_line) die("Step " step " missing Status")
+    line[status_line] = "- Status: " step_status
     if (verification != "") {
       vline = "- " today " Step " step ": " verification
       found = 0
       for (i = 1; i <= n; i++) {
-        if (line[i] == "## Verification / Review") {
+        if (!fenced[i] && line[i] == "## Verification / Review") {
           # Equivalent to replacing "## Verification / Review\n" with
           # "## Verification / Review\n\n<line>\n": a blank line and the entry are
           # inserted directly after the heading, and whatever followed stays.
@@ -725,7 +743,7 @@ END {
 
   if (cmd == "docstatus") {
     for (i = 1; i <= n; i++) {
-      if (at(line[i], "> Status: ")) { line[i] = "> Status: " value; emit(); exit 0 }
+      if (!fenced[i] && at(line[i], "> Status: ")) { line[i] = "> Status: " value; emit(); exit 0 }
     }
     die("missing document Status")
   }
@@ -1237,6 +1255,9 @@ case "$command" in
     if [ "$new_state" = "in_progress" ]; then
       require_approval "$task"
     fi
+    # Validate both documents before updating Todo or any remote state.
+    bash "$SCRIPT_DIR/markdown-field" Status "$plan" >/dev/null || fail "invalid plan.md status; state change not started"
+    bash "$SCRIPT_DIR/markdown-field" Status "$prd" >/dev/null || fail "invalid prd.md status; state change not started"
     todo="$root/TaskFlowDocs/todo.md"
     [ -f "$todo" ] || fail "todo.md missing; state change not started"
     case "$new_state" in
@@ -1600,7 +1621,34 @@ case "$command" in
     need_task_id "$task"
     task_paths "$root" "$task"
     [ -f "$plan" ] || fail "missing plan.md; approval not written"
-    grep -q '^## Approval$' "$plan" || fail "missing Approval section; approval not written"
+    # Read Markdown structure outside fenced examples; the writer preserves them.
+    fence_rules='
+      {
+        text = $0; sub(/\r$/, "", text)
+        for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+        marker = substr(text, 1, 1); run = 0
+        if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+        if (fence != "") {
+          if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""
+          if (keep) print; next
+        }
+        if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) {
+          fence = marker; fence_len = run; if (keep) print; next
+        }
+      }
+    '
+    bash "$SCRIPT_DIR/approval-check" --stale-only "$plan" || exit 1
+    awk "$fence_rules"' /^## Approval$/ { count++ } END { exit count != 1 }' "$plan" || fail "missing or ambiguous Approval section; approval not written"
+    [ ! -f "$prd" ] || awk "$fence_rules"' END { exit fence != "" }' "$prd" || fail "unclosed Markdown fence in prd.md; approval not written"
+    [ ! -f "$base/spec.md" ] || bash "$SCRIPT_DIR/markdown-field" Check "$base/spec.md" >/dev/null || fail "unclosed Markdown fence in spec.md; approval not written"
+    awk "$fence_rules"'
+      /^## (Skills \/ Tools Used|Plan Review|Verification \/ Review|Change Log|Steps)$/ { if (++seen[$0] > 1) bad = 1 }
+      END { exit bad }
+    ' "$plan" || fail "duplicate reserved Plan section; approval not written"
+    [ ! -f "$prd" ] || awk "$fence_rules"'
+      /^## (External Facts|Task Kind)$/ { if (++seen[$0] > 1) bad = 1 }
+      END { exit bad }
+    ' "$prd" || fail "duplicate reserved PRD section; approval not written"
     # Stage gate: reconcile each required stage against the record the pre-write
     # gate wrote, instead of trusting the Plan's prose. Shape alone could not
     # tell an invoked phase from an uninvoked one — `Unaided — …` is
@@ -1672,7 +1720,7 @@ case "$command" in
       || fail "approve blocked: the capability store under $cap_git_dir is out of step, so no stage can be reconciled. released reaches seq $cap_consumed while evidence holds $cap_total line(s) — at least one release points at a record that is gone, and this command cannot tell a backed release from an unbacked one until they agree again. Repair it first:  bash hooks/task recover   — it keeps every release whose record still exists and discards the ones whose record is gone, after which each discarded stage has to be declared again. Removing $cap_git_dir/taskflow also works and discards every release, not only the unbacked ones."
     cap_size=small
     [ -f "$base/spec.md" ] && cap_size=large
-    cap_skills="$(awk '
+    cap_skills="$(awk "$fence_rules"'
       /^## Skills \/ Tools Used$/ { p = 1; next }
       p && /^## / { exit }
       p { print }
@@ -1700,7 +1748,7 @@ or
   - Depends on external facts: yes
   - Source: <absolute https URL>
   - What it settled: <the conclusion that source changed>"
-    ext_body="$(awk '
+    ext_body="$(awk "$fence_rules"'
       /^## External Facts$/ { p = 1; next }
       p && /^## / { exit }
       p { print }
@@ -1836,7 +1884,7 @@ EXT_SOURCES
     # under `pipefail`, where a large enough Plan makes the producer take SIGPIPE
     # on the early exit and turns a successful match into a failed pipeline.
     # `completion-gate` carries the measurement.
-    pr_body="$(awk '
+    pr_body="$(awk "$fence_rules"'
       /^## Plan Review$/ { p = 1; next }
       p && /^## / { exit }
       p { print }
@@ -1930,7 +1978,7 @@ $pr_what"
     # this section existed has no `## Task Kind`, and refusing it would rewrite
     # history to fit an implementation. Same for any value other than `defect`:
     # only an explicit declaration opts a task into this check.
-    tk_body="$(awk '
+    tk_body="$(awk "$fence_rules"'
       /^## Task Kind$/ { p = 1; next }
       p && /^## / { exit }
       p { print }
@@ -1954,7 +2002,7 @@ $pr_what"
 A defect task's requirements come from finding out why the behaviour is wrong, so the phase that writes them has to have consulted something that does that — or record that nothing available does, with 'bash hooks/task unaided PRD --considered \"root cause investigation\"' and an [PRD] Unaided line carrying that class. What the capability then does is its own business; this check only asks whether one was named."
     fi
 
-    approved_version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | head -1)"
+    approved_version="$(bash "$SCRIPT_DIR/markdown-field" 'Task version' "$plan")"
     [ -n "$approved_version" ] || fail "missing Plan Task version; approval not written"
     cap_invoked=0
     cap_unaided=0
@@ -2116,7 +2164,7 @@ STAGE_LINES
     # from the environment (not awk -v) so backslashes are not rewritten.
     if ! TASKFLOW_APPROVER="$approver" TASKFLOW_APPROVED_AT="$approved_at" \
       TASKFLOW_APPROVED_VERSION="$approved_version" TASKFLOW_APPROVED_SCOPE="$approved_scope" \
-      awk '
+      awk -v keep=1 "$fence_rules"'
         BEGIN {
           t[1] = "- Status: approved"
           t[2] = "- Approved by: " ENVIRON["TASKFLOW_APPROVER"]
@@ -2167,7 +2215,7 @@ STAGE_LINES
     # than the pipe buffer, so a 111 KB Plan with an unchecked item first in the
     # file was archived 15 times out of 15. See `completion-gate`.
     bash "$SCRIPT_DIR/completion-gate" "$base" || exit 1
-    version="$(sed -n 's/^> Task version: //p' "$plan" | head -1)"
+    version="$(bash "$SCRIPT_DIR/markdown-field" 'Task version' "$plan")"
     bash "$SCRIPT_DIR/version-baseline" check "$root" "$task" "$version" || exit 1
     [ -e "$docs/achieved/$task" ] && fail "achieved/$task already exists"
     todo="$docs/todo.md"
@@ -2184,8 +2232,8 @@ STAGE_LINES
     # Marking completed is irreversible unless archive succeeds — so remember
     # the prior statuses and put them back when archive fails. Without this a
     # failed archive left prd/plan saying completed beside an active directory.
-    plan_prev="$(sed -n 's/^> Status: //p' "$plan" | head -1)"
-    prd_prev="$(sed -n 's/^> Status: //p' "$prd" | head -1)"
+    plan_prev="$(bash "$SCRIPT_DIR/markdown-field" Status "$plan")"
+    prd_prev="$(bash "$SCRIPT_DIR/markdown-field" Status "$prd")"
     [ -n "$plan_prev" ] || fail "plan.md has no > Status: line"
     [ -n "$prd_prev" ] || fail "prd.md has no > Status: line"
     run_awk_to "$plan" "$plan" TASKFLOW_CMD=docstatus TASKFLOW_VALUE=completed
