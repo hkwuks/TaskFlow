@@ -6025,6 +6025,13 @@ if grep -q '^## ' "$ws/check"; then
 fi
 echo ok
 
+echo "== recording a Todo does not research its contents =="
+grep -q -F -- 'Do not investigate the work described by the Todo, research solutions, inspect its implementation, or start planning.' "$skill/SKILL.md" \
+  || { echo "FAIL record-only guidance does not stop research"; exit 1; }
+grep -q -F -- 'Existing intake-time duplicate and similarity checks may still run.' "$skill/SKILL.md" \
+  || { echo "FAIL record-only guidance does not preserve intake checks"; exit 1; }
+echo ok
+
 echo "== the overlap obligation is stated, and the hook report alone is not it =="
 # The report is word-overlap. A goal re-worded out of the shared vocabulary
 # produces no candidate at all, so the duty has to be stated in the workflow and
