@@ -1,6 +1,6 @@
 # Plan — 轻量 Todo 录入
-> Task version: v1
-> Status: checking
+> Task version: v2
+> Status: in_progress
 
 ## Spec Pointers
 - spec.md
@@ -23,26 +23,26 @@
 
 ## Plan Review
 - Verdict: sound
-- Coverage: Step 1 覆盖录入与任务选择边界以及扫描移除；Step 2 覆盖中英文、精确重复、ID 和相关检查。
+- Coverage: Step 1 恢复候选扫描并明确录入边界；Step 2 验证相似提示、精确重复、ID 和相关检查。
 - Verifiability: 隔离 Todo 夹具检查输出、文件和回归。
-- Layer ownership: Agent 流程属 Skill，候选扫描属 intake；精确重复保护不变。
+- Layer ownership: Agent 流程属 Skill，候选扫描属 intake 且保留；精确重复保护不变。
 
 ## Approval
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-17 16:04 +0800
-- Approved version: v1
+- Approved at: 2026-11-17 16:29 +0800
+- Approved version: v2
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
 
 ### Step 1 — 简化录入
-- Goal: 只录入后停止，移除近似候选扫描。
-- Dependencies: 用户批准 v1。
+- Goal: 只录入后停止提前调研，恢复近似候选扫描。
+- Dependencies: 用户批准 v2。
 - Files: skills/taskflow/SKILL.md、hooks/task、必要引用文档。
 - Implementation checklist:
-  - [x] 明确本地和远程的只录入边界，保留开始工作前的重叠检查。
-  - [x] 删除近似扫描，保留精确重复、ID 与错误处理。
+  - [x] 明确只记录时不提前调研待办内容，保留候选提示。
+  - [x] 恢复 v1 错误移除的 intake 逻辑及原测试。
 - Acceptance: 满足 PRD 行为要求。
 - Verification: 隔离夹具和 Skill 检查。
 - Rollback: 回退本任务改动。
@@ -53,7 +53,7 @@
 - Dependencies: Step 1。
 - Files: hooks/smoke-test 等相关测试。
 - Implementation checklist:
-  - [x] 覆盖中英文近似录入无提示、精确重复及确定性 ID。
+  - [x] 验证中英文近似提示、精确重复及确定性 ID。
   - [x] 运行适用测试并记录结果。
 - Acceptance: 所有验收标准通过，限制明确。
 - Verification: 针对性测试、脚本语法和 diff 检查，适用时运行 smoke。
@@ -64,13 +64,16 @@
 实施完成后记录 Git 检查点。
 
 ## Verification / Review
-Windows Git Bash：中英文相似目标成功且 stderr 为空，精确重复拒绝且文件不变，相同目标跨夹具 ID 一致；Skill 两阶段边界检查通过。bash -n 与 git diff --check 通过。完整 smoke 首次因默认临时目录权限失败；套件会删除测试文件，按用户禁止删除文件的要求未重试。夹具保留在 .worktrees/todo-intake-verification-20261117。
+Windows Git Bash：中英文相似目标均产生候选提示；中文精确重复拒绝且文件不变；v1 夹具确认确定性 ID；hooks/task 与基线 5bf7551 字节相同。Skill 录入及任务选择边界检查、bash -n 和 git diff --check 通过。新增 smoke 断言针对规则本身；完整 smoke 含文件删除，遵照用户要求未运行。v1 首次 smoke 因默认临时目录权限失败，不能视为通过。保留夹具在 .worktrees/todo-intake-verification-20261117。
 
 ## Change Log
 - 2026-11-17：用户选择独立修复、移除相似检查并保留精确重复拒绝；已实现并完成针对性验证。
+
+- 2026-11-17：用户纠正 v1 对相似提示的误解，v2 恢复提示并限定不要提前调研待办内容；用户已批准 v2，针对性验证通过。
 
 ## Follow-ups
 Issue 计划存储不在本次范围。
 
 ## Version History
-- v1 — planning.
+- v1 — 已被纠正，见 old/v1。
+- v2 — ready.
