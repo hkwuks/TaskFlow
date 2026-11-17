@@ -1,6 +1,6 @@
 # 简化 Todo 录入
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Goal
 只要求添加 Todo 时记录后结束，不做相似项或任务调查。

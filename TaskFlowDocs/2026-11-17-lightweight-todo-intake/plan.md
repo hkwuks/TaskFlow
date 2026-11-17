@@ -1,6 +1,6 @@
 # Plan — 轻量 Todo 录入
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 - spec.md
