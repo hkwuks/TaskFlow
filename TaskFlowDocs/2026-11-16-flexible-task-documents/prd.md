@@ -1,6 +1,6 @@
 # 放宽 TaskFlow 文档内容约束，允许工具补充内容
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Goal
 

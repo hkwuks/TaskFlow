@@ -1,6 +1,6 @@
 # Plan — 放宽 TaskFlow 文档内容约束
 > Task version: v1
-> Status: in_progress
+> Status: checking
 
 ## Spec Pointers
 
@@ -70,7 +70,7 @@
 - Acceptance: PRD 验收 1–4 的正反例通过，修改后内容保留。
 - Verification: 针对性测试及相关平台测试；检查每项真实阻断仍生效。
 - Rollback: 使用本任务版本的 Git 回退点恢复变更。
-- Status: in_progress
+- Status: done
 
 ### Step 3 — 生命周期验证与审查
 
@@ -83,7 +83,7 @@
 - Acceptance: 六项验收各有证据，使用简单与复杂任务样例审查内容充分性，限制与未覆盖情况明确。
 - Verification: 在 Verification / Review 章节记录命令和结果。
 - Rollback: 回退本版本提交，不删除用户内容。
-- Status: in_progress
+- Status: done
 
 ## Checkpoints
 
@@ -109,6 +109,7 @@
 - PR 模板 `.github/pull_request_template.md`：Summary 说明补充内容与解析修复；TaskFlow traceability 记录任务、范围、目标仓库及 base；Verification 记录 CI、diff 和技能校验；Review boundaries 记录范围、隐私和剩余限制。CI 尚待 PR 创建后运行。
 - 2026-11-17 PR #144 首次 CI：Ubuntu 大文档门禁测试因旧夹具包含重复审批状态而失败；将非结构性尾行改为普通说明，并新增明确的 `unchecked items` 拒绝原因断言，保留原大文件与管道边界覆盖。macOS Bash 3.2 无法解析 Task AWK heredoc 中不成对的反引号，改为等价字符编码；Windows CI 通过。上述是本任务实现及测试的工作修订，不改变批准范围。
 - 2026-11-17 当前工作树完成门专项（含 >64KB 未勾选反例及 50 次大批准块）通过；修改后的 macOS Bash 3.2 行为等待 CI 实证。
+- 2026-11-17 CI：代码提交 `90c9fee` 的 Hooks 工作流 https://github.com/hkwuks/TaskFlow/actions/runs/43999790222 通过 Ubuntu、macOS 和 Windows smoke、evals、Todo 合并审计及 CI 复用检查；release 为按条件跳过。macOS Bash 3.2 与大文档门禁均得到 CI 复验。
 ## Change Log
 
 - v1 工作修订：按已批准验收补充围栏示例和审批歧义的实际根因与回归；PR CI 暴露的本任务夹具及 Bash 3.2 问题已修复，等待复验；不改变任务范围。
@@ -117,7 +118,7 @@
 
 ## Follow-ups
 
-- 完整 Bash smoke 在本机 Git Bash 符号链接限制下未通过；Linux / macOS 与真实宿主工具输出待后续环境验证。
+- 本机完整 Bash smoke 因 Git Bash 符号链接限制未通过；Linux 和 macOS 已由 CI 验证，真实宿主工具输出仍待验证。
 - 本次测试自建夹具已按用户授权清理；任务文档已提交，等待验收。
 
 - 若解析范围或安全边界需要偏离批准规格，先更新版本并重新确认。
