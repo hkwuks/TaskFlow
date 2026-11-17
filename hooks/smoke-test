@@ -5942,66 +5942,18 @@ fi
 grep -q "^- ID: $first$" "$id_a/TaskFlowDocs/todo.md" || { echo "FAIL ID not written"; exit 1; }
 [ "$(grep -c '^- ID: ' "$id_a/TaskFlowDocs/todo.md")" -eq 2 ] || { echo "FAIL duplicate goal wrote an entry"; exit 1; }
 
-echo "== a re-worded goal reports its likely duplicate on stderr, never on stdout =="
-# `intake` refused only byte-identical goals, so a re-worded item landed beside
-# the entry it duplicated with no signal. The report is a hint about wording, so
-# it must not touch the stdout contract callers read the ID out of, and it must
-# not fire on unrelated entries.
+echo "== similar Todo goals are recorded without a candidate scan =="
 ovl="$tmp/overlap"
-mkdir -p "$ovl/TaskFlowDocs"
+mkdir -p "$ovl"
 git -C "$ovl" init -q
-printf '# Todo\n\n## Items\n\n## Stop the Todo file from growing without bound\n\n- ID: TF-20260101-aaaaaa\n- Status: inbox\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Stop the TaskFlowDocs todo list from growing without bound; it is a growing archive every task must read\n- Task: Not promoted.\n- Next action: Decide.\n\n## A finished item that must never be a candidate\n\n- ID: TF-20260101-bbbbbb\n- Status: done\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Reword the TaskFlowDocs todo list so it stops growing without bound\n- Task: Not promoted.\n- Next action: None.\n' > "$ovl/TaskFlowDocs/todo.md"
-ovl_out="$(bash "$HERE/task" intake "Prevent the TaskFlowDocs todo list from growing without bound over time" fixture --root "$ovl" 2>"$ovl/err")"
-ovl_rc=$?
-[ "$ovl_rc" -eq 0 ] || { echo "FAIL overlap candidate changed the exit code: $ovl_rc"; exit 1; }
-# The stdout contract is unchanged: the ID is still the last field of the last line.
-[ "$(printf '%s\n' "$ovl_out" | head -1 | awk '{ print $NF }')" = "$(awk '/^- ID: /{ print $3 }' "$ovl/TaskFlowDocs/todo.md" | head -1)" ] \
-  || { echo "FAIL overlap report reached stdout"; printf '%s\n' "$ovl_out"; exit 1; }
-grep -q 'TF-20260101-aaaaaa' "$ovl/err" || { echo "FAIL a re-worded goal reported no candidate"; cat "$ovl/err"; exit 1; }
-# A `done` entry mentions the same words and must stay silent: the report is about
-# live work, and a closed item cannot be the same work as an open one.
-if grep -q 'TF-20260101-bbbbbb' "$ovl/err"; then
-  echo "FAIL a done Todo entry was reported as a candidate"; cat "$ovl/err"; exit 1
-fi
-# Unrelated vocabulary reports nothing rather than guessing.
-bash "$HERE/task" intake "Upgrade the CI runner to the latest Ubuntu image" fixture --root "$ovl" 2>"$ovl/err2" >/dev/null
-[ -s "$ovl/err2" ] && { echo "FAIL an unrelated goal reported a candidate"; cat "$ovl/err2"; exit 1; }
-ovl_zh="$tmp/overlap-zh"
-mkdir -p "$ovl_zh"
-git -C "$ovl_zh" init -q
-zh_out="$(bash "$HERE/task" intake '改进任务归档后的工作区清理流程' fixture --root "$ovl_zh" 2>/dev/null)"
-zh_first="$(printf '%s\n' "$zh_out" | awk 'NR == 1 {print $NF}')"
-bash "$HERE/task" intake '完善任务归档后的工作区清理流程' fixture --root "$ovl_zh" 2>"$ovl_zh/err" >/dev/null
-grep -qF "$zh_first" "$ovl_zh/err" || { echo 'FAIL Chinese rewording reported no candidate'; cat "$ovl_zh/err"; exit 1; }
-bash "$HERE/task" intake '调整模型推理的并发配置和缓存策略' fixture --root "$ovl_zh" 2>"$ovl_zh/err-unrelated" >/dev/null
-[ ! -s "$ovl_zh/err-unrelated" ] || { echo 'FAIL unrelated Chinese goal reported a candidate'; cat "$ovl_zh/err-unrelated"; exit 1; }
-mixed_out="$(bash "$HERE/task" intake '修复 Codex 工具引用提示效果' fixture --root "$ovl_zh" 2>/dev/null)"
-mixed_first="$(printf '%s\n' "$mixed_out" | awk 'NR == 1 {print $NF}')"
-bash "$HERE/task" intake '改善 Codex 工具引用提示效果' fixture --root "$ovl_zh" 2>"$ovl_zh/err-mixed" >/dev/null
-grep -qF "$mixed_first" "$ovl_zh/err-mixed" || { echo 'FAIL mixed-language rewording reported no candidate'; cat "$ovl_zh/err-mixed"; exit 1; }
-ovl_repeat="$tmp/overlap-repeat"
-mkdir -p "$ovl_repeat"
-git -C "$ovl_repeat" init -q
-repeat_out="$(bash "$HERE/task" intake 'task task workspace workspace cleanup cleanup' fixture --root "$ovl_repeat" 2>/dev/null)"
-repeat_first="$(printf '%s\n' "$repeat_out" | awk 'NR == 1 {print $NF}')"
-bash "$HERE/task" intake 'task workspace cleanup' fixture --root "$ovl_repeat" 2>"$ovl_repeat/err" >/dev/null
-grep -qF "$repeat_first" "$ovl_repeat/err" || { echo 'FAIL repeated words changed the token set similarity'; cat "$ovl_repeat/err"; exit 1; }
-# The report is a hint, so it is capped: a user who sees ten candidates reads none.
-ovl2="$tmp/overlap-many"
-mkdir -p "$ovl2/TaskFlowDocs"
-git -C "$ovl2" init -q
-{
-  printf '# Todo\n\n## Items\n'
-  i=1
-  while [ "$i" -le 6 ]; do
-    printf '\n## Candidate %s about the TaskFlowDocs todo list growing without bound\n\n- ID: TF-2026010%s-%s\n- Status: inbox\n- Priority: normal\n- Owner: Claude\n- Source: fixture\n- Added: 2026-01-01\n- Updated: 2026-01-01\n- Goal: Stop the TaskFlowDocs todo list from growing without bound, variant %s\n- Task: Not promoted.\n- Next action: Decide.\n' \
-      "$i" "$i" "aaaaa$i" "$i"
-    i=$((i + 1))
-  done
-} > "$ovl2/TaskFlowDocs/todo.md"
-bash "$HERE/task" intake "Prevent the TaskFlowDocs todo list from growing without bound over time" fixture --root "$ovl2" 2>"$ovl2/err" >/dev/null
-[ "$(grep -c '^  TF-' "$ovl2/err")" -eq 3 ] || { echo "FAIL the candidate report is not capped at three"; cat "$ovl2/err"; exit 1; }
-grep -q 'and more' "$ovl2/err" || { echo "FAIL the capped report does not say more exist"; cat "$ovl2/err"; exit 1; }
+bash "$HERE/task" intake '改进任务归档后的工作区清理流程' fixture --root "$ovl" >/dev/null
+bash "$HERE/task" intake '完善任务归档后的工作区清理流程' fixture --root "$ovl" >"$ovl/out" 2>"$ovl/err"
+grep -q '^intake OK:' "$ovl/out" || { echo 'FAIL similar goal not recorded'; exit 1; }
+[ ! -s "$ovl/err" ] || { echo 'FAIL similar goal produced a candidate report'; cat "$ovl/err"; exit 1; }
+bash "$HERE/task" intake 'Improve the task workspace cleanup process' fixture --root "$ovl" >/dev/null
+bash "$HERE/task" intake 'Improve the task workspace cleanup workflow' fixture --root "$ovl" >"$ovl/out" 2>"$ovl/err"
+grep -q '^intake OK:' "$ovl/out" && [ ! -s "$ovl/err" ] || { echo 'FAIL English similar goal'; exit 1; }
+[ "$(grep -c '^- ID: ' "$ovl/TaskFlowDocs/todo.md")" -eq 4 ] || { echo 'FAIL similar goals were not retained'; exit 1; }
 echo ok
 
 echo "== a goal cut at 80 bytes leaves no trailing whitespace on its heading =="
@@ -6026,9 +5978,9 @@ fi
 echo ok
 
 echo "== the overlap obligation is stated, and the hook report alone is not it =="
-# The report is word-overlap. A goal re-worded out of the shared vocabulary
-# produces no candidate at all, so the duty has to be stated in the workflow and
-# not delegated to whatever the hook happened to notice.
+# Checking overlap belongs to task selection, not a record-only request.
+grep -q -F -- "When the user only asks to record a Todo" "$skill/SKILL.md" \
+  || { echo "FAIL record-only boundary missing"; exit 1; }
 grep -q -F -- 'Report overlap before you commit to a task.' "$skill/SKILL.md" \
   || { echo "FAIL the overlap-report obligation is not stated"; exit 1; }
 grep -q -F -- 'If the user has already clearly decided how it should be handled, state and follow that decision' "$skill/SKILL.md" \
