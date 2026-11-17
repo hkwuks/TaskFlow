@@ -1,6 +1,6 @@
 # Plan — 放宽 TaskFlow 文档内容约束
 > Task version: v1
-> Status: checking
+> Status: in_progress
 
 ## Spec Pointers
 
@@ -70,7 +70,7 @@
 - Acceptance: PRD 验收 1–4 的正反例通过，修改后内容保留。
 - Verification: 针对性测试及相关平台测试；检查每项真实阻断仍生效。
 - Rollback: 使用本任务版本的 Git 回退点恢复变更。
-- Status: done
+- Status: in_progress
 
 ### Step 3 — 生命周期验证与审查
 
@@ -83,7 +83,7 @@
 - Acceptance: 六项验收各有证据，使用简单与复杂任务样例审查内容充分性，限制与未覆盖情况明确。
 - Verification: 在 Verification / Review 章节记录命令和结果。
 - Rollback: 回退本版本提交，不删除用户内容。
-- Status: done
+- Status: in_progress
 
 ## Checkpoints
 
@@ -107,9 +107,11 @@
 - `bash -n` 检查修改过的 hooks 通过；`git diff --check` 通过。未在 Linux / macOS 实机运行；未执行真实外部工具生成文档的宿主端到端验证，工具输出能力不能由格式测试证明。
 - 层归属：修改 `approval-check`、`completion-gate`、`task`、`version`、`archive` 的实际读写逻辑并新增元数据读取器；未通过篡改旧期望伪造通过。新例测试示例内容和真实未完成事项的不同结果。
 - PR 模板 `.github/pull_request_template.md`：Summary 说明补充内容与解析修复；TaskFlow traceability 记录任务、范围、目标仓库及 base；Verification 记录 CI、diff 和技能校验；Review boundaries 记录范围、隐私和剩余限制。CI 尚待 PR 创建后运行。
+- 2026-11-17 PR #144 首次 CI：Ubuntu 大文档门禁测试因旧夹具包含重复审批状态而失败；将非结构性尾行改为普通说明，并新增明确的 `unchecked items` 拒绝原因断言，保留原大文件与管道边界覆盖。macOS Bash 3.2 无法解析 Task AWK heredoc 中不成对的反引号，改为等价字符编码；Windows CI 通过。上述是本任务实现及测试的工作修订，不改变批准范围。
+- 2026-11-17 当前工作树完成门专项（含 >64KB 未勾选反例及 50 次大批准块）通过；修改后的 macOS Bash 3.2 行为等待 CI 实证。
 ## Change Log
 
-- v1 工作修订：按已批准验收补充围栏示例和审批歧义的实际根因与回归，不改变任务范围。
+- v1 工作修订：按已批准验收补充围栏示例和审批歧义的实际根因与回归；PR CI 暴露的本任务夹具及 Bash 3.2 问题已修复，等待复验；不改变任务范围。
 
 - v1：建立初始规格与计划；按用户补充加入文档内容充分性与防止过度压缩的引导和验收（批准前修订）。
 

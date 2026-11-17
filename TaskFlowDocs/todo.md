@@ -44,7 +44,7 @@ has an issue number or URL.
 - Source: direct user request
 - Kind: capability
 - Added: 2026-11-16
-- Updated: 2026-11-16
+- Updated: 2026-11-17
 - Goal: 调整 TaskFlow 文档要求，使其仅规定必须包含的内容，允许被引用的工具和技能按需写入更多内容，避免不必要的内容限制。
 - Task: `TaskFlowDocs/2026-11-16-flexible-task-documents/`
 - Next action: 请用户验收已验证的实现，并确认测试限制。

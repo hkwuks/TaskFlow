@@ -387,14 +387,15 @@ cg_big="$cg/B"
 mkdir -p "$cg_big"
 { printf '> Task version: v1\n## Approval\n- Status: approved\n- Approved by: user\n- Approved version: v1\n  - [ ] UNCHECKED FIRST\n'
   i=0; while [ "$i" -lt 8000 ]; do printf -- '- filler %s\n' "$i"; i=$((i + 1)); done
-  printf -- '- Status: done\n'; } > "$cg_big/plan.md"
+  printf -- '- Note: filler complete\n'; } > "$cg_big/plan.md"
 [ "$(wc -c < "$cg_big/plan.md")" -gt 65536 ] || { echo "FAIL large-Plan fixture is not large"; exit 1; }
-if bash "$HERE/completion-gate" "$cg_big" >/dev/null 2>&1; then
+if bash "$HERE/completion-gate" "$cg_big" >"$cg_big/out" 2>&1; then
   echo "FAIL completion-gate accepted a >64KB Plan with an unchecked item"; exit 1
 fi
+grep -q 'unchecked items' "$cg_big/out" || { echo "FAIL large Plan refused for a reason other than its unchecked item"; cat "$cg_big/out"; exit 1; }
 { printf '> Task version: v1\n## Approval\n- Status: approved\n- Approved by: user\n- Approved version: v1\n- Notes: x\n'
   i=0; while [ "$i" -lt 4000 ]; do printf 'bulk %s\n' "$i"; i=$((i + 1)); done
-  printf -- '- Status: done\n'; } > "$cg_big/plan.md"
+  printf -- '- Note: filler complete\n'; } > "$cg_big/plan.md"
 i=0
 while [ "$i" -lt 50 ]; do
   bash "$HERE/completion-gate" --approval-only "$cg_big" >/dev/null 2>&1 \
