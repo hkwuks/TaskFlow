@@ -52,7 +52,7 @@ Task documents are read by the user and parsed by hooks, so they carry two langu
 Required task-document content is a floor, not a length limit: retain relevant material from tools and add sections or examples when they help. Scale detail to complexity and risk, and review whether the document supports implementation and verification rather than counting headings or words. See `references/artifacts.md` for the machine-readable boundary and fenced-example rules.
 ## Triage and lifecycle
 
-After the request passes the applicability gate, first record or update its Todo item, or use the user-selected existing Todo items for joint work. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions.
+After the request passes the applicability gate, first record or update its Todo item. Then inspect the repository, `TaskFlowDocs/repository-docs/index.md`, applicable project rules, active and achieved TaskFlowDocs tasks, tests, configuration, Git state, and uncommitted changes. Separate findings into confirmed facts, user decisions, technical unknowns, and explicit exclusions. When the user selects existing Todos for joint work, those records satisfy the intake requirement; do not create a summary item.
 
 ## Remote Todo operations
 

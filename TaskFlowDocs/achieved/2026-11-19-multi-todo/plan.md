@@ -104,3 +104,5 @@
 - Summary：解释一个工作区处理多个已有 Todo、逐项状态和主项归档保护。TaskFlow traceability：本归档路径、插件 hooks/skills 与测试范围、base 和目标仓库。
 - Verification：`git diff --check`、skill 格式校验、聚焦测试和模拟远程测试结果已在上文记录；Hooks CI 的运行链接与结果在 PR 中补充，未通过前不合并。
 - Review boundaries：按差异检查敏感信息和不相关文件，说明 main 工作区独立 Todo 不在本分支；在 PR 标明本地完整 smoke 限制及远程真实 Issue 未测试。
+
+- PR #146 首轮 Hooks（run 44452138759）：Windows smoke、evals、变更分类及 Todo 审计通过；Linux 与 macOS smoke 因检查资料清单的原句被改写而失败。保持原有资料清单句子，另以独立句子明确已有 Todo 满足 intake，未改测试或删减检查内容；本地验证原句、七项清单及例外均存在，Skill 校验通过。修正后须等待新一轮 CI。
