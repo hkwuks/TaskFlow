@@ -336,6 +336,8 @@ try {
     # can be caught automatically.
     #
     if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
+        & "$here\run-hook.cmd" test-multi-todo (Join-Path $Root 'multi-todo')
+        if ($LASTEXITCODE -ne 0) { throw 'multi Todo test failed' }
         $parityRoot = Join-Path $Root 'host-parity'
         $diagnosticRoot = Join-Path $Root 'diagnostic-fixture'
         & "$here\run-hook.cmd" test-diagnostic-log $diagnosticRoot

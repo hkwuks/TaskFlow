@@ -61,6 +61,9 @@ entry_block() {  # entry_block <needle>
 # so leaving the directory where it is beats moving it and reporting the rest.
 entry_block "\`$was\`" >/dev/null || { echo "Todo entry for $task missing; reopen not started"; exit 1; }
 
+links="$(awk -v path="$was" '{ sub(/\r$/, ""); if ($0 == "- Task: `" path "`") n++ } END { print n+0 }' "$todo")"
+[ "$links" = 1 ] || { echo 'Task must have exactly one primary Todo link; reopen not started.' >&2; exit 1; }
+
 if [ -e "$docs/achieved/$task/remote-issue" ] || [ -L "$docs/achieved/$task/remote-issue" ]; then
   bash "$HERE/remote-todo" stage-task "$task" promoted --root "$root" || { echo 'Remote stage update failed; local reopen was not started.' >&2; exit 1; }
   echo 'If a remote stage changed and local reopen fails, inspect both sides before retrying.' >&2

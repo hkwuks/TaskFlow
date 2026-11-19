@@ -29,6 +29,7 @@ if [ $# -eq 0 ]; then
   trap 'rm -rf "$tmp"' EXIT
 fi
 
+bash "$HERE/test-multi-todo" "$tmp/multi-todo-fixture"
 bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
 bash "$HERE/test-diagnostic-log" "$tmp/diagnostic-fixture"
 bash "$HERE/test-json-field-numbers"

@@ -781,7 +781,7 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 }
 
 # --- argument handling -----------------------------------------------------
-[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|next|remove|get|progress|approve|declared|unaided|external|recover|complete ..."
+[ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|item-state|next|remove|get|progress|approve|declared|unaided|external|recover|complete ..."
 command="$1"; shift
 
 # The phase-table concept classes. This is the only place a concept class is
@@ -1282,6 +1282,31 @@ case "$command" in
   # Deliberately unguarded by require_approval: Todo is triage metadata, not an
   # approved artifact. `intake` and `promote` write it the same way. The gate
   # exists to protect implementation against work that is not approved yet.
+  item-state)
+    split_root "$@"
+    [ "${#rest[@]}" -eq 3 ] || fail 'usage: task item-state <todo-id> <inbox|clarified|in_progress|done> <next-action> [--root <path>]'
+    todo_id="${rest[0]}"; item_status="${rest[1]}"; next_action="${rest[2]}"
+    [[ "$todo_id" =~ ^(TF|T)-[0-9]{8}-[a-z0-9]+$ ]] || fail 'invalid Todo ID'
+    case "$item_status" in inbox|clarified|in_progress|done) ;; *) fail 'invalid Todo status' ;; esac
+    [ -n "$next_action" ] || fail 'next action must not be empty'
+    case "$next_action" in *$'\n'*|*$'\r'*|*$'\t'*) fail 'next action must be a single line' ;; esac
+    todo="$root/TaskFlowDocs/todo.md"
+    [ -f "$todo" ] && [ ! -L "$todo" ] || fail 'invalid Todo file'
+    [ "$(awk -v id="$todo_id" '{ sub(/\r$/, ""); if ($0 == "- ID: " id) n++ } END { print n+0 }' "$todo")" = 1 ] || fail 'Todo ID missing or ambiguous'
+    [ ! -e "$root/TaskFlowDocs/remote-todo-links/$todo_id" ] && [ ! -L "$root/TaskFlowDocs/remote-todo-links/$todo_id" ] || fail 'remote-associated Todo requires its remote operation'
+    entry="$(run_task_awk "$todo" TASKFLOW_CMD=entry TASKFLOW_ID="$todo_id" TASKFLOW_NOTFOUND="Todo entry not found: $todo_id")"
+    task_field="$(printf '%s\n' "$entry" | sed -n 's/^- Task: //p' | tr -d '\r')"
+    [ "$task_field" = 'Not promoted.' ] || fail 'only unpromoted Todo items can be updated individually'
+    case "$entry" in *'<!-- taskflow-remote-ref:'*) fail 'remote-derived Todo requires its remote operation' ;; esac
+    {
+      printf 'Status\t%s\n' "$item_status"
+      printf 'Next action\t%s\n' "$next_action"
+      printf 'Updated\t%s\n' "$today"
+    } > "$tmp_pairs"
+    run_awk_to "$todo" "$todo" TASKFLOW_CMD=edit TASKFLOW_ID="$todo_id" TASKFLOW_PAIRS="$tmp_pairs" TASKFLOW_NOTFOUND="Todo entry not found: $todo_id"
+    echo "item-state OK: $todo_id -> $item_status"
+    ;;
+
   next)
     split_root "$@"
     [ "${#rest[@]}" -ge 2 ] && [ "${#rest[@]}" -le 3 ] || fail 'usage: task next <todo-id> <next-action> [notes] [--root <path>]'

@@ -359,3 +359,4 @@ Codex and Claude Code also check the base checkout asynchronously after shell ca
 ## Optional remote Todo backend
 
 `remote-todo` is an explicit command, not an event-bound network hook. Run it from the user repository and invoke it using the installed plugin's `hooks/remote-todo` path. `mode-set` and `connect` configure the project; `list` combines local items with configured GitHub/GitLab sources. See `skills/taskflow/references/runtime.md#remote-todo-backend` for the operations, authentication, private recovery records, and non-atomic failure semantics. The local mode remains the default.
+For a user-selected group of existing Todos, see `skills/taskflow/SKILL.md` under “User-selected work across existing Todos”. `task item-state <todo-id> <inbox|clarified|in_progress|done> <next-action>` updates one unpromoted local item; remote-associated items use their remote operation.
