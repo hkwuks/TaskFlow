@@ -108,3 +108,4 @@
 - PR #146 首轮 Hooks（run 44452138759）：Windows smoke、evals、变更分类及 Todo 审计通过；Linux 与 macOS smoke 因检查资料清单的原句被改写而失败。保持原有资料清单句子，另以独立句子明确已有 Todo 满足 intake，未改测试或删减检查内容；本地验证原句、七项清单及例外均存在，Skill 校验通过。修正后须等待新一轮 CI。
 - PR #146 第二轮 Hooks（run 44452912690）：Linux 越过首轮失败点后发现 `test-multi-todo` 未列入两份 hook 清单；补充 `hooks/README.md` 和 `skills/taskflow/references/runtime.md` 的文件清单，不改变测试或运行行为。
 - 清单检查本身排除了目录内的 README.md，而两份文件树均列出该真实文件；补齐新增测试条目后会错误地报告 README 为多余项。修正清单测试的数据来源以包含 README，保留双向检查，不修改预期以隐藏缺失文件。
+- PR #146 Hooks run 44453397423：代码提交 `caabb25` 的 Linux、macOS、Windows smoke、evals、Todo 合并审计、变更分类及 CI 复用测试均通过；release 按工作流条件跳过。详情：https://github.com/hkwuks/TaskFlow/actions/runs/44453397423
