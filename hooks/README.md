@@ -22,6 +22,10 @@ taskflow/hooks/
 ├── diagnostic-event    # launches the best-effort redacted event worker
 ├── diagnostic-log      # enables, disables and exports diagnostic records
 ├── test-diagnostic-log # privacy, export and nonblocking fixture
+├── ledger-lock                 # nonblocking guard for task evidence and handoff
+├── reuse-worktree             # journaled reuse and evidence restoration
+├── test-ledger-lock           # concurrent handoff guard fixture
+├── test-reuse-worktree        # archived worktree reuse fixture
 ├── capability-evidence # records observable capability invocations
 ├── external-evidence   # records outside URLs from tool events
 ├── capability-gate     # refuses a stage document's first body write
@@ -39,7 +43,7 @@ taskflow/hooks/
 ├── reopen              # retrieve an achieved task
 ├── release-version     # write the eight mechanical release version literals
 ├── release-check       # version literals + marketplace pin agree
-├── repository-check    # read-only governance and fork readiness check; names removable worktrees
+├── repository-check    # read-only governance and fork readiness check; names merged clean worktrees
 ├── remote-topology     # per-remote fork topology + push permission (networked, opt-in, never wired to an event)
 ├── repo-rules          # show/install/check a default CONTRIBUTING.md and CODE_STYLE.md for a repo that has none
 ├── templates           # the default rule documents repo-rules installs

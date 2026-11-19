@@ -784,6 +784,27 @@ run_task_awk() {  # run_task_awk <file> [key=value ...]
 [ "$#" -ge 1 ] || fail "usage: task intake|promote|unpromote|state|item-state|next|remove|get|progress|approve|declared|unaided|external|recover|complete ..."
 command="$1"; shift
 
+# Ledger-aware commands share the nonblocking handoff lock. The task command
+# holds it only for its own transaction; evidence hooks never wait for it.
+case "$command" in
+  intake|promote|unpromote|state|item-state|next|remove|progress|declared|unaided|external|recover|approve|complete)
+    ledger_root=''
+    ledger_args=("$@")
+    for ((ledger_i=0; ledger_i<${#ledger_args[@]}; ledger_i++)); do
+      if [ "${ledger_args[$ledger_i]}" = --root ] && [ $((ledger_i + 2)) -eq "${#ledger_args[@]}" ]; then
+        ledger_root="${ledger_args[$((ledger_i + 1))]}"
+      fi
+    done
+    [ -n "$ledger_root" ] || ledger_root="$PWD"
+    ledger_gitdir="$(git -C "$ledger_root" rev-parse --absolute-git-dir 2>/dev/null || true)"
+    if [ -n "$ledger_gitdir" ]; then
+      source "$SCRIPT_DIR/ledger-lock"
+      taskflow_ledger_acquire "$ledger_gitdir" || fail 'TaskFlow ledger handoff is active or needs recovery; command not started.'
+      trap 'taskflow_ledger_release; rm -rf "$work"' EXIT
+    fi
+    ;;
+esac
+
 # The phase-table concept classes. This is the only place a concept class is
 # validated: the pre-write gate names a *suggested* class in its block message,
 # and `approve` reconciles a recorded stage against evidence instead of

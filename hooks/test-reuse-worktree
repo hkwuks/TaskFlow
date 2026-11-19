@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || exit 2
+fixture="$1"; [ ! -e "$fixture" ] || exit 2
+mkdir -p "$fixture"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+repo="$fixture/repo"; wt="$repo/.worktrees/old"; task=2026-01-01-old
+mkdir -p "$repo"
+git -C "$repo" init -q
+git -C "$repo" config user.name 'TaskFlow test'
+git -C "$repo" config user.email 'taskflow-test@example.invalid'
+git -C "$repo" checkout -q -b main
+printf '.worktrees/\nignored-cache\nblocked.txt\n' > "$repo/.gitignore"
+printf 'main content\n' > "$repo/main.txt"
+printf 'tracked in main\n' > "$repo/blocked.txt"
+git -C "$repo" add .gitignore main.txt
+git -C "$repo" add -f blocked.txt
+git -C "$repo" commit -qm initial
+base="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" worktree add -q -b feature/old "$wt" main
+git -C "$wt" rm -q blocked.txt
+mkdir -p "$wt/TaskFlowDocs/achieved/$task"
+printf '# PRD\n> Task version: v1\n> Status: completed\n' > "$wt/TaskFlowDocs/achieved/$task/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$wt/TaskFlowDocs/achieved/$task/plan.md"
+printf '## Old\n- ID: TF-20260101-aaaaaa\n- Status: done\n- Task: `TaskFlowDocs/achieved/%s/`\n' "$task" > "$wt/TaskFlowDocs/todo.md"
+printf 'old branch only\n' > "$wt/old.txt"
+printf '## Second\n- ID: TF-20260101-bbbbbb\n- Status: done\n- Task: `TaskFlowDocs/achieved/%s/`\n' "$task" >> "$wt/TaskFlowDocs/todo.md"
+git -C "$wt" add TaskFlowDocs old.txt
+git -C "$wt" commit -qm archived
+old="$(git -C "$wt" rev-parse HEAD)"
+gitdir="$(git -C "$wt" rev-parse --absolute-git-dir)"
+mkdir -p "$gitdir/taskflow/version-baselines/$task"
+printf 'old evidence\n' > "$gitdir/taskflow/evidence"
+printf 'old external\n' > "$gitdir/taskflow/external"
+printf '%s\n' "$base" > "$gitdir/taskflow/version-baselines/$task/v1"
+printf 'keep ignored\n' > "$wt/ignored-cache"
+printf 'uncommitted\n' > "$wt/dirty"
+if bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/dirty-out" 2>&1; then echo 'FAIL dirty worktree reused'; exit 1; fi
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || exit 1
+rm "$wt/dirty"
+if bash "$HERE/reuse-worktree" start 2026-01-02-missing feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/missing-out" 2>&1; then echo 'FAIL unarchived task reused'; exit 1; fi
+[ "$(git -C "$wt" rev-parse HEAD)" = "$old" ] || exit 1
+printf 'ignored user data\n' > "$wt/blocked.txt"
+if bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/collision-out" 2>&1; then echo 'FAIL ignored collision overwritten'; exit 1; fi
+[ "$(cat "$wt/blocked.txt")" = 'ignored user data' ] || { echo 'FAIL ignored collision lost'; exit 1; }
+[ -d "$gitdir/taskflow/handoff.pending" ] || { echo 'FAIL missing recovery journal'; exit 1; }
+if bash "$HERE/task" approve "$task" --root "$wt" > "$fixture/pending-out" 2>&1; then echo 'FAIL pending journal allowed task command'; exit 1; fi
+grep -q 'handoff' "$fixture/pending-out" || { cat "$fixture/pending-out"; exit 1; }
+bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-out"
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL recovery branch'; exit 1; }
+[ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] || { echo 'FAIL recovery ledger'; exit 1; }
+[ ! -e "$gitdir/taskflow/handoff.pending" ] || { echo 'FAIL recovery journal not closed'; exit 1; }
+rm "$wt/blocked.txt"
+# Simulate Git reporting an error immediately after each checkout boundary.
+mkdir -p "$fixture/bin"
+real_git="$(command -v git)"
+cat > "$fixture/bin/git" <<'EOF'
+#!/usr/bin/env bash
+case " $* " in
+  *" hash-object --no-filters "*) [ "${FAIL_BOUNDARY:-}" != prepare ] || exit 1; exec "$REAL_GIT" "$@" ;;
+  *" checkout --no-overwrite-ignore --detach "*)
+    "$REAL_GIT" "$@" || exit $?
+    [ "${FAIL_BOUNDARY:-}" != detach ] || exit 1 ;;
+  *" switch --no-track -c "*)
+    "$REAL_GIT" "$@" || exit $?
+    [ "${FAIL_BOUNDARY:-}" != switch ] || exit 1 ;;
+  *) exec "$REAL_GIT" "$@" ;;
+esac
+EOF
+chmod +x "$fixture/bin/git"
+real_mv="$(command -v mv)"
+cat > "$fixture/bin/mv" <<'EOF'
+#!/usr/bin/env bash
+"$REAL_MV" "$@" || exit $?
+case " $* " in *"/taskflow/evidence "*"/handoff-history/"*) [ "${FAIL_BOUNDARY:-}" != save ] || exit 1 ;; esac
+EOF
+chmod +x "$fixture/bin/mv"
+if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" FAIL_BOUNDARY=prepare bash "$HERE/reuse-worktree" start "$task" feature/fault-prepare main "$base" --confirmed-idle --root "$wt" > "$fixture/fault-prepare" 2>&1; then echo 'FAIL prepare fault not injected'; exit 1; fi
+[ ! -e "$gitdir/taskflow/handoff.pending" ] && [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL prepare fault changed original state'; exit 1; }
+for boundary in save detach switch; do
+  if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" FAIL_BOUNDARY="$boundary" bash "$HERE/reuse-worktree" start "$task" "feature/fault-$boundary" main "$base" --confirmed-idle --root "$wt" > "$fixture/fault-$boundary" 2>&1; then echo "FAIL $boundary fault not injected"; exit 1; fi
+  [ -d "$gitdir/taskflow/handoff.pending" ] || { echo "FAIL $boundary journal missing"; exit 1; }
+  bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-$boundary"
+  [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo "FAIL $boundary recovery branch"; exit 1; }
+  [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] || { echo "FAIL $boundary recovery evidence"; exit 1; }
+  [ "$(git -C "$repo" rev-parse main)" = "$base" ] && [ "$(git -C "$repo" rev-parse feature/old)" = "$old" ] || { echo "FAIL $boundary changed old refs"; exit 1; }
+done
+bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/out"
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/new ] || { echo 'FAIL new branch missing'; exit 1; }
+[ "$(git -C "$wt" rev-parse HEAD)" = "$base" ] || { echo 'FAIL new branch is not at main'; exit 1; }
+[ "$(git -C "$repo" rev-parse main)" = "$base" ] || { echo 'FAIL main changed'; exit 1; }
+[ "$(git -C "$repo" rev-parse feature/old)" = "$old" ] || { echo 'FAIL old branch changed'; exit 1; }
+if git -C "$repo" branch -d feature/old > "$fixture/unmerged-delete" 2>&1; then echo 'FAIL unmerged branch deleted'; exit 1; fi
+git -C "$repo" merge-base --is-ancestor feature/fault-switch main || { echo 'FAIL merged branch ancestry'; exit 1; }
+git -C "$repo" branch -d feature/fault-switch > "$fixture/merged-delete" || { echo 'FAIL merged branch cleanup'; exit 1; }
+[ -d "$wt" ] && [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/new ] || { echo 'FAIL retained worktree after branch cleanup'; exit 1; }
+
+[ ! -e "$wt/old.txt" ] || { echo 'FAIL unmerged old content carried into new branch'; exit 1; }
+[ "$(cat "$wt/ignored-cache")" = 'keep ignored' ] || { echo 'FAIL ignored data lost'; exit 1; }
+[ ! -e "$gitdir/taskflow/evidence" ] && [ ! -e "$gitdir/taskflow/external" ] || { echo 'FAIL old evidence remains active'; exit 1; }
+[ "$(cat "$gitdir/taskflow/version-baselines/$task/v1")" = "$base" ] || { echo 'FAIL version baseline changed'; exit 1; }
+snapshot="$(find "$gitdir/taskflow/handoff-history/$task" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r d; do [ ! -f "$d/journal/phase" ] || printf '%s\n' "$d"; done | head -1)"
+[ -n "$snapshot" ] && [ "$(cat "$snapshot/evidence")" = 'old evidence' ] && [ "$(cat "$snapshot/external")" = 'old external' ] || { echo 'FAIL old ledger not preserved'; exit 1; }
+[ -f "$snapshot/journal/phase" ] && [ "$(cat "$snapshot/journal/phase")" = verified ] || { echo 'FAIL completed journal'; exit 1; }
+if git -C "$wt" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then echo 'FAIL new branch unexpectedly tracks old branch'; exit 1; fi
+# Archive the next task, then return to the original branch and its evidence.
+next_task=2026-01-02-next
+mkdir -p "$wt/TaskFlowDocs/achieved/$next_task"
+printf '# PRD\n> Task version: v1\n> Status: completed\n' > "$wt/TaskFlowDocs/achieved/$next_task/prd.md"
+printf '# Plan\n> Task version: v1\n> Status: completed\n' > "$wt/TaskFlowDocs/achieved/$next_task/plan.md"
+printf '## Next\n- ID: TF-20260102-bbbbbb\n- Status: done\n- Task: `TaskFlowDocs/achieved/%s/`\n' "$next_task" > "$wt/TaskFlowDocs/todo.md"
+git -C "$wt" add TaskFlowDocs
+printf 'new task edit\n' > "$wt/main.txt"
+git -C "$wt" add main.txt
+git -C "$wt" commit -qm 'archive next task'
+# The base can advance after branch creation; ordinary Git conflicts remain visible.
+printf 'new main edit\n' > "$repo/main.txt"
+git -C "$repo" add main.txt
+git -C "$repo" commit -qm 'advance main'
+if git -C "$wt" merge main > "$fixture/merge-conflict" 2>&1; then echo 'FAIL expected merge conflict'; exit 1; fi
+git -C "$wt" merge --abort || { echo 'FAIL abort expected merge conflict'; exit 1; }
+new_tip="$(git -C "$wt" rev-parse HEAD)"
+printf 'next evidence\n' > "$gitdir/taskflow/evidence"
+printf 'next external\n' > "$gitdir/taskflow/external"
+snapshot_id="${snapshot##*/}"
+real_cp="$(command -v cp)"
+cat > "$fixture/bin/cp" <<'EOF'
+#!/usr/bin/env bash
+"$REAL_CP" "$@" || exit $?
+case " $* " in *"/taskflow/evidence ") [ "${FAIL_BOUNDARY:-}" != restore ] || exit 1 ;; esac
+EOF
+chmod +x "$fixture/bin/cp"
+if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" REAL_CP="$real_cp" FAIL_BOUNDARY=restore bash "$HERE/reuse-worktree" resume "$next_task" "$task" feature/old "$snapshot_id" --confirmed-idle --root "$wt" > "$fixture/fault-restore" 2>&1; then echo 'FAIL restore fault not injected'; exit 1; fi
+bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-restore"
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/new ] && [ "$(cat "$gitdir/taskflow/evidence")" = 'next evidence' ] || { echo 'FAIL restore fault recovery'; exit 1; }
+bash "$HERE/reuse-worktree" resume "$next_task" "$task" feature/old "$snapshot_id" --confirmed-idle --root "$wt" > "$fixture/resume-out"
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL original branch not restored'; exit 1; }
+[ "$(git -C "$wt" rev-parse HEAD)" = "$old" ] || { echo 'FAIL original commit changed'; exit 1; }
+[ "$(git -C "$repo" rev-parse feature/new)" = "$new_tip" ] || { echo 'FAIL next branch changed'; exit 1; }
+[ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ "$(cat "$gitdir/taskflow/external")" = 'old external' ] || { echo 'FAIL original ledger not restored'; exit 1; }
+[ "$(cat "$gitdir/taskflow/version-baselines/$task/v1")" = "$base" ] || { echo 'FAIL original baseline lost'; exit 1; }
+next_snapshot="$(find "$gitdir/taskflow/handoff-history/$next_task" -mindepth 1 -maxdepth 1 -type d | head -1)"
+[ "$(cat "$next_snapshot/evidence")" = 'next evidence' ] || { echo 'FAIL next ledger not preserved'; exit 1; }
+echo 'PASS archived worktree reuse preserves Git and evidence'

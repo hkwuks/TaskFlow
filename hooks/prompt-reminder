@@ -127,11 +127,12 @@ entrance_reminder() {
   ctx='This work tree has no TaskFlow task in flight, but this repository records work in TaskFlow.
 If this instruction asks you to change this repository or deliver a development artifact, record it first — these two commands, in this order:
   bash hooks/task intake "<the goal in one sentence>"
+  reuse a committed archived, idle worktree with hooks/reuse-worktree as described in the skill, or create one:
   git worktree add .worktrees/<slug> -b <type>/<slug> <base>
 Read-only work — explanation, translation, status, research, review, diagnosis — needs neither. If the work is already recorded elsewhere, say where and continue.'
   case "$summary" in
     *'- Todo backend: remote'*)
-      ctx='This repository uses remote Issues as its Todo backend. For development work, select a configured remote repository and record the request there before task selection; retain existing local records and create a task worktree before planning. Remote access is explicit, not automatic.' ;;
+      ctx='This repository uses remote Issues as its Todo backend. For development work, select a configured remote repository and record the request there before task selection; retain existing local records and reuse an eligible archived worktree or create a task worktree before planning. Remote access is explicit, not automatic.' ;;
     *'- Todo backend: invalid'*)
       ctx='This repository has an invalid remote Todo configuration. Repair it before selecting an intake location; do not silently switch to a different backend.' ;;
   esac

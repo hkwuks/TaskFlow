@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Nonblocking, worktree-local exclusion for ledger access and handoff.
+taskflow_ledger_acquire() {
+  local gitdir="$1" store
+  TASKFLOW_LEDGER_LOCK=''
+  store="$gitdir/taskflow"
+  [ ! -L "$store" ] || return 1
+  mkdir -p "$store" 2>/dev/null || return 1
+  [ -d "$store" ] && [ ! -L "$store" ] || return 1
+  mkdir "$store/.ledger-lock" 2>/dev/null || return 1
+  TASKFLOW_LEDGER_LOCK="$store/.ledger-lock"
+  if [ "${2:-}" != allow-pending ] && { [ -e "$store/handoff.pending" ] || [ -L "$store/handoff.pending" ]; }; then
+    taskflow_ledger_release
+    return 1
+  fi
+  return 0
+}
+taskflow_ledger_release() {
+  [ -n "${TASKFLOW_LEDGER_LOCK:-}" ] || return 0
+  rmdir "$TASKFLOW_LEDGER_LOCK" 2>/dev/null || true
+  TASKFLOW_LEDGER_LOCK=''
+}
