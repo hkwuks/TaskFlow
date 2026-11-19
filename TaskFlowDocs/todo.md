@@ -35,6 +35,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 测试、编译等下载的非仓库内容不在各 worktree 重复创建，优
+
+- ID: TF-20261119-bf0c36
+- Status: done
+- Goal: 测试、编译等下载的非仓库内容不在各 worktree 重复创建，优先共用 main 工作区已有内容，以减少重复写入和硬盘磨损。
+- Task: `TaskFlowDocs/achieved/2026-11-19-shared-cache/`
+- Next action: None — completed and archived.
+
 ## 用户指定同时处理多个已有 Todo 时，在一个分支与 worktree 中
 
 - ID: TF-20261119-d31806
