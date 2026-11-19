@@ -98,3 +98,9 @@
 - v1 — planning.
 
 - 2026-11-19：用户批准 v1；检查发现状态、归档、重开和远程去重/迁移/解除关联均依赖单条关联，直接复用任务路径会误更新或遗留失效引用；继续完成端到端接口设计后再修改实现。
+
+## PR 准备记录
+- 模板：`.github/pull_request_template.md`。目标为 `hkwuks/TaskFlow` 的 `main`，GitHub 2026-11-19 只读查询确认仓库非 fork、默认分支为 main、当前用户有管理员权限，main 为 `40e0565`；提交及合并前需重查。
+- Summary：解释一个工作区处理多个已有 Todo、逐项状态和主项归档保护。TaskFlow traceability：本归档路径、插件 hooks/skills 与测试范围、base 和目标仓库。
+- Verification：`git diff --check`、skill 格式校验、聚焦测试和模拟远程测试结果已在上文记录；Hooks CI 的运行链接与结果在 PR 中补充，未通过前不合并。
+- Review boundaries：按差异检查敏感信息和不相关文件，说明 main 工作区独立 Todo 不在本分支；在 PR 标明本地完整 smoke 限制及远程真实 Issue 未测试。
