@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [1.2.6] — 2026-11-19
+
+### Added
+
+- Handle user-selected existing Todos together in one task and worktree, without creating a summary Todo; keep individual item state and archive decisions. [#146](https://github.com/hkwuks/TaskFlow/pull/146)
+- Reuse an idle worktree after its previous task is archived and committed. Start the next branch at a verified base commit, preserve task evidence in snapshots, and recover interrupted handoffs. [#147](https://github.com/hkwuks/TaskFlow/pull/147)
+
+### Changed
+
+- Stop after recording a Todo when the request is only to capture it; retain duplicate protection and similarity hints. [#145](https://github.com/hkwuks/TaskFlow/pull/145)
+- Prefer safe, authorized native download caches across worktrees; keep mutable environments and build outputs isolated unless their tools support safe sharing. Retain worktrees separately from local branch cleanup. [#147](https://github.com/hkwuks/TaskFlow/pull/147)
+
+### Installation and known limitations
+
+- No new dependency or global configuration is required. A caller must confirm a worktree is idle; submodules and nonstandard Git metadata layouts are refused by the handoff. Cache reuse requires compatible tools and authorized paths; no SSD endurance measurement is claimed.
+- GitHub and GitLab remote Todo transitions were tested with mocked services, not live Issue writes. Observable hook evidence depends on the host; concurrent or unobserved events may not be recorded.
+- A merged local branch is deleted only after its ancestry in the current remote base is verified and Git accepts `branch -d`; squash or rebase merges can leave a branch to preserve.
+
+### Verification
+
+- Merged main commit `13ab1008caccb6efa1cabdf25f7a8247737d23e0` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/44484694045), including Ubuntu, macOS, and Windows smoke, evals, release, and Todo audit.
+- The release commit changes this section, version literals, and README version samples only; full smoke is not repeated locally because three-platform CI covers the implementation.
+- `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation, and `git diff --check` passed during preparation. The existing v1.2.5 catalog pins were validated and must be checked again after the new tag and pins are prepared.
+
+### Release
+
+- Planned tag: `v1.2.6`; the tag and marketplace pins are pushed atomically after release-owner approval.
+
 ## [1.2.5] — 2026-11-17
 
 ### Added
