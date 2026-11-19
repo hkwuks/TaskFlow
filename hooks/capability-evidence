@@ -67,6 +67,8 @@ git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
 [ -n "$git_dir" ] || exit 0
 worktree="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -n "$worktree" ] || exit 0
+event_ref="$(git -C "$root" symbolic-ref -q HEAD 2>/dev/null || true)"
+event_head="$(git -C "$root" rev-parse --verify HEAD 2>/dev/null || true)"
 
 # No-op outside a repository running TaskFlow. This matters: the hook is
 # installed machine-wide, so every unrelated project on the machine reaches
@@ -88,7 +90,11 @@ done
 capability="$(printf '%s' "$capability" | tr -d '|\r\n' | cut -c1-200)"
 [ -n "$capability" ] || exit 0
 
+source "$HERE/ledger-lock"
+taskflow_ledger_acquire "$git_dir" || exit 0
+trap taskflow_ledger_release EXIT
+[ "$(git -C "$root" symbolic-ref -q HEAD 2>/dev/null || true)" = "$event_ref" ] || exit 0
+[ "$(git -C "$root" rev-parse --verify HEAD 2>/dev/null || true)" = "$event_head" ] || exit 0
 store="$git_dir/taskflow"
-mkdir -p "$store" 2>/dev/null || exit 0
 printf 'invoke|%s\n' "$capability" >> "$store/evidence" 2>/dev/null || exit 0
 exit 0

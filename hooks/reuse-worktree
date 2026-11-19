@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# Reuse an archived task worktree without carrying its ledger to a new task.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+HERE="$(cd "$(dirname "$0")" && pwd)"
+source "$HERE/ledger-lock"
+usage() { echo 'usage: reuse-worktree start <archived-task> <new-branch> <base-branch> <verified-base-sha> --confirmed-idle [--root <worktree>] | resume <archived-current-task> <target-task> <target-branch> <snapshot-id> --confirmed-idle [--root <worktree>] | recover --confirmed-idle [--root <worktree>]' >&2; exit 2; }
+fail() { echo "$*" >&2; exit 1; }
+[ "$#" -ge 1 ] || usage
+command="$1"; shift
+root='.'
+args=()
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = --root ]; then [ "$#" -eq 2 ] || usage; root="$2"; shift 2
+  else args+=("$1"); shift; fi
+done
+case "$command" in
+  start) [ "${#args[@]}" -eq 5 ] && [ "${args[4]}" = --confirmed-idle ] || usage ;;
+  resume) [ "${#args[@]}" -eq 5 ] && [ "${args[4]}" = --confirmed-idle ] || usage ;;
+  recover) [ "${#args[@]}" -eq 1 ] && [ "${args[0]}" = --confirmed-idle ] || usage ;;
+  *) usage ;;
+esac
+root="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || fail 'Cannot identify the worktree.'
+gitdir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || fail 'Cannot identify the Git directory.'
+[ -f "$gitdir/commondir" ] || fail 'The base checkout cannot be reused as a task worktree.'
+trees="$(git -C "$root" worktree list --porcelain)" || fail 'Cannot list worktrees.'
+mainroot="$(printf '%s\n' "$trees" | sed -n '1s/^worktree //p')"
+[ -n "$mainroot" ] || fail 'Cannot identify the main worktree.'
+mainroot="$(git -C "$mainroot" rev-parse --show-toplevel 2>/dev/null)" || fail 'Cannot resolve the main worktree.'
+maingit="$(git -C "$mainroot" rev-parse --absolute-git-dir 2>/dev/null)" || fail 'Cannot resolve the main Git directory.'
+[ "$maingit" = "$mainroot/.git" ] && [ ! -L "$mainroot/.git" ] && [ ! -L "$gitdir" ] || fail 'Git metadata is outside the project or uses an unsupported layout.'
+case "$gitdir" in "$maingit"/worktrees/*) ;; *) fail 'Worktree metadata is outside the project.' ;; esac
+case "$root$gitdir" in *$'\n'*|*$'\r'*) fail 'Worktree paths with newlines require manual handling.' ;; esac
+taskflow_ledger_acquire "$gitdir" allow-pending || fail 'Ledger lock is busy or stale; inspect the owner before removing an empty lock directory.'
+trap taskflow_ledger_release EXIT
+store="$gitdir/taskflow"; journal="$store/handoff.pending"
+ledgers='evidence released declarations external released.discarded'
+read_field() { [ -f "$journal/$1" ] && [ ! -L "$journal/$1" ] || fail "Invalid handoff record: $1"; cat "$journal/$1"; }
+write_field() { printf '%s\n' "$2" > "$journal/$1.tmp"; mv "$journal/$1.tmp" "$journal/$1"; }
+if [ "$command" = recover ]; then
+  [ -d "$journal" ] && [ ! -L "$journal" ] || fail 'No recoverable handoff journal.'
+  old_task="$(read_field old-task)"; old_branch="$(read_field old-branch)"; old_sha="$(read_field old-sha)"; snapshot="$(read_field snapshot)"
+  bash "$HERE/task-id" "$old_task" >/dev/null || fail 'Invalid old task in journal.'
+  prefix="$store/handoff-history/$old_task/"
+  case "$snapshot" in "$prefix"*) snapshot_id="${snapshot#"$prefix"}" ;; *) fail 'Snapshot is outside the recorded task history.' ;; esac
+  [[ "$snapshot_id" =~ ^[0-9a-f]{40,64}\.[A-Za-z0-9]+$ ]] || fail 'Invalid snapshot path.'
+  [ -d "$snapshot" ] && [ ! -L "$snapshot" ] && [ ! -L "$store/handoff-history/$old_task" ] && [ ! -L "$store/handoff-history" ] || fail 'Snapshot missing or invalid.'
+  mode="$(read_field mode)"
+  target_snapshot=''
+  case "$mode" in
+    start) ;;
+    resume)
+      target_task="$(read_field target-task)"; target_id="$(read_field target-id)"
+      bash "$HERE/task-id" "$target_task" >/dev/null || fail 'Invalid target task in journal.'
+      [[ "$target_id" =~ ^[0-9a-f]{40,64}\.[A-Za-z0-9]+$ ]] || fail 'Invalid target snapshot ID.'
+      target_snapshot="$store/handoff-history/$target_task/$target_id"
+      [ -d "$target_snapshot" ] && [ ! -L "$target_snapshot" ] && [ ! -L "$store/handoff-history/$target_task" ] || fail 'Target snapshot missing.'
+      ;;
+    *) fail 'Invalid handoff mode.' ;;
+  esac
+  [ -f "$journal/files" ] && [ ! -L "$journal/files" ] && [ -f "$journal/checksums" ] && [ ! -L "$journal/checksums" ] || fail 'Incomplete journal before ledger move; inspect manually.'
+  for name in $ledgers; do
+    if grep -qxF "$name" "$journal/files"; then
+      source_file="$store/$name"
+      [ ! -f "$snapshot/$name" ] || source_file="$snapshot/$name"
+      [ -f "$source_file" ] && [ ! -L "$source_file" ] || fail "Original $name is missing."
+      digest="$(git -C "$root" hash-object --no-filters "$source_file")" || fail "Cannot hash original $name."
+      grep -qxF "$digest $name" "$journal/checksums" || fail "Original $name changed; inspect before recovery."
+    fi
+  done
+  if [ "$mode" = resume ]; then
+    for name in $ledgers; do
+      if [ -e "$store/$name" ] || [ -L "$store/$name" ]; then
+        [ -f "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Invalid live $name."
+        if [ -f "$snapshot/$name" ] || ! grep -qxF "$name" "$journal/files"; then
+          if [ -f "$snapshot/$name" ] && cmp -s "$store/$name" "$snapshot/$name"; then continue; fi
+          [ -f "$target_snapshot/$name" ] && [ ! -L "$target_snapshot/$name" ] && cmp -s "$store/$name" "$target_snapshot/$name" || fail "Unexpected live $name; inspect before recovery."
+          [ ! -e "$journal/target-$name" ] && [ ! -L "$journal/target-$name" ] || fail "Recovery copy of $name already exists."
+          mv "$store/$name" "$journal/target-$name" || fail "Cannot preserve target $name."
+        fi
+      fi
+    done
+  fi
+  status="$(git -C "$root" status --porcelain --untracked-files=all --ignore-submodules=none)" || fail 'Cannot inspect worktree during recovery.'
+  [ -z "$status" ] || fail 'Worktree changed during handoff; inspect before recovery.'
+  if [ "$old_branch" = '@detached' ]; then
+    git -C "$root" cat-file -e "$old_sha^{commit}" || fail 'Original commit missing.'
+    git -C "$root" checkout --no-overwrite-ignore --detach "$old_sha" || fail 'Could not restore original detached HEAD.'
+  else
+    git -C "$root" check-ref-format --branch "$old_branch" >/dev/null || fail 'Invalid original branch.'
+    [ "$(git -C "$root" rev-parse --verify "refs/heads/$old_branch^{commit}" 2>/dev/null)" = "$old_sha" ] || fail 'Original branch changed; inspect before recovery.'
+    git -C "$root" checkout --no-overwrite-ignore "$old_branch" || fail 'Could not restore original branch.'
+  fi
+  for name in $ledgers; do
+    case "$name" in evidence|released|declarations|external|released.discarded) ;; *) fail 'Invalid ledger name.' ;; esac
+    if grep -qxF "$name" "$journal/files"; then
+      if [ -f "$snapshot/$name" ] && [ ! -L "$snapshot/$name" ]; then
+        if [ -e "$store/$name" ] || [ -L "$store/$name" ]; then
+          [ -f "$store/$name" ] && [ ! -L "$store/$name" ] && cmp -s "$snapshot/$name" "$store/$name" || fail "Unexpected live $name; inspect before recovery."
+        else
+          cp -p "$snapshot/$name" "$store/$name" || fail "Cannot restore $name."
+          cmp "$snapshot/$name" "$store/$name" || fail "Cannot verify $name."
+        fi
+      else
+        [ -f "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Original $name is missing."
+      fi
+    else
+      [ ! -e "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Unexpected $name; inspect before recovery."
+    fi
+  done
+  [ ! -e "$snapshot/recovered-journal" ] || fail 'Recovery history already exists.'
+  mv "$journal" "$snapshot/recovered-journal" || fail 'Could not preserve recovery journal.'
+  printf 'Recovered original task %s; snapshot retained at %s. Any created new branch was retained.\n' "$old_task" "$snapshot"
+  exit 0
+fi
+old_task="${args[0]}"
+bash "$HERE/task-id" "$old_task" >/dev/null || exit 2
+if [ "$command" = start ]; then
+  new_branch="${args[1]}"; base_branch="${args[2]}"; expected="${args[3]}"
+  git -C "$root" check-ref-format --branch "$new_branch" >/dev/null || fail 'Invalid new branch.'
+  git -C "$root" check-ref-format --branch "$base_branch" >/dev/null || fail 'Invalid base branch.'
+  [[ "$expected" =~ ^[0-9a-f]{40,64}$ ]] || fail 'Expected base must be a full verified commit ID.'
+else
+  target_task="${args[1]}"; new_branch="${args[2]}"; snapshot_id="${args[3]}"
+  bash "$HERE/task-id" "$target_task" >/dev/null || exit 2
+  git -C "$root" check-ref-format --branch "$new_branch" >/dev/null || fail 'Invalid target branch.'
+  [[ "$snapshot_id" =~ ^[0-9a-f]{40,64}\.[A-Za-z0-9]+$ ]] || fail 'Invalid snapshot ID.'
+  target_snapshot="$store/handoff-history/$target_task/$snapshot_id"
+  [ -d "$target_snapshot" ] && [ ! -L "$target_snapshot" ] && [ ! -L "$store/handoff-history/$target_task" ] && [ ! -L "$store/handoff-history" ] || fail 'Target snapshot missing or invalid.'
+  [ -d "$target_snapshot/journal" ] && [ ! -L "$target_snapshot/journal" ] || fail 'Target snapshot journal is invalid.'
+  for field in phase old-task old-sha files checksums; do [ -f "$target_snapshot/journal/$field" ] && [ ! -L "$target_snapshot/journal/$field" ] || fail "Invalid target snapshot metadata: $field"; done
+  [ -f "$target_snapshot/journal/phase" ] && [ "$(cat "$target_snapshot/journal/phase")" = verified ] || fail 'Target snapshot is not a completed handoff.'
+  [ -f "$target_snapshot/journal/old-task" ] && [ "$(cat "$target_snapshot/journal/old-task")" = "$target_task" ] || fail 'Target snapshot belongs to another task.'
+  [ -f "$target_snapshot/journal/old-sha" ] && [ -f "$target_snapshot/journal/files" ] && [ -f "$target_snapshot/journal/checksums" ] || fail 'Target snapshot metadata is incomplete.'
+  expected="$(cat "$target_snapshot/journal/old-sha")"
+  [[ "$expected" =~ ^[0-9a-f]{40,64}$ ]] || fail 'Invalid target commit.'
+  base_branch='@resume'
+fi
+[ ! -e "$journal" ] && [ ! -L "$journal" ] || fail 'An incomplete handoff needs recovery first.'
+status="$(git -C "$root" status --porcelain --untracked-files=all --ignore-submodules=none)" || fail 'Cannot inspect worktree status.'
+[ -z "$status" ] || fail 'Worktree has tracked, untracked, or submodule changes.'
+tracked="$(git -C "$root" ls-files -v)" || fail 'Cannot inspect index flags.'
+hidden="$(printf '%s\n' "$tracked" | grep -E '^[a-zS] ' || true)"
+[ -z "$hidden" ] || fail 'Index hides tracked paths; inspect before reuse.'
+staged="$(git -C "$root" ls-files --stage)" || fail 'Cannot inspect submodules.'
+if printf '%s\n' "$staged" | awk '$1 == "160000" { found=1 } END { exit !found }'; then fail 'Submodule worktrees require manual isolation; reuse was not started.'; fi
+old_sha="$(git -C "$root" rev-parse --verify 'HEAD^{commit}')" || fail 'Cannot resolve current HEAD.'
+old_branch="$(git -C "$root" symbolic-ref --quiet --short HEAD || true)"
+[ -n "$old_branch" ] || old_branch='@detached'
+if [ "$command" = start ]; then
+  base_sha="$(git -C "$root" rev-parse --verify "refs/heads/$base_branch^{commit}" 2>/dev/null)" || fail 'Base branch does not exist.'
+  [ "$base_sha" = "$expected" ] || fail 'Base branch differs from the verified commit.'
+  [ "$old_branch" != "$base_branch" ] || fail 'The reusable worktree must not be on the base branch.'
+  if [ "$old_branch" = '@detached' ]; then git -C "$root" merge-base --is-ancestor "$old_sha" "$base_sha" || fail 'Detached HEAD is not contained in the verified base.'; fi
+  if git -C "$root" show-ref --verify --quiet "refs/heads/$new_branch"; then fail 'New branch already exists.'; fi
+else
+  base_sha="$(git -C "$root" rev-parse --verify "refs/heads/$new_branch^{commit}" 2>/dev/null)" || fail 'Target branch does not exist.'
+  [ "$base_sha" = "$expected" ] || fail 'Target branch differs from its snapshot commit.'
+  [ "$old_branch" != "$new_branch" ] || fail 'Target branch is already checked out.'
+  for name in $ledgers; do
+    if grep -qxF "$name" "$target_snapshot/journal/files"; then
+      [ -f "$target_snapshot/$name" ] && [ ! -L "$target_snapshot/$name" ] || fail "Target snapshot $name is missing."
+      digest="$(git -C "$root" hash-object --no-filters "$target_snapshot/$name")" || fail "Cannot hash target $name."
+      grep -qxF "$digest $name" "$target_snapshot/journal/checksums" || fail "Target snapshot $name changed."
+    else
+      [ ! -e "$target_snapshot/$name" ] && [ ! -L "$target_snapshot/$name" ] || fail "Unexpected target snapshot $name."
+    fi
+  done
+fi
+for doc in prd.md plan.md; do
+  path="TaskFlowDocs/achieved/$old_task/$doc"
+  git -C "$root" cat-file -e "HEAD:$path" 2>/dev/null || fail "Archived $doc is not committed."
+  [ -f "$root/$path" ] && [ ! -L "$root/$path" ] || fail "Archived $doc is invalid."
+  [ "$(bash "$HERE/markdown-field" Status "$root/$path")" = completed ] || fail "Archived $doc is not completed."
+done
+prd_version="$(bash "$HERE/markdown-field" 'Task version' "$root/TaskFlowDocs/achieved/$old_task/prd.md")" || fail 'Cannot read archived PRD version.'
+plan_version="$(bash "$HERE/markdown-field" 'Task version' "$root/TaskFlowDocs/achieved/$old_task/plan.md")" || fail 'Cannot read archived plan version.'
+[ -n "$prd_version" ] && [ "$prd_version" = "$plan_version" ] || fail 'Archived task versions disagree.'
+git -C "$root" cat-file -e HEAD:TaskFlowDocs/todo.md 2>/dev/null || fail 'Archived Todo is not committed.'
+awk -v needle="- Task: \`TaskFlowDocs/achieved/$old_task/\`" '
+  function flush() { if (link) { count++; if (status == "done") done++ } }
+  /^## / { flush(); link=0; status=""; next }
+  { sub(/\r$/, ""); if ($0 == needle) link=1; if (/^- Status: /) status=substr($0, 11) }
+  END { flush(); exit !(count > 0 && done == count) }
+' "$root/TaskFlowDocs/todo.md" || fail 'Archived Todos are missing or unfinished.'
+for name in $ledgers; do
+  if [ -e "$store/$name" ] || [ -L "$store/$name" ]; then [ -f "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Invalid ledger: $name"; fi
+done
+history="$store/handoff-history"
+[ ! -L "$history" ] || fail 'Invalid handoff history.'
+mkdir -p "$history/$old_task" || fail 'Cannot create task history.'
+[ ! -L "$history/$old_task" ] || fail 'Invalid task history.'
+snapshot="$(mktemp -d "$history/$old_task/$old_sha.XXXXXXXX")" || fail 'Cannot reserve snapshot.'
+pending="$journal"
+journal="$(mktemp -d "$store/handoff.prepare.XXXXXXXX")" || fail 'Cannot prepare handoff journal.'
+write_field old-task "$old_task"; write_field old-branch "$old_branch"; write_field old-sha "$old_sha"
+write_field base-branch "$base_branch"; write_field base-sha "$base_sha"; write_field new-branch "$new_branch"; write_field snapshot "$snapshot"
+write_field mode "$command"
+if [ "$command" = resume ]; then write_field target-task "$target_task"; write_field target-id "$snapshot_id"; fi
+: > "$journal/files.tmp"
+: > "$journal/checksums.tmp"
+for name in $ledgers; do
+  if [ -f "$store/$name" ]; then
+    digest="$(git -C "$root" hash-object --no-filters "$store/$name")" || fail "Cannot hash $name."
+    printf '%s\n' "$name" >> "$journal/files.tmp"
+    printf '%s %s\n' "$digest" "$name" >> "$journal/checksums.tmp"
+  fi
+done
+mv "$journal/files.tmp" "$journal/files"
+mv "$journal/checksums.tmp" "$journal/checksums"
+write_field phase prepared
+mv "$journal" "$pending" || fail 'Cannot activate handoff journal.'
+journal="$pending"
+for name in $ledgers; do
+  if grep -qxF "$name" "$journal/files"; then
+    mv "$store/$name" "$snapshot/$name" || fail "Ledger move failed; recover using $journal."
+    digest="$(git -C "$root" hash-object --no-filters "$snapshot/$name")" || fail "Cannot hash saved $name."
+    grep -qxF "$digest $name" "$journal/checksums" || fail "Saved $name differs; recover using $journal."
+  fi
+done
+write_field phase saved
+if [ "$command" = start ]; then
+  [ "$(git -C "$root" rev-parse --verify "refs/heads/$base_branch^{commit}")" = "$base_sha" ] || fail 'Base changed; recover the handoff.'
+  git -C "$root" checkout --no-overwrite-ignore --detach "$base_sha" || fail 'Detach failed; recover the handoff.'
+  write_field phase detached
+  [ "$(git -C "$root" rev-parse --verify "refs/heads/$base_branch^{commit}")" = "$base_sha" ] || fail 'Base changed; recover the handoff.'
+  git -C "$root" switch --no-track -c "$new_branch" "$base_sha" || fail 'Branch creation failed; recover the handoff.'
+else
+  [ "$(git -C "$root" rev-parse --verify "refs/heads/$new_branch^{commit}")" = "$base_sha" ] || fail 'Target branch changed; recover the handoff.'
+  git -C "$root" checkout --no-overwrite-ignore "$new_branch" || fail 'Target checkout failed; recover the handoff.'
+fi
+write_field phase switched
+[ "$(git -C "$root" rev-parse --verify HEAD)" = "$base_sha" ] || fail 'HEAD differs from verified target.'
+[ "$(git -C "$root" symbolic-ref --quiet --short HEAD)" = "$new_branch" ] || fail 'Branch differs from requested branch.'
+if [ "$command" = start ]; then [ "$(git -C "$root" rev-parse --verify "refs/heads/$base_branch^{commit}")" = "$base_sha" ] || fail 'Base changed during handoff.'; fi
+if [ "$old_branch" != '@detached' ]; then [ "$(git -C "$root" rev-parse --verify "refs/heads/$old_branch^{commit}")" = "$old_sha" ] || fail 'Original branch changed during handoff.'; fi
+for name in $ledgers; do [ ! -e "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Unexpected new ledger $name; inspect journal."; done
+if [ "$command" = resume ]; then
+  for name in $ledgers; do
+    if grep -qxF "$name" "$target_snapshot/journal/files"; then
+      cp -p "$target_snapshot/$name" "$store/$name" || fail "Target ledger restore failed; recover using $journal."
+      cmp "$target_snapshot/$name" "$store/$name" || fail "Target ledger differs; recover using $journal."
+    fi
+  done
+fi
+write_field phase verified
+mv "$journal" "$snapshot/journal" || fail 'Could not preserve completed handoff journal.'
+printf 'Handoff %s: %s on branch %s at %s. Previous ledger snapshot: %s\n' "$command" "$root" "$new_branch" "$base_sha" "$snapshot"

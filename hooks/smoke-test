@@ -29,6 +29,8 @@ if [ $# -eq 0 ]; then
   trap 'rm -rf "$tmp"' EXIT
 fi
 
+bash "$HERE/test-ledger-lock" "$tmp/ledger-lock-fixture"
+bash "$HERE/test-reuse-worktree" "$tmp/reuse-worktree-fixture"
 bash "$HERE/test-multi-todo" "$tmp/multi-todo-fixture"
 bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
 bash "$HERE/test-diagnostic-log" "$tmp/diagnostic-fixture"
@@ -556,7 +558,7 @@ mkdir -p "$toolbin"
 # bash and sh are linked because the hooks are shell scripts that call each other;
 # they are the runtime being kept, not a dependency being removed.
 for tool in awk sed grep cut tr od printf mktemp dirname basename cat date mv rm mkdir \
-            find head tail sort wc chmod cmp diff env ls pwd bash sh \
+            find head tail sort wc chmod cmp diff env ls pwd bash sh rmdir \
             ln touch git; do
   # `type -P` reports the executable path and ignores shell functions; an agent
   # harness that wraps `grep` in a function would otherwise contribute a bare name
@@ -619,7 +621,7 @@ echo "== the no-interpreter PATH does not leak past its own section =="
 toolshadow="$tmp/toolshadow"
 mkdir -p "$toolshadow"
 for tool in awk sed grep cut tr od printf mktemp dirname basename cat date mv rm mkdir \
-            find head tail sort wc chmod cmp diff env ls pwd bash sh \
+            find head tail sort wc chmod cmp diff env ls pwd bash sh rmdir \
             ln touch git; do
   [ -e "$toolbin/$tool" ] && continue
   resolved="$(type -P "$tool" 2>/dev/null)" || resolved="$(command -v "$tool" 2>/dev/null)" || continue
@@ -1195,24 +1197,10 @@ printf '.worktrees/\n' >> "$tear/.git/info/exclude"
 tear_out="$tmp/archive-teardown-out"
 bash "$HERE/archive" 2026-09-08-tear "$tear/.worktrees/tear-task" > "$tear_out" 2>&1 \
   || { echo "FAIL archive in a linked worktree:"; cat "$tear_out"; exit 1; }
-grep -q "git worktree remove '$tear/.worktrees/tear-task'" "$tear_out" \
-  || { echo "FAIL archive did not name the worktree to remove"; cat "$tear_out"; exit 1; }
-grep -q 'chore/tear-task' "$tear_out" \
-  || { echo "FAIL teardown instruction did not name the branch that gates it"; cat "$tear_out"; exit 1; }
-grep -qi 'merged into the base' "$tear_out" \
-  || { echo "FAIL teardown instruction did not state its condition"; cat "$tear_out"; exit 1; }
-# The branch is deleted in the same step, and only with `-d`. `-d` is the safety
-# property, not a detail: it refuses an unmerged branch, so the pair of commands
-# is safe without the reader judging anything. `-D` would delete exactly the
-# branch the old wording was protecting. Both halves are asserted — naming `-d`
-# and never naming `-D` — because a mutation to `-D` passes a `-d` assertion
-# written as a substring match on `branch`.
-grep -q "git branch -d 'chore/tear-task'" "$tear_out" \
-  || { echo "FAIL teardown did not delete the merged branch in the same step"; cat "$tear_out"; exit 1; }
-grep -q 'git branch -D' "$tear_out" \
-  && { echo "FAIL teardown offered the force-delete the -d guard exists to prevent"; cat "$tear_out"; exit 1; }
-grep -qi 'branch survives' "$tear_out" \
-  && { echo "FAIL teardown still says the branch outlives the directory"; cat "$tear_out"; exit 1; }
+grep -q 'retain this clean, idle worktree' "$tear_out" || { echo 'FAIL archive did not retain worktree'; cat "$tear_out"; exit 1; }
+grep -q "git branch -d 'chore/tear-task'" "$tear_out" || { echo 'FAIL archive did not name branch cleanup'; cat "$tear_out"; exit 1; }
+grep -q 'current remote base' "$tear_out" || { echo 'FAIL archive did not require base ancestry'; cat "$tear_out"; exit 1; }
+grep -q 'git branch -D\|git worktree remove' "$tear_out" && { echo 'FAIL archive suggested forced cleanup or worktree deletion'; cat "$tear_out"; exit 1; }
 # The same repository's main working tree is not a task tree, so archiving from
 # there prints none of it. This fixture is a real Git repository on purpose: the
 # plain archive fixture above is a bare directory, where the git-dir lookup
@@ -1337,13 +1325,13 @@ cat >> "$lcl_wt/TaskFlowDocs/todo.md" <<'EOF'
 EOF
 printf 'x\n' > "$lcl_wt/TaskFlowDocs/$lcl3_task/sessions.md"
 bash "$HERE/version-baseline" init "$lcl_wt" "$lcl3_task" v1
-chmod a-w "$lcl/TaskFlowDocs/achieved"
+printf 'blocking file\n' > "$lcl/TaskFlowDocs/achieved/$lcl3_task"
 lcl3_out="$tmp/archive-nocopy-out"
 lcl3_rc=0
 bash "$HERE/archive" "$lcl3_task" "$lcl_wt" > "$lcl3_out" 2>&1 || lcl3_rc=$?
-chmod u+w "$lcl/TaskFlowDocs/achieved"
+rm "$lcl/TaskFlowDocs/achieved/$lcl3_task"
 [ "$lcl3_rc" -eq 0 ] \
-  || { echo "FAIL an unwritable base target failed the archive (rc $lcl3_rc):"; cat "$lcl3_out"; exit 1; }
+  || { echo "FAIL an unavailable base target failed the archive (rc $lcl3_rc):"; cat "$lcl3_out"; exit 1; }
 grep -q 'archive note: could not copy sessions.md' "$lcl3_out" \
   || { echo "FAIL the failed copy was not reported"; cat "$lcl3_out"; exit 1; }
 grep -q 'archive OK' "$lcl3_out" \
@@ -5260,7 +5248,7 @@ set +e
 out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
 set -e
 [ "$rc" -eq 0 ] || { echo "FAIL plain repository with no worktrees: $rc"; printf '%s\n' "$out"; exit 1; }
-printf '%s\n' "$out" | grep -q 'Stale task worktrees: none' \
+printf '%s\n' "$out" | grep -q 'Merged, clean worktrees (inspect before reuse): none' \
   || { echo "FAIL a repository with no worktrees should report none"; printf '%s\n' "$out"; exit 1; }
 # One merged-and-clean task tree, one with an unmerged commit, one merged but
 # dirty. Only the first is removable, so only the first may be named.
@@ -5278,7 +5266,7 @@ set +e
 out=$(bash "$HERE/repository-check" "$wt_root" 2>&1); rc=$?
 set -e
 [ "$rc" -eq 0 ] || { echo "FAIL stale worktree changed the verdict: $rc"; printf '%s\n' "$out"; exit 1; }
-printf '%s\n' "$out" | grep -q "^Stale task worktrees:" \
+printf '%s\n' "$out" | grep -q "^Merged, clean worktrees (inspect before reuse):" \
   || { echo "FAIL the merged worktree was not reported"; printf '%s\n' "$out"; exit 1; }
 printf '%s\n' "$out" | grep -q -- "- $wt_root/.worktrees/merged \[chore/merged\]" \
   || { echo "FAIL merged worktree not named with its branch"; printf '%s\n' "$out"; exit 1; }

@@ -233,8 +233,21 @@ esac
 # task directory name alone reads `<task>` there and would gate the archive.
 docs_dir="${task_dir%/*}"
 [ "${docs_dir##*/}" = "TaskFlowDocs" ] || return 0
-# An active task is one that has a Plan. Anything else is not TaskFlow business.
 [ -f "$task_dir/plan.md" ] || return 0
+
+git_dir="$(git -C "$task_dir" rev-parse --absolute-git-dir 2>/dev/null)" || git_dir=""
+[ -n "$git_dir" ] || deny "TaskFlow pre-write gate: cannot locate the git directory for this task, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. Record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
+
+if [ -z "${TASKFLOW_LOCKED_GIT_DIR:-}" ]; then
+  source "$HERE/ledger-lock"
+  taskflow_ledger_acquire "$git_dir" || deny "TaskFlow ledger handoff is active or needs recovery; document write refused."
+  TASKFLOW_LOCKED_GIT_DIR="$git_dir"
+  trap taskflow_ledger_release EXIT
+elif [ "$TASKFLOW_LOCKED_GIT_DIR" != "$git_dir" ]; then
+  deny "TaskFlow cannot safely gate one patch across multiple worktree ledgers."
+fi
+# Recheck after locking in case a handoff changed the worktree.
+[ -f "$task_dir/plan.md" ] || deny "TaskFlow task changed during handoff; retry after inspecting the worktree."
 
 # An approval that has been superseded does not cover the document it is written
 # in, so a rewritten version may not be carried into the old nod. This is the
@@ -254,9 +267,6 @@ fi
 
 version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$task_dir/plan.md" | sed -n '1p')"
 [ -n "$version" ] || deny "TaskFlow pre-write gate: cannot read the Plan task version, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. If the Plan is fine, record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
-
-git_dir="$(git -C "$task_dir" rev-parse --absolute-git-dir 2>/dev/null)" || git_dir=""
-[ -n "$git_dir" ] || deny "TaskFlow pre-write gate: cannot locate the git directory for this task, so stage [$stage] cannot be checked. This is a gate problem, not a rule you broke. Record the stage with:  bash hooks/task unaided $stage --considered '$(stage_class "$stage")'"
 
 store="$git_dir/taskflow"
 evidence="$store/evidence"

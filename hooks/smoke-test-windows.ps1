@@ -157,9 +157,9 @@ try {
     if ($context -notmatch 'Repository document routes \(pr\)') { throw 'PR phase route missing from SessionStart JSON' }
     if ($context -notmatch 'CONTRIBUTING\.md') { throw 'Applicable source missing from SessionStart JSON' }
     if ([IO.File]::ReadAllText($index) -notmatch '\| repository-rule \| `CONTRIBUTING\.md` \| design,code,commit,pr,release \| yes \|') { throw 'Index did not record existing source' }
-    $before = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
+    $before = [Convert]::ToBase64String([IO.File]::ReadAllBytes($index))
     $second = Invoke-SessionStart 'pr'
-    $after = (Get-FileHash -Algorithm SHA256 -LiteralPath $index).Hash
+    $after = [Convert]::ToBase64String([IO.File]::ReadAllBytes($index))
     if ($before -ne $after) { throw 'Repeated SessionStart changed an up-to-date index' }
     if ($second.hookSpecificOutput.additionalContext -notmatch 'Read routing record first') { throw 'Repeated SessionStart context missing' }
     'WINDOWS SESSIONSTART PASSED'
@@ -336,6 +336,10 @@ try {
     # can be caught automatically.
     #
     if ($env:TASKFLOW_STDIN_SELFCHECK -ne '1') {
+        foreach ($reuseTest in @('test-ledger-lock', 'test-reuse-worktree')) {
+            & "$here\run-hook.cmd" $reuseTest (Join-Path $Root $reuseTest)
+            if ($LASTEXITCODE -ne 0) { throw "$reuseTest failed" }
+        }
         & "$here\run-hook.cmd" test-multi-todo (Join-Path $Root 'multi-todo')
         if ($LASTEXITCODE -ne 0) { throw 'multi Todo test failed' }
         $parityRoot = Join-Path $Root 'host-parity'
@@ -368,15 +372,19 @@ try {
         $psi.EnvironmentVariables['TASKFLOW_STDIN_SELFCHECK'] = '1'
         $clock = [Diagnostics.Stopwatch]::StartNew()
         $child = [Diagnostics.Process]::Start($psi)
-        $finished = $child.WaitForExit(90000)
+        $childOutTask = $child.StandardOutput.ReadToEndAsync()
+        $childErrTask = $child.StandardError.ReadToEndAsync()
+        # Some Windows hosts need more than 90s for the full child lifecycle.
+        $finished = $child.WaitForExit(240000)
         $clock.Stop()
         $elapsed = [int]$clock.Elapsed.TotalSeconds
         if (-not $finished) {
             try { $child.Kill() } catch { }
             throw "the Windows suite blocked for ${elapsed}s with an inherited open stdin - a call to session-start has no stdin of its own and is waiting on the read"
         }
-        $childOut = $child.StandardOutput.ReadToEnd()
-        if ($child.ExitCode -ne 0) { throw "the Windows suite failed with an inherited open stdin (rc $($child.ExitCode)): $childOut" }
+        $childOut = $childOutTask.Result
+        $childErr = $childErrTask.Result
+        if ($child.ExitCode -ne 0) { throw "the Windows suite failed with an inherited open stdin (rc $($child.ExitCode)): $childOut $childErr" }
         if ($childOut -notmatch 'WINDOWS PRE-WRITE GATE PASSED') { throw 'the Windows suite with an inherited open stdin did not reach its last section' }
         "WINDOWS OPEN STDIN PASSED in ${elapsed}s"
     }

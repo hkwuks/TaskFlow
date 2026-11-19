@@ -123,8 +123,7 @@ fi
 # clean, has nothing left to protect: the branch holds every commit it had, and
 # nothing is uncommitted in the directory. `archive` states the teardown as the
 # step after the merge, and this is what notices when that step was skipped —
-# `complete` runs before the push, so the instruction cannot be acted on when it
-# is printed and nothing else ever looks again.
+# `complete` runs before the push; this check reports the later state without removing anything.
 #
 # Never sets `needs`. The check's exit code is a workflow verdict, and a
 # leftover directory is housekeeping: folding it in would make `STATUS:
@@ -197,17 +196,17 @@ $worktrees
 
 EOF
   if [ -z "$stale" ]; then
-    echo "Stale task worktrees: none"
+    echo "Merged, clean worktrees (inspect before reuse): none"
   else
-    printf 'Stale task worktrees:\n%s' "$stale"
+    printf 'Merged, clean worktrees (inspect before reuse):\n%s' "$stale"
     echo "  Branch already in $base_ref and no tracked or untracked changes were reported."
-    echo "  Remove each with: git worktree remove <path>, then delete the branch: git branch -d <branch>"
+    echo "  Keep for reuse after archive and safety checks; branch cleanup is separate after switching away."
   fi
   [ -z "$dirty" ] || printf 'Merged worktrees with local changes (preserve):\n%s' "$dirty"
   [ -z "$unreadable" ] || printf 'Merged worktrees with unknown status (preserve):\n%s' "$unreadable"
-  [ -z "$stale" ] || echo '  Check ignored files and deletion authorization before removing a worktree.'
+  [ -z "$stale" ] || echo '  Check archived task, ignored files and idle state before handoff; verify remote-base ancestry before authorized branch cleanup.'
 else
-  echo "Stale task worktrees: unknown (no upstream base to compare against)"
+  echo "Merged, clean worktrees (inspect before reuse): unknown (no upstream base to compare against)"
 fi
 
 # A branch whose worktree is already gone. The section above only sees a
@@ -244,7 +243,7 @@ EOF
     echo "Merged branches without a worktree: none"
   else
     printf 'Merged branches without a worktree:\n%s' "$loose_branches"
-    echo "  Already in $base_ref, with no worktree left to hold them. Delete each with: git branch -d <branch>"
+    echo "  Already in $base_ref, with no worktree holding them. With cleanup authorization, delete each with: git branch -d <branch>; retain it if Git refuses."
   fi
 else
   echo "Merged branches without a worktree: unknown (no upstream base to compare against)"
