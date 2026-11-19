@@ -68,6 +68,21 @@ bash "$HERE/approval-check" "$plan" || exit 1
 # towards — so the answer is already given above.
 if [ "$approval_only" -eq 1 ]; then exit 0; fi
 
+# A shared task may only close its primary Todo after its own acceptance.
+awk '
+  {
+    raw = $0; sub(/\r$/, "", raw); text = raw
+    for (indent = 0; indent < 3 && substr(text, 1, 1) == " "; indent++) text = substr(text, 2)
+    marker = substr(text, 1, 1); run = 0
+    if (marker == "`" || marker == "~") while (substr(text, run + 1, 1) == marker) run++
+    if (fence != "") { if (marker == fence && run >= fence_len && substr(text, run + 1) ~ /^[[:space:]]*$/) fence = ""; next }
+    if (run >= 3 && (marker != "`" || index(substr(text, run + 1), "`") == 0)) { fence = marker; fence_len = run; next }
+    if (raw ~ /^## /) { inside = 0; if (raw == "## Related Todos") { inside = 1; sections++ }; next }
+    if (inside && raw ~ /^- Primary Todo accepted:/) { fields++; if (raw == "- Primary Todo accepted: yes") accepted++ }
+  }
+  END { if (sections && !(sections == 1 && fields == 1 && accepted == 1)) exit 1 }
+' "$plan" || { echo 'primary Todo acceptance missing in Related Todos; completion not started' >&2; exit 1; }
+
 # Supporting documents cannot carry an unterminated example into completion.
 for doc in prd.md spec.md; do
   [ -f "$1/$doc" ] || continue

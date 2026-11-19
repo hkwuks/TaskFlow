@@ -52,6 +52,9 @@ if ! grep -q "\`TaskFlowDocs/$task/\`" "$todo"; then
   echo "Todo entry for $task missing; archive not started"; exit 1
 fi
 
+links="$(awk -v task="$task" '{ sub(/\r$/, ""); if ($0 == "- Task: `TaskFlowDocs/" task "/`") n++ } END { print n+0 }' "$todo")"
+[ "$links" = 1 ] || { echo 'Task must have exactly one primary Todo link; archive not started.' >&2; exit 1; }
+
 if [ -e "$docs/$task/remote-issue" ] || [ -L "$docs/$task/remote-issue" ]; then
   bash "$HERE/remote-todo" stage-task "$task" done --root "$root" || { echo 'Remote stage update failed; local archive was not started.' >&2; exit 1; }
   echo 'If a remote stage changed and local archive fails, inspect both sides before retrying.' >&2

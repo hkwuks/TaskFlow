@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || exit 2
+fixture="$1"
+[ ! -e "$fixture" ] || exit 2
+mkdir -p "$fixture/TaskFlowDocs" "$fixture/tmp" "$fixture/task"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+# Todo
+## A
+- ID: TF-20261119-aaaaaa
+- Status: inbox
+- Updated: 2026-11-19
+- Goal: A
+- Task: Not promoted.
+- Next action: start
+- Notes: retain this text
+## B
+- ID: TF-20261119-bbbbbb
+- Status: inbox
+- Updated: 2026-11-19
+- Goal: B
+- Task: `TaskFlowDocs/2026-11-19-sample/`
+- Next action: start
+EOF
+TMPDIR="$fixture/tmp" bash "$HERE/task" item-state TF-20261119-aaaaaa done 'accepted' --root "$fixture" >/dev/null
+grep -qx -- '- Status: done' "$fixture/TaskFlowDocs/todo.md"
+grep -qx -- '- Notes: retain this text' "$fixture/TaskFlowDocs/todo.md"
+grep -qx -- '- Next action: accepted' "$fixture/TaskFlowDocs/todo.md"
+[ "$(grep -cx -- '- Status: inbox' "$fixture/TaskFlowDocs/todo.md")" = 1 ] || { echo 'FAIL other Todo status changed'; exit 1; }
+cp "$fixture/TaskFlowDocs/todo.md" "$fixture/before"
+if TMPDIR="$fixture/tmp" bash "$HERE/task" item-state TF-20261119-bbbbbb done accepted --root "$fixture" >/dev/null 2>&1; then echo 'FAIL promoted item changed'; exit 1; fi
+cmp "$fixture/before" "$fixture/TaskFlowDocs/todo.md"
+mkdir -p "$fixture/TaskFlowDocs/remote-todo-links"
+printf 'mapping\n' > "$fixture/TaskFlowDocs/remote-todo-links/TF-20261119-aaaaaa"
+if TMPDIR="$fixture/tmp" bash "$HERE/task" item-state TF-20261119-aaaaaa inbox retry --root "$fixture" >/dev/null 2>&1; then echo 'FAIL remote item changed'; exit 1; fi
+cmp "$fixture/before" "$fixture/TaskFlowDocs/todo.md"
+cat >> "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+## Independent copy
+- ID: TF-20261119-cccccc
+- Status: inbox
+- Updated: 2026-11-19
+- Goal: independent local copy
+- Task: Not promoted.
+- Next action: start
+    <!-- taskflow-copy-complete:TF-20261119-cccccc -->
+EOF
+TMPDIR="$fixture/tmp" bash "$HERE/task" item-state TF-20261119-cccccc in_progress working --root "$fixture" >/dev/null || { echo 'FAIL independent local copy'; exit 1; }
+cat > "$fixture/task/plan.md" <<'EOF'
+> Task version: v1
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-11-19
+- Approved version: v1
+- Approved scope: PRD / Plan
+## Related Todos
+- Primary Todo accepted: no
+EOF
+if bash "$HERE/completion-gate" "$fixture/task" >/dev/null 2>&1; then echo 'FAIL unfinished primary accepted'; exit 1; fi
+sed 's/accepted: no/accepted: yes/' "$fixture/task/plan.md" > "$fixture/task/plan.tmp"
+mv "$fixture/task/plan.tmp" "$fixture/task/plan.md"
+bash "$HERE/completion-gate" "$fixture/task"
+printf '%s\n' '- Primary Todo accepted: no' >> "$fixture/task/plan.md"
+if bash "$HERE/completion-gate" "$fixture/task" >/dev/null 2>&1; then echo 'FAIL ambiguous primary accepted'; exit 1; fi
+# Duplicate primary links must not let reopen rewrite one status and both paths.
+mkdir -p "$fixture/TaskFlowDocs/achieved/2026-11-19-sample"
+cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+## A
+- ID: TF-20261119-aaaaaa
+- Task: `TaskFlowDocs/achieved/2026-11-19-sample/`
+## B
+- ID: TF-20261119-bbbbbb
+- Task: `TaskFlowDocs/achieved/2026-11-19-sample/`
+EOF
+cp "$fixture/TaskFlowDocs/todo.md" "$fixture/before"
+if TMPDIR="$fixture/tmp" bash "$HERE/reopen" 2026-11-19-sample "$fixture" >/dev/null 2>&1; then echo 'FAIL ambiguous reopen'; exit 1; fi
+cmp "$fixture/before" "$fixture/TaskFlowDocs/todo.md"
+[ -d "$fixture/TaskFlowDocs/achieved/2026-11-19-sample" ] || { echo 'FAIL ambiguous reopen moved task'; exit 1; }
+# Archive must refuse the same ambiguity before moving the directory.
+mkdir -p "$fixture/TaskFlowDocs/2026-11-19-sample"
+printf '# PRD\n> Task version: v1\n> Status: completed\n' > "$fixture/TaskFlowDocs/2026-11-19-sample/prd.md"
+cat > "$fixture/TaskFlowDocs/2026-11-19-sample/plan.md" <<'EOF'
+# Plan
+> Task version: v1
+> Status: completed
+## Approval
+- Status: approved
+- Approved by: user
+- Approved at: 2026-11-19
+- Approved version: v1
+- Approved scope: PRD / Plan
+EOF
+sed 's@TaskFlowDocs/achieved/@TaskFlowDocs/@' "$fixture/TaskFlowDocs/todo.md" > "$fixture/todo.tmp"
+mv "$fixture/todo.tmp" "$fixture/TaskFlowDocs/todo.md"
+rm -rf "$fixture/TaskFlowDocs/achieved/2026-11-19-sample"
+if TMPDIR="$fixture/tmp" bash "$HERE/archive" 2026-11-19-sample "$fixture" > "$fixture/archive-out" 2>&1; then echo 'FAIL ambiguous archive'; exit 1; fi
+grep -q 'exactly one primary Todo link' "$fixture/archive-out" || { cat "$fixture/archive-out"; echo 'FAIL archive refused for another reason'; exit 1; }
+[ -d "$fixture/TaskFlowDocs/2026-11-19-sample" ] || { echo 'FAIL ambiguous archive moved task'; exit 1; }
+# A completed primary can archive while another item remains open and intact.
+cat > "$fixture/TaskFlowDocs/todo.md" <<'EOF'
+## A
+- ID: TF-20261119-aaaaaa
+- Status: in_progress
+- Goal: primary
+- Task: `TaskFlowDocs/2026-11-19-sample/`
+- Next action: archive
+## B
+- ID: TF-20261119-bbbbbb
+- Status: in_progress
+- Updated: 2026-11-19
+- Goal: secondary
+- Task: Not promoted.
+- Next action: continue later
+- Notes: keep secondary history
+EOF
+cat >> "$fixture/TaskFlowDocs/2026-11-19-sample/plan.md" <<'EOF'
+## Related Todos
+- Primary Todo accepted: yes
+- TF-20261119-bbbbbb: in_progress; continue later
+EOF
+TMPDIR="$fixture/tmp" bash "$HERE/archive" 2026-11-19-sample "$fixture" > "$fixture/archive-ok"
+grep -qxF -- '- Status: in_progress' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL unfinished item closed'; exit 1; }
+grep -qxF -- '- Notes: keep secondary history' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL secondary history lost'; exit 1; }
+grep -qxF -- '- TF-20261119-bbbbbb: in_progress; continue later' "$fixture/TaskFlowDocs/achieved/2026-11-19-sample/plan.md" || { echo 'FAIL secondary association lost'; exit 1; }
+TMPDIR="$fixture/tmp" bash "$HERE/reopen" 2026-11-19-sample "$fixture" > "$fixture/reopen-ok"
+grep -qxF -- '- Notes: keep secondary history' "$fixture/TaskFlowDocs/todo.md" || { echo 'FAIL reopen changed secondary'; exit 1; }
+echo 'PASS multi Todo primary and item state'
