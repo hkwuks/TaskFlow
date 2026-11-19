@@ -47,6 +47,7 @@ taskflow/hooks/
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
 ├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
+├── test-multi-todo              # shared task and per-item lifecycle regression
 ├── test-version-baseline        # real Git lifecycle regression fixture
 ├── remote-todo                      # explicit remote Issue Todo commands
 ├── remote-todo-local-list           # list and deduplicate retained local Todos

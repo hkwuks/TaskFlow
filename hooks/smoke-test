@@ -8059,7 +8059,7 @@ echo "== the two documents that inventory hooks/ name every file in it =="
 # same directory, but the bare directory name is not a path a diff produces, so
 # naming it here would put an entry in the classifier assertion below that no
 # set can cover.
-real_hooks="$(ls -1 "$HERE" | grep -v -e '^README\.md$' | sort)"
+real_hooks="$(ls -1 "$HERE" | sort)"
 
 # doc_tree <file> [subtree] — parse a ```text block and print the entry names.
 # With `subtree`, print only the entries under the first `<name>/` line, which is

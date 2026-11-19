@@ -411,6 +411,7 @@ repo-root/
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
         ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
+        ├── test-multi-todo              # shared task and per-item lifecycle regression
         ├── test-version-baseline        # real Git lifecycle regression fixture
         ├── remote-todo                      # explicit remote Issue Todo commands
         ├── remote-todo-local-list           # list and deduplicate retained local Todos
