@@ -35,6 +35,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 用户指定同时处理多个已有 Todo 时，在一个分支与 worktree 中
+
+- ID: TF-20261119-d31806
+- Status: done
+- Goal: 用户指定同时处理多个已有 Todo 时，在一个分支与 worktree 中共用任务文档，按各项结果分别更新本地 Todo 或远程 Issue 状态及归档。
+- Task: `TaskFlowDocs/achieved/2026-11-19-multi-todo/`
+- Next action: None — completed and archived.
+
 ## 简化只要求添加 Todo 的处理：记录后结束，避免额外检查和
 
 - ID: TF-20261117-0803fd
