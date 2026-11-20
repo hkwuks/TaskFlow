@@ -88,6 +88,7 @@
 发布例外按用户 2026-11-09 指示推迟至 TF-20261109-ccbb96；本版本不声称发布编辑不受影响。
 
 ## Verification / Review
+- CI run 44666740427 Ubuntu smoke 失败：候选行的 `- 路径` 格式被既有仅应匹配可清理工作树的断言识别；将候选标为 `candidate:`，保留原清理断言，并重新验证候选夹具。新提交的 CI 待核实。
 - 2026-11-20 用户要求提交 PR、合并并发版；以该指示作为两项改动的交付意向，CI 和最终验收仍需核实。目标仓库 `hkwuks/TaskFlow`，基线 `main` 的远端提交为 `0aa599c1acf1ec40b419ba033aa3abb05e743f78`。
 - PR 模板 `.github/pull_request_template.md`：Summary 对应两项行为；TaskFlow traceability 对应本任务与两条 Todo；Verification 记录 Hooks CI、diff 检查和技能验证；Review boundaries 说明密钥、无关文件、远端和剩余限制。
 - 2026-11-20：现有 `hooks/test-reuse-worktree` 在 Windows Git Bash 中通过，交接和账本恢复夹具返回 0；没有在任何现有用户工作树上执行交接。新增脚本已列入两个 hook 清单。

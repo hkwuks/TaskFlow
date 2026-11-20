@@ -131,7 +131,7 @@ while IFS= read -r line; do
       path="${line#worktree }"
       if [ "$first" -eq 1 ]; then first=0; continue; fi
       if ! status="$(git -C "$path" status --porcelain --untracked-files=all --ignore-submodules=none 2>/dev/null)"; then
-        printf '%s\n' "- $path (status unknown; inspect)"
+        printf '%s\n' "  candidate: $path (status unknown; inspect)"
         candidates=1
         continue
       fi
@@ -139,10 +139,10 @@ while IFS= read -r line; do
       task="$(git -C "$path" log -1 --format= --name-only -- TaskFlowDocs/achieved 2>/dev/null | awk -F/ '$1 == "TaskFlowDocs" && $2 == "achieved" && NF > 3 && !seen { print $3; seen=1 }')" || task=""
       if [ -n "$task" ] && [ -f "$path/TaskFlowDocs/achieved/$task/prd.md" ] && [ -f "$path/TaskFlowDocs/achieved/$task/plan.md" ]; then
         if [ -n "$status" ]; then state='changes present'; else state='clean; idle unknown'; fi
-        printf '%s\n' "- $path: recent archive $task ($state)"
+        printf '%s\n' "  candidate: $path: recent archive $task ($state)"
         candidates=1
       else
-        printf '%s\n' "- $path (current archived task unknown; inspect)"
+        printf '%s\n' "  candidate: $path (current archived task unknown; inspect)"
         candidates=1
       fi
       ;;
