@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.2.7] — 2026-11-20
+
+### Added
+
+- Allow an explicitly authorized, one-edit permit for named non-development documents in a TaskFlow base checkout. Unlisted paths, moves and deletions remain blocked. [#148](https://github.com/hkwuks/TaskFlow/pull/148)
+- Discover archived worktree leads, including unmerged branches, and remind agents to inspect candidates before creating a worktree. [#148](https://github.com/hkwuks/TaskFlow/pull/148)
+
+### Installation and known limitations
+
+- No new dependency or global configuration is required. A document permit is not a security boundary against processes with the same filesystem permissions; it is consumed before later hooks or the edit completes. Shell and other unobserved writes remain outside the gate.
+- Candidate discovery is advisory and does not establish that a worktree is idle or safe to reuse. Confirm its current task, ignored files and idle status before handoff. Existing host installations were not tested against this release.
+
+### Verification
+
+- PR head `00c3ddcb1fd3f745795f98304208393596ade9e9` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/44667840963), including Ubuntu, macOS, Windows smoke, evals and Todo audit. Its tree matches merged main `05b13f330294fa581451c8ba494fbf1b06de6741`.
+- The release commit changes this section, version literals and README samples only; the implementation smoke is covered by the CI above.
+- Release preparation: `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation and `git diff --check` passed. The existing v1.2.6 catalog pins must be checked again after the new tag and pins are prepared.
+
+### Release
+
+- Planned tag: `v1.2.7`; tag and marketplace pins are pushed atomically after release-owner approval.
+
+
 ## [1.2.6] — 2026-11-19
 
 ### Added
