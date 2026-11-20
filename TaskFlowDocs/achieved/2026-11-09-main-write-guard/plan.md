@@ -1,6 +1,6 @@
 # Plan — 防止开发任务修改基础工作区
 > Task version: v7
-> Status: checking
+> Status: completed
 
 ## v7 执行方案
 - 来源：TF-20261120-1d4bcb；用户确认仅处理非开发文档，保留开发保护，发布例外独立。
@@ -11,10 +11,10 @@
 - 适用文档：repository-docs/index.md、LICENSE、CONTRIBUTING.md、CODE_STYLE.md；遵守隔离、跨宿主验证和 Shell 规则。
 
 ## Related Todos
-- Primary Todo accepted: no
-- 主任务 TF-20261109-e2df6d：已取回 v7，等待验收。
-- TF-20261120-1d4bcb：非开发文档授权；待实施与验收。
-- TF-20261120-f1d4ab：工作树候选发现；待实施与验收。
+- Primary Todo accepted: yes
+- 主任务 TF-20261109-e2df6d：用户要求合并发版，v7 按已验证范围验收。
+- TF-20261120-1d4bcb：非开发文档授权已实现并按用户交付指示验收；无后续动作。
+- TF-20261120-f1d4ab：工作树候选发现已实现并按用户交付指示验收；无后续动作。
 
 ## v7 补充执行步骤
 - 在仓库检查和新任务入口中提供复用候选发现，包含未合并旧分支；保留现有已合并分支提示的用途。
@@ -88,6 +88,7 @@
 发布例外按用户 2026-11-09 指示推迟至 TF-20261109-ccbb96；本版本不声称发布编辑不受影响。
 
 ## Verification / Review
+- 2026-11-20：代码提交 `7a6e836` 的 [Hooks CI 44667068253](https://github.com/hkwuks/TaskFlow/actions/runs/44667068253) 通过 Ubuntu、macOS、Windows smoke、evals、Todo audit 及 CI 复用检查；release job 按路径分类跳过。
 - CI run 44666740427 Ubuntu smoke 失败：候选行的 `- 路径` 格式被既有仅应匹配可清理工作树的断言识别；将候选标为 `candidate:`，保留原清理断言，并重新验证候选夹具。新提交的 CI 待核实。
 - 2026-11-20 用户要求提交 PR、合并并发版；以该指示作为两项改动的交付意向，CI 和最终验收仍需核实。目标仓库 `hkwuks/TaskFlow`，基线 `main` 的远端提交为 `0aa599c1acf1ec40b419ba033aa3abb05e743f78`。
 - PR 模板 `.github/pull_request_template.md`：Summary 对应两项行为；TaskFlow traceability 对应本任务与两条 Todo；Verification 记录 Hooks CI、diff 检查和技能验证；Review boundaries 说明密钥、无关文件、远端和剩余限制。

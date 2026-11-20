@@ -38,7 +38,7 @@ has an issue number or URL.
 ## 修复新任务未发现并优先复用符合条件的已归档工作树
 
 - ID: TF-20261120-f1d4ab
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-20-worktree-discovery
@@ -47,12 +47,12 @@ has an issue number or URL.
 - Updated: 2026-11-20
 - Goal: 修复新任务未发现并优先复用符合条件的已归档工作树
 - Task: Not promoted.
-- Next action: 验证候选发现并等待用户验收
+- Next action: 已验证并纳入 PR #148
 
 ## 允许用户明确授权的非开发文档编辑通过基础工作区守卫，
 
 - ID: TF-20261120-1d4bcb
-- Status: in_progress
+- Status: done
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-20-document-guard
@@ -61,7 +61,7 @@ has an issue number or URL.
 - Updated: 2026-11-20
 - Goal: 允许用户明确授权的非开发文档编辑通过基础工作区守卫，同时保留开发任务保护
 - Task: Not promoted.
-- Next action: 验证授权机制并等待用户验收
+- Next action: 已验证并纳入 PR #148
 
 ## 测试、编译等下载的非仓库内容不在各 worktree 重复创建，优
 
@@ -229,11 +229,10 @@ has an issue number or URL.
 ## 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直
 
 - ID: TF-20261109-e2df6d
-- Status: in_progress
+- Status: done
 - Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
-- Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
-- Next action: Re-approve the new Task version before core changes.
-- Updated: 2026-11-20
+- Task: `TaskFlowDocs/achieved/2026-11-09-main-write-guard/`
+- Next action: None — completed and archived.
 
 ## 插件引导下模型去做标记类周边工作而非实现真正功能
 
