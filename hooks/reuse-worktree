@@ -41,6 +41,16 @@ write_field() { printf '%s\n' "$2" > "$journal/$1.tmp"; mv "$journal/$1.tmp" "$j
 if [ "$command" = recover ]; then
   [ -d "$journal" ] && [ ! -L "$journal" ] || fail 'No recoverable handoff journal.'
   old_task="$(read_field old-task)"; old_branch="$(read_field old-branch)"; old_sha="$(read_field old-sha)"; snapshot="$(read_field snapshot)"
+  if [ ! -e "$journal/old-root" ] && [ ! -L "$journal/old-root" ] && [ ! -e "$journal/target-root" ] && [ ! -L "$journal/target-root" ]; then
+    old_root="$root"; target_root="$root"
+  else
+    old_root="$(read_field old-root)"; target_root="$(read_field target-root)"
+  fi
+  [ "$root" = "$old_root" ] || [ "$root" = "$target_root" ] || fail 'Worktree path differs from the handoff record.'
+  [ "${old_root%/*}" = "${target_root%/*}" ] || fail 'Handoff paths are not siblings.'
+  if [ "$root" != "$old_root" ]; then
+    [ ! -e "$old_root" ] && [ ! -L "$old_root" ] || fail 'Original worktree path is occupied; inspect before recovery.'
+  fi
   bash "$HERE/task-id" "$old_task" >/dev/null || fail 'Invalid old task in journal.'
   prefix="$store/handoff-history/$old_task/"
   case "$snapshot" in "$prefix"*) snapshot_id="${snapshot#"$prefix"}" ;; *) fail 'Snapshot is outside the recorded task history.' ;; esac
@@ -109,6 +119,10 @@ if [ "$command" = recover ]; then
       [ ! -e "$store/$name" ] && [ ! -L "$store/$name" ] || fail "Unexpected $name; inspect before recovery."
     fi
   done
+  if [ "$root" != "$old_root" ]; then
+    git -C "$mainroot" worktree move "$root" "$old_root" || fail 'Could not restore original worktree path; inspect the Git worktree list and retry recovery.'
+    root="$old_root"
+  fi
   [ ! -e "$snapshot/recovered-journal" ] || fail 'Recovery history already exists.'
   mv "$journal" "$snapshot/recovered-journal" || fail 'Could not preserve recovery journal.'
   printf 'Recovered original task %s; snapshot retained at %s. Any created new branch was retained.\n' "$old_task" "$snapshot"
@@ -136,6 +150,13 @@ else
   expected="$(cat "$target_snapshot/journal/old-sha")"
   [[ "$expected" =~ ^[0-9a-f]{40,64}$ ]] || fail 'Invalid target commit.'
   base_branch='@resume'
+fi
+[ "${new_branch#*/}" != "$new_branch" ] || fail 'Target branch must have a type prefix and task slug.'
+slug="${new_branch#*/}"
+[[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'Target branch task slug must be a single safe directory name.'
+target_root="${root%/*}/$slug"
+if [ "$target_root" != "$root" ]; then
+  [ ! -e "$target_root" ] && [ ! -L "$target_root" ] || fail 'Target worktree path already exists.'
 fi
 [ ! -e "$journal" ] && [ ! -L "$journal" ] || fail 'An incomplete handoff needs recovery first.'
 status="$(git -C "$root" status --porcelain --untracked-files=all --ignore-submodules=none)" || fail 'Cannot inspect worktree status.'
@@ -195,6 +216,7 @@ snapshot="$(mktemp -d "$history/$old_task/$old_sha.XXXXXXXX")" || fail 'Cannot r
 pending="$journal"
 journal="$(mktemp -d "$store/handoff.prepare.XXXXXXXX")" || fail 'Cannot prepare handoff journal.'
 write_field old-task "$old_task"; write_field old-branch "$old_branch"; write_field old-sha "$old_sha"
+write_field old-root "$root"; write_field target-root "$target_root"
 write_field base-branch "$base_branch"; write_field base-sha "$base_sha"; write_field new-branch "$new_branch"; write_field snapshot "$snapshot"
 write_field mode "$command"
 if [ "$command" = resume ]; then write_field target-task "$target_task"; write_field target-id "$snapshot_id"; fi
@@ -243,6 +265,10 @@ if [ "$command" = resume ]; then
       cmp "$target_snapshot/$name" "$store/$name" || fail "Target ledger differs; recover using $journal."
     fi
   done
+fi
+if [ "$root" != "$target_root" ]; then
+  git -C "$mainroot" worktree move "$root" "$target_root" || fail 'Worktree move failed; inspect the Git worktree list and recover the handoff from the existing path.'
+  root="$target_root"
 fi
 write_field phase verified
 mv "$journal" "$snapshot/journal" || fail 'Could not preserve completed handoff journal.'

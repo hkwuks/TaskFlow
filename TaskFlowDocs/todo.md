@@ -35,6 +35,14 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 复用已归档 worktree 时将目录重命名以反映新任务
+
+- ID: TF-20261120-b13cd8
+- Status: done
+- Goal: 复用已归档 worktree 时将目录重命名以反映新任务
+- Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
+- Next action: None — completed and archived.
+
 ## 修复新任务未发现并优先复用符合条件的已归档工作树
 
 - ID: TF-20261120-f1d4ab
