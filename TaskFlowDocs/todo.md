@@ -35,6 +35,34 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 修复新任务未发现并优先复用符合条件的已归档工作树
+
+- ID: TF-20261120-f1d4ab
+- Status: done
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-20-worktree-discovery
+- Kind: defect
+- Added: 2026-11-20
+- Updated: 2026-11-20
+- Goal: 修复新任务未发现并优先复用符合条件的已归档工作树
+- Task: Not promoted.
+- Next action: 已验证并纳入 PR #148
+
+## 允许用户明确授权的非开发文档编辑通过基础工作区守卫，
+
+- ID: TF-20261120-1d4bcb
+- Status: done
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-20-document-guard
+- Kind: defect
+- Added: 2026-11-20
+- Updated: 2026-11-20
+- Goal: 允许用户明确授权的非开发文档编辑通过基础工作区守卫，同时保留开发任务保护
+- Task: Not promoted.
+- Next action: 已验证并纳入 PR #148
+
 ## 测试、编译等下载的非仓库内容不在各 worktree 重复创建，优
 
 - ID: TF-20261119-bf0c36

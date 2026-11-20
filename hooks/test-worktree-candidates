@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+fixture="$(mktemp -d)"
+trap 'rm -rf "$fixture"' EXIT
+repo="$fixture/repo"
+git init -q "$repo"
+git -C "$repo" config user.name test
+git -C "$repo" config user.email test@example.invalid
+mkdir -p "$repo/TaskFlowDocs"
+echo '# Todo' > "$repo/TaskFlowDocs/todo.md"
+git -C "$repo" add .
+git -C "$repo" commit -qm initial
+git -C "$repo" worktree add -qb archived "$fixture/archived"
+mkdir -p "$fixture/archived/TaskFlowDocs/achieved/2026-01-01-demo"
+printf '# PRD\n> Status: completed\n' > "$fixture/archived/TaskFlowDocs/achieved/2026-01-01-demo/prd.md"
+printf '# Plan\n> Status: completed\n' > "$fixture/archived/TaskFlowDocs/achieved/2026-01-01-demo/plan.md"
+git -C "$fixture/archived" add .
+git -C "$fixture/archived" commit -qm archive
+out="$(bash "$HERE/repository-check" "$repo" 2>&1 || true)"
+printf '%s\n' "$out" | grep -q 'recent archive 2026-01-01-demo (clean; idle unknown)' || { echo 'FAIL unmerged archive missing'; exit 1; }
+printf '%s\n' "$out" | grep -q 'Confirm the current task, idle state and ignored files' || { echo 'FAIL missing idle warning'; exit 1; }
+echo dirty > "$fixture/archived/untracked"
+out="$(bash "$HERE/repository-check" "$repo" 2>&1 || true)"
+printf '%s\n' "$out" | grep -q 'recent archive 2026-01-01-demo (changes present)' || { echo 'FAIL dirty candidate'; exit 1; }
+mkdir -p "$repo/TaskFlowDocs/2026-01-01-a" "$repo/TaskFlowDocs/2026-01-01-b"
+printf '# Plan\n> Task version: v1\n> Status: in_progress\n' > "$repo/TaskFlowDocs/2026-01-01-a/plan.md"
+cp "$repo/TaskFlowDocs/2026-01-01-a/plan.md" "$repo/TaskFlowDocs/2026-01-01-b/plan.md"
+for verbose in 0 1; do
+  out="$(printf '{"hook_event_name":"UserPromptSubmit","cwd":"%s"}' "$repo" | TASKFLOW_VERBOSE="$verbose" bash "$HERE/prompt-reminder")"
+  [[ "$out" = *repository-check* ]] || { echo 'FAIL multiple task discovery reminder'; exit 1; }
+  [[ "$out" = *'Do not select an existing task by guess'* ]] || { echo 'FAIL ambiguous task reminder'; exit 1; }
+done
+echo 'PASS worktree candidate discovery'

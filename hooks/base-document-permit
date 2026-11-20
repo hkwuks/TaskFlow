@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# A user-issued, path-scoped permit for one observable base-checkout edit.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+mode="${1:-}"; shift || true
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 1
+root="$(cd "$root" && pwd -P)" || exit 1
+gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" || exit 1
+[ ! -f "$gitdir/commondir" ] && [ -f "$root/TaskFlowDocs/todo.md" ] || exit 1
+store="$gitdir/taskflow"
+[ ! -L "$store" ] || exit 1
+if [ "$mode" = consume ] && [ ! -f "$store/document-permit/paths" ]; then exit 1; fi
+mkdir -p "$store" || exit 1
+lock="$store/.document-permit-lock"
+mkdir "$lock" 2>/dev/null || exit 1
+trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+permit="$store/document-permit"
+canonical() {
+  local path="$1" parent name target_root
+  case "$path" in *$'\n'*|*$'\r'*|'') return 1;; esac
+  path="$(printf '%s' "$path" | tr '\134' '/')"
+  case "$path" in /*|[A-Za-z]:/*) ;; *) path="$PWD/$path";; esac
+  parent="${path%/*}"; name="${path##*/}"
+  [ -n "$name" ] && [ "$name" != . ] && [ "$name" != .. ] && [ -d "$parent" ] || return 1
+  parent="$(cd "$parent" && pwd -P)" || return 1
+  target_root="$(git -C "$parent" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  target_root="$(cd "$target_root" && pwd -P)" || return 1
+  [ "$target_root" = "$root" ] && [ ! -L "$parent/$name" ] || return 1
+  case "$name" in *.md|*.txt|*.docx|*.pptx|*.xlsx|*.pdf) ;; *) return 1;; esac
+  printf '%s/%s\n' "$parent" "$name"
+}
+case "$mode" in
+  grant)
+    [ "$#" -gt 0 ] && [ ! -e "$permit" ] && [ ! -L "$permit" ] || exit 1
+    mkdir "$permit" || exit 1
+    for path in "$@"; do
+      if ! canonical "$path" >> "$permit/paths"; then rm -f "$permit/paths"; rmdir "$permit"; exit 1; fi
+    done
+    echo 'Document permit recorded for one edit; invoke the edit from this checkout.'
+    ;;
+  cancel)
+    [ "$#" -eq 0 ] && [ -f "$permit/paths" ] && [ ! -L "$permit" ] && [ ! -L "$permit/paths" ] || exit 1
+    rm "$permit/paths"; rmdir "$permit"
+    echo 'Document permit cancelled.'
+    ;;
+  consume)
+    [ "$#" -eq 0 ] && [ -f "$permit/paths" ] && [ ! -L "$permit" ] && [ ! -L "$permit/paths" ] || exit 1
+    count=0
+    while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      normalized="$(canonical "$path")" || exit 1
+      grep -qxF -- "$normalized" "$permit/paths" || exit 1
+      count=$((count + 1))
+    done
+    [ "$count" -gt 0 ] || exit 1
+    rm "$permit/paths"
+    rmdir "$permit"
+    ;;
+  *) echo 'Usage: bash hooks/base-document-permit grant <document> [document...] | cancel' >&2; exit 2;;
+esac

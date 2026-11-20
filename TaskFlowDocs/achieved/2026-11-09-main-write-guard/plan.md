@@ -1,6 +1,25 @@
 # Plan — 防止开发任务修改基础工作区
-> Task version: v6
+> Task version: v7
 > Status: completed
+
+## v7 执行方案
+- 来源：TF-20261120-1d4bcb；用户确认仅处理非开发文档，保留开发保护，发布例外独立。
+- 实现具体文件的一次性用户授权、完整 patch 原子检查与消费；不得按扩展名自动认定非开发任务。
+- 复用现有跨宿主接线；同步使用说明，说明许可的信任边界、并发处理与恢复方法。
+- 验证授权文件放行、未授权文件与源码拒绝、混合 patch、移动删除、路径别名、重复使用和并发；确认原有测试及 Windows 路径。
+- v6 Git 基线是在取回已归档任务后补记于 513427f，并非历史执行时记录的基线。
+- 适用文档：repository-docs/index.md、LICENSE、CONTRIBUTING.md、CODE_STYLE.md；遵守隔离、跨宿主验证和 Shell 规则。
+
+## Related Todos
+- Primary Todo accepted: yes
+- 主任务 TF-20261109-e2df6d：用户要求合并发版，v7 按已验证范围验收。
+- TF-20261120-1d4bcb：非开发文档授权已实现并按用户交付指示验收；无后续动作。
+- TF-20261120-f1d4ab：工作树候选发现已实现并按用户交付指示验收；无后续动作。
+
+## v7 补充执行步骤
+- 在仓库检查和新任务入口中提供复用候选发现，包含未合并旧分支；保留现有已合并分支提示的用途。
+- 测试归档已提交、未归档、脏、不可检查、未合并分支和忽略文件；验证只读输出并提示需确认空闲。
+- 对两项分别记录验证和验收，不提前关闭任何 Todo。
 
 ## Spec Pointers
 - `spec.md`
@@ -15,14 +34,14 @@
 - Follows: `TaskFlowDocs/achieved/2026-09-16-capability-selection-enforcement/`（提升门禁与隔离规则）；本任务增加写入保护。
 
 ## Skills / Tools Used
-- [PRD] Unaided — 基于已合并改动和用户要求归档厘清本版本范围；considered: requirements elicitation and framing
-- [Spec] Unaided — 核对现有实现边界与后续事项；considered: architecture and design specification
-- [Plan] Unaided — 对照已完成证据整理归档步骤；considered: work breakdown and task decomposition
-- [Test] Unaided — 核对已有 CI 与测试记录；considered: testing strategy
+- [PRD] Unaided — 检查钩子与相关会话以定位原因；considered: root cause
+- [Spec] Unaided — 核对授权及复用设计边界；considered: architecture and design specification
+- [Plan] Unaided — 拆分两项修复和验证；considered: work breakdown and task decomposition
+- [Test] Unaided — 设计授权与候选发现的定向夹具；considered: testing strategy
 - v5 的实际能力使用及事实保留在 `old/v5/plan.md`，不将 v6 的事后归档记录伪称为当时的调用记录。
 
 ## Preconditions
-- worktree `.worktrees/2026-11-09-main-write-guard`，分支 `fix/2026-11-09-main-write-guard`。
+- v7 worktree `.worktrees/2026-11-20-document-guard`，分支 `fix/document-guard`；v6 原路径和分支见旧记录。
 - 不修改或清理基础工作区的其他 Todo 与未跟踪文件。
 
 ## Plan Review
@@ -34,8 +53,8 @@
 ## Approval
 - Status: approved
 - Approved by: user
-- Approved at: 2026-11-10 11:17 +0800
-- Approved version: v6
+- Approved at: 2026-11-20 10:55 +0800
+- Approved version: v7
 - Approved scope: PRD / Spec / Plan
 
 ## Steps
@@ -51,12 +70,34 @@
 - Verification: `skills/taskflow/references/runtime.md`、PR #128 的 CI、权限探针与用户要求先归档已合并部分的指示。
 - Status: done
 
+### Step 3 — 文档许可与验证
+- Goal: 指定文档的一次性用户授权及拒绝边界。
+- Acceptance: 未授权、混合、移动、删除和重复使用被拒绝；已授权文档可放行。
+- Verification: `hooks/test-base-document-permit`，并记录宿主未验证范围。
+- Status: done
+
+### Step 4 — 复用候选发现与验证
+- Goal: 发现已归档候选，并在多个活跃任务的基础工作区提示候选检查。
+- Acceptance: 未合并候选可见；空闲和忽略文件仍需核实。
+- Verification: `hooks/test-worktree-candidates`、`hooks/test-remote-todo-reminders`。
+- Status: done
+
 ## Checkpoints
 - shell 前后比较存在待决的性能边界：Codex 同步 PreToolUse 会等待快照完成才启动命令；异步 PreToolUse 与命令并行，无法保证快照先于写入。PostToolUse 可异步，但不能补回缺失的可靠基线。大型仓库、已存在的未跟踪文件及并发写入还会增加扫描成本与不确定性；尚未实现该检测，不把异步竞态或已有脏状态当作可靠结果。
 - 用户明确不同意因权限不满足而停止实施并要求开启新会话；不自动重启、切换聊天或修改全局配置。仅继续研究可在当前会话中使用的非破坏性方案；无法建立完整边界时如实报告。
 发布例外按用户 2026-11-09 指示推迟至 TF-20261109-ccbb96；本版本不声称发布编辑不受影响。
 
 ## Verification / Review
+- 2026-11-20：代码提交 `7a6e836` 的 [Hooks CI 44667068253](https://github.com/hkwuks/TaskFlow/actions/runs/44667068253) 通过 Ubuntu、macOS、Windows smoke、evals、Todo audit 及 CI 复用检查；release job 按路径分类跳过。
+- CI run 44666740427 Ubuntu smoke 失败：候选行的 `- 路径` 格式被既有仅应匹配可清理工作树的断言识别；将候选标为 `candidate:`，保留原清理断言，并重新验证候选夹具。新提交的 CI 待核实。
+- 2026-11-20 用户要求提交 PR、合并并发版；以该指示作为两项改动的交付意向，CI 和最终验收仍需核实。目标仓库 `hkwuks/TaskFlow`，基线 `main` 的远端提交为 `0aa599c1acf1ec40b419ba033aa3abb05e743f78`。
+- PR 模板 `.github/pull_request_template.md`：Summary 对应两项行为；TaskFlow traceability 对应本任务与两条 Todo；Verification 记录 Hooks CI、diff 检查和技能验证；Review boundaries 说明密钥、无关文件、远端和剩余限制。
+- 2026-11-20：现有 `hooks/test-reuse-worktree` 在 Windows Git Bash 中通过，交接和账本恢复夹具返回 0；没有在任何现有用户工作树上执行交接。新增脚本已列入两个 hook 清单。
+- 2026-11-20 Git Bash：`hooks/test-base-document-permit` 通过；覆盖未授权、混合、源文件、移动、删除、规范化及 Windows Git 绝对路径、多文件、并发及取消；这是合成事件，未验证真实宿主。
+- 2026-11-20 Git Bash：`hooks/test-worktree-candidates` 通过；未合并旧分支、脏工作树和多个活跃任务提示被覆盖；候选仅按最近归档线索报告，并不证明工作树空闲。
+- 2026-11-20 Git Bash：`hooks/test-remote-todo-reminders`、Shell 语法检查与 `git diff --check` 通过；Git 报告全局 ignore 文件不可访问及行尾提示。
+- 许可文件由相同权限的进程可写；不能证明用户身份。许可在预检查时消耗，后续门或工具失败需重新授权；不声称覆盖 Shell 或其他未观察的写入。尚未更新已安装插件，未验证真实桌面宿主及跨平台完整 CI。
+
 - 2026-11-10 用户明确批准 v6 归档范围：已合并的守卫与提醒作为本任务交付，真实宿主与能力对齐的未验证项转 TF-20261109-293987；不将其表述为已通过。
 - PR #128 代码提交 `3a3651f` 的 Hooks CI [42742454666](https://github.com/hkwuks/TaskFlow/actions/runs/42742454666) 通过：Ubuntu、macOS、Windows smoke，Todo merge audit 和 evals 均成功；release 因路径分类跳过。CI 为合成宿主事件测试，不证明真实异步提示投递。
 - PR #128 CI run 42741613966 的 Linux/macOS smoke 在能力门旧夹具失败：该夹具在基础工作区模拟任务写入，新增守卫按设计拒绝，导致原有证据释放断言未通过。已将该夹具改为真实 linked worktree 后重跑 CI；本次不改变守卫放行策略。
@@ -91,6 +132,8 @@
 - 限制：shell、交互输入、绕过 hook 的工具、符号链接目标以及未启用或未信任 hook 可能绕过；发布编辑可能被拒绝，另见 TF-20261109-ccbb96。
 
 ## Change Log
+- 2026-11-20 v7：用户要求同时处理非开发文档授权和已归档工作树候选发现；本次新建工作树是未先检查复用候选的执行失误。
+- 2026-11-20 reopen — retrieved achieved task `2026-11-09-main-write-guard` for new work; re-approval required before core changes
 - 2026-11-10 v6：根据用户先归档已合并部分的指示，拟把未验证宿主能力转交 TF-20261109-293987；当前版本等待用户批准，未把未完成项称为已验证。
 - 2026-11-10：用户要求补充 CI，扩展既有 Windows smoke 覆盖宿主异步接线和失败事件，不新增 CI job。
 - 2026-11-10 v5：用户选择异步并要求轻量；用事后 Git 状态提醒替代前后快照比较，不归因，已存在改动可重复触发。
