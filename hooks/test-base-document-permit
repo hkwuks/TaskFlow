@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+fixture="$(mktemp -d)"
+trap 'rm -rf "$fixture"' EXIT
+git -C "$fixture" init -q
+mkdir "$fixture/TaskFlowDocs"
+touch "$fixture/TaskFlowDocs/todo.md" "$fixture/report.md" "$fixture/other.md" "$fixture/code.sh"
+cd "$fixture"
+event() {
+  printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"%s"}}' "$fixture" "$1" | bash "$HERE/base-write-gate"
+}
+bash "$HERE/base-document-permit" grant report.md >/dev/null
+out="$(event '*** Begin Patch\n*** Update File: other.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL unpermitted document allowed'; exit 1; }
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** Update File: other.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL mixed patch allowed'; exit 1; }
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** Move to: other.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL move allowed'; exit 1; }
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** Update File: code.sh\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL mixed source allowed'; exit 1; }
+out="$(event '*** Begin Patch\n*** Delete File: report.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL delete allowed'; exit 1; }
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** End Patch')"
+[ -z "$out" ] || { echo "FAIL permitted edit refused: $out"; exit 1; }
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL permit reused'; exit 1; }
+bash "$HERE/base-document-permit" grant report.md other.md >/dev/null
+out="$(event '*** Begin Patch\n*** Update File: ./report.md\n*** Update File: other.md\n*** End Patch')"
+[ -z "$out" ] || { echo 'FAIL multiple allowed paths'; exit 1; }
+bash "$HERE/base-document-permit" grant report.md >/dev/null
+event '*** Begin Patch\n*** Update File: report.md\n*** End Patch' > "$fixture/result1" & a=$!
+event '*** Begin Patch\n*** Update File: report.md\n*** End Patch' > "$fixture/result2" & b=$!
+wait "$a"; wait "$b"
+if { [ ! -s "$fixture/result1" ] && [ ! -s "$fixture/result2" ]; } || { [ -s "$fixture/result1" ] && [ -s "$fixture/result2" ]; }; then echo 'FAIL concurrent permit'; exit 1; fi
+bash "$HERE/base-document-permit" grant report.md >/dev/null
+absolute="$(git rev-parse --show-toplevel)/report.md"
+out="$(event "*** Begin Patch\n*** Update File: $absolute\n*** End Patch")"
+[ -z "$out" ] || { echo 'FAIL absolute Git path'; exit 1; }
+bash "$HERE/base-document-permit" grant report.md >/dev/null
+bash "$HERE/base-document-permit" cancel >/dev/null
+out="$(event '*** Begin Patch\n*** Update File: report.md\n*** End Patch')"
+[[ "$out" = *'"permissionDecision":"deny"'* ]] || { echo 'FAIL cancelled permit'; exit 1; }
+if bash "$HERE/base-document-permit" grant code.sh >/dev/null 2>&1; then echo 'FAIL source permit accepted'; exit 1; fi
+echo 'PASS base document permit'

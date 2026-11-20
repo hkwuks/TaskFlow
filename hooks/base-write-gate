@@ -54,7 +54,14 @@ while IFS= read -r path; do
   [ -f "$root/TaskFlowDocs/todo.md" ] || continue
   [ -f "$gitdir/commondir" ] && continue
   if [ "$deleting" = 0 ] && [ "${move:-0}" = 0 ] && [ "${path##*/}" = todo.md ] && [ "$(cd "$parent" && pwd -P)" = "$(cd "$root/TaskFlowDocs" && pwd -P)" ]; then continue; fi
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TaskFlow: this edit targets the base checkout. Create and use a task worktree before editing. Release edits may also be blocked; see TaskFlow release exception follow-up."}}'
+  # The permit is issued explicitly for document paths and spent once.  Refuse
+  # moves and deletions; a mixed or unreadable patch never spends a permit.
+  if [ "${move:-0}" = 0 ] && ! printf '%s\n' "$paths" | grep -q '^DELETE|'; then
+    if (cd "${cwd:-$PWD}" && printf '%s\n' "$paths" | bash "$HERE/base-document-permit" consume) 2>/dev/null; then
+      exit 0
+    fi
+  fi
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"TaskFlow: this edit targets the base checkout. Create and use a task worktree before editing. For explicitly authorized non-development documents, see base-document-permit in hooks/README.md. Release edits may also be blocked."}}'
   exit 0
 done <<EOF
 $paths

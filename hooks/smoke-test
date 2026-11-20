@@ -31,6 +31,8 @@ fi
 
 bash "$HERE/test-ledger-lock" "$tmp/ledger-lock-fixture"
 bash "$HERE/test-reuse-worktree" "$tmp/reuse-worktree-fixture"
+bash "$HERE/test-base-document-permit"
+bash "$HERE/test-worktree-candidates"
 bash "$HERE/test-multi-todo" "$tmp/multi-todo-fixture"
 bash "$HERE/test-version-baseline" "$tmp/version-baseline-fixture"
 bash "$HERE/test-diagnostic-log" "$tmp/diagnostic-fixture"
@@ -7513,18 +7515,12 @@ rem_silent "a ready task" "$(rem_event "$rem_repo")"
 write_rem_plan in_progress
 mkdir -p "$rem_repo/TaskFlowDocs/2026-10-22-second"
 cp "$rem_plan" "$rem_repo/TaskFlowDocs/2026-10-22-second/plan.md"
-rem_silent "two active tasks" "$(rem_event "$rem_repo")"
-# With TASKFLOW_VERBOSE=1 -- which a user may legitimately export for the
-# SessionStart summary -- `summarize-state` prints one line per task instead of
-# the "Multiple active tasks" notice. Both shapes must stay silent, and the
-# verbose one is the case where the single-task guard is the only protection
-# left: a broken guard would name whichever task happened to be last.
-rem_verbose_silent() {
-  local out
-  out="$(printf '%s' "$1" | TASKFLOW_VERBOSE=1 bash "$HERE/prompt-reminder" 2>&1)"
-  [ -z "$out" ] || { echo "FAIL prompt-reminder spoke on two active tasks with TASKFLOW_VERBOSE=1: $out"; exit 1; }
-}
-rem_verbose_silent "$(rem_event "$rem_repo")"
+# Multiple tasks in a base checkout used to silence candidate guidance entirely.
+for verbose in 0 1; do
+  rem_multi="$(rem_event "$rem_repo" | TASKFLOW_VERBOSE="$verbose" bash "$HERE/prompt-reminder" | bash "$HERE/json-field" hookSpecificOutput.additionalContext)"
+  printf '%s\n' "$rem_multi" | grep -q 'repository-check' || { echo 'FAIL multiple-task reuse guidance missing'; exit 1; }
+  printf '%s\n' "$rem_multi" | grep -q 'Do not select an existing task by guess' || { echo 'FAIL ambiguous task selection guidance missing'; exit 1; }
+done
 rm -rf "$rem_repo/TaskFlowDocs/2026-10-22-second"
 rem_empty="$(mktemp -d "$rem/empty.XXXXXX")"
 mkdir -p "$rem_empty/TaskFlowDocs"

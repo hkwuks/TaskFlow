@@ -116,7 +116,7 @@ escape_for_json() {
 # nothing when a task is in flight (the four-line reminder below owns that
 # case). It never refuses anything: `--task` says a hard gate belongs at
 # `PreToolUse`, and the user chose this delivery instead.
-capability_guidance='Before substantive work, match the current work against available capability descriptions (skills, tools, MCP, agents). Consider task-specific expertise as well as lifecycle guidance: for example, research, specification, work breakdown, implementation, testing, review or decision records, as relevant to this work. If a capability fits, read or invoke it through the host and review its result against the confirmed scope; surface unconfirmed assumptions instead of treating them as requirements. Otherwise work unaided.'
+capability_guidance='Before substantive work, match the current work against available capability descriptions (skills, tools, MCP, agents). Consider task-specific expertise as well as lifecycle guidance: for example, research, specification, work breakdown, implementation, testing, review or decision records, as relevant to this work. If a capability fits, read or invoke it through the host and review its result against the confirmed scope; surface unconfirmed assumptions instead of treating them as requirements. Otherwise work unaided. Before creating a worktree for a new development task, inspect reuse candidates with bash hooks/repository-check and verify idle status.'
 
 entrance_reminder() {
   local ctx
@@ -127,12 +127,12 @@ entrance_reminder() {
   ctx='This work tree has no TaskFlow task in flight, but this repository records work in TaskFlow.
 If this instruction asks you to change this repository or deliver a development artifact, record it first — these two commands, in this order:
   bash hooks/task intake "<the goal in one sentence>"
-  reuse a committed archived, idle worktree with hooks/reuse-worktree as described in the skill, or create one:
+  run bash hooks/repository-check to inspect archived worktree candidates; verify idle status and reuse an eligible one with hooks/reuse-worktree before creating one:
   git worktree add .worktrees/<slug> -b <type>/<slug> <base>
 Read-only work — explanation, translation, status, research, review, diagnosis — needs neither. If the work is already recorded elsewhere, say where and continue.'
   case "$summary" in
     *'- Todo backend: remote'*)
-      ctx='This repository uses remote Issues as its Todo backend. For development work, select a configured remote repository and record the request there before task selection; retain existing local records and reuse an eligible archived worktree or create a task worktree before planning. Remote access is explicit, not automatic.' ;;
+      ctx='This repository uses remote Issues as its Todo backend. For development work, select a configured remote repository and record the request there before task selection; retain existing local records and inspect candidates with bash hooks/repository-check, then confirm idle status and reuse an eligible archived worktree before creating one. Remote access is explicit, not automatic.' ;;
     *'- Todo backend: invalid'*)
       ctx='This repository has an invalid remote Todo configuration. Repair it before selecting an intake location; do not silently switch to a different backend.' ;;
   esac
@@ -168,7 +168,19 @@ line="$(printf '%s\n' "$summary" | awk '
     print picked
   }
 ' )"
-[ -n "$line" ] || { entrance_reminder; exit 0; }
+if [ -z "$line" ]; then
+  # An ambiguous base checkout must not suppress the new-task reuse guidance.
+  active_count=0
+  for plan in "$worktree"/TaskFlowDocs/*/plan.md; do [ -f "$plan" ] && active_count=$((active_count + 1)); done
+  gitdir="$(git -C "$worktree" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [ "$active_count" -gt 1 ] && [ -n "$gitdir" ] && [ ! -f "$gitdir/commondir" ]; then
+    ctx='Multiple tasks exist. For a new development task, inspect archived worktree candidates with bash hooks/repository-check and confirm idle status before reuse or creating a worktree. Do not select an existing task by guess.'
+    printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' "$(escape_for_json "$ctx")"
+    exit 0
+  fi
+  entrance_reminder
+  exit 0
+fi
 
 phase="${line#* | }"
 phase="${phase#* | }"

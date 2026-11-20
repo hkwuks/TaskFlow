@@ -1,0 +1,44 @@
+# 防止开发任务修改基础工作区
+> Task version: v6
+> Status: completed
+
+## Goal
+交付已合并的基础工作区文件编辑守卫与异步状态提醒，降低 TaskFlow 开发任务跳过独立 worktree 的风险；它不是防止所有直接修改的完整安全边界。
+
+## Background / Confirmed Facts
+现有 promote 在基础工作区拒绝，但模型可以跳过 promote；每轮提示不是硬门禁。现有 capability-gate 针对阶段文档而非普通源码。Codex、Claude Code、CodeBuddy、dsh 和 Trae 的工具事件契约不同。
+
+## Requirements
+- 对支持且能识别文件目标的编辑事件，在基础工作区的源码或任务文件写入前拒绝，并指明任务 worktree 的建立方式。
+- 不影响任务 worktree 内的正常写入、非 TaskFlow 仓库、只读操作与 Todo intake；例外须能被验证，不能依赖模型自报。
+- 记录本次已接入的宿主和验证等级；其余能力对齐及未完成的真实宿主验证交由 TF-20261109-293987 继续，不能宣称已对齐。
+- 明确 shell、交互输入、特殊工具路径与未受信 hook 无法被该门完全保护；不将命令关键词识别当作安全边界。
+
+- 宿主权限隔离作为可选增强；不强制终止实施、切换会话或修改用户全局配置。只有宿主支持、用户选择且实测通过才报告隔离生效。
+- 异步检查基础工作区是否存在待核对的改动；不对比前后快照，不延迟 shell 命令启动，不自动回滚或归因，明确已有改动也可能触发提示。
+- 保留真实 Codex CLI 和合成夹具已经获得的证据；桌面端、其他宿主、MCP 等未验证路径及硬链接限制明确记录为后续事项。
+
+## Acceptance Criteria
+1. 基础工作区普通源码编辑被可支持的文件编辑 hook 拒绝；任务 worktree、非 TaskFlow 仓库以及指定例外正常工作。
+2. 相对、绝对路径、跨工作树目标、多文件 patch、Windows 路径均有回归测试；拒绝发生在写入前。
+3. 记录本次宿主接线与已获得的真实 Codex CLI 和合成事件证据；完整宿主矩阵和未验证项交由 TF-20261109-293987。
+4. 不丢失现有文件，不自动撤销主工作区并发改动。
+5. 可选隔离仅在实际生效并验证后报告；shell 后异步提示不阻断、不覆盖或回滚，不将已有状态误称新变化。
+
+## External Facts
+- Depends on external facts: yes
+- Why: 各宿主 hook 事件契约、输出及工具覆盖。
+- Source: https://learn.chatgpt.com/docs/hooks
+- What it settled: Codex PreToolUse 覆盖 Bash 和 apply_patch，特殊工具路径可能不经过 hook。
+
+## In Scope
+防护 hook、宿主接线、规则文档与验证。旧版能力记录的全面对齐由 TF-20261109-293987 单独处理。
+
+## Out of Scope
+解析所有 shell 命令、自动撤销修改、发布。
+
+## Risks / Deferred Items
+常规 shell 写入可由经验证的宿主权限阻止，但 Windows NTFS 硬链接在 MXC 夹具测试中仍可改变基础文件；MCP 等绕过 hook 的工具需独立验证；发布时的编辑可能被拦截；可验证的发布例外已按用户要求推迟至 TF-20261109-ccbb96。
+
+## Open Questions
+计划审批后实施；具体宿主接线必须以各自事件契约核实。

@@ -88,6 +88,8 @@ The recorder accepts `Skill`, dsh's `skill`, `Agent`/`Task`, and `mcp__*`. Trae 
 
 ## Base checkout edit guard
 
+An explicit user-issued `base-document-permit` can authorize one observable edit of named document paths in the base checkout; see `hooks/README.md` for supported paths, cancellation and limitations. The permit cannot prove who issued it and does not replace user authorization.
+
 `base-write-gate` checks the target Git worktree before observable file edits: the base checkout of a repository containing `TaskFlowDocs/todo.md` is denied, while a linked worktree and direct Todo intake are allowed. The guard runs first inside `capability-gate`, preventing a denied edit from spending stage evidence. dsh uses lowercase `write`/`edit` and `apply_patch` (`tool_input.input`); its wiring has not been tested in a real dsh session. Existing host caveats about trusted hooks and event shapes still apply.
 
 The check is a guardrail, not a filesystem boundary: shell commands, interactive input, specialized tools that do not emit these events, symlink and hardlink targets and untrusted or disabled hooks can bypass it. On Windows, a test of an MXC profile with the base read-only and the nested worktree writable still allowed a write through a worktree hardlink to change the base file. This is one local fixture result, not a cross-platform claim. A release editing the base checkout through these file tools may be refused; release exceptions are tracked in TF-20261109-ccbb96. It never rolls back another process's writes.
@@ -389,10 +391,13 @@ repo-root/
         ├── ledger-lock                 # nonblocking guard for task evidence and handoff
         ├── reuse-worktree             # journaled reuse and evidence restoration
         ├── test-ledger-lock           # concurrent handoff guard fixture
+        ├── test-worktree-candidates    # archived worktree discovery fixture
         ├── test-reuse-worktree        # archived worktree reuse fixture
         ├── capability-evidence          # records real invocations in the worktree store
         ├── external-evidence            # records outside URLs from any tool event, in a separate store
         ├── capability-gate              # refuses a stage document's first body write
+        ├── test-base-document-permit    # scoped permit regression
+        ├── base-document-permit         # one-edit document permit
         ├── base-write-gate              # refuses observable base checkout edits
         ├── base-status-reminder         # asynchronously reports base checkout changes
         ├── json-field                   # shared one-level JSON reader

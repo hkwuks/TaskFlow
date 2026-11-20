@@ -25,10 +25,13 @@ taskflow/hooks/
 ├── ledger-lock                 # nonblocking guard for task evidence and handoff
 ├── reuse-worktree             # journaled reuse and evidence restoration
 ├── test-ledger-lock           # concurrent handoff guard fixture
+├── test-worktree-candidates # archived worktree discovery fixture
 ├── test-reuse-worktree        # archived worktree reuse fixture
 ├── capability-evidence # records observable capability invocations
 ├── external-evidence   # records outside URLs from tool events
 ├── capability-gate     # refuses a stage document's first body write
+├── test-base-document-permit # scoped permit regression
+├── base-document-permit # user-issued one-edit document permit
 ├── base-write-gate     # refuses observable edits in a TaskFlow base checkout
 ├── base-status-reminder # asynchronously reports uncommitted base checkout changes
 ├── json-field          # shared one-level JSON reader for the two hooks above
@@ -356,6 +359,8 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   a path containing spaces and Chinese characters).
 
 Hosts without hooks run the base flow unchanged; hooks are optional.
+
+For an explicitly authorized non-development document edit in a base checkout, the user can run `bash <plugin-root>/hooks/base-document-permit grant <document> [document...]` from that checkout. The next observable edit whose targets are all listed consumes the permit; moves and deletions remain blocked. Only `.md`, `.txt`, `.docx`, `.pptx`, `.xlsx` and `.pdf` paths are accepted. An existing parent directory is required. Use `bash <plugin-root>/hooks/base-document-permit cancel` to revoke an unused permit. A later gate or tool failure can still prevent the edit after the permit is consumed, in which case it must be granted again. The permit is stored in the base checkout Git metadata and is not a security boundary against processes with the same permissions; its use requires the user's explicit authorization, and the agent must not grant itself an exception merely because a file has a document extension.
 
 The `base-write-gate` checks observable file-edit targets before `capability-gate` consumes evidence. It is not a filesystem sandbox: shell and other unobserved paths can still write, and release edits may be refused. See `skills/taskflow/references/runtime.md` for host coverage.
 
