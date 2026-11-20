@@ -39,6 +39,10 @@ printf 'uncommitted\n' > "$wt/dirty"
 if bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/dirty-out" 2>&1; then echo 'FAIL dirty worktree reused'; exit 1; fi
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || exit 1
 rm "$wt/dirty"
+mkdir "$repo/.worktrees/new"
+if bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/path-collision" 2>&1; then echo 'FAIL occupied target reused'; exit 1; fi
+[ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] && [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ ! -e "$gitdir/taskflow/handoff.pending" ] || { echo 'FAIL target collision changed state'; exit 1; }
+rmdir "$repo/.worktrees/new"
 if bash "$HERE/reuse-worktree" start 2026-01-02-missing feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/missing-out" 2>&1; then echo 'FAIL unarchived task reused'; exit 1; fi
 [ "$(git -C "$wt" rev-parse HEAD)" = "$old" ] || exit 1
 printf 'ignored user data\n' > "$wt/blocked.txt"
@@ -47,6 +51,8 @@ if bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirme
 [ -d "$gitdir/taskflow/handoff.pending" ] || { echo 'FAIL missing recovery journal'; exit 1; }
 if bash "$HERE/task" approve "$task" --root "$wt" > "$fixture/pending-out" 2>&1; then echo 'FAIL pending journal allowed task command'; exit 1; fi
 grep -q 'handoff' "$fixture/pending-out" || { cat "$fixture/pending-out"; exit 1; }
+# Older handoff records predate directory moves and contain no path fields.
+rm "$gitdir/taskflow/handoff.pending/old-root" "$gitdir/taskflow/handoff.pending/target-root"
 bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-out"
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL recovery branch'; exit 1; }
 [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] || { echo 'FAIL recovery ledger'; exit 1; }
@@ -58,6 +64,10 @@ real_git="$(command -v git)"
 cat > "$fixture/bin/git" <<'EOF'
 #!/usr/bin/env bash
 case " $* " in
+  *" worktree move "*)
+    [ "${FAIL_BOUNDARY:-}" != move-before ] || exit 1
+    "$REAL_GIT" "$@" || exit $?
+    [ "${FAIL_BOUNDARY:-}" != move-after ] || exit 1 ;;
   *" hash-object --no-filters "*) [ "${FAIL_BOUNDARY:-}" != prepare ] || exit 1; exec "$REAL_GIT" "$@" ;;
   *" checkout --no-overwrite-ignore --detach "*)
     "$REAL_GIT" "$@" || exit $?
@@ -78,15 +88,27 @@ EOF
 chmod +x "$fixture/bin/mv"
 if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" FAIL_BOUNDARY=prepare bash "$HERE/reuse-worktree" start "$task" feature/fault-prepare main "$base" --confirmed-idle --root "$wt" > "$fixture/fault-prepare" 2>&1; then echo 'FAIL prepare fault not injected'; exit 1; fi
 [ ! -e "$gitdir/taskflow/handoff.pending" ] && [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL prepare fault changed original state'; exit 1; }
-for boundary in save detach switch; do
+for boundary in save detach switch move-before move-after; do
   if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" FAIL_BOUNDARY="$boundary" bash "$HERE/reuse-worktree" start "$task" "feature/fault-$boundary" main "$base" --confirmed-idle --root "$wt" > "$fixture/fault-$boundary" 2>&1; then echo "FAIL $boundary fault not injected"; exit 1; fi
   [ -d "$gitdir/taskflow/handoff.pending" ] || { echo "FAIL $boundary journal missing"; exit 1; }
-  bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-$boundary"
+  recovery_root="$wt"
+  [ "$boundary" != move-after ] || recovery_root="$repo/.worktrees/fault-move-after"
+  if [ "$boundary" = move-after ]; then
+    mkdir "$wt"
+    if bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$recovery_root" > "$fixture/recover-collision" 2>&1; then echo 'FAIL recovery overwrote original path'; exit 1; fi
+    [ "$(git -C "$recovery_root" symbolic-ref --short HEAD)" = feature/fault-move-after ] || { echo 'FAIL recovery collision changed branch'; exit 1; }
+    rmdir "$wt"
+  fi
+  bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$recovery_root" > "$fixture/recover-$boundary"
   [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo "FAIL $boundary recovery branch"; exit 1; }
   [ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] || { echo "FAIL $boundary recovery evidence"; exit 1; }
   [ "$(git -C "$repo" rev-parse main)" = "$base" ] && [ "$(git -C "$repo" rev-parse feature/old)" = "$old" ] || { echo "FAIL $boundary changed old refs"; exit 1; }
 done
 bash "$HERE/reuse-worktree" start "$task" feature/new main "$base" --confirmed-idle --root "$wt" > "$fixture/out"
+wt="$repo/.worktrees/new"
+[ -d "$wt" ] && [ ! -e "$repo/.worktrees/old" ] || { echo 'FAIL worktree not renamed'; exit 1; }
+registered="$(git -C "$wt" rev-parse --show-toplevel)"
+git -C "$repo" worktree list --porcelain | grep -qFx "worktree $registered" || { echo 'FAIL Git worktree registration'; exit 1; }
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/new ] || { echo 'FAIL new branch missing'; exit 1; }
 [ "$(git -C "$wt" rev-parse HEAD)" = "$base" ] || { echo 'FAIL new branch is not at main'; exit 1; }
 [ "$(git -C "$repo" rev-parse main)" = "$base" ] || { echo 'FAIL main changed'; exit 1; }
@@ -135,6 +157,8 @@ if PATH="$fixture/bin:$PATH" REAL_GIT="$real_git" REAL_MV="$real_mv" REAL_CP="$r
 bash "$HERE/reuse-worktree" recover --confirmed-idle --root "$wt" > "$fixture/recover-restore"
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/new ] && [ "$(cat "$gitdir/taskflow/evidence")" = 'next evidence' ] || { echo 'FAIL restore fault recovery'; exit 1; }
 bash "$HERE/reuse-worktree" resume "$next_task" "$task" feature/old "$snapshot_id" --confirmed-idle --root "$wt" > "$fixture/resume-out"
+wt="$repo/.worktrees/old"
+[ -d "$wt" ] && [ ! -e "$repo/.worktrees/new" ] || { echo 'FAIL resumed worktree not renamed'; exit 1; }
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL original branch not restored'; exit 1; }
 [ "$(git -C "$wt" rev-parse HEAD)" = "$old" ] || { echo 'FAIL original commit changed'; exit 1; }
 [ "$(git -C "$repo" rev-parse feature/new)" = "$new_tip" ] || { echo 'FAIL next branch changed'; exit 1; }
