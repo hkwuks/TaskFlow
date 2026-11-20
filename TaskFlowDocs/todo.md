@@ -35,6 +35,20 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## 允许用户明确授权的非开发文档编辑通过基础工作区守卫，
+
+- ID: TF-20261120-1d4bcb
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-20-document-guard
+- Kind: defect
+- Added: 2026-11-20
+- Updated: 2026-11-20
+- Goal: 允许用户明确授权的非开发文档编辑通过基础工作区守卫，同时保留开发任务保护
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
 ## 测试、编译等下载的非仓库内容不在各 worktree 重复创建，优
 
 - ID: TF-20261119-bf0c36
@@ -201,10 +215,11 @@ has an issue number or URL.
 ## 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直
 
 - ID: TF-20261109-e2df6d
-- Status: done
+- Status: promoted
 - Goal: 防止 TaskFlow 开发任务跳过独立 worktree，在 main 基础工作区直接修改文件；覆盖 digdig 事故并验证宿主写入限制
-- Task: `TaskFlowDocs/achieved/2026-11-09-main-write-guard/`
-- Next action: None — completed and archived.
+- Task: `TaskFlowDocs/2026-11-09-main-write-guard/`
+- Next action: Re-approve the new Task version before core changes.
+- Updated: 2026-11-20
 
 ## 插件引导下模型去做标记类周边工作而非实现真正功能
 

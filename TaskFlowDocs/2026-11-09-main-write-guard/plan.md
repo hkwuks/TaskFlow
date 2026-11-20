@@ -91,6 +91,7 @@
 - 限制：shell、交互输入、绕过 hook 的工具、符号链接目标以及未启用或未信任 hook 可能绕过；发布编辑可能被拒绝，另见 TF-20261109-ccbb96。
 
 ## Change Log
+- 2026-11-20 reopen — retrieved achieved task `2026-11-09-main-write-guard` for new work; re-approval required before core changes
 - 2026-11-10 v6：根据用户先归档已合并部分的指示，拟把未验证宿主能力转交 TF-20261109-293987；当前版本等待用户批准，未把未完成项称为已验证。
 - 2026-11-10：用户要求补充 CI，扩展既有 Windows smoke 覆盖宿主异步接线和失败事件，不新增 CI job。
 - 2026-11-10 v5：用户选择异步并要求轻量；用事后 Git 状态提醒替代前后快照比较，不归因，已存在改动可重复触发。
