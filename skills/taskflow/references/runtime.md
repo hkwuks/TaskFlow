@@ -372,6 +372,8 @@ repo-root/
         ├── test-ledger-lock           # concurrent handoff guard fixture
         ├── test-worktree-candidates    # archived worktree discovery fixture
         ├── test-reuse-worktree        # archived worktree reuse fixture
+        ├── capability-context           # capture task, stage, session and invocation context
+        ├── capability-valid             # validate attributed stage releases
         ├── capability-evidence          # records real invocations in the worktree store
         ├── external-evidence            # records outside URLs from any tool event, in a separate store
         ├── capability-gate              # refuses a stage document's first body write
@@ -397,6 +399,8 @@ repo-root/
         ├── repo-rules                   # show / install / check default repository rules
         ├── templates                    # the default CONTRIBUTING.md and CODE_STYLE.md
         ├── todo-check                   # no merge in a commit or rev range dropped a Todo entry
+        ├── test-capability-attribution  # task and stage attribution regression
+        ├── test-capability-context      # invocation context regression
         ├── test-host-parity             # synthetic host event and declaration fixture
         ├── smoke-test-windows.ps1       # PowerShell/cmd full lifecycle regression
         ├── test-multi-todo              # shared task and per-item lifecycle regression

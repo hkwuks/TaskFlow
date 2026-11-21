@@ -27,6 +27,8 @@ taskflow/hooks/
 ├── test-ledger-lock           # concurrent handoff guard fixture
 ├── test-worktree-candidates # archived worktree discovery fixture
 ├── test-reuse-worktree        # archived worktree reuse fixture
+├── capability-context           # capture task, stage, session and invocation context
+├── capability-valid             # validate attributed stage releases
 ├── capability-evidence # records observable capability invocations
 ├── external-evidence   # records outside URLs from tool events
 ├── capability-gate     # refuses a stage document's first body write
@@ -52,6 +54,8 @@ taskflow/hooks/
 ├── templates           # the default rule documents repo-rules installs
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
+├── test-capability-attribution  # task and stage attribution regression
+├── test-capability-context      # invocation context regression
 ├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 ├── test-multi-todo              # shared task and per-item lifecycle regression
