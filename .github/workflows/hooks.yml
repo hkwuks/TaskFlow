@@ -177,11 +177,18 @@ jobs:
         run: |
           set -eu
           after="${AFTER:-$(git rev-parse HEAD)}"
-          # `before` is all zeros for a first push or after a force push, and
-          # absent on pull_request; fall back to the tip's own parents there.
+          # `before` is all zeros for a first push, absent on pull_request, and
+          # a reachable sha otherwise. A force push reports the sha it replaced,
+          # which no ref points at any more, so a clean checkout cannot resolve
+          # it — treat that like the first push, and audit the tip alone. Without
+          # this, every rebased pull request failed with `Cannot resolve range`.
           case "${BEFORE:-}" in
             ""|0000000000000000000000000000000000000000) range="$after" ;;
-            *) range="$BEFORE..$after" ;;
+            *) if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+                 range="$BEFORE..$after"
+               else
+                 range="$after"
+               fi ;;
           esac
           bash hooks/todo-check . "$range"
 
