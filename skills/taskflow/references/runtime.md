@@ -18,7 +18,7 @@ TaskFlow ships reference hook configs for:
 | Codex CLI | `.codex-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codex.json`), or `<repo>/.codex/hooks.json` for a manual install | `hooks/hooks-codex.json` |
 | CodeBuddy | `.codebuddy-plugin/plugin.json` (`hooks` entry → `hooks/hooks-codebuddy.json`), or `.codebuddy/settings.json` for a manual install | `hooks/hooks-codebuddy.json` |
 | dsh | the plugin package's `dsh/index.js` mounts `hooks-dsh.json` through dsh's Claude Code hook bridge; the bundle patch is what pulls the package in | `hooks/hooks-dsh.json` |
-| Trae | `hooks/hooks-trae.json` is Trae's own `hooks.json` format, copied to `<project>/.trae/hooks.json` at install time (or `~/.trae-cn/hooks.json` for a global install). Trae has no plugin marketplace a repository can publish to | `hooks/hooks-trae.json` |
+| Trae | `hooks/hooks-trae.json` is Trae's own `hooks.json` format, copied to `<project>/.trae/hooks.json` at install time (or `~/.trae/hooks.json` / `~/.trae-cn/hooks.json` for a global install). Trae has no plugin marketplace a repository can publish to | `hooks/hooks-trae.json` |
 
 Install every host by command from the repository marketplace — no file copying:
 `claude plugin marketplace add hkwuks/TaskFlow && claude plugin install taskflow@taskflow`;
@@ -31,7 +31,7 @@ the sha taken from the release tag, which is the same commit the marketplace cat
 A local directory path works there too. Trae has neither a
 marketplace nor a plugin command: its install is the copy above, described in
 `hooks/README.md`, and Trae also reads Claude Code hook configs when the user turns on
-**导入 CLAUDE 中的 Hooks 配置**.
+**Import Hook configuration in CLAUDE**.
 
 The three marketplace hosts expose plugin management as shell subcommands of their own CLI. CodeBuddy
 Code is a separate binary from the CodeBuddy IDE client; the IDE client does not implement
@@ -182,7 +182,7 @@ Two further facts about this host belong here because they change what "installe
 ### Trae specifics
 
 **Nothing in this subsection has been run on a live Trae host.** Every statement is
-from `docs.trae.cn` as read on 2026-10-09, which is a different standing from the
+from `docs.trae.ai` as read on 2026-11-21, which is a different standing from the
 Claude Code 2.1.282 measurement and the dsh notes above — those were executed
 against an installed host, this was read. It is written down anyway because the
 wiring ships, and shipping it unlabelled would be worse than shipping it labelled.
@@ -191,8 +191,9 @@ The first run on Trae either confirms it or corrects it.
 - **No plugin mechanism.** Trae's marketplace is a curated in-app catalog with no
   documented way for a repository to publish an entry, and there is no
   `trae plugin …` command. What a project gets is `$PROJECT_FOLDER/.trae/skills/`
-  and `$PROJECT_FOLDER/.trae/hooks.json`; the global pair is `~/.trae-cn/hooks.json`
-  and `~/.trae-cn/skills/`. TaskFlow's install is therefore a copy
+  and `$PROJECT_FOLDER/.trae/hooks.json`; the global pair is `~/.trae/hooks.json`
+  and `~/.trae/skills/` (Trae CN uses the `-cn` suffix: `~/.trae-cn/`). TaskFlow's
+  install is therefore a copy
   (`hooks/README.md` has the commands), which is also what the other Trae
   integrations do — `mnemon` and ARIS both deploy by copying into `.trae/`.
 - **Identifier.** Trae substitutes nothing into a hook command, so the file must
@@ -221,9 +222,9 @@ The first run on Trae either confirms it or corrects it.
   first thing to check when someone runs this on Trae.
 - **Claude Code config import.** Trae can read `~/.claude/settings.json` and the
   project `.claude/settings.json` files instead, behind the
-  **导入 CLAUDE 中的 Hooks 配置** switch, merging them with any Trae hooks. It is
-  opt-in and host-side, so it cannot be shipped from here; the `.trae/` path is the
-  one this repository documents.
+  **Settings → Hooks → Import Hook configuration in CLAUDE** switch, merging them
+  with any Trae hooks. It is opt-in and host-side, so it cannot be shipped from
+  here; the `.trae/` path is the one this repository documents.
 
 ## Must / may-not
 
