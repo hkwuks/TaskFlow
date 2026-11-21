@@ -1,5 +1,5 @@
 # Spec — 能力调用证据归属
-> Task version: v1
+> Task version: v2
 
 ## Objective and Success Criteria
 
@@ -7,15 +7,15 @@
 
 ## Architecture Boundaries and Responsibilities
 
-任务工作流在阶段开始时显式设置活动上下文；记录器从工作区及该上下文获取任务、版本和阶段，并在无法唯一确认时不写可用于释放的证据。门禁和审批只消费并核对身份匹配的记录。交接负责隔离、保存和恢复上下文和账本；工作流文档说明切换及宿主限制。
+任务工作流在阶段开始时显式设置活动上下文；记录器从工作区及该上下文获取任务、版本和阶段，并在无法唯一确认时不写可用于释放的证据。门禁和审批只消费并核对身份匹配的记录。交接负责隔离、保存和恢复上下文和账本；`repository-check` 只识别并报告明确的 WSL Git 与 Windows worktree 元数据路径错配，不断言进程或会话空闲；工作流文档说明切换及宿主限制。
 
 ## Project Structure / Affected Files
 
-`hooks/capability-evidence`、`hooks/capability-gate`、`hooks/task`、`hooks/reuse-worktree`、锁及相关宿主接线（如需）、`hooks/smoke-test` 与交接测试；`skills/taskflow/`、运行时参考及中英文 README 中受影响的说明。
+`hooks/repository-check`、`hooks/test-worktree-candidates`、`hooks/capability-evidence`、`hooks/capability-gate`、`hooks/task`、`hooks/reuse-worktree`、锁及相关宿主接线（如需）、`hooks/smoke-test` 与交接测试；`skills/taskflow/`、运行时参考及中英文 README 中受影响的说明。
 
 ## Interfaces, Data Flow, and Contracts
 
-引入显式阶段上下文命令，写入工作区私有账本，包含任务 ID、版本和阶段；后续调用携带同一身份。阶段切换和新建任务须校验身份及任务状态。写入文档只可消耗与当前任务版本阶段完全匹配且未消费的调用记录；审批逐阶段对账，不再用整版本调用池。Test 的无文档路径执行同样的匹配。具体命令及格式在实施前通过现有调用者、恢复和并发分析确定，不依赖宿主猜测阶段。
+引入显式阶段上下文命令，写入工作区私有账本，包含任务 ID、版本和阶段；后续调用携带同一身份。阶段切换和新建任务须校验身份及任务状态。仅当运行环境为 WSL 且 Git 候选路径呈现已观察到的 `.git/worktrees/<id>/D:/...` 错配形态时，检查器输出原因和使用 Git for Windows 的 Bash 重试的建议；其他不可访问原因保持未知。写入文档只可消耗与当前任务版本阶段完全匹配且未消费的调用记录；审批逐阶段对账，不再用整版本调用池。Test 的无文档路径执行同样的匹配。具体命令及格式在实施前通过现有调用者、恢复和并发分析确定，不依赖宿主猜测阶段。
 
 ## Invariants and Compatibility
 
@@ -35,4 +35,4 @@
 
 ## Open Questions
 
-具体上下文切换命令的最小交互形式由实现阶段在现有命令及测试范围内确定；不得削弱上述归属和错误语义。
+无。工作区诊断按用户确认使用明确提示，不添加自动路径转换或兼容逻辑。

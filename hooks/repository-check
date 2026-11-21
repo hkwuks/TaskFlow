@@ -132,6 +132,13 @@ while IFS= read -r line; do
       if [ "$first" -eq 1 ]; then first=0; continue; fi
       if ! status="$(git -C "$path" status --porcelain --untracked-files=all --ignore-submodules=none 2>/dev/null)"; then
         printf '%s\n' "  candidate: $path (status unknown; inspect)"
+        case "$path" in
+          */.git/worktrees/*/[A-Za-z]:/*)
+            if [ "$(uname -s 2>/dev/null || true)" = Linux ] && { [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ] || uname -r 2>/dev/null | grep -qi microsoft; }; then
+              echo '  WSL Git appears to have interpreted Windows worktree metadata as a relative path; run repository-check with Git for Windows from Windows Git Bash. Status and idle remain unknown.'
+            fi
+            ;;
+        esac
         candidates=1
         continue
       fi

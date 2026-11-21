@@ -38,7 +38,7 @@ has an issue number or URL.
 ## Detect WSL Git reading Windows worktree metadata and explain how to run the chec
 
 - ID: TF-20261121-8a3c54
-- Status: inbox
+- Status: in_progress
 - Priority: normal
 - Owner: Unknown
 - Source: user:2026-11-21-worktree-diagnostic
@@ -47,7 +47,7 @@ has an issue number or URL.
 - Updated: 2026-11-21
 - Goal: Detect WSL Git reading Windows worktree metadata and explain how to run the check using Windows Git Bash without rewriting paths
 - Task: Not promoted.
-- Next action: Clarify and promote when ready.
+- Next action: Implement and verify WSL and Windows Git mismatch diagnostic in the shared task
 
 ## Prevent capability evidence crossing task and stage boundaries while preserving
 

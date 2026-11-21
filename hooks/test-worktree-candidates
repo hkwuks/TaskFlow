@@ -23,6 +23,29 @@ printf '%s\n' "$out" | grep -q 'Confirm the current task, idle state and ignored
 echo dirty > "$fixture/archived/untracked"
 out="$(bash "$HERE/repository-check" "$repo" 2>&1 || true)"
 printf '%s\n' "$out" | grep -q 'recent archive 2026-01-01-demo (changes present)' || { echo 'FAIL dirty candidate'; exit 1; }
+# WSL Git can interpret a Windows absolute gitdir as a relative path.
+mkdir -p "$fixture/fakebin"
+REAL_GIT="$(command -v git)"; export REAL_GIT
+FAKE_REPO="$repo"; export FAKE_REPO
+cat > "$fixture/fakebin/git" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = 'worktree list --porcelain' ]; then
+  printf 'worktree %s\n\nworktree %s/.git/worktrees/old/D:/work/repo/.worktrees/old\n\nworktree %s/unavailable\n\n' "$FAKE_REPO" "$FAKE_REPO" "$FAKE_REPO"
+else
+  exec "$REAL_GIT" "$@"
+fi
+SH
+cat > "$fixture/fakebin/uname" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in -s) echo Linux ;; -r) echo generic ;; *) echo Linux ;; esac
+SH
+chmod +x "$fixture/fakebin/git" "$fixture/fakebin/uname"
+out="$(PATH="$fixture/fakebin:$PATH" WSL_DISTRO_NAME=fixture WSL_INTEROP= bash "$HERE/repository-check" "$repo" 2>&1 || true)"
+printf '%s\n' "$out" | grep -q 'WSL Git.*Windows worktree' || { echo 'FAIL WSL path mismatch not explained'; exit 1; }
+[ "$(printf '%s\n' "$out" | grep -c 'WSL Git.*Windows worktree')" -eq 1 ] || { echo 'FAIL ordinary unavailable path misidentified'; exit 1; }
+printf '%s\n' "$out" | grep -q 'Git for Windows' || { echo 'FAIL missing Windows Git Bash guidance'; exit 1; }
+out="$(PATH="$fixture/fakebin:$PATH" WSL_DISTRO_NAME= WSL_INTEROP= bash "$HERE/repository-check" "$repo" 2>&1 || true)"
+if printf '%s\n' "$out" | grep -q 'WSL Git.*Windows worktree'; then echo 'FAIL non-WSL environment misidentified'; exit 1; fi
 mkdir -p "$repo/TaskFlowDocs/2026-01-01-a" "$repo/TaskFlowDocs/2026-01-01-b"
 printf '# Plan\n> Task version: v1\n> Status: in_progress\n' > "$repo/TaskFlowDocs/2026-01-01-a/plan.md"
 cp "$repo/TaskFlowDocs/2026-01-01-a/plan.md" "$repo/TaskFlowDocs/2026-01-01-b/plan.md"
