@@ -3119,6 +3119,36 @@ workflow_jobs="$(awk '
 ' "$repo/.github/workflows/hooks.yml")" || { echo "FAIL todo-merge-audit gained or lost a condition"; printf '%s\n' "$workflow_jobs"; exit 1; }
 echo ok
 
+# The audit's own shell, executed rather than read: it decides which range
+# `todo-check` sees, and a force push is the case that broke it. GitHub reports
+# the sha a force push replaced, no ref points at it any more, and a clean
+# checkout cannot resolve it — so the tip alone is the only auditable range.
+# Asserted on the extracted script because the branch lives in YAML, where
+# nothing else would ever run it.
+audit_shell="$tmp/audit-shell"
+awk '
+  /^  todo-merge-audit:$/ { injob = 1; next }
+  injob && /^  [a-z][a-z-]*:$/ { injob = 0 }
+  injob && /^        run: \|$/ { inrun = 1; next }
+  inrun && /^          / { sub(/^          /, ""); print; next }
+  inrun { exit }
+' "$repo/.github/workflows/hooks.yml" \
+  | sed 's#^bash hooks/todo-check .*#printf "%s\\n" "$range"#' > "$audit_shell"
+[ -s "$audit_shell" ] || { echo "FAIL todo-merge-audit lost its shell"; exit 1; }
+
+audit_range() {  # audit_range <before> -> the range the job would pass on
+  ( cd "$repo" && BEFORE="$1" AFTER=feedfacefeedfacefeedfacefeedfacefeedface bash "$audit_shell" )
+}
+audit_case() {  # audit_case <before> <expected> <what>
+  got="$(audit_range "$1" 2>&1)" || { echo "FAIL $3 made the job exit nonzero: $got"; exit 1; }
+  [ "$got" = "$2" ] || { echo "FAIL $3 gave [$got], wanted [$2]"; exit 1; }
+}
+audit_case "" feedfacefeedfacefeedfacefeedfacefeedface "an absent before"
+audit_case "0000000000000000000000000000000000000000" feedfacefeedfacefeedfacefeedfacefeedface "an all-zero before"
+audit_case "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" feedfacefeedfacefeedfacefeedfacefeedface "a force-pushed-away before"
+audit_case "$(git -C "$repo" rev-parse HEAD)" "$(git -C "$repo" rev-parse HEAD)..feedfacefeedfacefeedfacefeedfacefeedface" "a reachable before"
+echo ok
+
 echo "== TaskFlow packaged Skill contract =="
 repo=$(cd "$HERE/.." && pwd)
 skill="$repo/skills/taskflow"

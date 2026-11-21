@@ -411,12 +411,13 @@ the same pre-write capability gate through Trae's `PreToolUse`/`PostToolUse`.
 because Trae injects no plugin root, and that variable is what makes
 `session-start` emit the nested context field Trae reads.
 
-Trae also reads Claude Code hook configs if you turn on **设置 → Hooks → 导入
-CLAUDE 中的 Hooks 配置**, which merges `~/.claude/settings.json` and the project
-`.claude/settings.json` files with any `.trae/hooks.json`. The install above is the
-path this repository documents.
+Trae also reads Claude Code hook configs if you turn on **Settings → Hooks →
+Import Hook configuration in CLAUDE**, which merges `~/.claude/settings.json` and
+the project `.claude/settings.json` files with any `.trae/hooks.json`. The install
+above is the path this repository documents. (Labels are those of the English UI;
+Trae's display language is set in **Settings → General → Language**.)
 
-> Trae's support is documented from `docs.trae.cn` (read 2026-10-09), not measured
+> Trae's support is documented from `docs.trae.ai` (read 2026-11-21), not measured
 > on a live host; expect the first run on Trae to be the one that confirms or
 > corrects it.
 

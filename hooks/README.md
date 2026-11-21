@@ -241,16 +241,17 @@ uses. Two spellings in it are load-bearing:
   Git-for-Windows requirement the Claude Code install already has.
 
 **None of this has run on a live Trae host.** Every Trae statement here is from
-`docs.trae.cn` as read on 2026-10-09; the `.trae/` paths, the injected variables,
+`docs.trae.ai` as read on 2026-11-21; the `.trae/` paths, the injected variables,
 and the `PreToolUse`/`PostToolUse` field names are documented, not measured, and a
 hook that never fires or an evidence line that never records is silent in both the
 gate and the recorder. Check those two first when testing on Trae.
 
-The alternative is Trae's own switch: **设置 → Hooks → 导入 CLAUDE 中的 Hooks
-配置** makes Trae read `.claude/settings.json`, `.claude/settings.local.json`, and
-`~/.claude/settings.json` alongside any `.trae/hooks.json`, merging them. It is
-opt-in, and it routes the hooks through Claude Code's config shape rather than
-Trae's, so the `.trae/hooks.json` path above is the one this repository documents.
+The alternative is Trae's own switch: **Settings → Hooks → Import Hook
+configuration in CLAUDE** makes Trae read `.claude/settings.json`,
+`.claude/settings.local.json`, and `~/.claude/settings.json` alongside any
+`.trae/hooks.json`, merging them. It is opt-in, and it routes the hooks through
+Claude Code's config shape rather than Trae's, so the `.trae/hooks.json` path
+above is the one this repository documents.
 
 ## Scope / safety
 
