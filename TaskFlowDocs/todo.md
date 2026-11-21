@@ -1382,3 +1382,12 @@ has an issue number or URL.
 - Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
 - Task: `TaskFlowDocs/achieved/2026-11-13-diagnostic-logs/`
 - Next action: None — completed and archived.
+
+## 复用已归档 worktree 时将目录重命名以反映新任务
+
+- ID: TF-20261120-b13cd8
+- Status: done
+- Goal: 复用已归档 worktree 时将目录重命名以反映新任务
+- Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
+- Next action: None — completed and archived.
+
