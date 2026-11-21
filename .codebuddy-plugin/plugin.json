@@ -1,6 +1,6 @@
 {
   "name": "taskflow",
-  "version": "1.2.7+codebuddy.20261120",
+  "version": "1.2.8+codebuddy.20261121",
   "description": "PRD/Spec/Plan task workflow skill with host/harness hooks (Claude Code, Codex, CodeBuddy)",
   "author": {
     "name": "TaskFlow",

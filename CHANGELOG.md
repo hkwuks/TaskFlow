@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+## [1.2.8] — 2026-11-21
+
+### Changed
+
+- Bind observed capability evidence to its task, version, stage, session and invocation, preventing unbound or other-stage records from releasing a document. [#150](https://github.com/hkwuks/TaskFlow/pull/150)
+- Rename an explicitly reused archived worktree to reflect the new task, with recovery for interrupted handoffs. [#149](https://github.com/hkwuks/TaskFlow/pull/149)
+- Explain WSL Git and Windows worktree metadata mismatches and recommend Git for Windows Bash; candidate idle status remains unknown. [#150](https://github.com/hkwuks/TaskFlow/pull/150)
+
+### Installation and known limitations
+
+- Historical unbound evidence is preserved but no longer proves an attributed invocation; use a supported stage context or declare an actual invocation, or use unaided when appropriate. No new dependency is required.
+- Real Claude Code and other host event fields have not been validated end to end. Nonblocking ledger contention can drop observations; subagent internal events are not automatically attributed.
+- Confirm a worktree is idle before handoff. The WSL diagnostic does not rewrite paths or determine whether a worktree is in use.
+
+### Verification
+
+- Merged main commit `8df876ad30d80370d3738fd1ed103321bb044318` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/44863558838), including Ubuntu, macOS and Windows smoke, evals and Todo audit.
+- The release commit changes this section, version literals and README version samples only; implementation smoke is covered by the CI above and is not repeated locally.
+- Release preparation: `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation and `git diff --check` passed. Existing v1.2.7 catalog pins are checked again after preparing the new tag.
+
+### Release
+
+- Planned tag: `v1.2.8`; tag and marketplace pins are pushed atomically after release-owner approval.
+
+
 ## [1.2.7] — 2026-11-20
 
 ### Added
