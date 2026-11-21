@@ -1390,4 +1390,3 @@ has an issue number or URL.
 - Goal: 复用已归档 worktree 时将目录重命名以反映新任务
 - Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
 - Next action: None — completed and archived.
-
