@@ -35,7 +35,7 @@ case "$root$gitdir" in *$'\n'*|*$'\r'*) fail 'Worktree paths with newlines requi
 taskflow_ledger_acquire "$gitdir" allow-pending || fail 'Ledger lock is busy or stale; inspect the owner before removing an empty lock directory.'
 trap taskflow_ledger_release EXIT
 store="$gitdir/taskflow"; journal="$store/handoff.pending"
-ledgers='evidence released declarations external released.discarded'
+ledgers='evidence released declarations external released.discarded capability-contexts capability-pending'
 read_field() { [ -f "$journal/$1" ] && [ ! -L "$journal/$1" ] || fail "Invalid handoff record: $1"; cat "$journal/$1"; }
 write_field() { printf '%s\n' "$2" > "$journal/$1.tmp"; mv "$journal/$1.tmp" "$journal/$1"; }
 if [ "$command" = recover ]; then
@@ -93,7 +93,7 @@ if [ "$command" = recover ]; then
     git -C "$root" checkout --no-overwrite-ignore "$old_branch" || fail 'Could not restore original branch.'
   fi
   for name in $ledgers; do
-    case "$name" in evidence|released|declarations|external|released.discarded) ;; *) fail 'Invalid ledger name.' ;; esac
+    case "$name" in evidence|released|declarations|external|released.discarded|capability-contexts|capability-pending) ;; *) fail 'Invalid ledger name.' ;; esac
     if grep -qxF "$name" "$journal/files"; then
       if [ -f "$snapshot/$name" ] && [ ! -L "$snapshot/$name" ]; then
         if [ -e "$store/$name" ] || [ -L "$store/$name" ]; then

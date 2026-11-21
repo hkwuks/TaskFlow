@@ -212,11 +212,11 @@ try {
     # form, which is how 1.1.1 shipped that defect behind a green Windows job.
     function New-PathEvent {
         param([string]$Path, [string]$Tool)
-        return '{"hook_event_name":"PreToolUse","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '\\') + '"}}'
+        return '{"hook_event_name":"PreToolUse","session_id":"windows-smoke","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '\\') + '"}}'
     }
     function New-PathEventFwd {
         param([string]$Path, [string]$Tool)
-        return '{"hook_event_name":"PreToolUse","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '/') + '"}}'
+        return '{"hook_event_name":"PreToolUse","session_id":"windows-smoke","tool_name":"' + $Tool + '","tool_input":{"file_path":"' + $Path.Replace('\', '/') + '"}}'
     }
     $prdEvents = @((New-PathEvent $prdPath 'Edit'), (New-PathEventFwd $prdPath 'Edit'))
     $specEvents = @((New-PathEvent $specPath 'Write'), (New-PathEventFwd $specPath 'Write'))
@@ -231,7 +231,12 @@ try {
     # The capture hook gets the native form too: it resolves its store from the
     # event cwd, so a backslash cwd that it could not resolve would leave the gate
     # below with nothing to release.
-    $skillEvent = '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"' + $gateRepo.Replace('\', '\\') + '","tool_input":{"skill":"windows:cap"}}'
+    & "$here\run-hook.cmd" capability-context stage $gateRepo '2026-09-11-gate' PRD 'windows-smoke'
+    if ($LASTEXITCODE -ne 0) { throw 'capability stage selection failed' }
+    $startEvent = '{"hook_event_name":"PreToolUse","cwd":"' + $gateRepo.Replace('\', '\\') + '","session_id":"windows-smoke","tool_use_id":"call-1"}'
+    $verdict = Invoke-Hook 'capability-context start' $startEvent
+    if ($verdict.Exit -ne 0) { throw 'capability start failed' }
+    $skillEvent = '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"' + $gateRepo.Replace('\', '\\') + '","session_id":"windows-smoke","tool_use_id":"call-1","tool_input":{"skill":"windows:cap"}}'
     $verdict = Invoke-Hook 'capability-evidence' $skillEvent
     if ($verdict.Exit -ne 0) { throw "capability-evidence exited $($verdict.Exit): $($verdict.Output)" }
     foreach ($ev in $prdEvents) {

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Bind an observed tool call to the session and phase at its start.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+HERE="$(cd "$(dirname "$0")" && pwd)"
+mode="${1:-}"
+case "$mode" in
+  stage)
+    [ "$#" -eq 5 ] || { echo 'usage: capability-context stage <root> <task> <stage> <session-id>' >&2; exit 2; }
+    root="$2"; task="$3"; stage="$4"; sid="$5"
+    bash "$HERE/task-id" "$task" >/dev/null || exit 2
+    case "$stage" in PRD|Spec|Plan|Test) ;; *) exit 2 ;; esac
+    case "$sid" in ''|*[!A-Za-z0-9._-]*) echo 'invalid session identity' >&2; exit 2 ;; esac
+    root="$(git -C "$root" rev-parse --show-toplevel)"
+    plan="$root/TaskFlowDocs/$task/plan.md"
+    [ -f "$plan" ] || { echo 'task plan missing' >&2; exit 1; }
+    version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | sed -n '1p')"
+    [ -n "$version" ] || exit 1
+    gitdir="$(git -C "$root" rev-parse --absolute-git-dir)"
+    source "$HERE/ledger-lock"
+    taskflow_ledger_acquire "$gitdir" || exit 1
+    trap taskflow_ledger_release EXIT
+    [ "$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | sed -n '1p')" = "$version" ] || { echo 'task changed during stage selection' >&2; exit 1; }
+    store="$gitdir/taskflow"
+    contexts="$store/capability-contexts"
+    tmp="$store/capability-contexts.tmp"
+    [ ! -L "$contexts" ] && [ ! -e "$tmp" ] && [ ! -L "$tmp" ] || { echo 'invalid context ledger or pending temporary file' >&2; exit 1; }
+    if [ -f "$contexts" ]; then awk -F'|' -v s="$sid" '$1 != s' "$contexts" > "$tmp"; else : > "$tmp"; fi
+    printf '%s|%s|%s|%s\n' "$sid" "$task" "$version" "$stage" >> "$tmp"
+    mv "$tmp" "$contexts"
+    ;;
+  release-test)
+    [ "$#" -eq 4 ] || { echo 'usage: capability-context release-test <root> <task> <session-id>' >&2; exit 2; }
+    root="$2"; task="$3"; sid="$4"
+    bash "$HERE/task-id" "$task" >/dev/null || exit 2
+    case "$sid" in ''|*[!A-Za-z0-9._-]*) exit 2 ;; esac
+    root="$(git -C "$root" rev-parse --show-toplevel)"
+    plan="$root/TaskFlowDocs/$task/plan.md"
+    [ -f "$plan" ] || exit 1
+    version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | sed -n '1p')"
+    [ -n "$version" ] || exit 1
+    gitdir="$(git -C "$root" rev-parse --absolute-git-dir)"
+    source "$HERE/ledger-lock"
+    taskflow_ledger_acquire "$gitdir" || exit 1
+    trap taskflow_ledger_release EXIT
+    store="$gitdir/taskflow"; evidence="$store/evidence"; released="$store/released"
+    [ "$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$plan" | sed -n '1p')" = "$version" ] || { echo 'task changed during release' >&2; exit 1; }
+    if [ -f "$store/declarations" ] && awk -F'|' -v t="$task" -v v="$version" '$1 == t && $2 == v && $3 == "Test" {found=1} END {exit !found}' "$store/declarations"; then echo 'Test already declared' >&2; exit 1; fi
+    [ -f "$evidence" ] || { echo 'no matching Test invocation' >&2; exit 1; }
+    released_input=/dev/null; [ ! -f "$released" ] || released_input="$released"
+    total="$(awk 'END { print NR+0 }' "$evidence")"
+    max="$(awk -F'|' 'NF == 6 {s=$4+0} NF == 5 {s=$3+0} NF != 5 && NF != 6 {bad=1} {if (s>m) m=s} END {if (bad) print "BAD"; else print m+0}' "$released_input")"
+    case "$max" in ''|*[!0-9]*) echo 'invalid release ledger' >&2; exit 1 ;; esac
+    [ "$max" -le "$total" ] || { echo 'capability store out of step' >&2; exit 1; }
+    if bash "$HERE/capability-valid" "$released" "$evidence" "$task" "$version" Test; then echo 'Test already released' >&2; exit 1; fi
+    next="$(awk -F'|' -v t="$task" -v v="$version" -v session="$sid" '
+      FILENAME == ARGV[1] {if (NF == 6) used[$4]=1; else if (NF == 5) used[$3]=1; next}
+      NF == 7 && $7 != "" && $1 == "invoke" && $3 == t && $4 == v && $5 == "Test" && $6 == session && !used[FNR] {print FNR; exit}
+    ' "$released_input" "$evidence")"
+    [ -n "$next" ] || { echo 'no matching Test invocation' >&2; exit 1; }
+    capability="$(awk -F'|' -v n="$next" 'NR == n {print $2; exit}' "$evidence")"
+    printf '%s|%s|Test|%s|invoke|%s\n' "$task" "$version" "$next" "$capability" >> "$released"
+    printf 'Test invocation released: %s\n' "$capability"
+    ;;
+  start|finish)
+    payload="$(cat)"
+    fields="$(printf '%s' "$payload" | bash "$HERE/json-field" hook_event_name cwd session_id tool_use_id agent_id 2>/dev/null)" || exit 0
+    event="$(printf '%s\n' "$fields" | sed -n '1p')"
+    root="$(printf '%s\n' "$fields" | sed -n '2p')"
+    sid="$(printf '%s\n' "$fields" | sed -n '3p')"
+    call="$(printf '%s\n' "$fields" | sed -n '4p')"
+    agent="$(printf '%s\n' "$fields" | sed -n '5p')"
+    [ -z "$agent" ] || exit 0
+    case "$sid:$call" in *[!A-Za-z0-9._:-]*|:*|*:) exit 0 ;; esac
+    case "$mode:$event" in start:PreToolUse|finish:PostToolUse|finish:PostToolUseFailure) ;; *) exit 0 ;; esac
+    gitdir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
+    if [ "$mode" = start ]; then [ -f "$gitdir/taskflow/capability-contexts" ] || exit 0; else [ -f "$gitdir/taskflow/capability-pending" ] || exit 0; fi
+    source "$HERE/ledger-lock"
+    taskflow_ledger_acquire "$gitdir" || exit 0
+    trap taskflow_ledger_release EXIT
+    store="$gitdir/taskflow"
+    contexts="$store/capability-contexts"
+    pending="$store/capability-pending"
+    [ ! -L "$contexts" ] && [ ! -L "$pending" ] && [ ! -e "$pending.tmp" ] && [ ! -L "$pending.tmp" ] || exit 0
+    if [ "$mode" = start ]; then
+      [ -f "$contexts" ] || exit 0
+      context="$(awk -F'|' -v s="$sid" '$1 == s {n++; row=$0} END {if (n == 1) print row}' "$contexts")"
+      [ -n "$context" ] || exit 0
+      [ ! -f "$pending" ] || ! awk -F'|' -v s="$sid" -v c="$call" '$1 == s && $2 == c {found=1} END {exit !found}' "$pending" || exit 0
+      printf '%s|%s|%s\n' "$sid" "$call" "${context#*|}" >> "$pending"
+    else
+      [ -f "$pending" ] || exit 0
+      row="$(awk -F'|' -v s="$sid" -v c="$call" '$1 == s && $2 == c {n++; row=$0} END {if (n == 1) print row}' "$pending")"
+      [ -n "$row" ] || exit 0
+      if [ "$event" = PostToolUse ] && [ -n "${2:-}" ]; then
+        capability="$(printf '%s' "$2" | tr -d '|\r\n' | cut -c1-200)"
+        [ -n "$capability" ] || exit 0
+        task="$(printf '%s\n' "$row" | cut -d'|' -f3)"
+        version="$(printf '%s\n' "$row" | cut -d'|' -f4)"
+        stage="$(printf '%s\n' "$row" | cut -d'|' -f5)"
+        evidence="$store/evidence"
+        [ ! -L "$evidence" ] || exit 0
+        if [ ! -f "$evidence" ] || ! awk -F'|' -v session="$sid" -v call="$call" 'NF == 7 && $6 == session && $7 == call {found=1} END {exit !found}' "$evidence"; then
+          printf 'invoke|%s|%s|%s|%s|%s|%s\n' "$capability" "$task" "$version" "$stage" "$sid" "$call" >> "$evidence" || exit 0
+        fi
+      fi
+      awk -F'|' -v s="$sid" -v c="$call" '!($1 == s && $2 == c)' "$pending" > "$pending.tmp"
+      mv "$pending.tmp" "$pending"
+      [ "$event" = PostToolUse ] || exit 0
+      printf '%s\n' "$row"
+    fi
+    ;;
+  *) echo 'usage: capability-context stage|start|finish' >&2; exit 2 ;;
+esac

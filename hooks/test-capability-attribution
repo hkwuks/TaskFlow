@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] || exit 2
+fixture="$1"
+[ ! -e "$fixture" ] || exit 2
+mkdir -p "$fixture"
+fixture="$(cd "$fixture" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+repo="$fixture/repo"
+mkdir -p "$repo/TaskFlowDocs/2026-01-02-new"
+git -C "$repo" init -q
+printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$repo/TaskFlowDocs/2026-01-02-new/plan.md"
+gitdir="$(git -C "$repo" rev-parse --absolute-git-dir)"
+mkdir -p "$gitdir/taskflow"
+printf 'invoke|old:skill\n' > "$gitdir/taskflow/evidence"
+event="$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"session-a","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-02-new/prd.md"}}' "$repo" "$repo")"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+failed=0
+printf '%s\n' "$verdict" | grep -q '"permissionDecision":"deny"' || { echo 'FAIL unbound old invocation released a new task'; failed=1; }
+[ "$(cat "$gitdir/taskflow/evidence")" = 'invoke|old:skill' ] || { echo 'FAIL legacy evidence changed'; exit 1; }
+printf '2026-01-02-new|v1|PRD|1|invoke|old:skill\n' > "$gitdir/taskflow/released"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+printf '%s\n' "$verdict" | grep -q '"permissionDecision":"deny"' || { echo 'FAIL unbound legacy release passed'; failed=1; }
+TASKFLOW_TASK_ID=2026-01-02-new bash "$HERE/task" declared PRD --capability 'actual:skill' --root "$repo" >/dev/null
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo 'FAIL declaration over legacy release'; failed=1; }
+rm "$gitdir/taskflow/declarations"
+TASKFLOW_TASK_ID=2026-01-02-new bash "$HERE/task" unaided PRD --considered 'root cause' --root "$repo" >/dev/null
+[ "$(wc -l < "$gitdir/taskflow/released" | tr -d ' ')" = 2 ] || { echo 'FAIL unaided over legacy release'; failed=1; }
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo 'FAIL unaided stage blocked'; failed=1; }
+: > "$gitdir/taskflow/released"
+printf 'invoke|old:skill|2026-01-01-old|v1|PRD|session-a|old-call\n' >> "$gitdir/taskflow/evidence"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+printf '%s\n' "$verdict" | grep -q '"permissionDecision":"deny"' || { echo 'FAIL attributed old task invocation released new task'; failed=1; }
+printf 'invoke|prd:first|2026-01-02-new|v1|PRD|session-a|old-call\ninvoke|prd:second|2026-01-02-new|v1|PRD|session-a|call-2\n' > "$gitdir/taskflow/evidence"
+printf '2026-01-02-new|v1|PRD|1|invoke|prd:first\n' > "$gitdir/taskflow/released"
+event="$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"session-a","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-02-new/plan.md"}}' "$repo" "$repo")"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+printf '%s\n' "$verdict" | grep -q '"permissionDecision":"deny"' || { echo 'FAIL PRD invocation released Plan'; failed=1; }
+printf 'invoke|plan:skill|2026-01-02-new|v1|Plan|session-a|call-3\n' > "$gitdir/taskflow/evidence"
+printf '2026-01-02-new|v1|PRD|3|invoke|missing\n' > "$gitdir/taskflow/released"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+printf '%s\n' "$verdict" | grep -q 'out of step' || { echo 'FAIL damaged ledger released a matching call'; failed=1; }
+printf 'invoke|prd:one|2026-01-02-new|v1|PRD|session-a|call-1\ninvoke|plan:one|2026-01-02-new|v1|Plan|session-a|call-2\ninvoke|prd:two|2026-01-02-new|v1|PRD|session-a|call-3\n' > "$gitdir/taskflow/evidence"
+: > "$gitdir/taskflow/released"
+verdict="$(printf '%s\n' "$event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo 'FAIL out-of-order Plan invocation denied'; failed=1; }
+other="$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"session-b","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-02-new/prd.md"}}' "$repo" "$repo")"
+verdict="$(printf '%s\n' "$other" | bash "$HERE/capability-gate")"
+printf '%s\n' "$verdict" | grep -q '"permissionDecision":"deny"' || { echo 'FAIL another session used PRD invocation'; failed=1; }
+own="$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"session-a","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-02-new/prd.md"}}' "$repo" "$repo")"
+verdict="$(printf '%s\n' "$own" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo 'FAIL matching PRD invocation denied'; failed=1; }
+grep -qx '2026-01-02-new|v1|Plan|2|invoke|plan:one' "$gitdir/taskflow/released" || { echo 'FAIL Plan spent wrong record'; failed=1; }
+grep -qx '2026-01-02-new|v1|PRD|1|invoke|prd:one' "$gitdir/taskflow/released" || { echo 'FAIL PRD spent wrong record'; failed=1; }
+[ "$failed" -eq 0 ] || exit 1
+echo 'PASS capability evidence attribution'

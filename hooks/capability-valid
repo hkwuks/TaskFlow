@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# A legacy invocation release is not proof of task or stage attribution.
+set -euo pipefail
+[ "$#" -eq 5 ] || exit 2
+released="$1"; evidence="$2"; task="$3"; version="$4"; stage="$5"
+[ -f "$released" ] || exit 1
+row="$(awk -F'|' -v t="$task" -v v="$version" -v s="$stage" 'NF == 6 && $1 == t && $2 == v && $3 == s {row=$0} END {print row}' "$released")"
+[ -n "$row" ] || exit 1
+kind="$(printf '%s\n' "$row" | cut -d'|' -f5)"
+[ -f "$evidence" ] || exit 1
+seq="$(printf '%s\n' "$row" | cut -d'|' -f4)"
+cap="$(printf '%s\n' "$row" | cut -d'|' -f6)"
+if [ "$kind" = unaided ]; then
+  CAP_CHECK="$cap" awk -F'|' -v n="$seq" 'NR == n && NF == 2 && $1 == "unaided" && $2 == ENVIRON["CAP_CHECK"] {ok=1} END {exit !ok}' "$evidence"
+  exit $?
+fi
+[ "$kind" = invoke ] || exit 1
+CAP_CHECK="$cap" awk -F'|' -v n="$seq" -v t="$task" -v v="$version" -v s="$stage" 'NR == n && NF == 7 && $6 != "" && $7 != "" && $1 == "invoke" && $2 == ENVIRON["CAP_CHECK"] && $3 == t && $4 == v && $5 == s {ok=1} END {exit !ok}' "$evidence"

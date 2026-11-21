@@ -183,6 +183,10 @@ if ! docs_context="$(bash "${PLUGIN_ROOT}/hooks/repository-docs-context" 2>&1)";
   exit 1
 fi
 state_summary="${state_summary}${state_summary:+$'\n'}${docs_context}"
+case "$event_session_id" in
+  ''|*[!A-Za-z0-9._-]*) ;;
+  *) [ -z "$state_summary" ] || state_summary="${state_summary}${state_summary:+$'\n'}- TaskFlow capability session ID: $event_session_id" ;;
+esac
 [ -z "$state_summary" ] && exit 0
 
 escape_for_json() {

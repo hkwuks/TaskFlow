@@ -31,6 +31,8 @@ fi
 
 bash "$HERE/test-ledger-lock" "$tmp/ledger-lock-fixture"
 bash "$HERE/test-reuse-worktree" "$tmp/reuse-worktree-fixture"
+bash "$HERE/test-capability-context" "$tmp/capability-context-fixture"
+bash "$HERE/test-capability-attribution" "$tmp/capability-attribution-fixture"
 bash "$HERE/test-base-document-permit"
 bash "$HERE/test-worktree-candidates"
 bash "$HERE/test-multi-todo" "$tmp/multi-todo-fixture"
@@ -597,13 +599,16 @@ grep -q '"hookSpecificOutput"' "$tmp/nointerp.json" ||
 # interpreter. That means this fixture has to be a Git repository, which the two
 # commands above did not require.
 git -C "$interp_root" init -q
-printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","tool_input":{"skill":"nointerp:cap"}}\n' "$interp_root" |
+PATH="$toolbin" bash "$HERE/capability-context" stage "$interp_root" 2026-09-08-nointerp PRD nointerp
+printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"nointerp","tool_use_id":"call-1"}\n' "$interp_root" |
+  PATH="$toolbin" bash "$HERE/capability-context" start
+printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"nointerp","tool_use_id":"call-1","tool_input":{"skill":"nointerp:cap"}}\n' "$interp_root" |
   PATH="$toolbin" bash "$HERE/capability-evidence" 2>"$tmp/nointerp4.err" ||
   { echo "FAIL capability-evidence failed without an interpreter"; cat "$tmp/nointerp4.err"; exit 1; }
 interp_evidence="$(git -C "$interp_root" rev-parse --absolute-git-dir)/taskflow/evidence"
 [ -f "$interp_evidence" ] && [ "$(wc -l < "$interp_evidence" | tr -d ' ')" -eq 1 ] ||
   { echo "FAIL capability-evidence recorded nothing without an interpreter"; exit 1; }
-printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"%s"}}\n' \
+printf '{"hook_event_name":"PreToolUse","tool_name":"Edit","session_id":"nointerp","tool_input":{"file_path":"%s"}}\n' \
   "$interp_root/TaskFlowDocs/2026-09-08-nointerp/prd.md" |
   PATH="$toolbin" bash "$HERE/capability-gate" >"$tmp/nointerp3.json" 2>"$tmp/nointerp3.err" ||
   { echo "FAIL capability-gate failed without an interpreter"; cat "$tmp/nointerp3.err"; exit 1; }
@@ -2433,7 +2438,7 @@ grep -q '^- Status: requested$' "$ap_task/plan.md" || { echo "FAIL unreleased re
 # because the stage lookup reads that file alone; a store whose releases outrun
 # its evidence is now refused outright, which is the point of the check, so a
 # fixture that means "these stages were released" has to mean a consistent store.
-printf 'invoke|some:requirements-skill\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_store/evidence"
+printf 'invoke|some:requirements-skill|2026-09-09-approve-smoke|v1|PRD|smoke|call-prd\nunaided|work breakdown\nunaided|testing strategy\n' > "$ap_store/evidence"
 ap_release "$ap_store" 2026-09-09-approve-smoke v1 PRD 1 invoke some:requirements-skill
 ap_release "$ap_store" 2026-09-09-approve-smoke v1 Plan 2 unaided 'work breakdown'
 ap_release "$ap_store" 2026-09-09-approve-smoke v1 Test 3 unaided 'testing strategy'
@@ -2449,7 +2454,7 @@ fi
 # on 2026-10-18, when the check was widened from this stage's own record to the
 # version: the store has no stage, so the narrower wording was describing an
 # attribution the record cannot carry. The refusal itself is the same refusal.
-grep -q 'stage \[PRD\] does not name a capability invoked in this Task version (some:requirements-skill)' "$ap/mismatch.err" \
+grep -q 'stage \[PRD\] does not name the capability released for this stage (some:requirements-skill)' "$ap/mismatch.err" \
   || { echo "FAIL capability-mismatch message"; cat "$ap/mismatch.err"; exit 1; }
 set_skills_body "$ap_task/plan.md" "$ap_line_prd" "$ap_line_plan" "$ap_line_test"
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/kind.err"; then
@@ -2457,34 +2462,22 @@ if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>
 fi
 grep -q 'stage \[Plan\] is reported as an invocation but was recorded as an unaided decision' "$ap/kind.err" \
   || { echo "FAIL kind-mismatch message"; cat "$ap/kind.err"; exit 1; }
-# The defect this section now guards against, in the shape it really takes. The
-# store carries no stage: the gate attaches one by consuming the oldest
-# unreleased line, so the stage on a record is decided by which document was
-# written first. Here the PRD bullet names a capability recorded under another
-# stage of the same version — exactly what a mispairable queue produces. Before
-# 2026-10-18 this was refused and the same two names swapped passed, so a
-# required section could only pass by misreporting itself. It must pass now.
-# `Spec` carries it because no `spec.md` exists here, so that record is in the
-# version's pool without being any required stage's own record.
-# The release needs a record behind it for the same reason as above: `approve`
-# now refuses a store whose releases outrun its evidence, so a release added
-# to this fixture has to be backed by a line in the SAME queue position.
-printf 'invoke|later:plan-skill\n' >> "$ap_store/evidence"
+# Another stage cannot back this stage.
+printf 'invoke|later:plan-skill|2026-09-09-approve-smoke|v1|Spec|smoke|call-spec\n' >> "$ap_store/evidence"
 ap_release "$ap_store" 2026-09-09-approve-smoke v1 Spec 4 invoke 'later:plan-skill'
 ap_line_prd_mispaired='- [PRD] `later:plan-skill` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.'
 set_skills_body "$ap_task/plan.md" "$ap_line_prd_mispaired" \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
   "$ap_line_test"
-if ! bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >"$ap/pool.out" 2>"$ap/pool.err"; then
-  echo "FAIL approve refused a stage naming a capability this version released"; cat "$ap/pool.err"; exit 1
+if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >"$ap/pool.out" 2>"$ap/pool.err"; then
+  echo "FAIL approve accepted a capability from a different stage"; exit 1
 fi
-grep -q 'stages released by the gate: 1 invoked, 2 unaided' "$ap/pool.out" \
-  || { echo "FAIL pooled approve did not report the released stages"; cat "$ap/pool.out"; exit 1; }
+grep -q 'stage \[PRD\] does not name the capability released for this stage' "$ap/pool.err" || { echo "FAIL cross-stage mismatch message"; cat "$ap/pool.err"; exit 1; }
 # The pool is read from `released`, not from `evidence`: a call still sitting
 # unconsumed in the queue backs nothing. Stated as its own assertion because the
 # difference is invisible in every other fixture — an implementation that read
 # `evidence` would pass everything above and quietly widen the check.
-printf 'invoke|queued:never-released\n' >> "$ap_store/evidence"
+printf 'invoke|queued:never-released|2026-09-09-approve-smoke|v1|PRD|smoke|queued-1\n' >> "$ap_store/evidence"
 set_skills_body "$ap_task/plan.md" \
   '- [PRD] `queued:never-released` — purpose: frame requirements; outcome: succeeded; incorporated: PRD outline.' \
   '- [Plan] Unaided — no capability applied to this phase; considered: work breakdown' \
@@ -2492,7 +2485,7 @@ set_skills_body "$ap_task/plan.md" \
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/queued.err"; then
   echo "FAIL approve counted an unreleased invocation"; exit 1
 fi
-grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' "$ap/queued.err" \
+grep -q 'stage \[PRD\] does not name the capability released for this stage' "$ap/queued.err" \
   || { echo "FAIL unreleased-invocation message"; cat "$ap/queued.err"; exit 1; }
 # And a name in no record for the version is still refused, pool or not.
 set_skills_body "$ap_task/plan.md" \
@@ -2502,7 +2495,7 @@ set_skills_body "$ap_task/plan.md" \
 if bash "$HERE/task" approve 2026-09-09-approve-smoke --root "$ap" >/dev/null 2>"$ap/never.err"; then
   echo "FAIL approve accepted a capability no record names"; exit 1
 fi
-grep -q 'stage \[PRD\] does not name a capability invoked in this Task version' "$ap/never.err" \
+grep -q 'stage \[PRD\] does not name the capability released for this stage' "$ap/never.err" \
   || { echo "FAIL never-invoked message"; cat "$ap/never.err"; exit 1; }
 # Reconciled: the invoke line names the invoked capability, the unaided line
 # carries the recorded class. The counts line is what makes a task that declared
@@ -3685,11 +3678,15 @@ mkdir -p "$ce_root/active/TaskFlowDocs/2026-09-27-demo" \
          "$ce_root/plain" \
          "$ce_root/achieved/TaskFlowDocs/achieved/2026-01-01-old"
 for ce_repo in active plain achieved; do git -C "$ce_root/$ce_repo" init -q; done
-printf 'x\n' > "$ce_root/active/TaskFlowDocs/2026-09-27-demo/plan.md"
+printf '> Task version: v1\n> Status: planning\n' > "$ce_root/active/TaskFlowDocs/2026-09-27-demo/plan.md"
+bash "$HERE/capability-context" stage "$ce_root/active" 2026-09-27-demo PRD smoke
 printf 'x\n' > "$ce_root/achieved/TaskFlowDocs/achieved/2026-01-01-old/plan.md"
 ce_store="$(git -C "$ce_root/active" rev-parse --absolute-git-dir)/taskflow/evidence"
+ce_count=0
 ce_fire() {  # ce_fire <repo-name> <event-json>
-  printf '%s' "$2" | bash "$ce" || { echo "FAIL capability-evidence exited nonzero"; exit 1; }
+  ce_count=$((ce_count + 1))
+  printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"call-%s"}' "$ce_root/$1" "$ce_count" | bash "$HERE/capability-context" start
+  printf '%s' "$2" | sed "s/^{/{\"session_id\":\"smoke\",\"tool_use_id\":\"call-$ce_count\",/" | bash "$ce" || { echo "FAIL capability-evidence exited nonzero"; exit 1; }
 }
 ce_lines() {  # ce_lines <evidence-file>
   [ -f "$1" ] && wc -l < "$1" | tr -d ' ' || printf '0'
@@ -3698,9 +3695,9 @@ ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"c
 ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"subagent_type\":\"Explore\"}}"
 ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"mcp__exa__web_search_exa\",\"cwd\":\"$ce_root/active\",\"tool_input\":{}}"
 [ "$(ce_lines "$ce_store")" -eq 3 ] || { echo "FAIL expected 3 records, got $(ce_lines "$ce_store")"; exit 1; }
-[ "$(sed -n '1p' "$ce_store")" = "invoke|agent-skills:spec" ] || { echo "FAIL Skill record shape"; exit 1; }
-[ "$(sed -n '2p' "$ce_store")" = "invoke|Explore" ] || { echo "FAIL Agent record shape"; exit 1; }
-[ "$(sed -n '3p' "$ce_store")" = "invoke|mcp__exa__web_search_exa" ] || { echo "FAIL MCP record shape"; exit 1; }
+[ "$(sed -n '1p' "$ce_store")" = "invoke|agent-skills:spec|2026-09-27-demo|v1|PRD|smoke|call-1" ] || { echo "FAIL Skill record shape"; exit 1; }
+[ "$(sed -n '2p' "$ce_store")" = "invoke|Explore|2026-09-27-demo|v1|PRD|smoke|call-2" ] || { echo "FAIL Agent record shape"; exit 1; }
+[ "$(sed -n '3p' "$ce_store")" = "invoke|mcp__exa__web_search_exa|2026-09-27-demo|v1|PRD|smoke|call-3" ] || { echo "FAIL MCP record shape"; exit 1; }
 # The predicate is a tool class. A built-in tool is not a capability, and an
 # event that is not PostToolUse is not this hook's business.
 ce_fire active "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"cwd\":\"$ce_root/active\",\"tool_input\":{\"command\":\"ls\"}}"
@@ -3717,13 +3714,9 @@ ce_fire achieved "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\
   || { echo "FAIL an achieved-only repository got a store"; exit 1; }
 # Bad input is a silent no-op, never a failed tool call.
 printf '{not-json}' | bash "$ce" || { echo "FAIL capability-evidence failed on bad JSON"; exit 1; }
-# With no cwd field the hook falls back to the process working directory. Run it
-# from a subshell so the fallback is exercised without touching this repository.
-( cd "$ce_root/active" \
-  && printf '%s' '{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"fallback:cwd"}}' | bash "$ce" ) \
-  || { echo "FAIL capability-evidence failed with no cwd field"; exit 1; }
-[ "$(sed -n '4p' "$ce_store")" = "invoke|fallback:cwd" ] \
-  || { echo "FAIL the cwd fallback did not record"; exit 1; }
+# A completion lacking session and call identity must not be attributed.
+( cd "$ce_root/active" && printf '%s' '{"hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"fallback:cwd"}}' | bash "$ce" )
+[ "$(ce_lines "$ce_store")" -eq 3 ] || { echo "FAIL unbound call was recorded"; exit 1; }
 echo ok
 
 echo "== external capture records lookups, in a store of its own =="
@@ -3818,7 +3811,7 @@ cg_store="$(git -C "$cg_root/repo" rev-parse --absolute-git-dir)/taskflow"
 # fail-open this section exists to catch, so the fixture must not carry it either.
 cg_json() { printf '%s' "$1" | sed 's/\\/\\\\/g'; }
 cg_event() {  # cg_event <file-path> [tool-name]
-  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"${2:-Edit}\",\"tool_input\":{\"file_path\":\"$(cg_json "$1")\"}}"
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"smoke\",\"tool_name\":\"${2:-Edit}\",\"tool_input\":{\"file_path\":\"$(cg_json "$1")\"}}"
 }
 cg_verdict() {  # cg_verdict <file-path> <allow|deny> [tool-name]
   cg_got="$(cg_event "$1" "${3:-Edit}" | bash "$cg")"
@@ -3830,16 +3823,23 @@ cg_verdict() {  # cg_verdict <file-path> <allow|deny> [tool-name]
 # as wired while checking nothing — the exact defect this task exists to close,
 # and the one that let a month pass with Codex ungated.
 cg_patch_event() {  # cg_patch_event <cwd> <patch-text>
-  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"apply_patch\",\"cwd\":\"$(cg_json "$1")\",\"tool_input\":{\"command\":\"$(cg_json "$2")\"}}"
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"smoke\",\"tool_name\":\"apply_patch\",\"cwd\":\"$(cg_json "$1")\",\"tool_input\":{\"command\":\"$(cg_json "$2")\"}}"
 }
 cg_patch_verdict() {  # cg_patch_verdict <label> <cwd> <patch-text> <allow|deny>
   cg_got="$(cg_patch_event "$2" "$3" | bash "$cg")"
   case "$cg_got" in *'"deny"'*) cg_got="deny" ;; *) cg_got="allow" ;; esac
   [ "$cg_got" = "$4" ] || { echo "FAIL gate gave $cg_got for patch $1, expected $4"; printf '%s\n' "$cg_got"; exit 1; }
 }
-cg_skill() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"skill\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
-cg_agent() { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Agent\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{\"subagent_type\":\"$1\"}}" | bash "$HERE/capability-evidence"; }
-cg_mcp()   { printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"mcp__m__t\",\"cwd\":\"$cg_root/repo\",\"tool_input\":{}}" | bash "$HERE/capability-evidence"; }
+cg_count=0
+cg_call() {  # cg_call <stage> <tool-name> <tool-input-json>
+  cg_count=$((cg_count + 1))
+  bash "$HERE/capability-context" stage "$cg_root/repo" 2026-09-27-gate "$1" smoke
+  printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"call-%s"}' "$cg_root/repo" "$cg_count" | bash "$HERE/capability-context" start
+  printf '{"hook_event_name":"PostToolUse","tool_name":"%s","cwd":"%s","session_id":"smoke","tool_use_id":"call-%s","tool_input":%s}' "$2" "$cg_root/repo" "$cg_count" "$3" | bash "$HERE/capability-evidence"
+}
+cg_skill() { cg_call PRD Skill "{\"skill\":\"$1\"}"; }
+cg_agent() { cg_call Spec Agent "{\"subagent_type\":\"$1\"}"; }
+cg_mcp() { cg_call Plan mcp__m__t '{}'; }
 
 cg_verdict "$cg_task/prd.md" deny
 # The block message is the only place the rule reaches the agent, at the moment
@@ -3983,8 +3983,8 @@ mkdir -p "$pm_repo/TaskFlowDocs/2026-01-04-at"
 git -C "$pm_repo" init -q
 printf '# Plan\n> Task version: v1\n> Status: planning\n\n## Approval\n- Status: requested\n- Approved by: pending\n- Approved version: pending\n' > "$pm_repo/TaskFlowDocs/2026-01-04-at/plan.md"
 mkdir -p "$pm_repo/.git/taskflow"
-printf 'invoke|only:cap\n' > "$pm_repo/.git/taskflow/evidence"
-printf '{"hook_event_name":"PreToolUse","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: TaskFlowDocs/2026-01-04-at/plan.md\\n*** Update File: TaskFlowDocs/2026-01-04-at/spec.md\\n*** End Patch"}}' "$pm_repo" \
+printf 'invoke|only:cap|2026-01-04-at|v1|Plan|smoke|pm-1\n' > "$pm_repo/.git/taskflow/evidence"
+printf '{"hook_event_name":"PreToolUse","session_id":"smoke","tool_name":"apply_patch","cwd":"%s","tool_input":{"command":"*** Begin Patch\\n*** Update File: TaskFlowDocs/2026-01-04-at/plan.md\\n*** Update File: TaskFlowDocs/2026-01-04-at/spec.md\\n*** End Patch"}}' "$pm_repo" \
   | bash "$cg" > "$tmp/cg.atomic"
 grep -q '"permissionDecision":"deny"' "$tmp/cg.atomic" \
   || { echo "FAIL a patch whose second path had no evidence was allowed"; cat "$tmp/cg.atomic"; exit 1; }
@@ -4104,44 +4104,20 @@ case "$gds_out" in
   *"already spent by an earlier document"*)
     echo "FAIL a desynced store is still reported as a spent invocation"; exit 1 ;;
 esac
-# Both recoveries, each with its cost, because neither is free: catching up
-# spends calls, starting over discards the releases. The count is not asserted
-# here — a shape check that hardcoded it would pass a message whose number is
-# wrong, and would fire before the check below could. It is read out of the
-# message and spent there instead.
+# A broken store must point to the explicit repair and cannot be cured by
+# adding unbound legacy invocations which do not establish phase identity.
 case "$gds_out" in
-  *"Catch up: produce "*" more capability record"*"Start over: remove "*"declare each stage again"*) ;;
-  *) echo "FAIL the desync message omits a recovery path or its cost"; printf '%s\n' "$gds_out"; exit 1 ;;
+  *"hooks/task recover"*) ;;
+  *) echo "FAIL the desync message omits repair"; exit 1 ;;
 esac
-# The number in the message is checked against the gate rather than against a
-# literal, which is what makes it a check at all: produce one fewer than it asked
-# and the gate must still deny, produce exactly that many and it must allow. Off
-# by one in either direction fails, and so does a message whose number is right
-# while the gate's own condition is not.
-gds_ask="$(printf '%s\n' "$gds_out" | sed -n 's/.*Catch up: produce \([0-9][0-9]*\) more capability.*/\1/p')"
-[ -n "$gds_ask" ] || { echo "FAIL the desync message does not say how many records close the gap"; printf '%s\n' "$gds_out"; exit 1; }
-gds_i=1
-while [ "$gds_i" -lt "$gds_ask" ]; do
-  printf 'invoke|a:cap%s\n' "$gds_i" >> "$gds_store/evidence"
-  gds_i=$((gds_i + 1))
-done
-[ -n "$(gds_msg)" ] || { echo "FAIL the gate allowed after $((gds_ask - 1)) of the $gds_ask records it asked for"; exit 1; }
-printf 'invoke|a:cap%s\n' "$gds_ask" >> "$gds_store/evidence"
-[ -z "$(gds_msg)" ] || { echo "FAIL the gate kept denying after the $gds_ask records it asked for"; exit 1; }
-# The two sound states keep their wording, and the check is on the sentence the
-# agent reads: a store with no banked record at all, and one whose queue is
-# banked but already spent.
-printf 'v1|PRD|1|invoke|a:prd\n' > "$gds_store/released"
-printf 'invoke|a:prd\n' > "$gds_store/evidence"
-case "$(gds_msg)" in
-  *"the most recent invocation was already spent by an earlier document"*) ;;
-  *) echo "FAIL a spent queue no longer says so"; exit 1 ;;
-esac
+printf 'invoke|old:cap\ninvoke|old:cap\ninvoke|old:cap\ninvoke|old:cap\ninvoke|old:cap\ninvoke|old:cap\n' > "$gds_store/evidence"
+[ -n "$(gds_msg)" ] || { echo "FAIL unbound records released the stage"; exit 1; }
 : > "$gds_store/released"; : > "$gds_store/evidence"
 case "$(gds_msg)" in
-  *"no capability invocation is recorded for this task version"*) ;;
-  *) echo "FAIL an empty store no longer says so"; exit 1 ;;
+  *"no invocation matches this task, version, stage and session"*) ;;
+  *) echo "FAIL empty store does not identify the missing matching invocation"; exit 1 ;;
 esac
+
 echo ok
 
 echo "== a release row belongs to the task that earned it =="
@@ -4188,7 +4164,7 @@ printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$xt_second/plan.md"
 for xt_prd in "$xt_first/prd.md" "$xt_second/prd.md"; do
   printf '# PRD\n> Task version: v1\n> Status: planning\n## External Facts\n- Depends on external facts: no\n- Why not: everything is settled in `hooks/task`.\n' > "$xt_prd"
 done
-printf 'invoke|a:prd\ninvoke|b:prd\n' > "$xt_store/evidence"
+printf 'invoke|a:prd|%s|v1|PRD|smoke|call-prd\ninvoke|b:prd|%s|v1|PRD|smoke|call-prd\n' "$xt_first_name" "$xt_second_name" > "$xt_store/evidence"
 cg_verdict "$xt_first/prd.md" allow
 cg_verdict "$xt_second/prd.md" allow
 [ "$(cat "$xt_store/released")" = "$(printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|PRD|2|invoke|b:prd' "$xt_first_name" "$xt_second_name")" ] \
@@ -4207,7 +4183,7 @@ cg_verdict "$xt_first/prd.md" allow           # idempotent for its own row
 printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|invoke|a:plan\n%s|v1|Test|3|invoke|a:test\n%s|v1|PRD|4|invoke|b:prd\n%s|v1|Plan|5|invoke|b:plan\n%s|v1|Test|6|invoke|b:test\n' \
   "$xt_first_name" "$xt_first_name" "$xt_first_name" \
   "$xt_second_name" "$xt_second_name" "$xt_second_name" > "$xt_store/released"
-printf 'invoke|a:prd\ninvoke|a:plan\ninvoke|a:test\ninvoke|b:prd\ninvoke|b:plan\ninvoke|b:test\n' > "$xt_store/evidence"
+printf 'invoke|a:prd|%s|v1|PRD|smoke|call-prd\ninvoke|a:plan|%s|v1|Plan|smoke|call-plan\ninvoke|a:test|%s|v1|Test|smoke|call-test\ninvoke|b:prd|%s|v1|PRD|smoke|call-prd\ninvoke|b:plan|%s|v1|Plan|smoke|call-plan\ninvoke|b:test|%s|v1|Test|smoke|call-test\n' "$xt_first_name" "$xt_first_name" "$xt_first_name" "$xt_second_name" "$xt_second_name" "$xt_second_name" > "$xt_store/evidence"
 xt_plan "$xt_first" \
   '- [PRD] `a:prd` — purpose: x; outcome: succeeded; incorporated: y' \
   '- [Plan] `a:plan` — purpose: x; outcome: succeeded; incorporated: y' \
@@ -4225,7 +4201,7 @@ xt_plan "$xt_second" \
   '- [Plan] `b:plan` — purpose: x; outcome: succeeded; incorporated: y' \
   '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
 case "$(xt_approve "$xt_second_name")" in
-  *"stage [PRD] does not name a capability invoked in this Task version (b:prd)"*) ;;
+  *"stage [PRD] does not name the capability released for this stage (b:prd)"*) ;;
   *) echo "FAIL approve accepted a capability only the other task released"; xt_approve "$xt_second_name"; exit 1 ;;
 esac
 xt_plan "$xt_second" \
@@ -4260,7 +4236,7 @@ xt_plan "$xt_second" \
   '- [Plan] `never:two` — purpose: second call; outcome: succeeded; incorporated: y' \
   '- [Test] `b:test` — purpose: x; outcome: succeeded; incorporated: y'
 case "$(xt_approve "$xt_second_name")" in
-  *"stage [Plan] does not name a capability invoked in this Task version (b:plan)"*) ;;
+  *"stage [Plan] does not name the capability released for this stage (b:plan)"*) ;;
   *) echo "FAIL approve accepted a stage whose lines all name unreleased capabilities"; xt_approve "$xt_second_name"; exit 1 ;;
 esac
 xt_plan "$xt_second" \
@@ -4302,10 +4278,10 @@ case "$xt_msg" in
   *"out of step"*) echo "FAIL a five-field row was counted as unbacked"; printf '%s\n' "$xt_msg"; exit 1 ;;
 esac
 case "$xt_msg" in
-  *'1 row(s)'*'predate the task name'*'rm -rf'*) ;;
+  *'1 row(s)'*'predate the task name'*'preserved'*) ;;
   *) echo "FAIL the gate did not explain the old row"; printf '%s\n' "$xt_msg"; exit 1 ;;
 esac
-printf 'invoke|a:new\n' >> "$xt_store/evidence"
+printf 'invoke|a:new|%s|v1|PRD|smoke|call-prd\n' "$xt_second_name" >> "$xt_store/evidence"
 cg_verdict "$xt_second/prd.md" allow
 grep -qxF "$xt_second_name|v1|PRD|3|invoke|a:new" "$xt_store/released" \
   || { echo "FAIL the release after a legacy row did not continue the queue"; cat "$xt_store/released"; exit 1; }
@@ -4450,7 +4426,7 @@ RC_PLAN
 # Both files are set, not just `released`: the earlier `unaided Spec` in this
 # block added a record, and a fixture that only rewrote `released` would be in
 # step by coincidence and approve for the wrong reason.
-printf 'invoke|a:one\ninvoke|a:two\ninvoke|a:three\n' > "$rc_ev"
+printf 'invoke|a:one|%s|v1|PRD|smoke|rc-1\ninvoke|a:two|%s|v1|Plan|smoke|rc-2\ninvoke|a:three|%s|v1|Test|smoke|rc-3\n' "$rc_name" "$rc_name" "$rc_name" > "$rc_ev"
 printf '%s|v1|PRD|1|invoke|a:one\n%s|v1|Plan|2|invoke|a:two\n%s|v1|Test|4|invoke|a:three\n' \
   "$rc_name" "$rc_name" "$rc_name" > "$rc_rel"
 rc_out="$(bash "$HERE/task" approve 2026-01-01-gds --root "$gds/repo" 2>&1)" && rc_rc=0 || rc_rc=$?
@@ -4466,6 +4442,8 @@ grep -q '^- Approved by: pending$' "$rc_plan" \
 # not about the task.
 bash "$HERE/task" recover --root "$gds/repo" >/dev/null 2>&1
 bash "$HERE/task" unaided Test --considered "testing strategy" --root "$gds/repo" >/dev/null 2>&1
+sed 's/^- \[Test\].*/- [Test] Unaided — no capability applied to this phase; considered: testing strategy/' "$rc_plan" > "$rc_plan.tmp"
+mv "$rc_plan.tmp" "$rc_plan"
 bash "$HERE/task" approve 2026-01-01-gds --root "$gds/repo" >/dev/null 2>&1 \
   || { echo "FAIL approve still refused after the store was repaired"; exit 1; }
 echo ok
@@ -4526,11 +4504,14 @@ wk_fixture() {  # wk_fixture <dir> — a base checkout plus one linked worktree
   mkdir -p "$d/wt/TaskFlowDocs/2026-09-27-wt"
   printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$d/wt/TaskFlowDocs/2026-09-27-wt/plan.md"
 }
-wk_tell() {  # wk_tell <cwd> <file-path> — run the gate on a synthetic event
-  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$1\",\"tool_input\":{\"file_path\":\"$2\"}}" | bash "$cg"
+wk_tell() {  # wk_tell <cwd> <file-path>
+  printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"smoke\",\"tool_name\":\"Edit\",\"cwd\":\"$1\",\"tool_input\":{\"file_path\":\"$2\"}}" | bash "$cg"
 }
-wb_skill() {  # wb_skill <cwd> <capability> — record one invocation from that cwd
-  printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$1\",\"tool_input\":{\"skill\":\"$2\"}}" | bash "$HERE/capability-evidence"
+wb_skill() {  # wb_skill <cwd> <capability>
+  case "$1" in */wt) wb_task=2026-09-27-wt ;; *) wb_task=2026-09-27-base ;; esac
+  bash "$HERE/capability-context" stage "$1" "$wb_task" PRD smoke
+  printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"wb-1"}' "$1" | bash "$HERE/capability-context" start
+  printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"smoke","tool_use_id":"wb-1","tool_input":{"skill":"%s"}}' "$1" "$2" | bash "$HERE/capability-evidence"
 }
 
 # Two fixtures, one per direction, because each needs the *other* tree's store
@@ -5059,8 +5040,10 @@ printf '# PRD\n\n> Task version: v1\n> Status: planning\n\n## External Facts\n\n
 printf '# Todo\n\n## Items\n\n## Conflict\n\n- ID: TF-20260927-bbbbbb\n- Status: promoted\n- Priority: normal\n- Owner: Claude\n- Source: smoke fixture\n- Added: 2026-09-27\n- Updated: 2026-09-27\n- Goal: conflict fixture\n- Task: `TaskFlowDocs/2026-09-27-conflict/`\n- Next action: Approve.\n' > "$uc/TaskFlowDocs/todo.md"
 uc_store="$(git -C "$uc" rev-parse --absolute-git-dir)/taskflow"
 uc_name=2026-09-27-conflict
-printf '%s' "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$uc\",\"tool_input\":{\"skill\":\"some:cap\"}}" | bash "$HERE/capability-evidence"
-printf '%s' "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$uc\",\"tool_input\":{\"file_path\":\"$uc/TaskFlowDocs/2026-09-27-conflict/prd.md\"}}" | bash "$HERE/capability-gate" >/dev/null
+bash "$HERE/capability-context" stage "$uc" "$uc_name" PRD smoke
+printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"uc-1"}' "$uc" | bash "$HERE/capability-context" start
+printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"smoke","tool_use_id":"uc-1","tool_input":{"skill":"some:cap"}}' "$uc" | bash "$HERE/capability-evidence"
+printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"smoke","tool_input":{"file_path":"%s/TaskFlowDocs/2026-09-27-conflict/prd.md"}}' "$uc" "$uc" | bash "$HERE/capability-gate" >/dev/null
 grep -qxF "$uc_name|v1|PRD|1|invoke|some:cap" "$uc_store/released" \
   || { echo "FAIL the gate did not release the stage against a real invocation"; cat "$uc_store/released"; exit 1; }
 bash "$HERE/task" unaided PRD --considered "requirements elicitation and framing" --root "$uc" >/dev/null \
@@ -7194,8 +7177,8 @@ for cb_pat in '"PreToolUse"' '"matcher": "Write|Edit"' '"PostToolUse"' '"matcher
     || { echo "FAIL hooks/hooks-codebuddy.json is missing $cb_pat"; exit 1; }
 done
 cb_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$cb_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$cb_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 6 ] \
-  || { echo "FAIL hooks/hooks-codebuddy.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$cb_cmds"; exit 1; }
+[ "$(printf '%s\n' "$cb_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 7 ] \
+  || { echo "FAIL hooks/hooks-codebuddy.json should wire seven hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$cb_cmds"; exit 1; }
 cb_root="$(cd "$HERE/.." && pwd)"
 cb_run() {  # cb_run <script-name> <event-json>
   cb_cmd="$(printf '%s\n' "$cb_cmds" | grep -F -- "$1" | head -1)"
@@ -7218,20 +7201,22 @@ mkdir -p "$cb_repo/TaskFlowDocs/2026-01-01-demo"
 git -C "$cb_repo" init -q
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$cb_repo/TaskFlowDocs/2026-01-01-demo/plan.md"
 cb_deny="$(cb_run capability-gate \
-  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"session_id\":\"smoke\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
   || { echo "FAIL the CodeBuddy PreToolUse command did not run"; exit 1; }
 printf '%s' "$cb_deny" | grep -q '"permissionDecision":"deny"' || {
   echo "FAIL the CodeBuddy wiring's gate did not deny an ungated stage document:"
   printf '%s\n' "$cb_deny"; exit 1
 }
+bash "$HERE/capability-context" stage "$cb_repo" 2026-01-01-demo PRD smoke
+printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"cb-1"}' "$cb_repo" | bash "$HERE/capability-context" start
 cb_run capability-evidence \
-  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"skill\":\"codebuddy:smoke\"}}" >/dev/null \
+  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"session_id\":\"smoke\",\"tool_use_id\":\"cb-1\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"skill\":\"codebuddy:smoke\"}}" >/dev/null \
   || { echo "FAIL the CodeBuddy PostToolUse command did not run"; exit 1; }
 cb_ev="$(git -C "$cb_repo" rev-parse --absolute-git-dir)/taskflow/evidence"
-[ "$(sed -n '1p' "$cb_ev")" = 'invoke|codebuddy:smoke' ] \
+[ "$(sed -n '1p' "$cb_ev")" = 'invoke|codebuddy:smoke|2026-01-01-demo|v1|PRD|smoke|cb-1' ] \
   || { echo "FAIL the CodeBuddy PostToolUse command recorded nothing"; cat "$cb_ev" 2>/dev/null; exit 1; }
 cb_allow="$(cb_run capability-gate \
-  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Write\",\"session_id\":\"smoke\",\"cwd\":\"$cb_repo\",\"tool_input\":{\"file_path\":\"$cb_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}")" \
   || { echo "FAIL the CodeBuddy PreToolUse command did not run the second time"; exit 1; }
 [ -z "$cb_allow" ] || { echo "FAIL the CodeBuddy wiring did not release the stage that call recorded:"; printf '%s\n' "$cb_allow"; exit 1; }
 # Codex is wired for the gate, and the wiring is asserted by running it.
@@ -7324,8 +7309,8 @@ trae_root="$(cd "$HERE/.." && pwd)"
 # them: left in, `\"path\"` reaches the shell as a word whose characters include
 # two quote marks, and sh reports "not found" for a path that exists.
 trae_cmds="$(sed -n 's/.*"command": *"\(.*\)".*/\1/p' "$trae_json" | sed 's/\\"/"/g')"
-[ "$(printf '%s\n' "$trae_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 6 ] \
-  || { echo "FAIL hooks/hooks-trae.json should wire six hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$trae_cmds"; exit 1; }
+[ "$(printf '%s\n' "$trae_cmds" | grep -v -F diagnostic-event | grep -c .)" -eq 7 ] \
+  || { echo "FAIL hooks/hooks-trae.json should wire seven hook commands (SessionStart, UserPromptSubmit, PreToolUse, Skill, MCP, external-evidence):"; printf '%s\n' "$trae_cmds"; exit 1; }
 printf '%s\n' "$trae_cmds" | grep -q "CLAUDE_PLUGIN_ROOT='<TASKFLOW_ROOT>'" \
   || { echo "FAIL hooks/hooks-trae.json does not set CLAUDE_PLUGIN_ROOT: Trae would discard the SessionStart context silently"; exit 1; }
 # Trae's matcher is a regex on the normalized tool name, so the gate's own names
@@ -7372,7 +7357,7 @@ printf '%s' "$trae_out" | grep -q '"hookEventName": *"SessionStart"' || {
 # Code: the wiring reuses the script, so what is proven here is that Trae's event
 # shape reaches it -- tool_input.file_path and a PreToolUse event name.
 trae_deny="$(trae_run capability-gate \
-  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"session_id\":\"smoke\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
   "$trae_repo")" || { echo "FAIL the Trae PreToolUse command did not run"; exit 1; }
 printf '%s' "$trae_deny" | grep -q '"permissionDecision":"deny"' || {
   echo "FAIL the Trae wiring's gate did not deny an ungated stage document:"
@@ -7381,15 +7366,17 @@ printf '%s' "$trae_deny" | grep -q '"permissionDecision":"deny"' || {
 
 # And a Skill call records evidence, which is what releases that deny.
 trae_ev="$(git -C "$trae_repo" rev-parse --absolute-git-dir)/taskflow/evidence"
+bash "$HERE/capability-context" stage "$trae_repo" 2026-01-01-demo PRD smoke
+printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"trae-1"}' "$trae_repo" | bash "$HERE/capability-context" start
 trae_run capability-evidence \
-  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"skill\":\"trae:smoke\"}}" \
+  "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Skill\",\"session_id\":\"smoke\",\"tool_use_id\":\"trae-1\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"skill\":\"trae:smoke\"}}" \
   "$trae_repo" >/dev/null || { echo "FAIL the Trae PostToolUse command did not run"; exit 1; }
 [ -f "$trae_ev" ] || { echo "FAIL the Trae wiring recorded no capability evidence"; exit 1; }
-grep -qx 'invoke|trae:smoke' "$trae_ev" || {
+grep -qx 'invoke|trae:smoke|2026-01-01-demo|v1|PRD|smoke|trae-1' "$trae_ev" || {
   echo "FAIL the Trae wiring recorded the wrong evidence:"; cat "$trae_ev"; exit 1
 }
 trae_allow="$(trae_run capability-gate \
-  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
+  "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\",\"session_id\":\"smoke\",\"cwd\":\"$trae_repo\",\"tool_input\":{\"file_path\":\"$trae_repo/TaskFlowDocs/2026-01-01-demo/prd.md\"}}" \
   "$trae_repo")" || { echo "FAIL the Trae PreToolUse command did not run"; exit 1; }
 printf '%s' "$trae_allow" | grep -q 'deny' && {
   echo "FAIL the Trae wiring's gate denied a stage an invocation had released:"
@@ -7782,15 +7769,8 @@ EOF
   || { echo "FAIL a marker outside Reference Pointers was admitted"; exit 1; }
 echo ok
 
-echo "== Test is a stage with a carrier, and its kind follows the evidence queue =="
-# Writing tests had a concept class in the phase table and nothing else: no
-# document for the pre-write gate to release, no stage `approve` asked about.
-# Measured 2026-10-24: 77 of 85 archived Plans ran tests, none recorded the
-# phase. It now has the other half — `unaided Test` declares it, and because
-# there is no document to spend an evidence line the declaration spends one
-# itself, taking the kind from the queue rather than from the caller. These
-# assertions cover both branches of that spend, the idempotence that keeps it
-# from spending twice, and approve's side of the contract.
+echo "== Test stage records matched invocations or unaided decisions =="
+# Test has no document gate; its explicit release checks the same identity.
 tp="$tmp/test-phase"
 mkdir -p "$tp/TaskFlowDocs/2026-01-01-tp"
 git -C "$tp" init -q
@@ -7844,7 +7824,7 @@ tp_plan_body ''
 tp_res="$(tp_unaided 'testing strategy')"
 # An empty queue means nothing was invoked, so the declaration is the record.
 case "$tp_res" in
-  "0|"*"(recorded as unaided)") ;;
+  "0|"*"-> testing strategy") ;;
   *) echo "FAIL an empty queue did not record an unaided Test stage"; printf '%s\n' "$tp_res"; exit 1 ;;
 esac
 grep -qxF "$tp_name|v1|Test|1|unaided|testing strategy" "$tp_store/released" \
@@ -7861,22 +7841,12 @@ esac
 [ "$tp_before" = "$(digest "$tp_store/evidence")$(digest "$tp_store/released")" ] \
   || { echo "FAIL re-declaring a Test stage appended a record"; exit 1; }
 tp_in_step
-# With a call standing unconsumed the declaration spends it instead, and the
-# kind follows the queue. This is the whole reason the stage could not use the
-# gate: there is no document whose first write would do the spending.
+# A Test invocation must match the task, version, stage and session.
 tp_version v2
-printf 'invoke|some:test-engineer\n' >> "$tp_store/evidence"
-tp_res="$(tp_unaided 'testing strategy')"
-case "$tp_res" in
-  "0|"*"(consumed an invocation record: some:test-engineer)") ;;
-  *) echo "FAIL an unconsumed invocation was not spent by the declaration"; printf '%s\n' "$tp_res"; exit 1 ;;
-esac
-grep -qxF "$tp_name|v2|Test|2|invoke|some:test-engineer" "$tp_store/released" \
-  || { echo "FAIL the spent record was not written as an invocation"; cat "$tp_store/released"; exit 1; }
+printf 'invoke|some:test-engineer|%s|v2|Test|smoke|call-test\n' "$tp_name" >> "$tp_store/evidence"
+bash "$HERE/capability-context" release-test "$tp" "$tp_name" smoke >/dev/null || { echo "FAIL matching Test invocation not released"; exit 1; }
+grep -qxF "$tp_name|v2|Test|2|invoke|some:test-engineer" "$tp_store/released" || { echo "FAIL Test release recorded incorrectly"; exit 1; }
 tp_in_step
-# Banked evidence must be spent, not duplicated: the line was already there.
-[ "$(awk 'END { print NR }' "$tp_store/evidence")" -eq 2 ] \
-  || { echo "FAIL spending an invocation appended a second evidence line"; cat "$tp_store/evidence"; exit 1; }
 # The vocabulary is validated exactly once, as for every other stage, and a
 # refusal writes nothing.
 tp_version v3
@@ -7891,7 +7861,7 @@ tp_in_step
 tp_plan_body '- [Test] Unaided — no capability applied to this phase; considered: testing strategy'
 tp_version v1
 printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|unaided|testing strategy\n' "$tp_name" "$tp_name" "$tp_name" > "$tp_store/released"
-printf 'invoke|a:prd\nunaided|work breakdown\nunaided|testing strategy\n' > "$tp_store/evidence"
+printf 'invoke|a:prd|%s|v1|PRD|smoke|call-prd\nunaided|work breakdown\nunaided|testing strategy\n' "$tp_name" > "$tp_store/evidence"
 tp_approve() {  # tp_approve -- "<exit>|stderr"
   tp_err="$(bash "$HERE/task" approve 2026-01-01-tp --root "$tp" 2>&1 >/dev/null)"
   printf '%s|%s' "$?" "$tp_err"
@@ -7922,6 +7892,7 @@ case "$tp_res" in
 esac
 # And an invocation agrees only for a capability this Task version released.
 printf '%s|v1|PRD|1|invoke|a:prd\n%s|v1|Plan|2|unaided|work breakdown\n%s|v1|Test|3|invoke|some:test-engineer\n' "$tp_name" "$tp_name" "$tp_name" > "$tp_store/released"
+printf 'invoke|a:prd|%s|v1|PRD|smoke|call-prd\nunaided|work breakdown\ninvoke|some:test-engineer|%s|v1|Test|smoke|call-test\n' "$tp_name" "$tp_name" > "$tp_store/evidence"
 tp_res="$(tp_approve)"
 case "$tp_res" in
   "0|"*) ;;
@@ -7930,7 +7901,7 @@ esac
 tp_plan_body '- [Test] `never:released` — purpose: write tests; outcome: succeeded; incorporated: cases.'
 tp_res="$(tp_approve)"
 case "$tp_res" in
-  *"stage [Test] does not name a capability invoked in this Task version"*) ;;
+  *"stage [Test] does not name the capability released for this stage"*) ;;
   *) echo "FAIL a Test line could name a capability no record carries"; printf '%s\n' "$tp_res"; exit 1 ;;
 esac
 # A store already out of step refuses instead of writing, and it refuses for
@@ -8533,7 +8504,7 @@ kd_set_prd "$kd_task" defect
 # accepting an invoked investigation must not depend on an unaided declaration.
 kd_gd="$(git -C "$kdw" rev-parse --absolute-git-dir)"
 rm -rf "$kd_gd/taskflow"; mkdir -p "$kd_gd/taskflow"
-printf 'invoke|some:debugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf 'invoke|some:debugger|2026-01-01-kd-defect|v1|PRD|smoke|kd-1\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
 printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:debugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
 kd_set_plan "$kd_task" '- [PRD] `some:debugger` — purpose: probe; outcome: probe; incorporated: probe'
 out="$(bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" 2>&1)" && rc=0 || rc=$?
@@ -8555,7 +8526,7 @@ if bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1;
   echo 'FAIL conflicting declarations were accepted' >&2; exit 1
 fi
 : > "$kd_gd/taskflow/declarations"
-printf 'invoke|some:DeclaredDebugger\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
+printf 'invoke|some:DeclaredDebugger|2026-01-01-kd-defect|v1|PRD|smoke|kd-2\nunaided|work breakdown\nunaided|testing strategy\n' > "$kd_gd/taskflow/evidence"
 printf '2026-01-01-kd-defect|v1|PRD|1|invoke|some:DeclaredDebugger\n2026-01-01-kd-defect|v1|Plan|2|unaided|work breakdown\n2026-01-01-kd-defect|v1|Test|3|unaided|testing strategy\n' > "$kd_gd/taskflow/released"
 kd_set_plan "$kd_task" '- [PRD] `some:DeclaredDebugger` — purpose: probe; outcome: probe; incorporated: probe'
 bash "$HERE/task" approve 2026-01-01-kd-defect --root "$kdw" >/dev/null 2>&1 || { echo 'FAIL an observed capability containing Declared was misclassified' >&2; exit 1; }

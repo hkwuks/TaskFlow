@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$#" -eq 1 ] && [ ! -e "$1" ] || exit 2
+mkdir -p "$1/repo/TaskFlowDocs/2026-01-01-one"
+root="$(cd "$1/repo" && pwd -P)"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+git -C "$root" init -q
+printf '> Task version: v1\n> Status: planning\n' > "$root/TaskFlowDocs/2026-01-01-one/plan.md"
+bash "$HERE/capability-context" stage "$root" 2026-01-01-one PRD session-a
+start="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-a","tool_use_id":"call-1"}' "$root")"
+printf '%s' "$start" | bash "$HERE/capability-context" start
+bash "$HERE/capability-context" stage "$root" 2026-01-01-one Plan session-a
+finish="$(printf '{"hook_event_name":"PostToolUse","cwd":"%s","session_id":"session-a","tool_use_id":"call-1"}' "$root")"
+result="$(printf '%s' "$finish" | bash "$HERE/capability-context" finish)"
+[ "$result" = 'session-a|call-1|2026-01-01-one|v1|PRD' ] || { echo "FAIL wrong phase snapshot: $result"; exit 1; }
+[ -z "$(printf '%s' "$finish" | bash "$HERE/capability-context" finish)" ] || { echo 'FAIL duplicate finish'; exit 1; }
+other="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-b","tool_use_id":"call-2"}' "$root")"
+printf '%s' "$other" | bash "$HERE/capability-context" start
+other="$(printf '{"hook_event_name":"PostToolUse","cwd":"%s","session_id":"session-b","tool_use_id":"call-2"}' "$root")"
+[ -z "$(printf '%s' "$other" | bash "$HERE/capability-context" finish)" ] || { echo 'FAIL unrelated session'; exit 1; }
+start="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-a","tool_use_id":"call-3"}' "$root")"
+printf '%s' "$start" | bash "$HERE/capability-context" start
+finish="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"session-a","tool_use_id":"call-3","tool_input":{"skill":"plan:skill"}}' "$root")"
+printf '%s' "$finish" | bash "$HERE/capability-evidence"
+event="$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","session_id":"session-a","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-01-one/plan.md"}}' "$root" "$root")"
+verdict="$(printf '%s' "$event" | bash "$HERE/capability-gate")"
+[ -z "$verdict" ] || { echo "FAIL matching invocation blocked: $verdict"; exit 1; }
+gitdir="$(git -C "$root" rev-parse --absolute-git-dir)"
+grep -q '^2026-01-01-one|v1|Plan|1|invoke|plan:skill$' "$gitdir/taskflow/released" || { echo 'FAIL matching invocation not released'; exit 1; }
+# A crash after the evidence append but before pending cleanup must not duplicate it.
+printf 'session-a|call-3|2026-01-01-one|v1|Plan\n' >> "$gitdir/taskflow/capability-pending"
+printf '%s' "$finish" | bash "$HERE/capability-evidence"
+[ "$(wc -l < "$gitdir/taskflow/evidence" | tr -d ' ')" = 1 ] || { echo 'FAIL retry duplicated the invocation'; exit 1; }
+bash "$HERE/capability-context" stage "$root" 2026-01-01-one Test session-a
+start="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-a","tool_use_id":"call-4"}' "$root")"
+printf '%s' "$start" | bash "$HERE/capability-context" start
+finish="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"session-a","tool_use_id":"call-4","tool_input":{"skill":"test:skill"}}' "$root")"
+printf '%s' "$finish" | bash "$HERE/capability-evidence"
+if bash "$HERE/capability-context" release-test "$root" 2026-01-01-one session-b >/dev/null 2>&1; then echo 'FAIL another session released Test'; exit 1; fi
+bash "$HERE/capability-context" release-test "$root" 2026-01-01-one session-a >/dev/null
+grep -q '^2026-01-01-one|v1|Test|2|invoke|test:skill$' "$gitdir/taskflow/released" || { echo 'FAIL Test invocation not released'; exit 1; }
+start="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-a","tool_use_id":"failed-1"}' "$root")"
+printf '%s' "$start" | bash "$HERE/capability-context" start
+failure="$(printf '{"hook_event_name":"PostToolUseFailure","cwd":"%s","session_id":"session-a","tool_use_id":"failed-1"}' "$root")"
+printf '%s' "$failure" | bash "$HERE/capability-context" finish
+finish="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"session-a","tool_use_id":"failed-1","tool_input":{"skill":"test:skill"}}' "$root")"
+printf '%s' "$finish" | bash "$HERE/capability-evidence"
+[ "$(wc -l < "$gitdir/taskflow/evidence" | tr -d ' ')" = 2 ] || { echo 'FAIL failed invocation was recorded'; exit 1; }
+start="$(printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"session-a","agent_id":"subagent-1","tool_use_id":"sub-1"}' "$root")"
+printf '%s' "$start" | bash "$HERE/capability-context" start
+finish="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"session-a","agent_id":"subagent-1","tool_use_id":"sub-1","tool_input":{"skill":"sub:skill"}}' "$root")"
+printf '%s' "$finish" | bash "$HERE/capability-evidence"
+[ "$(wc -l < "$gitdir/taskflow/evidence" | tr -d ' ')" = 2 ] || { echo 'FAIL subagent call attributed to parent'; exit 1; }
+echo 'PASS context snapshots phase and session'

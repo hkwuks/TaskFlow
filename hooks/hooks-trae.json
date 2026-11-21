@@ -53,6 +53,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Skill|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '<TASKFLOW_ROOT>/hooks/run-hook.cmd' capability-context start",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PostToolUse": [

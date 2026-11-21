@@ -35,6 +35,34 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
+## Detect WSL Git reading Windows worktree metadata and explain how to run the chec
+
+- ID: TF-20261121-8a3c54
+- Status: inbox
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-21-worktree-diagnostic
+- Kind: defect
+- Added: 2026-11-21
+- Updated: 2026-11-21
+- Goal: Detect WSL Git reading Windows worktree metadata and explain how to run the check using Windows Git Bash without rewriting paths
+- Task: Not promoted.
+- Next action: Clarify and promote when ready.
+
+## Prevent capability evidence crossing task and stage boundaries while preserving
+
+- ID: TF-20261121-1cee4b
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-21
+- Kind: defect
+- Added: 2026-11-21
+- Updated: 2026-11-21
+- Goal: Prevent capability evidence crossing task and stage boundaries while preserving legacy ledgers and unaided declarations
+- Task: `TaskFlowDocs/2026-11-21-capability-attribution/`
+- Next action: Complete PRD / Spec / Plan and request approval.
+
 ## 修复新任务未发现并优先复用符合条件的已归档工作树
 
 - ID: TF-20261120-f1d4ab

@@ -52,6 +52,16 @@
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "Skill|Agent|Task|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CODEBUDDY_PLUGIN_ROOT}/hooks/capability-context\" start",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [

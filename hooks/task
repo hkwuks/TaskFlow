@@ -87,8 +87,7 @@ rel_old_note() {  # rel_old_note <released-file> — one sentence, or nothing
   [ -f "$1" ] || return 0
   n="$(rel_old_rows "$1")"
   [ "$n" -gt 0 ] || return 0
-  printf ' %s row(s) in %s predate the task name on a release and belong to no task, so they no longer count as anybody'"'"'s release; they still hold their sequences, so nothing was double-spent. Clear them once with:  rm -rf %s' \
-    "$n" "$1" "$(dirname "$1")"
+  printf ' %s row(s) in %s predate the task name and cannot release a new stage; history is preserved.' "$n" "$1"
 }
 
 # The name rule lives in one file, called the way `capability-gate` calls
@@ -1407,7 +1406,7 @@ case "$command" in
     version="$(sed -n 's/^> Task version: \(v[0-9][0-9]*\)$/\1/p' "$root/TaskFlowDocs/$active/plan.md" | sed -n '1p')"
     [ -n "$version" ] || fail "cannot read task version"
     released="$git_dir/taskflow/released"; declarations="$git_dir/taskflow/declarations"
-    if [ -f "$released" ] && awk -F'|' -v t="$active" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$released"; then
+    if bash "$SCRIPT_DIR/capability-valid" "$released" "$git_dir/taskflow/evidence" "$active" "$version" "$stage"; then
       fail "stage already released; no declaration was written"
     fi
     if [ -f "$declarations" ] && awk -F'|' -v t="$active" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$declarations"; then
@@ -1478,9 +1477,7 @@ case "$command" in
     # that key for the same reason it is in the gate: without it a declaration
     # here returns "already released" on a row another task wrote, and prints the
     # other task's name while doing it.
-    if [ -f "$released" ] \
-       && awk -F'|' -v t="$active" -v v="$unaided_version" -v s="$stage" \
-            '$1 == t && $2 == v && $3 == s { found = 1 } END { exit !found }' "$released"; then
+    if bash "$SCRIPT_DIR/capability-valid" "$released" "$evidence" "$active" "$unaided_version" "$stage"; then
       printf 'unaided OK: %s in %s -> %s (already released)\n' "$stage" "$active" "$considered"
       exit 0
     fi
@@ -1506,38 +1503,9 @@ case "$command" in
       || fail "capability store out of step under $git_dir/taskflow: released reaches seq $consumed but evidence holds $total line(s). Repair it first:  bash hooks/task recover  — it keeps every release whose record still exists and discards only the ones whose record is gone, after which each discarded stage has to be declared again. Removing $git_dir/taskflow also works and discards every release, not only the unbacked ones."
     considered="$(printf '%s' "$considered" | tr -d '|\r\n')"
     mkdir -p "$git_dir/taskflow" || fail "cannot create the capability store under $git_dir"
-    # `Test` is the one stage declared without a document, so the gate never
-    # consumes a record for it and this command does what the gate would have
-    # done: spend the next unreleased evidence line, if there is one. The kind
-    # then follows the queue rather than the declaration -- a declarer decides
-    # which concept class applied, never whether a call happened. Every other
-    # stage keeps the older behaviour below, which writes its own evidence line
-    # and so cannot spend one.
-    #
-    # The invariant both paths hold is that the highest sequence in `released`
-    # equals the number of lines in `evidence`. The gate releases a stage while
-    # `evidence lines > consumed`, so a release with no line behind it makes
-    # consumed exceed the evidence and denies every stage from then on. Spending
-    # an existing line leaves the two in step by construction; declaring without
-    # one adds its line first.
-    if [ "$stage" = "Test" ]; then
-      if [ "$total" -gt "$consumed" ]; then
-        next=$((consumed + 1))
-        spent="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
-        spent_kind="${spent%%|*}"
-        spent_capability="${spent#*|}"
-        printf '%s|%s|Test|%s|%s|%s\n' "$active" "$unaided_version" "$next" "$spent_kind" "$spent_capability" >> "$released"
-        printf 'unaided OK: Test in %s -> %s (consumed an invocation record: %s)\n' \
-          "$active" "$considered" "$spent_capability"
-        exit 0
-      fi
-      printf 'unaided|%s\n' "$considered" >> "$evidence"
-      printf '%s|%s|Test|%s|unaided|%s\n' "$active" "$unaided_version" "$((consumed + 1))" "$considered" >> "$released"
-      printf 'unaided OK: Test in %s -> %s (recorded as unaided)\n' "$active" "$considered"
-      exit 0
-    fi
+    # A declaration appends its own evidence; existing unconsumed calls stay intact.
     printf 'unaided|%s\n' "$considered" >> "$evidence"
-    printf '%s|%s|%s|%s|unaided|%s\n' "$active" "$unaided_version" "$stage" "$((consumed + 1))" "$considered" >> "$released"
+    printf '%s|%s|%s|%s|unaided|%s\n' "$active" "$unaided_version" "$stage" "$((total + 1))" "$considered" >> "$released"
     printf 'unaided OK: %s in %s -> %s\n' "$stage" "$active" "$considered"
     ;;
 
@@ -1695,64 +1663,7 @@ case "$command" in
       /^## (External Facts|Task Kind)$/ { if (++seen[$0] > 1) bad = 1 }
       END { exit bad }
     ' "$prd" || fail "duplicate reserved PRD section; approval not written"
-    # Stage gate: reconcile each required stage against the record the pre-write
-    # gate wrote, instead of trusting the Plan's prose. Shape alone could not
-    # tell an invoked phase from an uninvoked one — `Unaided — …` is
-    # indistinguishable from a real call in text, and could be written after the
-    # fact. The release record exists only because a capability really ran, or
-    # because a deliberate unaided decision was recorded.
-    #
-    # The concept vocabulary is deliberately NOT re-checked here: `task unaided`
-    # is its single entry point, so re-reading the same text at approve would
-    # only re-validate something the record already guarantees.
-    #
-    # The two branches reconcile against different domains, on purpose.
-    #
-    # `Unaided` keeps the exact match: the class was typed into `task unaided`
-    # and written to the record by that same command, so "the recorded class" and
-    # "the class that was declared" are one fact, and requiring the line to carry
-    # it verbatim is a real constraint.
-    #
-    # An invocation line is checked against the version's *invoke pool* — every
-    # capability released as `invoke` under this Task version — and not against
-    # this stage's own record. The wider domain is not a relaxation of the rule
-    # for convenience; the narrower one could not be met honestly. The store
-    # carries no stage: `capability-evidence` records a call without knowing
-    # which phase is running (`the event does not say`), and the gate attaches a
-    # stage afterwards by consuming the oldest unreleased line. So the stage on a
-    # record is assigned by queue position, and which capability a phase is
-    # credited with depends on the order its document happened to be written.
-    # Measured 2026-10-17 on 1.1.5: with plan.md written before prd.md, an honest
-    # section was refused ("does not name the recorded capability") while the
-    # same two names swapped passed. The section is specified as a report of what
-    # happened, so the check has to admit a truthful report; it still refuses a
-    # name no invocation in this version produced.
-    #
-    # The pool is read from `released`, not from `evidence`, so a call still
-    # sitting unconsumed in the queue backs nothing. A declaration writes both
-    # its own line and its release, so a declared capability is always in the
-    # pool; a real call enters it when its stage is released.
-    #
-    # Neither branch is the stronger one in general, and they must not be
-    # "unified": widening the Unaided side would accept a class the command never
-    # recorded. Both fail closed before any Approval field is written.
-    #
-    # Required stages: always [PRD] and [Plan]; [Spec] when spec.md exists
-    # (promote large writes it). Untagged bullets do not satisfy a stage.
-    # Fail closed before any Approval field is written.
-    #
-    # A store that is out of step is refused here for the same reason `unaided`
-    # refuses it, and this is the half that was missing until it was measured
-    # 2026-10-25: with `released` at seq 4 and `evidence` holding 3 lines, this
-    # command looked each stage up by (version, stage) alone, found the row, and
-    # wrote `approve OK (user, v1)` — while the row's sequence pointed at a
-    # record that no longer exists. Deleting that one row made the same
-    # document fail with "stage [Test] was never released by the pre-write
-    # gate". So whether a task could be approved depended on an unsupported
-    # release row, which is precisely the inequality `recover` restores and
-    # precisely what this check must not pass. The sequence arithmetic is the
-    # same awk the gate and `unaided` use, so the three never disagree about
-    # what "out of step" means.
+    # Reconcile each stage with its own validated release or declaration.
     cap_git_dir="$(git -C "$root" rev-parse --absolute-git-dir 2>/dev/null)" || cap_git_dir=""
     cap_released="$cap_git_dir/taskflow/released"
     cap_evidence="$cap_git_dir/taskflow/evidence"
@@ -2070,6 +1981,7 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
         record="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" \
           '$1 == t && $2 == v && $3 == s { keep = $0 } END { if (keep != "") print keep }' "$cap_released")"
       fi
+      if [ -n "$record" ] && ! bash "$SCRIPT_DIR/capability-valid" "$cap_released" "$cap_evidence" "$task" "$approved_version" "$stage"; then record=""; fi
       declarations="$cap_git_dir/taskflow/declarations"
       if [ -f "$declarations" ]; then
         declared_rows="$(awk -F'|' -v t="$task" -v v="$approved_version" -v s="$stage" '$1 == t && $2 == v && $3 == s { print $4 }' "$declarations")"
@@ -2085,6 +1997,10 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
       inherited=""
       if [ -z "$record" ]; then
         inherited="$(rel_inherit "$cap_released" "$task" "$approved_version" "$stage")"
+        if [ -n "$inherited" ]; then
+          inherited_version="$(printf '%s\n' "$inherited" | cut -d'|' -f2)"
+          bash "$SCRIPT_DIR/capability-valid" "$cap_released" "$cap_evidence" "$task" "$inherited_version" "$stage" || inherited=""
+        fi
         record="$inherited"
       fi
       if [ -f "$declarations" ] && { [ -z "$record" ] || [ -n "$inherited" ]; }; then
@@ -2110,11 +2026,7 @@ A defect task's requirements come from finding out why the behaviour is wrong, s
       # one reason it was not: the name happened to be on the second line.
       # Measured 2026-10-26.
       cap_hit=0
-      cap_pool=""
-      if [ -f "$cap_released" ]; then
-        cap_pool="$(awk -F'|' -v t="$task" -v v="$approved_version" \
-          '$1 == t && $2 == v && $5 == "invoke" { print $6 }' "$cap_released")"
-      fi
+      cap_pool="$capability"
       cap_inv_lines=0
       cap_una_lines=0
       cap_una_noconsider=0
@@ -2165,7 +2077,7 @@ STAGE_LINES
         fi
         [ "$cap_inv_lines" -gt 0 ] \
           || fail "approve blocked: stage [$stage] is reported Unaided but was recorded as an invocation ($capability)"
-        fail "approve blocked: stage [$stage] does not name a capability invoked in this Task version ($capability)"
+        fail "approve blocked: stage [$stage] does not name the capability released for this stage ($capability)"
       fi
       if [ "$kind" = "unaided" ]; then
         cap_unaided=$((cap_unaided + 1))

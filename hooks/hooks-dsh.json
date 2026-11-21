@@ -47,6 +47,15 @@
             "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' capability-gate"
           }
         ]
+      },
+      {
+        "matcher": "skill|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CLAUDE_PLUGIN_ROOT='${CLAUDE_PLUGIN_ROOT}' bash '${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' capability-context start"
+          }
+        ]
       }
     ],
     "PostToolUse": [
