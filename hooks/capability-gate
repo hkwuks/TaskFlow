@@ -211,7 +211,7 @@ judge_path() {
   # discipline-level guard and says so in the spec: a Bash write can still reach
   # it, and closing that would need signing, which v1 deliberately does not do.
   case "$file_path" in
-    */taskflow/evidence|*/taskflow/released|*/taskflow/declarations|*/taskflow/evidence/*|*/taskflow/released/*|*/taskflow/declarations/*)
+    */taskflow/capability-contexts|*/taskflow/capability-pending|*/taskflow/evidence|*/taskflow/released|*/taskflow/declarations|*/taskflow/evidence/*|*/taskflow/released/*|*/taskflow/declarations/*)
       deny "TaskFlow capability store is not writable by the agent. Record a stage with: bash hooks/task declared STAGE --capability 'name' or bash hooks/task unaided STAGE --considered 'concept class'"
       ;;
   esac
@@ -300,7 +300,7 @@ if [ -f "$declarations" ]; then
 fi
 [ "$declared_count" -le 1 ] || deny "TaskFlow: stage [$stage] has conflicting capability declarations."
 if [ "$declared_count" -eq 1 ]; then
-  if [ -f "$released" ] && awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }' "$released"; then
+  if bash "$HERE/capability-valid" "$released" "$evidence" "$task_name" "$version" "$stage"; then
     deny "TaskFlow: stage [$stage] has both a declaration and an observed release."
   fi
   return 0
@@ -313,45 +313,33 @@ fi
 # first one's row, reads it as its own, and is released by a record it never
 # earned. Measured 2026-10-26: two tasks at `v1` in one repository, the second
 # released with no row written and no evidence spent.
-if [ -f "$released" ] \
-   && awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" \
-        '$1 == t && $2 == v && $3 == s { found = 1 } END { exit !found }' "$released"; then
-  return 0
-fi
+if bash "$HERE/capability-valid" "$released" "$evidence" "$task_name" "$version" "$stage"; then return 0; fi
 
-# Consumption is global, not per task version. The evidence file is one
-# timeline: a line a released stage spent is spent, so a Task-version bump
-# cannot be satisfied by evidence an earlier version already used.
-# A row is `<task>|<version>|<stage>|<seq>|<kind>|<capability>`; before the task
-# name was added it was the same row without that first field. `consumed` spans
-# both, because it answers "how much of the evidence queue is spent" and that
-# question has nothing to do with which task spent it. Reading only the new
-# format would turn every old row's sequence back into "unspent" and release
-# evidence a second time. Any other field count prints BAD rather than a number
-# for the same reason: a sequence that silently fell to zero reads as a store
-# with nothing banked. `hooks/task` carries the same awk behind `rel_max_seq` and
-# is where the reasoning lives; this copy is here rather than sourced because a
-# hook is executed standalone, and the two are asserted against the same fixture
-# so they cannot drift.
-# Evidence is consumed as a queue, oldest first. Taking the newest line instead
-# would strand every invocation banked before the first document — and banking
-# one is a normal way to work: read the task, invoke once for the framing, then
-# start writing. Either way each document still spends a distinct invocation.
-# The consequence, and it is a real one: this pairing is by queue position, not
-# by stage. The line below attaches `$stage` to whichever record is next, so
-# which stage a call's record lands on follows the order the documents are
-# written. A stage that invokes twice leaves its extra record to the next stage,
-# and the store carries no way to recover which phase really made the call.
+# Keep sequence integrity while matching unspent records by task, version, stage and session.
 total=0
 if [ -f "$evidence" ]; then
   total="$(awk 'END { print NR }' "$evidence")"
 fi
 
-if [ "$total" -gt "$consumed" ]; then
-  next=$((consumed + 1))
+if [ "$total" -lt "$consumed" ]; then
+  deny "TaskFlow capability store is out of step: released reaches seq $consumed while evidence holds $total line(s). Inspect the ledger and use bash hooks/task recover if appropriate."
+fi
+session_id="$(printf '%s' "$event_json" | bash "$HERE/json-field" session_id 2>/dev/null || true)"
+next=0
+if [ -n "$session_id" ] && [ -f "$evidence" ]; then
+  released_input=/dev/null
+  [ ! -f "$released" ] || released_input="$released"
+  next="$(awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" -v session="$session_id" '
+    FILENAME == ARGV[1] { if (NF == 6) used[$4]=1; else if (NF == 5) used[$3]=1; next }
+    NF == 7 && $7 != "" && $1 == "invoke" && $3 == t && $4 == v && $5 == s && $6 == session && !used[FNR] { print FNR; exit }
+    END { if (FNR == 0) print 0 }
+  ' "$released_input" "$evidence")"
+  next="${next:-0}"
+fi
+if [ "$next" -gt 0 ]; then
   record="$(awk -v n="$next" 'NR == n { print; exit }' "$evidence")"
-  kind="${record%%|*}"
-  capability="${record#*|}"
+  kind="invoke"
+  capability="$(printf '%s\n' "$record" | cut -d'|' -f2)"
   row="$(printf '%s|%s|%s|%s|%s|%s' "$task_name" "$version" "$stage" "$next" "$kind" "$capability")"
   # A patch judges every path before any of them is released, so a refusal on
   # the second path cannot leave the first path's stage released and its evidence
@@ -367,13 +355,14 @@ if [ "$total" -gt "$consumed" ]; then
   # `consumed` is bumped as each row is queued, so a patch naming two documents
   # gets two distinct records rather than both claiming the next sequence.
   if [ "$patch_mode" -eq 1 ]; then
+    if printf '%s' "$pending_release" | awk -F'|' -v t="$task_name" -v v="$version" -v s="$stage" '$1 == t && $2 == v && $3 == s { found=1 } END { exit !found }'; then return 0; fi
     pending_release="$pending_release$row
 "
-    consumed="$next"
+    [ "$next" -le "$consumed" ] || consumed="$next"
     return 0
   fi
-  mkdir -p "$store" 2>/dev/null || return 0
-  printf '%s\n' "$row" >> "$released" 2>/dev/null || return 0
+  mkdir -p "$store" 2>/dev/null || deny "TaskFlow cannot write the capability store."
+  printf '%s\n' "$row" >> "$released" 2>/dev/null || deny "TaskFlow cannot record the stage release."
   return 0
 fi
 
@@ -447,35 +436,10 @@ classes_note=""
 case "$classes_all" in
   *'; '*) classes_note=" This phase's concept classes are: $classes_all — name the one that applies." ;;
 esac
-# Three causes, three messages, and they are not interchangeable. `consumed` comes
-# from `released` alone while `total` counts `evidence`, so a store whose evidence
-# was truncated or deleted reads as already past the end of the queue. Reporting
-# that as "already spent" is simply false: the sequences it counts as spent have
-# no record behind them at all, and the remedy it points at — produce one more
-# invocation — cannot close a gap of five. Measured 2026-10-25: `released` at seq
-# 5 with an empty `evidence` denied with "the most recent invocation was already
-# spent by an earlier document", on a store where no line had ever been spent.
-#
-# Catching the gap is also worth doing because it is not a dead end, which the
-# message has to say. The gate allows while `evidence lines > consumed`, so
-# appending `consumed - total + 1` records closes it, and the releases already in
-# `released` survive untouched — `approve` reconciles against that file alone, so
-# the task continues normally afterwards. Deleting the store also works and is
-# the path `hooks/task unaided` names, but it throws those releases away; both are
-# stated with their cost and neither is recommended over the other.
-#
-# The path is separator-normalized before it goes into the message for the reason
-# `stray_evidence` above normalizes its own: this hook embeds it in JSON without
-# an escaping step, and a Windows git directory carries backslashes.
-if [ "$total" -lt "$consumed" ]; then
-  store_shown="$(printf '%s' "$store" | tr '\134' '/')"
-  gap=$((consumed - total))
-  deny "TaskFlow pre-write gate blocked stage [$stage]: the capability store is out of step, so this is not about whether a capability was invoked. $store_shown/released reaches seq $consumed while $store_shown/evidence holds $total line(s) — $gap record(s) the releases still point at are gone, and no release can be written until the two agree again. Three ways forward, with their costs. Repair:  bash hooks/task recover  — it discards only the releases whose record is gone, keeping every stage whose record still exists, and those discarded stages then have to be declared again. Catch up: produce $((gap + 1)) more capability record(s), after which this gate allows again and every release already in released survives. Start over: remove $store_shown and declare each stage again, which works but discards those releases. The records themselves cannot be recovered. The concept class for this stage is '$class'.$classes_note"
-fi
 if [ "$consumed" -gt 0 ]; then
-  detail="the most recent invocation was already spent by an earlier document"
+  detail="no unconsumed invocation matches this task, version, stage and session"
 else
-  detail="no capability invocation is recorded for this task version"
+  detail="no invocation matches this task, version, stage and session"
 fi
 stray="$(stray_evidence "$task_dir" "$git_dir")"
 [ -n "$stray" ] && detail="$detail. $stray Confirm with git branch --show-current and pwd, then re-run the invocation from this working tree or move the work here — see SKILL.md, Isolate before the first document"
@@ -488,10 +452,10 @@ old_note=""
 if [ -f "$released" ]; then
   old_rows="$(awk -F'|' 'NF == 5 { n++ } END { print n + 0 }' "$released")"
   if [ "$old_rows" -gt 0 ]; then
-    old_note=" Note: $old_rows row(s) in $(printf '%s' "$released" | tr '\134' '/') predate the task name on a release and belong to no task, so they no longer count as anybody's release; they still hold their sequences, so nothing was double-spent. Clear them once with:  rm -rf $(printf '%s' "$store" | tr '\134' '/')"
+    old_note=" Note: $old_rows row(s) in $(printf '%s' "$released" | tr '\134' '/') predate the task name on a release and belong to no task, so they no longer count as anybody's release; they still hold their sequences, so nothing was double-spent. The historical rows are preserved."
   fi
 fi
-deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work and a capability is chosen inside the phase, so invoke one first — any Skill, agent, or MCP tool — then write the document. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$classes_note$old_note"
+deny "TaskFlow pre-write gate blocked stage [$stage]: $detail. TaskFlow is entered before the work. Before the invocation, select this task and stage with bash <installed-taskflow>/hooks/capability-context stage <worktree> <task-id> <stage> <session-id>, then invoke a capability. If the host cannot supply a session and call identity, record an actual invocation using bash hooks/task declared. If no capability fits this phase, declare it:  bash hooks/task unaided $stage --considered '$class'.$classes_note$old_note"
 }
 
 # Judge every target the event named. `deny` exits inside `judge_path`, so a
@@ -506,7 +470,7 @@ for target in "$@"; do
 done
 
 if [ -n "$pending_release" ]; then
-  mkdir -p "$store" 2>/dev/null || exit 0
-  printf '%s' "$pending_release" >> "$released" 2>/dev/null || exit 0
+  mkdir -p "$store" 2>/dev/null || deny "TaskFlow cannot write the capability store."
+  printf '%s' "$pending_release" >> "$released" 2>/dev/null || deny "TaskFlow cannot record the stage release."
 fi
 exit 0

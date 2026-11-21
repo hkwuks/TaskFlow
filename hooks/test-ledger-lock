@@ -9,9 +9,11 @@ git -C "$fixture" init -q
 gitdir="$(git -C "$fixture" rev-parse --absolute-git-dir)"
 printf '# Plan\n> Task version: v1\n> Status: planning\n' > "$fixture/TaskFlowDocs/2026-01-01-one/plan.md"
 json_cwd="$(printf '%s' "$fixture" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+bash "$HERE/capability-context" stage "$fixture" 2026-01-01-one PRD smoke
+printf '{"hook_event_name":"PreToolUse","cwd":"%s","session_id":"smoke","tool_use_id":"call-1"}' "$json_cwd" | bash "$HERE/capability-context" start
 source "$HERE/ledger-lock"
 taskflow_ledger_acquire "$gitdir" || { echo 'FAIL lock acquire'; exit 1; }
-printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","tool_input":{"skill":"test"}}' "$json_cwd" | bash "$HERE/capability-evidence"
+printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"smoke","tool_use_id":"call-1","tool_input":{"skill":"test"}}' "$json_cwd" | bash "$HERE/capability-evidence"
 [ ! -e "$gitdir/taskflow/evidence" ] || { echo 'FAIL evidence written during lock'; exit 1; }
 printf '{"hook_event_name":"PostToolUse","cwd":"%s","tool_input":{"url":"https://example.org/test"}}' "$json_cwd" | bash "$HERE/external-evidence"
 [ ! -e "$gitdir/taskflow/external" ] || { echo 'FAIL external written during lock'; exit 1; }
@@ -20,8 +22,8 @@ grep -q 'handoff' "$fixture/task-out" || { cat "$fixture/task-out"; exit 1; }
 printf '{"hook_event_name":"PreToolUse","tool_name":"Write","cwd":"%s","tool_input":{"file_path":"%s/TaskFlowDocs/2026-01-01-one/prd.md"}}' "$json_cwd" "$json_cwd" | bash "$HERE/capability-gate" > "$fixture/gate-out"
 grep -q '"permissionDecision":"deny"' "$fixture/gate-out" || { echo 'FAIL gate allowed during lock'; exit 1; }
 taskflow_ledger_release
-printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","tool_input":{"skill":"test"}}' "$json_cwd" | bash "$HERE/capability-evidence"
-grep -qxF 'invoke|test' "$gitdir/taskflow/evidence" || { echo 'FAIL normal evidence absent'; exit 1; }
+printf '{"hook_event_name":"PostToolUse","tool_name":"Skill","cwd":"%s","session_id":"smoke","tool_use_id":"call-1","tool_input":{"skill":"test"}}' "$json_cwd" | bash "$HERE/capability-evidence"
+grep -qxF 'invoke|test|2026-01-01-one|v1|PRD|smoke|call-1' "$gitdir/taskflow/evidence" || { echo 'FAIL normal evidence absent'; exit 1; }
 printf 'pending\n' > "$gitdir/taskflow/handoff.pending"
 if TMPDIR="$fixture/tmp" bash "$HERE/task" approve 2026-01-01-one --root "$fixture" > "$fixture/pending-out" 2>&1; then echo 'FAIL pending handoff allowed'; exit 1; fi
 grep -q 'handoff' "$fixture/pending-out" || { cat "$fixture/pending-out"; exit 1; }

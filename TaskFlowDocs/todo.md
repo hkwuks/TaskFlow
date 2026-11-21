@@ -35,13 +35,33 @@ has an issue number or URL.
 
 <!-- Add new items at the top using the template below. -->
 
-## 复用已归档 worktree 时将目录重命名以反映新任务
+## Detect WSL Git reading Windows worktree metadata and explain how to run the chec
 
-- ID: TF-20261120-b13cd8
-- Status: done
-- Goal: 复用已归档 worktree 时将目录重命名以反映新任务
-- Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
-- Next action: None — completed and archived.
+- ID: TF-20261121-8a3c54
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-21-worktree-diagnostic
+- Kind: defect
+- Added: 2026-11-21
+- Updated: 2026-11-21
+- Goal: Detect WSL Git reading Windows worktree metadata and explain how to run the check using Windows Git Bash without rewriting paths
+- Task: Not promoted.
+- Next action: Implement and verify WSL and Windows Git mismatch diagnostic in the shared task
+
+## Prevent capability evidence crossing task and stage boundaries while preserving
+
+- ID: TF-20261121-1cee4b
+- Status: in_progress
+- Priority: normal
+- Owner: Unknown
+- Source: user:2026-11-21
+- Kind: defect
+- Added: 2026-11-21
+- Updated: 2026-11-21
+- Goal: Prevent capability evidence crossing task and stage boundaries while preserving legacy ledgers and unaided declarations
+- Task: `TaskFlowDocs/2026-11-21-capability-attribution/`
+- Next action: Complete PRD / Spec / Plan and request approval.
 
 ## 修复新任务未发现并优先复用符合条件的已归档工作树
 
@@ -1361,4 +1381,12 @@ has an issue number or URL.
 - Status: done
 - Goal: 增加脱敏且不阻塞运行的 TaskFlow 诊断日志和用户导出能力，用于正式安装后调查能力引导与调用问题
 - Task: `TaskFlowDocs/achieved/2026-11-13-diagnostic-logs/`
+- Next action: None — completed and archived.
+
+## 复用已归档 worktree 时将目录重命名以反映新任务
+
+- ID: TF-20261120-b13cd8
+- Status: done
+- Goal: 复用已归档 worktree 时将目录重命名以反映新任务
+- Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
 - Next action: None — completed and archived.

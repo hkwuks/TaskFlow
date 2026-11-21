@@ -32,6 +32,8 @@ old="$(git -C "$wt" rev-parse HEAD)"
 gitdir="$(git -C "$wt" rev-parse --absolute-git-dir)"
 mkdir -p "$gitdir/taskflow/version-baselines/$task"
 printf 'old evidence\n' > "$gitdir/taskflow/evidence"
+printf 'old context\n' > "$gitdir/taskflow/capability-contexts"
+printf 'old pending\n' > "$gitdir/taskflow/capability-pending"
 printf 'old external\n' > "$gitdir/taskflow/external"
 printf '%s\n' "$base" > "$gitdir/taskflow/version-baselines/$task/v1"
 printf 'keep ignored\n' > "$wt/ignored-cache"
@@ -120,10 +122,10 @@ git -C "$repo" branch -d feature/fault-switch > "$fixture/merged-delete" || { ec
 
 [ ! -e "$wt/old.txt" ] || { echo 'FAIL unmerged old content carried into new branch'; exit 1; }
 [ "$(cat "$wt/ignored-cache")" = 'keep ignored' ] || { echo 'FAIL ignored data lost'; exit 1; }
-[ ! -e "$gitdir/taskflow/evidence" ] && [ ! -e "$gitdir/taskflow/external" ] || { echo 'FAIL old evidence remains active'; exit 1; }
+[ ! -e "$gitdir/taskflow/evidence" ] && [ ! -e "$gitdir/taskflow/external" ] && [ ! -e "$gitdir/taskflow/capability-contexts" ] && [ ! -e "$gitdir/taskflow/capability-pending" ] || { echo 'FAIL old evidence remains active'; exit 1; }
 [ "$(cat "$gitdir/taskflow/version-baselines/$task/v1")" = "$base" ] || { echo 'FAIL version baseline changed'; exit 1; }
 snapshot="$(find "$gitdir/taskflow/handoff-history/$task" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r d; do [ ! -f "$d/journal/phase" ] || printf '%s\n' "$d"; done | head -1)"
-[ -n "$snapshot" ] && [ "$(cat "$snapshot/evidence")" = 'old evidence' ] && [ "$(cat "$snapshot/external")" = 'old external' ] || { echo 'FAIL old ledger not preserved'; exit 1; }
+[ -n "$snapshot" ] && [ "$(cat "$snapshot/evidence")" = 'old evidence' ] && [ "$(cat "$snapshot/external")" = 'old external' ] && [ "$(cat "$snapshot/capability-contexts")" = 'old context' ] && [ "$(cat "$snapshot/capability-pending")" = 'old pending' ] || { echo 'FAIL old ledger not preserved'; exit 1; }
 [ -f "$snapshot/journal/phase" ] && [ "$(cat "$snapshot/journal/phase")" = verified ] || { echo 'FAIL completed journal'; exit 1; }
 if git -C "$wt" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then echo 'FAIL new branch unexpectedly tracks old branch'; exit 1; fi
 # Archive the next task, then return to the original branch and its evidence.
@@ -162,7 +164,7 @@ wt="$repo/.worktrees/old"
 [ "$(git -C "$wt" symbolic-ref --short HEAD)" = feature/old ] || { echo 'FAIL original branch not restored'; exit 1; }
 [ "$(git -C "$wt" rev-parse HEAD)" = "$old" ] || { echo 'FAIL original commit changed'; exit 1; }
 [ "$(git -C "$repo" rev-parse feature/new)" = "$new_tip" ] || { echo 'FAIL next branch changed'; exit 1; }
-[ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ "$(cat "$gitdir/taskflow/external")" = 'old external' ] || { echo 'FAIL original ledger not restored'; exit 1; }
+[ "$(cat "$gitdir/taskflow/evidence")" = 'old evidence' ] && [ "$(cat "$gitdir/taskflow/external")" = 'old external' ] && [ "$(cat "$gitdir/taskflow/capability-contexts")" = 'old context' ] && [ "$(cat "$gitdir/taskflow/capability-pending")" = 'old pending' ] || { echo 'FAIL original ledger not restored'; exit 1; }
 [ "$(cat "$gitdir/taskflow/version-baselines/$task/v1")" = "$base" ] || { echo 'FAIL original baseline lost'; exit 1; }
 next_snapshot="$(find "$gitdir/taskflow/handoff-history/$next_task" -mindepth 1 -maxdepth 1 -type d | head -1)"
 [ "$(cat "$next_snapshot/evidence")" = 'next evidence' ] || { echo 'FAIL next ledger not preserved'; exit 1; }

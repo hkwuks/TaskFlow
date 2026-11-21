@@ -52,6 +52,16 @@
             "shell": "bash"
           }
         ]
+      },
+      {
+        "matcher": "Skill|Agent|Task|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-context start",
+            "shell": "bash"
+          }
+        ]
       }
     ],
     "PostToolBatch": [
@@ -82,6 +92,16 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" diagnostic-event",
+            "shell": "bash"
+          }
+        ]
+      },
+      {
+        "matcher": "Skill|Agent|Task|mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd\" capability-context finish",
             "shell": "bash"
           }
         ]

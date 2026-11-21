@@ -27,6 +27,8 @@ taskflow/hooks/
 ├── test-ledger-lock           # concurrent handoff guard fixture
 ├── test-worktree-candidates # archived worktree discovery fixture
 ├── test-reuse-worktree        # archived worktree reuse fixture
+├── capability-context           # capture task, stage, session and invocation context
+├── capability-valid             # validate attributed stage releases
 ├── capability-evidence # records observable capability invocations
 ├── external-evidence   # records outside URLs from tool events
 ├── capability-gate     # refuses a stage document's first body write
@@ -52,6 +54,8 @@ taskflow/hooks/
 ├── templates           # the default rule documents repo-rules installs
 ├── todo-check          # no merge in a commit or rev range dropped a Todo entry
 ├── run-hook.cmd        # cross-platform launcher (polyglot batch/bash)
+├── test-capability-attribution  # task and stage attribution regression
+├── test-capability-context      # invocation context regression
 ├── test-host-parity    # synthetic host event and capability declaration fixture
 ├── smoke-test-windows.ps1 # Windows PowerShell/cmd lifecycle regression
 ├── test-multi-todo              # shared task and per-item lifecycle regression
@@ -282,26 +286,7 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   Plan — the state line still comes from `summarize-state` — and a Plan that marks
   nothing produces the same three lines it always did.
   `skills/taskflow/references/artifacts.md` states who marks an entry and what earns it.
-- `capability-evidence` and `capability-gate` are the pre-write gate pair. The
-  recorder and gate are wired where the host exposes the required event shapes;
-  Codex records MCP events and subagent starts; dsh recognizes lowercase tools. Codex
-  matches `PreToolUse` on `apply_patch` and reads the target paths out of the
-  patch text. The first appends one `kind|capability`
-  line per real `Skill`/agent/MCP invocation to `<absolute-git-dir>/taskflow/evidence`;
-  the second refuses the first body write of `prd.md`/`spec.md`/`plan.md` in an
-  active task directory until that stage can be released against such a line,
-  and then records the release in `.../taskflow/released`. The evidence file is
-  one queue consumed oldest first, and the stage is attached by the gate at the
-  moment of release — `capability-evidence` does not know which phase is running,
-  so **which record a stage spends follows the order the documents are written,
-  not the order the calls were made**; a stage that invokes twice leaves its
-  extra record to the next stage, and a Task version spends one record per stage
-  it writes. Both stores live in
-  the git directory, so they are per worktree, invisible to `git status`, and
-  left alone by `version`. Both hooks are complete no-ops outside an active task
-  directory — they must be, because `~/.claude/settings.json` hooks are
-  machine-global and fire in unrelated repositories and concurrent sessions.
-  Neither writes a core document; the gate can only deny, never approve.
+- `capability-context`, `capability-evidence`, and `capability-gate` bind observed calls to the selected task, version, stage and session. PreToolUse snapshots the identity and PostToolUse records a successful call; the gate consumes only matching evidence. See `skills/taskflow/references/runtime.md` for the commands and host limitations.
 - The gate needs a supported input shape from a host, not merely a
   deny-capable event: the written file's path under `tool_input.file_path` with a
   tool name the scripts already match, or patch text under
@@ -310,12 +295,7 @@ Trae's, so the `.trae/hooks.json` path above is the one this repository document
   `input`; its current wiring is covered by synthetic events, not a real session.
   What does not depend on a gate is `hooks/task unaided`: it
   writes its own `released` line, so a stage can be declared on any host. That is
-  also the whole carrier for `Test`, the one stage with no document: its
-  declaration does what the gate would have done and spends a standing evidence
-  record when there is one, so the recorded kind follows the queue rather than
-  the caller. Several things *do* depend on that record, because `hooks/task
-  approve` reconciles against it and `approve` is the only sanctioned writer of
-  the Approval block.
+  also a carrier for unaided `Test`; a matching observed Test call is released through `capability-context release-test`. Approval reconciles each stage against its own release or declaration.
 - `task declared <stage> --capability <name>` records an actual use that the
   host could not observe in a separate per-worktree ledger. The Plan marks it
   `Declared` and approval reports it separately from observed calls.
