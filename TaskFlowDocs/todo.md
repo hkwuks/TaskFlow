@@ -1390,3 +1390,18 @@ has an issue number or URL.
 - Goal: 复用已归档 worktree 时将目录重命名以反映新任务
 - Task: `TaskFlowDocs/achieved/2026-11-20-worktree-rename/`
 - Next action: None — completed and archived.
+
+## English docs named the Trae switch in Chinese, and cited the Chinese doc site
+
+- ID: TF-20261121-d35656
+- Status: done
+- Priority: normal
+- Owner: Claude
+- Source: direct user request
+- Kind: capability
+- Added: 2026-11-21
+- Updated: 2026-11-21
+- Goal: Replace the untranslated Chinese Trae UI switch name in the English docs with its documented English label (Import Hook configuration in CLAUDE), verified against docs.trae.ai
+- Task: None — direct docs change in `docs/trae-lang`; the English text now cites the English doc set and its labels, `README.zh-CN.md` keeps the Chinese pair.
+- Next action: None — completed.
+
