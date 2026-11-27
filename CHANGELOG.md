@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [1.2.9] — 2026-11-27
+
+### Changed
+
+- Correct Trae's English hook import label, documentation links and global configuration path. [#151](https://github.com/hkwuks/TaskFlow/pull/151)
+- Audit the tip when a force push makes the previous commit unreachable, avoiding a false Todo audit failure. [#151](https://github.com/hkwuks/TaskFlow/pull/151)
+
+### Installation and known limitations
+
+- No new dependency is required. Trae documentation is based on its published documentation; end-to-end host installation was not tested.
+- When the previous commit is unreachable, the Todo audit can inspect only the tip, not the unavailable range.
+
+### Verification
+
+- Merged main commit `0d464f036f1a3cc59905dc58e637a60361afa8ae` passed [Hooks CI](https://github.com/hkwuks/TaskFlow/actions/runs/44921226987), including the smoke matrix, evals and Todo audit.
+- The release commit changes this section, version literals and README version samples only; implementation smoke is covered by the CI above and is not repeated locally.
+- Release preparation: `hooks/repository-check .`, `hooks/release-check .`, Skill quick validation and `git diff --check` passed. Existing catalog pins are checked again after preparing the new tag.
+
+### Release
+
+- Planned tag: `v1.2.9`; tag and marketplace pins are pushed atomically after release-owner approval.
+
+
 ## [1.2.8] — 2026-11-21
 
 ### Changed
